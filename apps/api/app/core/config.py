@@ -15,7 +15,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import AnyHttpUrl, model_validator
+from pydantic import AliasChoices, AnyHttpUrl, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -67,10 +67,17 @@ class Settings(BaseSettings):
 
     # --- object storage (S3 / Cloudflare R2) ---
     # When S3_ENDPOINT_URL / keys are unset, files are written to local disk
-    # under STORAGE_LOCAL_DIR and served from /media (dev only).
-    S3_ENDPOINT_URL: str | None = None
-    S3_ACCESS_KEY_ID: str | None = None
-    S3_SECRET_ACCESS_KEY: str | None = None
+    # under STORAGE_LOCAL_DIR and served from /media (dev only). Each also
+    # accepts the shorter S3_ENDPOINT / S3_ACCESS_KEY / S3_SECRET_KEY names.
+    S3_ENDPOINT_URL: str | None = Field(
+        default=None, validation_alias=AliasChoices("S3_ENDPOINT_URL", "S3_ENDPOINT")
+    )
+    S3_ACCESS_KEY_ID: str | None = Field(
+        default=None, validation_alias=AliasChoices("S3_ACCESS_KEY_ID", "S3_ACCESS_KEY")
+    )
+    S3_SECRET_ACCESS_KEY: str | None = Field(
+        default=None, validation_alias=AliasChoices("S3_SECRET_ACCESS_KEY", "S3_SECRET_KEY")
+    )
     S3_BUCKET: str = "tryonu-media"
     S3_REGION: str = "auto"
     S3_PUBLIC_BASE_URL: str | None = None  # CDN/public URL prefix, if any
@@ -117,10 +124,28 @@ class Settings(BaseSettings):
     FLIPKART_AFFILIATE_TOKEN: str | None = None
     DARAZ_API_KEY: str | None = None
 
+    # --- affiliate networks (distinct from retailers — a network like Awin
+    # provides the tracking/commission layer across multiple retailers) ---
+    AWIN_API_TOKEN: str | None = None
+    AWIN_PUBLISHER_ID: str | None = None
+    CJ_API_TOKEN: str | None = None
+    CJ_WEBSITE_ID: str | None = None
+    IMPACT_ACCOUNT_SID: str | None = None
+    IMPACT_AUTH_TOKEN: str | None = None
+
     # --- payments ---
     PAYMENT_PROVIDER: Literal["stripe", "mock"] = "mock"
     STRIPE_SECRET_KEY: str | None = None
     STRIPE_WEBHOOK_SECRET: str | None = None
+
+    # --- email (password reset, etc.) ---
+    EMAIL_PROVIDER: Literal["smtp", "mock"] = "mock"
+    SMTP_HOST: str | None = None
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str | None = None
+    SMTP_PASSWORD: str | None = None
+    SMTP_FROM_EMAIL: str = "noreply@tryonu.ai"
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30
 
     # --- rate limiting ---
     RATE_LIMIT_PER_MINUTE: int = 120
@@ -139,6 +164,8 @@ class Settings(BaseSettings):
             self.LLM_PROVIDER = "mock"
         if self.PAYMENT_PROVIDER == "stripe" and not self.STRIPE_SECRET_KEY:
             self.PAYMENT_PROVIDER = "mock"
+        if self.EMAIL_PROVIDER == "smtp" and not self.SMTP_HOST:
+            self.EMAIL_PROVIDER = "mock"
         return self
 
 

@@ -56,7 +56,9 @@ class OpenAIStylistProvider(StylistLLMProvider):
                             {"role": "user", "content": user_prompt},
                         ],
                         "response_format": {"type": "json_object"},
-                        "temperature": 0.4,
+                        # No "temperature" override: newer OpenAI models (this
+                        # one included) reject any value other than their
+                        # default (1) and error with a 400 if one is sent.
                     },
                 )
             except httpx.RequestError as exc:

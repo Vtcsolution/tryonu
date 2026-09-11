@@ -14,15 +14,15 @@ from app.services.stylist_service import ask_stylist
 
 router = APIRouter(prefix="/stylist", tags=["stylist"])
 
+_stylist_rate_limit = Depends(rate_limiter("stylist_ask", limit=20, window_seconds=3600))
 
-@router.post(
-    "/ask",
-    response_model=StylistAskResponse,
-    dependencies=[Depends(rate_limiter("stylist_ask", limit=20, window_seconds=3600))],
-)
-async def ask(payload: StylistAskRequest, user: CurrentUser, db: DbSession):
-    request_row = await ask_stylist(db, user_id=user.id, req=payload)
 
+async def _run_stylist_request(payload: StylistAskRequest, user_id: str, db: DbSession) -> StylistAskResponse:
+    request_row = await ask_stylist(db, user_id=user_id, req=payload)
+    return await _to_response(db, request_row)
+
+
+async def _to_response(db: DbSession, request_row: StylistRequest) -> StylistAskResponse:
     products: list[Product] = []
     if request_row.recommended_product_ids:
         result = await db.execute(
@@ -54,6 +54,36 @@ async def ask(payload: StylistAskRequest, user: CurrentUser, db: DbSession):
     )
 
 
+@router.post("/ask", response_model=StylistAskResponse, dependencies=[_stylist_rate_limit])
+async def ask(payload: StylistAskRequest, user: CurrentUser, db: DbSession):
+    """Kept as the original/canonical route — the frontend calls this one.
+    /chat, /recommend and /outfit below are the same underlying behavior
+    under the route names from the spec; nothing is duplicated."""
+    return await _run_stylist_request(payload, user.id, db)
+
+
+@router.post("/chat", response_model=StylistAskResponse, dependencies=[_stylist_rate_limit])
+async def chat(payload: StylistAskRequest, user: CurrentUser, db: DbSession):
+    """Conversational entry point — same engine as /ask. A prompt like
+    "I need a smart casual outfit for dinner under $200" goes in; only
+    real database products come back."""
+    return await _run_stylist_request(payload, user.id, db)
+
+
+@router.post("/recommend", response_model=StylistAskResponse, dependencies=[_stylist_rate_limit])
+async def recommend(payload: StylistAskRequest, user: CurrentUser, db: DbSession):
+    """Product-recommendation entry point — same engine as /ask."""
+    return await _run_stylist_request(payload, user.id, db)
+
+
+@router.post("/outfit", response_model=StylistAskResponse, dependencies=[_stylist_rate_limit])
+async def outfit(payload: StylistAskRequest, user: CurrentUser, db: DbSession):
+    """Outfit-generation entry point. Set max_items > 1 to get a full
+    outfit back (an Outfit row is created automatically once more than one
+    real product is selected — see services/stylist_service.py)."""
+    return await _run_stylist_request(payload, user.id, db)
+
+
 @router.get("/history", response_model=list[StylistAskResponse])
 async def history(user: CurrentUser, db: DbSession, limit: int = 20):
     result = await db.execute(
@@ -63,21 +93,4 @@ async def history(user: CurrentUser, db: DbSession, limit: int = 20):
         .limit(limit)
     )
     rows = result.scalars().all()
-
-    out: list[StylistAskResponse] = []
-    for row in rows:
-        products = []
-        if row.recommended_product_ids:
-            pr = await db.execute(
-                select(Product)
-                .where(Product.id.in_(row.recommended_product_ids))
-                .options(selectinload(Product.images), selectinload(Product.retailer))
-            )
-            by_id = {p.id: p for p in pr.scalars().all()}
-            products = [by_id[pid] for pid in row.recommended_product_ids if pid in by_id]
-        out.append(
-            StylistAskResponse(
-                id=row.id, summary=row.response_summary or "", products=products, outfit=None, created_at=row.created_at
-            )
-        )
-    return out
+    return [await _to_response(db, row) for row in rows]

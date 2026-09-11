@@ -10,7 +10,14 @@ from app.core.rate_limit import rate_limiter
 from app.core.security import TokenType, decode_token
 from app.models.user import User
 from app.schemas.common import Message
-from app.schemas.user import LoginRequest, RegisterRequest, TokenResponse, UserOut
+from app.schemas.user import (
+    ForgotPasswordRequest,
+    LoginRequest,
+    RegisterRequest,
+    ResetPasswordRequest,
+    TokenResponse,
+    UserOut,
+)
 from app.services import auth_service, google_oauth
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -82,6 +89,28 @@ async def logout(
 @router.get("/me", response_model=UserOut)
 async def me(user: CurrentUser):
     return UserOut.model_validate(user)
+
+
+@router.post(
+    "/forgot-password",
+    response_model=Message,
+    dependencies=[Depends(rate_limiter("auth_forgot_password", limit=5, window_seconds=3600))],
+)
+async def forgot_password(payload: ForgotPasswordRequest, db: DbSession):
+    await auth_service.request_password_reset(db, email=payload.email.lower())
+    # Same response whether or not the email exists — never confirm/deny
+    # which addresses are registered.
+    return Message(detail="If that email is registered, a reset link has been sent.")
+
+
+@router.post(
+    "/reset-password",
+    response_model=Message,
+    dependencies=[Depends(rate_limiter("auth_reset_password", limit=10, window_seconds=3600))],
+)
+async def reset_password(payload: ResetPasswordRequest, db: DbSession):
+    await auth_service.reset_password(db, token=payload.token, new_password=payload.new_password)
+    return Message(detail="Password updated — please sign in again.")
 
 
 @router.get("/google/login")

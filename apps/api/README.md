@@ -17,6 +17,8 @@ services**:
 | Fashion stylist | OpenAI-compatible chat model | heuristic mock, same real-products-only contract (`app/ai/llm/`) |
 | Payments | Stripe | instant-success mock (`app/payments/`) |
 | Retailers | Amazon / eBay / Flipkart / Daraz (need program credentials) | `SampleCatalogProvider` — 8 real, working products (`app/retailers/`) |
+| Affiliate networks | Awin / CJ / Impact (Awin application submitted, awaiting approval — no real credentials exist yet) | `DirectAffiliateProvider` — plain `?ref=tryonu` links, always active (`app/affiliate_networks/`) |
+| Email | SMTP | `MockEmailProvider` — logs the message instead of sending (`app/email/`) |
 
 Swapping any of these is a config change (`.env`) — application code never
 branches on "are we in prod."
@@ -78,8 +80,20 @@ Next.js  --HTTP-->  FastAPI  --enqueue-->  Redis/RQ  --pull-->  Worker(s)
   mapped back to real `Product` records before being returned.
 
 See `app/models/enums.py` and `app/models/__init__.py` for the full schema
-(20 tables: users, credits, photos, products, try-on jobs/results, outfits,
-affiliate clicks, AI usage, subscriptions/payments, ...).
+(22 tables: users, refresh/password-reset tokens, credits, photos, products,
+retailers/affiliate networks, try-on jobs/results, outfits, affiliate
+clicks, AI usage, subscriptions/payments, ...).
+
+## API surface
+
+Routes are grouped under `/api/v1`: `auth` (register/login/refresh/logout,
+Google OAuth, forgot/reset-password), `users`, `photos`, `products`,
+`search` (alias over the same catalog engine as `products`), `tryon`,
+`stylist` (`/ask` is canonical; `/chat`, `/recommend`, `/outfit` are the
+same engine under the route names the product spec uses), `outfits`,
+`credits`, `webhooks` (Stripe), and `admin` (overview, users, tryon-jobs,
+ai-usage, affiliate-clicks, retailers, payments — all role-gated, not just
+hidden from the frontend). Full interactive list at `/docs`.
 
 ## Adding a real retailer
 
@@ -97,3 +111,23 @@ upload photos → browse products → try on → credits debited/refunded → sh
 now → admin dashboard) works end to end against SQLite + in-process jobs +
 local disk storage with no external accounts. Flip `VIRTUAL_TRYON_PROVIDER`,
 `LLM_PROVIDER`, `PAYMENT_PROVIDER` to the real value once you have keys.
+
+## Automated tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest -q
+```
+
+The suite (`apps/api/tests/`) runs against an isolated SQLite file with
+every provider forced to its mock — no real API credits are ever spent by
+`pytest`. It covers: registration/login/session auth, the credit ledger
+(debit, insufficient-credits, idempotent debit-by-reference, refund,
+double-refund guard), product/search catalog correctness, forgot/reset
+password (including single-use-token and old-sessions-revoked behavior),
+the full try-on job lifecycle (success debits credits, provider failure
+fully refunds them), affiliate click tracking, the AI stylist's
+real-products-only guarantee (including a hostile provider double that
+returns out-of-range indexes, to prove they're dropped not fabricated),
+admin-route authorization, and Stripe webhook signature verification
+(valid/tampered/wrong-secret/stale-timestamp/missing-header).

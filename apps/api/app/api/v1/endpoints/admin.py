@@ -164,3 +164,40 @@ async def list_affiliate_clicks(_: AdminUser, db: DbSession, limit: int = 50, of
         }
         for r in rows
     ]
+
+
+@router.get("/retailers")
+async def list_retailers(_: AdminUser, db: DbSession):
+    from sqlalchemy.orm import selectinload
+
+    result = await db.execute(select(Retailer).options(selectinload(Retailer.network)))
+    return [
+        {
+            "id": r.id,
+            "slug": r.slug,
+            "name": r.name,
+            "is_active": r.is_active,
+            "affiliate_network": r.network.name if r.network else r.affiliate_network,
+            "base_commission_pct": r.base_commission_pct,
+        }
+        for r in result.scalars().all()
+    ]
+
+
+@router.get("/payments")
+async def list_payments(_: AdminUser, db: DbSession, limit: int = 50, offset: int = 0):
+    result = await db.execute(select(Payment).order_by(Payment.created_at.desc()).limit(limit).offset(offset))
+    rows = result.scalars().all()
+    return [
+        {
+            "id": p.id,
+            "user_id": p.user_id,
+            "amount_cents": p.amount_cents,
+            "currency": p.currency,
+            "status": p.status.value,
+            "provider": p.provider,
+            "external_payment_id": p.external_payment_id,
+            "created_at": p.created_at,
+        }
+        for p in rows
+    ]

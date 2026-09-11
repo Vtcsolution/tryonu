@@ -1,9 +1,11 @@
-"""Registration, login, and refresh-token issuance/rotation/revocation.
-Google OAuth2 code-exchange lives in app/services/google_oauth.py."""
+"""Registration, login, refresh-token issuance/rotation/revocation, and
+password reset. Google OAuth2 code-exchange lives in
+app/services/google_oauth.py."""
 
 from __future__ import annotations
 
 import hashlib
+import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
@@ -11,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.logging import logger
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -18,8 +21,9 @@ from app.core.security import (
     verify_password,
 )
 from app.core.time import as_aware, utcnow
+from app.email.registry import get_email_provider
 from app.models.enums import AuthProvider, CreditReason
-from app.models.user import RefreshToken, User
+from app.models.user import PasswordResetToken, RefreshToken, User
 from app.services import credit_service
 
 settings = get_settings()
@@ -164,3 +168,73 @@ async def revoke_refresh_token(db: AsyncSession, *, refresh_token: str, user_id:
     if stored is not None and stored.revoked_at is None:
         stored.revoked_at = datetime.now(timezone.utc)
         await db.commit()
+
+
+async def _revoke_all_refresh_tokens(db: AsyncSession, user_id: str) -> None:
+    result = await db.execute(
+        select(RefreshToken).where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
+    )
+    now = datetime.now(timezone.utc)
+    for token in result.scalars().all():
+        token.revoked_at = now
+
+
+async def request_password_reset(db: AsyncSession, *, email: str) -> None:
+    """Always succeeds from the caller's point of view — whether or not
+    the email is registered is never revealed (prevents account
+    enumeration). If it *is* registered, emails a single-use reset link
+    valid for PASSWORD_RESET_TOKEN_EXPIRE_MINUTES."""
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    if user is None or not user.is_active:
+        logger.info("password_reset_requested_unknown_email")
+        return
+
+    raw_token = secrets.token_urlsafe(32)
+    db.add(
+        PasswordResetToken(
+            user_id=user.id,
+            token_hash=_hash_token(raw_token),
+            expires_at=datetime.now(timezone.utc)
+            + timedelta(minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES),
+        )
+    )
+    await db.commit()
+
+    reset_url = f"{settings.FRONTEND_URL}/reset-password?token={raw_token}"
+    provider = get_email_provider()
+    await provider.send(
+        to=user.email,
+        subject="Reset your TryOnU password",
+        text_body=(
+            f"Someone requested a password reset for your TryOnU account.\n\n"
+            f"Reset it here (valid for {settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES} minutes):\n"
+            f"{reset_url}\n\n"
+            "If you didn't request this, you can safely ignore this email."
+        ),
+    )
+    logger.info("password_reset_email_sent", user_id=user.id)
+
+
+async def reset_password(db: AsyncSession, *, token: str, new_password: str) -> None:
+    token_hash = _hash_token(token)
+    result = await db.execute(select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash))
+    stored = result.scalar_one_or_none()
+
+    if (
+        stored is None
+        or stored.used_at is not None
+        or as_aware(stored.expires_at) < utcnow()
+    ):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Reset link is invalid or expired")
+
+    user = await db.get(User, stored.user_id)
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Reset link is invalid or expired")
+
+    user.hashed_password = hash_password(new_password)
+    stored.used_at = datetime.now(timezone.utc)
+    # a password reset is a strong signal to sign the account out everywhere
+    await _revoke_all_refresh_tokens(db, user.id)
+    await db.commit()
+    logger.info("password_reset_completed", user_id=user.id)
