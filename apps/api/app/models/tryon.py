@@ -1,0 +1,77 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import TYPE_CHECKING
+
+from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.models.enums import JobStatus
+
+if TYPE_CHECKING:
+    from app.models.outfit import Outfit
+    from app.models.photo import UserPhoto
+    from app.models.product import Product
+    from app.models.user import User
+
+
+class TryOnJob(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A single virtual try-on request, run entirely out of band by a
+    background worker — see app/services/queue.py + app/workers/tasks.
+    Never generated synchronously inside an HTTP request.
+    """
+
+    __tablename__ = "tryon_jobs"
+
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    user_photo_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("user_photos.id", ondelete="RESTRICT"), nullable=False
+    )
+    # Single-product try-on. For a combined-outfit try-on, product_id is
+    # null and outfit_id is set instead.
+    product_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("products.id", ondelete="RESTRICT"), nullable=True
+    )
+    outfit_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("outfits.id", ondelete="RESTRICT"), nullable=True
+    )
+
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    provider_model: Mapped[str] = mapped_column(String(64), nullable=False)
+    provider_job_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    status: Mapped[JobStatus] = mapped_column(
+        Enum(JobStatus, native_enum=False, length=16), default=JobStatus.QUEUED, nullable=False
+    )
+    credit_cost: Mapped[int] = mapped_column(Integer, nullable=False)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attempt: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
+    queued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped["User"] = relationship()
+    user_photo: Mapped["UserPhoto"] = relationship()
+    product: Mapped["Product | None"] = relationship()
+    outfit: Mapped["Outfit | None"] = relationship()
+    result: Mapped["TryOnResult | None"] = relationship(
+        back_populates="job", cascade="all, delete-orphan", uselist=False
+    )
+
+
+class TryOnResult(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "tryon_results"
+
+    job_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("tryon_jobs.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+    storage_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    image_url: Mapped[str] = mapped_column(String(1024), nullable=False)
+    width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    job: Mapped["TryOnJob"] = relationship(back_populates="result")

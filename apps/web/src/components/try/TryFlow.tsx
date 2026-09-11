@@ -1,0 +1,428 @@
+"use client";
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/Button";
+import { MIN_PHOTOS, PhotoUploader } from "@/components/upload/PhotoUploader";
+import { ApiError, affiliateGoUrl, resolveMediaUrl } from "@/lib/api/client";
+import { products as productsApi, tryon as tryonApi } from "@/lib/api/endpoints";
+import { useSession } from "@/lib/auth/useSession";
+import type { Product, TryOnJob, UserPhoto } from "@/lib/api/types";
+
+const STEPS = ["Fitting profile", "Choose product", "Your look"] as const;
+const TERMINAL: TryOnJob["status"][] = ["completed", "failed", "cancelled"];
+
+const STAGE_LABEL: Record<TryOnJob["status"], string> = {
+  queued: "Queued — waiting for a worker",
+  processing: "Processing — rendering the look",
+  completed: "Completed",
+  failed: "Failed",
+  cancelled: "Cancelled",
+};
+
+export function TryFlow() {
+  const router = useRouter();
+  const { user, isLoading: sessionLoading } = useSession();
+  const qc = useQueryClient();
+
+  const [step, setStep] = useState(0);
+  const [userPhotos, setUserPhotos] = useState<UserPhoto[]>([]);
+  const [profileReady, setProfileReady] = useState(false);
+  const [product, setProduct] = useState<Product | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [elapsedSec, setElapsedSec] = useState(0);
+
+  // gate the whole flow behind auth — a try-on always needs a stored photo
+  useEffect(() => {
+    if (!sessionLoading && !user) router.replace("/sign-in?next=/try");
+  }, [sessionLoading, user, router]);
+
+  const primaryPhoto =
+    userPhotos.find((p) => p.kind === "front") ?? userPhotos.find((p) => p.kind === "full_body") ?? userPhotos[0];
+
+  const productsQuery = useQuery({
+    queryKey: ["products", "try-picker"],
+    queryFn: () => productsApi.list({ limit: 12, sort: "newest" }),
+    enabled: step === 1,
+  });
+
+  const createJob = useMutation({
+    mutationFn: () =>
+      tryonApi.create({ user_photo_id: primaryPhoto!.id, product_id: product!.id }),
+    onSuccess: (job) => {
+      setJobId(job.id);
+      setElapsedSec(0);
+      setStep(2);
+      qc.invalidateQueries({ queryKey: ["session", "me"] }); // credits just changed
+    },
+  });
+
+  const jobQuery = useQuery({
+    queryKey: ["tryon-job", jobId],
+    queryFn: () => tryonApi.get(jobId!),
+    enabled: !!jobId && step === 2,
+    refetchInterval: (query) => (query.state.data && TERMINAL.includes(query.state.data.status) ? false : 1200),
+  });
+
+  useEffect(() => {
+    if (step !== 2 || !jobQuery.data || TERMINAL.includes(jobQuery.data.status)) return;
+    const t = setInterval(() => setElapsedSec((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [step, jobQuery.data]);
+
+  useEffect(() => {
+    if (jobQuery.data?.status === "completed") {
+      setStep(3);
+      qc.invalidateQueries({ queryKey: ["session", "me"] });
+    }
+  }, [jobQuery.data?.status, qc]);
+
+  const activeStepIndex = Math.min(step, 2);
+
+  if (sessionLoading || !user) {
+    return (
+      <section className="mx-auto w-[min(920px,calc(100%-42px))] py-24 text-center">
+        <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-line-strong border-t-sage" />
+        <p className="mt-4 text-[14px] text-muted">Checking your session…</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="mx-auto w-[min(920px,calc(100%-42px))] py-14 md:py-20">
+      {/* progress header */}
+      <ol className="mb-10 flex items-center gap-3 text-[12px] sm:gap-4">
+        {STEPS.map((label, i) => {
+          const done = i < activeStepIndex || step === 3;
+          const active = i === activeStepIndex && step !== 3;
+          return (
+            <li key={label} className="flex flex-1 items-center gap-3">
+              <span
+                className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border text-[12px] font-semibold transition-colors duration-300 ${
+                  done
+                    ? "border-sage bg-sage text-white"
+                    : active
+                      ? "border-sage text-sage-deep"
+                      : "border-line-strong text-faint"
+                }`}
+              >
+                {done ? "✓" : i + 1}
+              </span>
+              <span
+                className={`hidden font-display text-[14px] sm:block ${active || done ? "text-ink" : "text-faint"}`}
+              >
+                {label}
+              </span>
+              {i < STEPS.length - 1 && <span className="h-px flex-1 bg-line" />}
+            </li>
+          );
+        })}
+      </ol>
+
+      {/* STEP 0 — upload */}
+      {step === 0 && (
+        <div key="s0" className="animate-[tu-in-right_0.4s_cubic-bezier(0.22,1,0.36,1)]">
+          <h1 className="font-display text-[clamp(26px,4vw,40px)] leading-tight text-ink">
+            Build your <em>fitting profile</em>
+          </h1>
+          <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-muted">
+            Add {MIN_PHOTOS}–10 clear photos for the best results. We reuse them for every
+            try-on. Nothing is shared with retailers.
+          </p>
+
+          <div className="mt-8 rounded-[26px] border border-line bg-surface p-6 sm:p-8">
+            <PhotoUploader
+              onPhotosChange={(p, ready) => {
+                setUserPhotos(p);
+                setProfileReady(ready);
+              }}
+            />
+          </div>
+
+          <div className="mt-6 flex flex-wrap items-center gap-4">
+            <Button size="md" disabled={!profileReady} onClick={() => setStep(1)}>
+              Continue <span aria-hidden="true">→</span>
+            </Button>
+            {!profileReady && (
+              <span className="text-[13px] text-faint">
+                Add at least a front or full-body photo to continue
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* STEP 1 — pick a product */}
+      {step === 1 && (
+        <div key="s1" className="animate-[tu-in-right_0.4s_cubic-bezier(0.22,1,0.36,1)]">
+          <h1 className="font-display text-[clamp(26px,4vw,40px)] leading-tight text-ink">
+            Choose a <em>product</em>
+          </h1>
+          <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-muted">
+            Pulled live from connected retailers — pick something to try on.
+          </p>
+
+          <div className="mt-8">
+            {productsQuery.isLoading && (
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="animate-pulse overflow-hidden rounded-[20px] border border-line">
+                    <div className="aspect-[3/4] bg-paper-2" />
+                    <div className="space-y-2 p-3">
+                      <div className="h-3 w-3/4 rounded bg-paper-2" />
+                      <div className="h-3 w-1/3 rounded bg-paper-2" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {productsQuery.isError && (
+              <div className="rounded-[20px] border border-line bg-surface p-8 text-center">
+                <p className="text-[14px] text-muted">
+                  {productsQuery.error instanceof ApiError
+                    ? productsQuery.error.detail
+                    : "Couldn't load products."}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-4"
+                  onClick={() => productsQuery.refetch()}
+                >
+                  Retry
+                </Button>
+              </div>
+            )}
+
+            {productsQuery.data && productsQuery.data.items.length === 0 && (
+              <div className="rounded-[20px] border border-line bg-surface p-8 text-center text-[14px] text-muted">
+                No products in the catalog yet — check back soon.
+              </div>
+            )}
+
+            {productsQuery.data && productsQuery.data.items.length > 0 && (
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                {productsQuery.data.items.map((p, i) => {
+                  const selected = product?.id === p.id;
+                  const thumb = resolveMediaUrl(p.images[0]?.url);
+                  return (
+                    <div
+                      key={p.id}
+                      style={{ animationDelay: `${i * 60}ms` }}
+                      className="animate-[tu-in-scale_0.4s_ease_both]"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setProduct(p)}
+                        className={`group tu-hover-card block w-full overflow-hidden rounded-[20px] border bg-surface text-left ${
+                          selected ? "border-sage ring-2 ring-sage/40" : "border-line hover:border-line-strong"
+                        }`}
+                      >
+                        <div className="relative aspect-[3/4] overflow-hidden bg-paper-2">
+                          {thumb && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={thumb}
+                              alt={p.name}
+                              className="tu-hover-media h-full w-full object-cover object-top"
+                            />
+                          )}
+                          <span className="absolute left-2 top-2 rounded-md bg-surface/95 px-2 py-1 text-[10px] font-semibold text-ink">
+                            {p.retailer.name}
+                          </span>
+                          <span
+                            className={`absolute right-2 top-2 grid h-6 w-6 transform-gpu place-items-center rounded-full bg-sage text-[12px] text-white transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                              selected ? "scale-100 opacity-100" : "scale-50 opacity-0"
+                            }`}
+                          >
+                            ✓
+                          </span>
+                        </div>
+                        <div className="p-3">
+                          <p className="truncate text-[13px] font-semibold text-ink">{p.name}</p>
+                          <p className="mt-0.5 text-[12px] text-muted">
+                            {(p.price_cents / 100).toFixed(2)} {p.currency.toUpperCase()}
+                          </p>
+                        </div>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {createJob.isError && (
+            <p className="mt-4 text-[13px] text-[#a4553f]" role="alert">
+              {createJob.error instanceof ApiError
+                ? createJob.error.detail
+                : "Couldn't start the try-on. Please try again."}
+            </p>
+          )}
+
+          <div className="mt-8 flex flex-wrap items-center gap-4">
+            <Button
+              size="md"
+              disabled={!product || createJob.isPending}
+              onClick={() => createJob.mutate()}
+            >
+              {createJob.isPending ? "Starting…" : "Generate try-on"}{" "}
+              {!createJob.isPending && <span aria-hidden="true">→</span>}
+            </Button>
+            <button
+              type="button"
+              onClick={() => setStep(0)}
+              className="font-display text-[14px] text-muted transition-colors hover:text-ink"
+            >
+              ← Back
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* STEP 2 — processing */}
+      {step === 2 && (
+        <div key="s2" className="animate-[tu-in-scale_0.4s_cubic-bezier(0.22,1,0.36,1)]">
+          <div className="rounded-[28px] border border-line bg-surface px-6 py-16 text-center">
+            {jobQuery.data?.status !== "failed" ? (
+              <div className="relative mx-auto grid h-24 w-24 place-items-center">
+                <span className="absolute inset-0 rounded-full border-2 border-line" />
+                <span className="absolute inset-0 animate-[tu-spin_0.9s_linear_infinite] rounded-full border-2 border-transparent border-t-sage" />
+                <span className="absolute inset-2 animate-[tu-pulse-ring_1.8s_ease-out_infinite] rounded-full" />
+                <span className="font-display text-[16px] text-ink">{elapsedSec}s</span>
+              </div>
+            ) : (
+              <div className="mx-auto grid h-24 w-24 place-items-center rounded-full border-2 border-[#c0503a]/40 text-[28px]">
+                ✕
+              </div>
+            )}
+
+            <p className="mt-7 font-display text-[20px] text-ink">
+              {jobQuery.data ? STAGE_LABEL[jobQuery.data.status] : "Starting…"}
+            </p>
+            <p className="mt-2 text-[13px] text-muted">
+              {jobQuery.data?.status === "failed"
+                ? jobQuery.data.error_message || "The AI provider couldn't complete this render. Your credits were refunded."
+                : `Rendering ${product?.name ?? "your look"} — this runs as a background job, so you could leave and come back.`}
+            </p>
+
+            {jobQuery.data?.status !== "failed" && (
+              <div className="mx-auto mt-6 h-2 max-w-sm overflow-hidden rounded-full bg-paper-2">
+                <div className="tu-flowline h-full w-full rounded-full opacity-70" />
+              </div>
+            )}
+
+            <div className="mx-auto mt-5 flex max-w-sm flex-wrap items-center justify-center gap-2 text-[11px] text-faint">
+              <span className="rounded-full border border-line px-2 py-1">
+                job #{jobId?.slice(0, 8)}
+              </span>
+              <span className="rounded-full border border-line px-2 py-1">
+                {jobQuery.data?.credit_cost ?? "—"} credit{jobQuery.data?.credit_cost === 1 ? "" : "s"} reserved
+              </span>
+              <span className="rounded-full border border-line px-2 py-1">refund on failure</span>
+            </div>
+
+            {jobQuery.data?.status === "failed" && (
+              <div className="mt-6 flex justify-center gap-3">
+                <Button size="sm" onClick={() => setStep(1)}>
+                  Try another product
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* STEP 3 — result */}
+      {step === 3 && jobQuery.data?.result && (product || jobQuery.data.product) && (
+        <ResultStep
+          job={jobQuery.data}
+          product={product || jobQuery.data.product!}
+          onTryAnother={() => {
+            setProduct(null);
+            setJobId(null);
+            setStep(1);
+          }}
+          onStartOver={() => {
+            setProduct(null);
+            setJobId(null);
+            setStep(0);
+          }}
+        />
+      )}
+    </section>
+  );
+}
+
+function ResultStep({
+  job,
+  product,
+  onTryAnother,
+  onStartOver,
+}: {
+  job: TryOnJob;
+  product: Product;
+  onTryAnother: () => void;
+  onStartOver: () => void;
+}) {
+  return (
+    <div key="s3" className="animate-[tu-in-scale_0.45s_cubic-bezier(0.22,1,0.36,1)]">
+      <div className="flex items-center gap-2">
+        <span className="grid h-6 w-6 place-items-center rounded-full bg-sage text-[12px] text-white">✓</span>
+        <h1 className="font-display text-[clamp(24px,3.6vw,36px)] leading-tight text-ink">
+          Here&rsquo;s <em>you</em>, in {product.name}
+        </h1>
+      </div>
+
+      <div className="mt-6 grid gap-6 md:grid-cols-[1.4fr_1fr]">
+        <div className="relative aspect-[4/5] overflow-hidden rounded-[26px] border border-line shadow-lift md:aspect-auto md:min-h-[460px]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={resolveMediaUrl(job.result!.image_url)}
+            alt={`AI try-on result — ${product.name}`}
+            className="h-full w-full object-cover object-top"
+          />
+          <span className="absolute right-4 top-4 rounded-full bg-sage px-3 py-1.5 text-[11px] font-semibold text-white">
+            AI try-on result
+          </span>
+        </div>
+
+        <div className="flex flex-col rounded-[26px] border border-line bg-surface p-6">
+          <p className="text-[11px] uppercase tracking-[0.14em] text-faint">{product.retailer.name}</p>
+          <p className="mt-1 font-display text-[22px] text-ink">{product.name}</p>
+          <p className="mt-1 text-[15px] text-muted">
+            {(product.price_cents / 100).toFixed(2)} {product.currency.toUpperCase()}
+          </p>
+
+          <div className="mt-5 space-y-2 text-[13px] text-muted">
+            <p className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-sage" /> {job.credit_cost} credit
+              {job.credit_cost === 1 ? "" : "s"} used · job completed
+            </p>
+            <p className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-sage" /> Rendered by {job.provider}
+            </p>
+          </div>
+
+          <div className="mt-auto space-y-3 pt-6">
+            <Button href={affiliateGoUrl(product.id, "tryon_result")} size="md" className="w-full">
+              Shop now <span aria-hidden="true">→</span>
+            </Button>
+            <Button variant="outline" size="md" className="w-full" onClick={onTryAnother}>
+              Try another product
+            </Button>
+            <button
+              type="button"
+              onClick={onStartOver}
+              className="w-full text-center font-display text-[13px] text-muted transition-colors hover:text-ink"
+            >
+              Start over
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

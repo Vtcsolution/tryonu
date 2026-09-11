@@ -1,0 +1,50 @@
+"""Virtual try-on provider abstraction.
+
+The rest of the app (job worker, API) only ever talks to this interface —
+never to FASHN's (or anyone else's) HTTP API directly. Adding a new
+provider is: implement this ABC, register it in registry.py, done; no
+other file changes. The provider is handed the *real* product image URL
+and must render onto it, never substitute a different garment.
+"""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+
+
+class TryOnProviderError(Exception):
+    """Raised for both transient (retryable) and permanent provider failures."""
+
+    def __init__(self, message: str, *, retryable: bool = False) -> None:
+        super().__init__(message)
+        self.retryable = retryable
+
+
+@dataclass(frozen=True, slots=True)
+class TryOnInput:
+    model_image_url: str
+    garment_image_url: str
+    # "auto" lets the provider infer top/bottom/full-body from the image.
+    category: str = "auto"
+
+
+@dataclass(frozen=True, slots=True)
+class TryOnOutput:
+    image_bytes: bytes
+    content_type: str = "image/jpeg"
+    provider_job_id: str | None = None
+    latency_ms: int | None = None
+
+
+class VirtualTryOnProvider(ABC):
+    #: config value clients use to select this provider (app.core.config.VIRTUAL_TRYON_PROVIDER)
+    name: str
+    #: the specific model/version, recorded on every TryOnJob for auditability
+    model: str
+
+    @abstractmethod
+    async def generate(self, payload: TryOnInput) -> TryOnOutput:
+        """Runs the full submit -> poll -> download cycle and returns the
+        final image bytes, or raises TryOnProviderError."""
+        ...

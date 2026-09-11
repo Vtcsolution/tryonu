@@ -1,0 +1,314 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------ *
+ * TryOnU design tokens — warm, premium, light "fashion-tech" identity
+ * (calibrated to the FASHN reference: paper-white ground, muted sage
+ *  accents, high-contrast serif display type).
+ * ------------------------------------------------------------------ */
+@theme {
+  --color-paper: #fbfaf6;
+  --color-paper-2: #f4f2ea;
+  --color-surface: #ffffff;
+
+  --color-ink: #1c1b17;
+  --color-ink-soft: #3a382f;
+  --color-muted: #6f6c63;
+  --color-faint: #9b978c;
+
+  --color-line: #e7e3d9;
+  --color-line-strong: #d8d3c5;
+
+  /* brand sage */
+  --color-sage: #6c7a6b;
+  --color-sage-deep: #57634f;
+  --color-sage-ink: #3b463c;
+  --color-sage-tint: #e5ebe0;
+  --color-sage-tint-2: #d5e0d1;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  --font-display: var(--font-playfair), ui-serif, Georgia, "Times New Roman",
+    serif;
+
+  --radius-card: 1.5rem;
+  --shadow-soft: 0 1px 2px rgba(28, 27, 23, 0.04),
+    0 12px 40px -12px rgba(28, 27, 23, 0.12);
+  --shadow-lift: 0 2px 6px rgba(28, 27, 23, 0.05),
+    0 30px 60px -20px rgba(28, 27, 23, 0.22);
+}
+
+/* ------------------------------------------------------------------ *
+ * Dark theme — same warm/sage identity, inverted ground.
+ * Three states: [data-theme="dark"] wins explicitly, [data-theme="light"]
+ * opts out, and no attribute follows the OS setting.
+ * ------------------------------------------------------------------ */
+:root {
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --color-paper: #141410;
+    --color-paper-2: #1b1b16;
+    --color-surface: #201f1a;
+
+    --color-ink: #f3f1e9;
+    --color-ink-soft: #d6d2c4;
+    --color-muted: #a09b8d;
+    --color-faint: #7b7669;
+
+    --color-line: #322f28;
+    --color-line-strong: #423f36;
+
+    --color-sage: #808f7b;
+    --color-sage-deep: #97a690;
+    --color-sage-ink: #3b463c;
+    --color-sage-tint: #242c20;
+    --color-sage-tint-2: #2c3527;
+
+    --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.3),
+      0 12px 40px -12px rgba(0, 0, 0, 0.5);
+    --shadow-lift: 0 2px 6px rgba(0, 0, 0, 0.35),
+      0 30px 60px -20px rgba(0, 0, 0, 0.7);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-paper: #141410;
+  --color-paper-2: #1b1b16;
+  --color-surface: #201f1a;
+
+  --color-ink: #f3f1e9;
+  --color-ink-soft: #d6d2c4;
+  --color-muted: #a09b8d;
+  --color-faint: #7b7669;
+
+  --color-line: #322f28;
+  --color-line-strong: #423f36;
+
+  --color-sage: #808f7b;
+  --color-sage-deep: #97a690;
+  --color-sage-ink: #3b463c;
+  --color-sage-tint: #242c20;
+  --color-sage-tint-2: #2c3527;
+
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.3),
+    0 12px 40px -12px rgba(0, 0, 0, 0.5);
+  --shadow-lift: 0 2px 6px rgba(0, 0, 0, 0.35),
+    0 30px 60px -20px rgba(0, 0, 0, 0.7);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--color-sage-tint-2);
+  color: var(--color-ink);
+}
+
+/* Display type: elegant serif with true italics, à la the reference */
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+  font-weight: 500;
+}
+.font-display em {
+  font-style: italic;
+}
+
+/* Subtle grain to keep large paper areas from feeling flat */
+.grain::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.5;
+  --grain-dot: rgba(28, 27, 23, 0.05);
+  background-image: radial-gradient(
+    var(--grain-dot) 0.5px,
+    transparent 0.5px
+  );
+  background-size: 6px 6px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.25), transparent 60%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .grain::before {
+    --grain-dot: rgba(255, 255, 255, 0.045);
+  }
+}
+:root[data-theme="dark"] .grain::before {
+  --grain-dot: rgba(255, 255, 255, 0.045);
+}
+
+@keyframes tu-float {
+  50% {
+    transform: translateY(-10px);
+  }
+}
+@keyframes tu-rise {
+  from {
+    opacity: 0;
+    transform: translateY(26px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes tu-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes tu-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes tu-in-scale {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes tu-line-grow {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+@keyframes tu-pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(108, 122, 107, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 18px rgba(108, 122, 107, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(108, 122, 107, 0);
+  }
+}
+@keyframes tu-dash {
+  to {
+    background-position: 200% 0;
+  }
+}
+@keyframes tu-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+.reveal {
+  opacity: 0;
+}
+.reveal.is-visible {
+  animation: tu-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.reveal.rv-left.is-visible {
+  animation-name: tu-in-left;
+}
+.reveal.rv-right.is-visible {
+  animation-name: tu-in-right;
+}
+.reveal.rv-scale.is-visible {
+  animation-name: tu-in-scale;
+}
+/* entrance finished: no animation left to clamp transform / opacity */
+.reveal.is-settled {
+  opacity: 1;
+}
+
+/* --- smooth, GPU-composited hover motion (no box-shadow / layout thrash) --- */
+.tu-hover-card {
+  transform: translateZ(0);
+  transition:
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.3s ease;
+  will-change: transform;
+}
+.tu-hover-card:hover {
+  transform: translate3d(0, -6px, 0);
+}
+.tu-hover-media {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.group:hover .tu-hover-media {
+  transform: scale3d(1.045, 1.045, 1);
+}
+
+/* animated dashed connector line for flow diagrams */
+.tu-flowline {
+  background-image: linear-gradient(
+    90deg,
+    var(--color-sage) 0 40%,
+    transparent 40% 100%
+  );
+  background-size: 14px 2px;
+  background-repeat: repeat-x;
+  animation: tu-dash 1.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .reveal,
+  .reveal.is-visible {
+    opacity: 1;
+    animation: none;
+  }
+  .tu-float,
+  .tu-flowline,
+  [class*="tu-pulse-ring"],
+  [class*="tu-spin"] {
+    animation: none !important;
+  }
+  .tu-hover-card,
+  .tu-hover-card:hover,
+  .tu-hover-media,
+  .group:hover .tu-hover-media {
+    transform: none;
+    transition: none;
+  }
+}

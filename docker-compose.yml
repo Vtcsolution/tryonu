@@ -1,0 +1,128 @@
+# Full local stack mirroring production shape: Postgres (+pgvector),
+# Redis, S3-compatible object storage (MinIO), the FastAPI core API, N AI
+# worker replicas, and the Next.js frontend. `docker compose up --build`.
+#
+# Copy apps/api/.env.example -> apps/api/.env.docker and fill in real
+# provider keys (FASHN/OpenAI/Stripe/Google/retailers) before going to
+# production; every one of them is optional for local use — see the mock
+# fallbacks documented in apps/api/app/core/config.py.
+
+name: tryonu
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tryonu
+      POSTGRES_PASSWORD: tryonu
+      POSTGRES_DB: tryonu
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tryonu"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: tryonu
+      MINIO_ROOT_PASSWORD: tryonu123
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./apps/api
+    restart: unless-stopped
+    env_file:
+      - ./apps/api/.env.docker
+    environment:
+      DATABASE_URL: postgresql+asyncpg://tryonu:tryonu@postgres:5432/tryonu
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY_ID: tryonu
+      S3_SECRET_ACCESS_KEY: tryonu123
+      S3_BUCKET: tryonu-media
+      CORS_ORIGINS: '["http://localhost:3000"]'
+      FRONTEND_URL: http://localhost:3000
+      PUBLIC_API_BASE_URL: http://localhost:8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ./apps/api
+    restart: unless-stopped
+    command: ["python", "-m", "app.workers.worker"]
+    env_file:
+      - ./apps/api/.env.docker
+    environment:
+      DATABASE_URL: postgresql+asyncpg://tryonu:tryonu@postgres:5432/tryonu
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY_ID: tryonu
+      S3_SECRET_ACCESS_KEY: tryonu123
+      S3_BUCKET: tryonu-media
+      PUBLIC_API_BASE_URL: http://api:8000
+    deploy:
+      replicas: 2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./apps/web
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
