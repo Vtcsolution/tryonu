@@ -128,11 +128,11 @@ async def test_fetch_products_raises_clearly_on_a_plain_text_403(monkeypatch):
     trying to .json()-decode that body; must raise a clear error instead."""
 
     async def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(403, text="User is not authorized to query on behalf of companyId 8069251.")
+        return httpx.Response(403, text="User is not authorized to query on behalf of companyId cid_999.")
 
     _patch_transport(monkeypatch, handler)
 
-    provider = CJProductProvider(api_token="test-token", company_id="8069251")
+    provider = CJProductProvider(api_token="test-token", company_id="cid_999")
     with pytest.raises(RuntimeError, match="not authorized"):
         await provider.fetch_products(limit=5)
 

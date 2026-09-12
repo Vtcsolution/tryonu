@@ -1,8 +1,8 @@
 """Rakuten Advertising integration.
 
-VERIFICATION STATUS — live-tested against a real account (client
-QSOs7XE..., publisher/account id 4750190), unlike this file's first draft.
-Confirmed for real, empirically, against https://api.linksynergy.com:
+VERIFICATION STATUS — live-tested against a real account, unlike this
+file's first draft. Confirmed for real, empirically, against
+https://api.linksynergy.com:
 
   - Base URL: api.rakutenmarketing.com does NOT resolve at all (DNS
     failure) despite being the domain named in Rakuten's own developer
