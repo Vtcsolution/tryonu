@@ -1,37 +1,68 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useMutation } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { ApiError } from "@/lib/api/client";
+import { auth } from "@/lib/api/endpoints";
 import { useRegister } from "@/lib/auth/useSession";
 
 export function SignUpForm() {
-  const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next") || "/try";
   const register = useRegister();
+  const resend = useMutation({ mutationFn: auth.resendVerification });
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [registered, setRegistered] = useState(false);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     try {
       await register.mutateAsync({ email, password, full_name: fullName || undefined });
-      router.push(next);
-      router.refresh();
+      setRegistered(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.detail : "Couldn't create your account. Please try again.");
     }
   };
+
+  if (registered) {
+    return (
+      <AuthCard
+        kicker="Try it. See you. Shop it."
+        title={
+          <>
+            Check your <em>email</em>
+          </>
+        }
+        subtitle={`We sent a verification link to ${email}. Verify it to unlock your 100 free credits.`}
+      >
+        <div className="space-y-3">
+          <Button href={next} size="md" className="w-full">
+            Continue to TryOnU <span aria-hidden="true">→</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="md"
+            className="w-full"
+            disabled={resend.isPending || resend.isSuccess}
+            onClick={() => resend.mutate()}
+          >
+            {resend.isSuccess ? "Email resent" : resend.isPending ? "Resending…" : "Resend verification email"}
+          </Button>
+        </div>
+      </AuthCard>
+    );
+  }
 
   return (
     <AuthCard
@@ -41,7 +72,7 @@ export function SignUpForm() {
           Create your <em>fitting profile</em>
         </>
       }
-      subtitle="Start with 100 free credits — no card required."
+      subtitle="100 free credits — verify your email to unlock them."
       footer={
         <>
           Already have an account?{" "}

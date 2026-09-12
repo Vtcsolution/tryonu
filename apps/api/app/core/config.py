@@ -120,9 +120,29 @@ class Settings(BaseSettings):
     EBAY_CLIENT_ID: str | None = None
     EBAY_CLIENT_SECRET: str | None = None
     EBAY_CAMPAIGN_ID: str | None = None
+    EBAY_MARKETPLACE_ID: str = "EBAY_US"
     FLIPKART_AFFILIATE_ID: str | None = None
     FLIPKART_AFFILIATE_TOKEN: str | None = None
     DARAZ_API_KEY: str | None = None
+
+    # Rakuten Advertising — off by default even with credentials present,
+    # since this integration hasn't been live-verified yet (see
+    # app/retailers/rakuten.py). Flip on only once real credentials are
+    # confirmed working end-to-end.
+    RAKUTEN_ENABLED: bool = False
+    RAKUTEN_CLIENT_ID: str | None = None
+    RAKUTEN_CLIENT_SECRET: str | None = None
+    # A directly-issued access token (some Rakuten account setups skip
+    # client_credentials and hand you a token + refresh token instead) —
+    # used in preference to CLIENT_ID/SECRET when set.
+    RAKUTEN_TOKEN: str | None = None
+    RAKUTEN_REFRESH_TOKEN: str | None = None
+    RAKUTEN_PUBLISHER_ID: str | None = None
+    RAKUTEN_ACCOUNT_ID: str | None = None
+    # Confirmed live: api.rakutenmarketing.com does not resolve at all;
+    # api.linksynergy.com is Rakuten Advertising's real, working API host
+    # (the /token and /v2/advertisers endpoints were verified against it).
+    RAKUTEN_API_BASE_URL: str = "https://api.linksynergy.com"
 
     # --- affiliate networks (distinct from retailers — a network like Awin
     # provides the tracking/commission layer across multiple retailers) ---
@@ -146,6 +166,7 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str | None = None
     SMTP_FROM_EMAIL: str = "noreply@tryonu.ai"
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30
+    EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES: int = 1440
 
     # --- rate limiting ---
     RATE_LIMIT_PER_MINUTE: int = 120

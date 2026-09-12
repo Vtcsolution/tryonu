@@ -18,5 +18,7 @@ class AdminOverview(BaseModel):
     affiliate_clicks_7d: int
     revenue_cents_total: int
     revenue_cents_30d: int
+    revenue_cents_subscriptions_30d: int
+    revenue_cents_one_off_30d: int
     ai_cost_usd_cents_30d: float
     ai_calls_30d: int

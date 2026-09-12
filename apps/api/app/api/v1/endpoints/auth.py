@@ -17,6 +17,7 @@ from app.schemas.user import (
     ResetPasswordRequest,
     TokenResponse,
     UserOut,
+    VerifyEmailRequest,
 )
 from app.services import auth_service, google_oauth
 
@@ -111,6 +112,26 @@ async def forgot_password(payload: ForgotPasswordRequest, db: DbSession):
 async def reset_password(payload: ResetPasswordRequest, db: DbSession):
     await auth_service.reset_password(db, token=payload.token, new_password=payload.new_password)
     return Message(detail="Password updated — please sign in again.")
+
+
+@router.post(
+    "/verify-email",
+    response_model=Message,
+    dependencies=[Depends(rate_limiter("auth_verify_email", limit=10, window_seconds=3600))],
+)
+async def verify_email(payload: VerifyEmailRequest, db: DbSession):
+    await auth_service.verify_email(db, token=payload.token)
+    return Message(detail="Email verified — your free credits are ready.")
+
+
+@router.post(
+    "/resend-verification",
+    response_model=Message,
+    dependencies=[Depends(rate_limiter("auth_resend_verification", limit=5, window_seconds=3600))],
+)
+async def resend_verification(user: CurrentUser, db: DbSession):
+    await auth_service.resend_verification_email(db, user=user)
+    return Message(detail="Verification email sent.")
 
 
 @router.get("/google/login")

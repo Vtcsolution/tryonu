@@ -25,6 +25,7 @@ class ProductOut(ORMModel):
     id: str
     name: str
     brand: str | None
+    merchant_name: str | None
     description: str | None
     category_id: str | None
     subcategory: str | None

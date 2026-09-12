@@ -24,9 +24,11 @@ os.environ["REDIS_URL"] = ""  # force the in-process job runner — no Redis nee
 os.environ["VIRTUAL_TRYON_PROVIDER"] = "mock"
 os.environ["LLM_PROVIDER"] = "mock"
 os.environ["PAYMENT_PROVIDER"] = "mock"
+os.environ["EMAIL_PROVIDER"] = "mock"
 os.environ["FASHN_API_KEY"] = ""
 os.environ["OPENAI_API_KEY"] = ""
 os.environ["STRIPE_SECRET_KEY"] = ""
+os.environ["SMTP_HOST"] = ""
 os.environ["S3_ENDPOINT_URL"] = ""
 os.environ["S3_ACCESS_KEY_ID"] = ""
 os.environ["STORAGE_LOCAL_DIR"] = str(TEST_STORAGE_DIR)
@@ -94,16 +96,51 @@ def unique_email(prefix: str = "test") -> str:
     return f"{prefix}-{uuid.uuid4().hex[:10]}@example.com"
 
 
-async def register_and_login(client: AsyncClient, *, email: str | None = None, password: str = "password123") -> dict:
+def last_verification_token(email: str) -> str:
+    """Pulls the verification token straight out of the mock email
+    provider's in-memory record (see app/email/mock.py) instead of
+    scraping logs — the registry is a process-wide singleton, so whatever
+    register_user()/resend_verification_email() just "sent" is right
+    here."""
+    import re
+
+    from app.email.registry import get_email_provider
+
+    provider = get_email_provider()
+    for msg in reversed(provider.sent):
+        if msg["to"] == email and "Verify your TryOnU email" in msg["subject"]:
+            match = re.search(r"token=([\w-]+)", msg["body"])
+            assert match, f"no token found in verification email body: {msg['body']!r}"
+            return match.group(1)
+    raise AssertionError(f"no verification email found for {email}")
+
+
+async def register_and_login(
+    client: AsyncClient, *, email: str | None = None, password: str = "password123", verify: bool = True
+) -> dict:
     """Registers a fresh user and leaves the client authenticated (cookies
-    persist on the shared AsyncClient instance). Returns the response JSON."""
+    persist on the shared AsyncClient instance). Returns the response JSON.
+
+    By default also verifies the email (the signup bonus is withheld until
+    verification — see auth_service.register_user), since most tests just
+    need a funded account and aren't exercising verification itself. Pass
+    verify=False for tests of the unverified state."""
     email = email or unique_email()
     resp = await client.post(
         "/api/v1/auth/register",
         json={"email": email, "password": password, "full_name": "Test User"},
     )
     assert resp.status_code == 201, resp.text
-    return resp.json()
+    data = resp.json()
+
+    if verify:
+        token = last_verification_token(email)
+        verify_resp = await client.post("/api/v1/auth/verify-email", json={"token": token})
+        assert verify_resp.status_code == 200, verify_resp.text
+        me = await client.get("/api/v1/auth/me")
+        data["user"] = me.json()
+
+    return data
 
 
 async def make_admin(db, user_id: str) -> None:
@@ -118,7 +155,16 @@ def small_jpeg_bytes(size: tuple[int, int] = (400, 500), color=(180, 160, 140)) 
     return buf.getvalue()
 
 
-async def seed_product(db, *, name: str = "Test Poncho", price_cents: int = 3200, image_url: str = "https://images.unsplash.com/photo-1434389677669-e08b4cac3105"):
+async def seed_product(
+    db,
+    *,
+    name: str = "Test Poncho",
+    price_cents: int = 3200,
+    image_url: str = "https://images.unsplash.com/photo-1434389677669-e08b4cac3105",
+    color: str | None = None,
+    style_tags: list[str] | None = None,
+    gender: str = "unisex",
+):
     """Creates a minimal Retailer + Product directly (no network calls) —
     used by tests that don't need the full ingestion pipeline."""
     from app.models.product import Product, ProductImage
@@ -138,6 +184,9 @@ async def seed_product(db, *, name: str = "Test Poncho", price_cents: int = 3200
         name=name,
         price_cents=price_cents,
         currency="usd",
+        color=color,
+        style_tags=style_tags,
+        gender=gender,
         product_url="https://example.com/product",
         affiliate_url="https://example.com/product?tag=test",
     )
@@ -147,6 +196,16 @@ async def seed_product(db, *, name: str = "Test Poncho", price_cents: int = 3200
     await db.commit()
     await db.refresh(product)
     return product
+
+
+async def seed_credit_package(db, *, name: str = "Test Pack", credits: int = 50, price_cents: int = 499):
+    from app.models.credit import CreditPackage
+
+    package = CreditPackage(name=name, credits=credits, price_cents=price_cents, currency="usd")
+    db.add(package)
+    await db.commit()
+    await db.refresh(package)
+    return package
 
 
 async def credit_balance(db, user_id: str) -> int:

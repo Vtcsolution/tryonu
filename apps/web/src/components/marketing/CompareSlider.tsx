@@ -82,16 +82,15 @@ export function CompareSlider() {
         />
 
         <div className="absolute bottom-4 right-4 z-[15] w-[220px] rounded-[18px] border border-line bg-surface/95 p-4 backdrop-blur">
-          <p className="text-[11px] text-muted">Selected product</p>
+          <p className="text-[11px] text-muted">Illustrative preview</p>
           <p className="mb-3 mt-1 text-[14px] font-semibold text-ink">
             Sky Wrap Coat · $128.00
           </p>
-          <Button
-            href="https://www.example-retailer.com/sky-wrap-coat"
-            size="sm"
-            className="w-full"
-          >
-            Shop now <span aria-hidden="true">→</span>
+          {/* This demo pairs stock photos, not a real try-on of a real
+              product — so it links into the real flow rather than a
+              fabricated retailer URL. */}
+          <Button href="/try" size="sm" className="w-full">
+            Try it yourself <span aria-hidden="true">→</span>
           </Button>
         </div>
       </div>

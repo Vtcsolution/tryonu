@@ -4,10 +4,9 @@ const COLS: { heading: string; links: { label: string; href: string }[] }[] = [
   {
     heading: "Product",
     links: [
-      { label: "How it works", href: "#how" },
-      { label: "Try-on studio", href: "#studio" },
-      { label: "Marketplaces", href: "#marketplaces" },
-      { label: "Pricing", href: "#pricing" },
+      { label: "How it works", href: "/how-it-works" },
+      { label: "Try-on studio", href: "/try" },
+      { label: "Marketplaces", href: "/#marketplaces" },
     ],
   },
   {

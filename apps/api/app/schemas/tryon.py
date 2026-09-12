@@ -16,6 +16,7 @@ class CreateTryOnRequest(BaseModel):
 
 
 class TryOnResultOut(ORMModel):
+    id: str
     image_url: str
     width: int | None
     height: int | None

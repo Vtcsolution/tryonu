@@ -33,6 +33,18 @@ class StylistQuery:
     budget_max_cents: int | None
     style: str | None
     max_items: int
+    # Short recap of the user's last few turns (see
+    # services/stylist_service.py._recent_context), so a follow-up like
+    # "what shoes go with that" has something to refer to. Never expands
+    # which products can be chosen — index validation against the current
+    # candidate list still applies regardless of this context.
+    recent_context: str | None = None
+    # Set when the ask is anchored to a wardrobe item ("build around my
+    # black trousers") — see stylist_service._wardrobe_context_line. The
+    # anchor item itself is never a candidate (it's not a catalog Product),
+    # so this only ever shapes which real products get chosen, never adds
+    # a fabricated one.
+    wardrobe_context: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

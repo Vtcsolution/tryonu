@@ -33,3 +33,15 @@ class CreditPackageOut(ORMModel):
 
 class PurchaseCreditsRequest(BaseModel):
     credit_package_id: str
+
+
+class PurchaseCreditsResponse(BaseModel):
+    payment_id: str
+    status: str  # "succeeded" | "requires_action" | "pending" | "failed"
+    # Set only for "requires_action" — the frontend confirms the payment
+    # with Stripe.js using this, then polls GET /credits/purchase/{payment_id}.
+    client_secret: str | None = None
+    checkout_url: str | None = None
+    # Set only once status == "succeeded".
+    credits_granted: int | None = None
+    new_balance: int | None = None

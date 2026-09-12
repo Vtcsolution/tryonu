@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import uuid
 
-from app.payments.base import CheckoutResult, PaymentProvider
+from app.payments.base import CheckoutResult, PaymentProvider, SubscriptionCheckoutResult
 
 
 class MockPaymentProvider(PaymentProvider):
@@ -19,3 +19,12 @@ class MockPaymentProvider(PaymentProvider):
             external_payment_id=f"mock_pay_{uuid.uuid4().hex[:12]}",
             status="succeeded",
         )
+
+    async def create_subscription(self, **kwargs) -> SubscriptionCheckoutResult:
+        return SubscriptionCheckoutResult(
+            external_subscription_id=f"mock_sub_{uuid.uuid4().hex[:12]}",
+            status="active",
+        )
+
+    async def cancel_subscription(self, external_subscription_id: str) -> None:
+        return None

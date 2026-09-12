@@ -35,6 +35,12 @@ class RawProduct:
     rating_count: int = 0
     availability: str = "in_stock"
     style_tags: list[str] = field(default_factory=list)
+    # For aggregator networks where the network itself isn't the seller
+    # (Rakuten, CJ) — the actual merchant/advertiser behind the product,
+    # distinct from `brand`. None for direct retailers (eBay, Amazon, ...)
+    # where the retailer IS the seller.
+    merchant_name: str | None = None
+    merchant_id: str | None = None
 
 
 class ProductProvider(ABC):

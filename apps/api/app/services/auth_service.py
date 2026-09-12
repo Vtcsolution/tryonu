@@ -23,7 +23,7 @@ from app.core.security import (
 from app.core.time import as_aware, utcnow
 from app.email.registry import get_email_provider
 from app.models.enums import AuthProvider, CreditReason
-from app.models.user import PasswordResetToken, RefreshToken, User
+from app.models.user import EmailVerificationToken, PasswordResetToken, RefreshToken, User
 from app.services import credit_service
 
 settings = get_settings()
@@ -46,7 +46,53 @@ async def register_user(db: AsyncSession, *, email: str, password: str, full_nam
     )
     db.add(user)
     await db.flush()
+    # The signup bonus is withheld until the address is verified (see
+    # verify_email below) — granting it unconditionally here would let
+    # anyone script unlimited free accounts for free AI usage.
+    await _send_verification_email(db, user)
+    await db.commit()
+    await db.refresh(user)
+    return user
 
+
+async def _send_verification_email(db: AsyncSession, user: User) -> None:
+    raw_token = secrets.token_urlsafe(32)
+    db.add(
+        EmailVerificationToken(
+            user_id=user.id,
+            token_hash=_hash_token(raw_token),
+            expires_at=datetime.now(timezone.utc)
+            + timedelta(minutes=settings.EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES),
+        )
+    )
+    verify_url = f"{settings.FRONTEND_URL}/verify-email?token={raw_token}"
+    provider = get_email_provider()
+    await provider.send(
+        to=user.email,
+        subject="Verify your TryOnU email",
+        text_body=(
+            f"Welcome to TryOnU! Verify your email to unlock your {settings.SIGNUP_FREE_CREDITS} "
+            f"free credits (link valid for {settings.EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES // 60} hours):\n"
+            f"{verify_url}\n\n"
+            "If you didn't create this account, you can safely ignore this email."
+        ),
+    )
+
+
+async def verify_email(db: AsyncSession, *, token: str) -> User:
+    token_hash = _hash_token(token)
+    result = await db.execute(select(EmailVerificationToken).where(EmailVerificationToken.token_hash == token_hash))
+    stored = result.scalar_one_or_none()
+
+    if stored is None or stored.used_at is not None or as_aware(stored.expires_at) < utcnow():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Verification link is invalid or expired")
+
+    user = await db.get(User, stored.user_id)
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Verification link is invalid or expired")
+
+    stored.used_at = datetime.now(timezone.utc)
+    user.email_verified = True
     await credit_service.grant(
         db,
         user_id=user.id,
@@ -54,11 +100,20 @@ async def register_user(db: AsyncSession, *, email: str, password: str, full_nam
         reason=CreditReason.SIGNUP_BONUS,
         reference_type="user",
         reference_id=user.id,
-        note="Welcome bonus",
+        note="Welcome bonus — email verified",
     )
     await db.commit()
     await db.refresh(user)
+    logger.info("email_verified", user_id=user.id)
     return user
+
+
+async def resend_verification_email(db: AsyncSession, *, user: User) -> None:
+    if user.email_verified:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email is already verified")
+    await _send_verification_email(db, user)
+    await db.commit()
+    logger.info("verification_email_resent", user_id=user.id)
 
 
 async def authenticate_local(db: AsyncSession, *, email: str, password: str) -> User:

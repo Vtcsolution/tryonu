@@ -59,14 +59,22 @@ export function SignInForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
-        <Input
-          label="Password"
-          type="password"
-          autoComplete="current-password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        <div>
+          <Input
+            label="Password"
+            type="password"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <Link
+            href="/forgot-password"
+            className="mt-1.5 inline-block text-[13px] text-sage hover:text-sage-deep"
+          >
+            Forgot password?
+          </Link>
+        </div>
 
         {error && (
           <p role="alert" className="text-[13px] text-[#a4553f]">

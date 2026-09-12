@@ -9,10 +9,29 @@ from __future__ import annotations
 from app.core.config import get_settings
 from app.retailers.amazon import AmazonProductProvider
 from app.retailers.base import ProductProvider
+from app.retailers.cj import CJProductProvider
 from app.retailers.daraz import DarazProductProvider
 from app.retailers.ebay import EbayProductProvider
 from app.retailers.flipkart import FlipkartProductProvider
+from app.retailers.rakuten import RakutenProductProvider
 from app.retailers.sample import SampleCatalogProvider
+
+
+def get_rakuten_provider() -> RakutenProductProvider:
+    """Separate accessor (not just part of get_all_providers()) — the
+    admin advertisers/partnerships/offers/coupons endpoints need a
+    concrete RakutenProductProvider, not just a generic ProductProvider."""
+    settings = get_settings()
+    return RakutenProductProvider(
+        enabled=settings.RAKUTEN_ENABLED,
+        client_id=settings.RAKUTEN_CLIENT_ID,
+        client_secret=settings.RAKUTEN_CLIENT_SECRET,
+        access_token=settings.RAKUTEN_TOKEN,
+        refresh_token=settings.RAKUTEN_REFRESH_TOKEN,
+        publisher_id=settings.RAKUTEN_PUBLISHER_ID,
+        account_id=settings.RAKUTEN_ACCOUNT_ID,
+        base_url=settings.RAKUTEN_API_BASE_URL,
+    )
 
 
 def get_all_providers() -> list[ProductProvider]:
@@ -28,10 +47,16 @@ def get_all_providers() -> list[ProductProvider]:
             client_id=settings.EBAY_CLIENT_ID,
             client_secret=settings.EBAY_CLIENT_SECRET,
             campaign_id=settings.EBAY_CAMPAIGN_ID,
+            marketplace_id=settings.EBAY_MARKETPLACE_ID,
+        ),
+        CJProductProvider(
+            api_token=settings.CJ_API_TOKEN,
+            company_id=settings.CJ_WEBSITE_ID,
         ),
         FlipkartProductProvider(
             affiliate_id=settings.FLIPKART_AFFILIATE_ID,
             affiliate_token=settings.FLIPKART_AFFILIATE_TOKEN,
         ),
         DarazProductProvider(api_key=settings.DARAZ_API_KEY),
+        get_rakuten_provider(),
     ]

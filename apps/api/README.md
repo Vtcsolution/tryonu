@@ -16,7 +16,7 @@ services**:
 | Virtual try-on | FASHN (`tryon-v1.6` / `tryon-max`) | `MockTryOnProvider` — real job lifecycle, stamped product image (`app/ai/providers/`) |
 | Fashion stylist | OpenAI-compatible chat model | heuristic mock, same real-products-only contract (`app/ai/llm/`) |
 | Payments | Stripe | instant-success mock (`app/payments/`) |
-| Retailers | Amazon / eBay / Flipkart / Daraz (need program credentials) | `SampleCatalogProvider` — 8 real, working products (`app/retailers/`) |
+| Retailers | eBay Browse API and CJ Affiliate's GraphQL Product API — both **live-verified** with real production credentials, real inventory flowing (eBay: 200 real products synced; CJ: auth verified, blocked only on the account's own Product Feed API entitlement). Rakuten Advertising is architecturally complete and fully tested against mocks but **not yet live-verified** — no credentials exist yet (see `app/retailers/rakuten.py`'s module docstring). Amazon / Flipkart / Daraz still need program credentials | `SampleCatalogProvider` — 8 real, working products (`app/retailers/`) |
 | Affiliate networks | Awin / CJ / Impact (Awin application submitted, awaiting approval — no real credentials exist yet) | `DirectAffiliateProvider` — plain `?ref=tryonu` links, always active (`app/affiliate_networks/`) |
 | Email | SMTP | `MockEmailProvider` — logs the message instead of sending (`app/email/`) |
 
@@ -87,13 +87,18 @@ clicks, AI usage, subscriptions/payments, ...).
 ## API surface
 
 Routes are grouped under `/api/v1`: `auth` (register/login/refresh/logout,
-Google OAuth, forgot/reset-password), `users`, `photos`, `products`,
-`search` (alias over the same catalog engine as `products`), `tryon`,
-`stylist` (`/ask` is canonical; `/chat`, `/recommend`, `/outfit` are the
-same engine under the route names the product spec uses), `outfits`,
-`credits`, `webhooks` (Stripe), and `admin` (overview, users, tryon-jobs,
-ai-usage, affiliate-clicks, retailers, payments — all role-gated, not just
-hidden from the frontend). Full interactive list at `/docs`.
+Google OAuth, forgot/reset-password, email verification), `users`,
+`photos`, `wardrobe` (user-owned items, distinct from the retailer
+catalog), `products`, `search` (alias over the same catalog engine as
+`products`), `tryon`, `stylist` (`/ask` is canonical; `/chat`,
+`/recommend`, `/outfit` are the same engine, plus `/similar/{id}` and
+`/cheaper/{id}` — deterministic catalog queries, no LLM call), `outfits`
+(includes `/preview-compatibility`), `credits`, `subscriptions`,
+`webhooks` (Stripe + a best-effort Rakuten postback listener), and `admin`
+(overview, users, tryon-jobs, ai-usage, affiliate-clicks, retailers,
+payments, subscriptions, plus `admin/rakuten/*` — status/search-preview/
+advertisers/partnerships/offers/coupons — all role-gated, not just hidden
+from the frontend). Full interactive list at `/docs`.
 
 ## Adding a real retailer
 
@@ -103,6 +108,19 @@ adapters for Amazon/eBay/Flipkart/Daraz already sketched out — they raise
 `.env`), register it in `app/retailers/registry.py`. The ingestion service
 skips any retailer that isn't configured or fails, so partial credentials
 never break the sync.
+
+## Rakuten Advertising
+
+Architecturally complete, fully tested against mocks, **not yet live-verified** (no credentials exist yet). See `app/retailers/rakuten.py`'s module docstring for the full verification-status caveat — every endpoint path and response field is a best-effort mapping from Rakuten's publicly documented API conventions, the same starting point eBay and CJ began from before their live-correction passes.
+
+Covers: Product Search (catalog ingestion, disabled by default via `RAKUTEN_ENABLED=false`), Advertisers API v2, Partnerships API, Offers API, and Coupon API (all four as live admin-only pass-throughs under `/api/v1/admin/rakuten/*` — not persisted to new tables until a real response confirms the shape worth persisting), plus a best-effort Postback endpoint (`/api/v1/webhooks/rakuten`) that logs conversion callbacks for now rather than guessing at a persisted schema.
+
+**To activate once you have real credentials:**
+1. Set `RAKUTEN_ENABLED=true` plus either `RAKUTEN_CLIENT_ID`+`RAKUTEN_CLIENT_SECRET` (OAuth2 client_credentials) or a directly-issued `RAKUTEN_TOKEN` (+`RAKUTEN_REFRESH_TOKEN`) — whichever your account setup issues — and `RAKUTEN_PUBLISHER_ID`.
+2. Hit `GET /api/v1/admin/rakuten/status` (admin-only) to confirm configuration is detected.
+3. Hit `GET /api/v1/admin/rakuten/search?keyword=dress` to see a live, unsaved preview before running a full sync.
+4. Run `python -m app.scripts.ingest_products` for the real catalog sync.
+5. Expect at least one live-correction pass on exact field names/paths — flag whatever Rakuten's real response actually looks like and it's a fast, contained fix (the normalization logic lives in one place, `RakutenProductProvider._to_raw_product`).
 
 ## Testing without real provider keys
 
@@ -129,5 +147,10 @@ the full try-on job lifecycle (success debits credits, provider failure
 fully refunds them), affiliate click tracking, the AI stylist's
 real-products-only guarantee (including a hostile provider double that
 returns out-of-range indexes, to prove they're dropped not fabricated),
-admin-route authorization, and Stripe webhook signature verification
-(valid/tampered/wrong-secret/stale-timestamp/missing-header).
+admin-route authorization, Stripe webhook signature verification
+(valid/tampered/wrong-secret/stale-timestamp/missing-header), the real
+request/response shapes locked in from live eBay/CJ verification, and the
+Rakuten integration's auth/throttling/error-handling/normalization
+against the contract it defines (disabled state, missing credentials,
+token refresh on a real 401, rate-limit/malformed-response/server-error
+handling, dedup, and zero credential leakage in any response).

@@ -9,6 +9,10 @@ type MenuLink = { label: string; href: string; hint?: string };
 
 const PRODUCT_LINKS: MenuLink[] = [
   { label: "Try-on studio", href: "/try", hint: "See a look on you" },
+  { label: "AI Stylist", href: "/stylist", hint: "Ask for a recommendation" },
+  { label: "Outfit builder", href: "/outfits", hint: "Combine real products" },
+  { label: "My wardrobe", href: "/wardrobe", hint: "What you already own" },
+  { label: "Saved looks", href: "/saved", hint: "Your lookbook" },
   { label: "Marketplaces", href: "/#marketplaces", hint: "Amazon, eBay, Flipkart, Daraz" },
   { label: "How it works", href: "/how-it-works", hint: "The full flow" },
   { label: "Features", href: "/#features", hint: "What's inside" },
@@ -30,7 +34,6 @@ export function Navbar() {
         <nav className="hidden items-center gap-9 md:flex">
           <NavMenu label="Product">{PRODUCT_LINKS}</NavMenu>
           <NavLink href="/how-it-works">How it works</NavLink>
-          <NavLink href="/#pricing">Pricing</NavLink>
           <NavMenu label="Company">{COMPANY_LINKS}</NavMenu>
         </nav>
 

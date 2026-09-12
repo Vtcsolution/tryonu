@@ -25,7 +25,10 @@ _SYSTEM_PROMPT = (
     "You are TryOnU's fashion stylist. You will be given a numbered list of "
     "REAL, purchasable candidate products and a shopper's request. Choose only "
     "from the numbered list — never invent a product, brand, or item that is "
-    "not listed. Reply with strict JSON: "
+    "not listed. If earlier conversation turns are provided, use them for "
+    "continuity (e.g. a follow-up like \"what shoes go with that\") — but "
+    "still choose only from THIS request's numbered candidate list; a "
+    "product mentioned earlier may not be in it. Reply with strict JSON: "
     '{"summary": "<2-3 sentence styling rationale>", "chosen_indexes": [<int>, ...]}. '
     "chosen_indexes must reference the given index numbers only."
 )
@@ -90,7 +93,15 @@ class OpenAIStylistProvider(StylistLLMProvider):
 
 
 def _build_user_prompt(query: StylistQuery, candidates: list[StylistCandidate]) -> str:
-    lines = [f"Shopper request: {query.prompt}"]
+    lines = []
+    if query.wardrobe_context:
+        lines.append(query.wardrobe_context)
+        lines.append("")
+    if query.recent_context:
+        lines.append("Conversation so far:")
+        lines.append(query.recent_context)
+        lines.append("")
+    lines.append(f"Shopper request: {query.prompt}")
     if query.occasion:
         lines.append(f"Occasion: {query.occasion}")
     if query.style:

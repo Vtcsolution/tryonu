@@ -27,6 +27,17 @@ class OutfitItemOut(ORMModel):
     product: ProductOut
 
 
+class CompatibilityPreviewRequest(BaseModel):
+    items: list[OutfitItemIn]
+
+
+class CompatibilityPreviewResponse(BaseModel):
+    overall: int
+    color: int
+    style: int
+    notes: list[str]
+
+
 class OutfitOut(ORMModel):
     id: str
     name: str | None
@@ -34,4 +45,6 @@ class OutfitOut(ORMModel):
     created_by_stylist: bool
     items: list[OutfitItemOut]
     total_price_cents: int
+    compatibility_score: int | None
+    compatibility_notes: list[str] | None
     created_at: datetime

@@ -8,7 +8,13 @@ from app.core.deps import CurrentUser, DbSession
 from app.models.outfit import Outfit, OutfitItem
 from app.models.product import Product
 from app.schemas.common import Message
-from app.schemas.outfit import CreateOutfitRequest, OutfitOut
+from app.schemas.outfit import (
+    CompatibilityPreviewRequest,
+    CompatibilityPreviewResponse,
+    CreateOutfitRequest,
+    OutfitOut,
+)
+from app.services.outfit_compatibility import score_outfit
 
 router = APIRouter(prefix="/outfits", tags=["outfits"])
 
@@ -32,7 +38,16 @@ async def create_outfit(payload: CreateOutfitRequest, user: CurrentUser, db: DbS
     if missing:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Products not found: {missing}")
 
-    outfit = Outfit(user_id=user.id, name=payload.name, occasion=payload.occasion)
+    ordered_products = [found[i.product_id] for i in payload.items]
+    coherence = score_outfit(ordered_products, [i.slot for i in payload.items])
+
+    outfit = Outfit(
+        user_id=user.id,
+        name=payload.name,
+        occasion=payload.occasion,
+        compatibility_score=coherence.overall,
+        compatibility_notes=coherence.notes or None,
+    )
     db.add(outfit)
     await db.flush()
     for pos, item in enumerate(payload.items):
@@ -41,6 +56,28 @@ async def create_outfit(payload: CreateOutfitRequest, user: CurrentUser, db: DbS
 
     result = await db.execute(select(Outfit).where(Outfit.id == outfit.id).options(*_LOAD_OPTS))
     return result.scalar_one()
+
+
+@router.post("/preview-compatibility", response_model=CompatibilityPreviewResponse)
+async def preview_compatibility(payload: CompatibilityPreviewRequest, user: CurrentUser, db: DbSession):
+    """Scores a candidate set without persisting anything — lets the
+    builder UI show a live score as the user adds/removes items, instead
+    of creating a row per keystroke."""
+    if not payload.items:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Provide at least one item")
+
+    product_ids = [i.product_id for i in payload.items]
+    result = await db.execute(select(Product).where(Product.id.in_(product_ids), Product.is_active.is_(True)))
+    found = {p.id: p for p in result.scalars().all()}
+    missing = [pid for pid in product_ids if pid not in found]
+    if missing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Products not found: {missing}")
+
+    ordered_products = [found[i.product_id] for i in payload.items]
+    coherence = score_outfit(ordered_products, [i.slot for i in payload.items])
+    return CompatibilityPreviewResponse(
+        overall=coherence.overall, color=coherence.color, style=coherence.style, notes=coherence.notes
+    )
 
 
 @router.get("", response_model=list[OutfitOut])

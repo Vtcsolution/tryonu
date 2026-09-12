@@ -53,6 +53,11 @@ class Product(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     name: Mapped[str] = mapped_column(String(500), nullable=False)
     brand: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # For aggregator networks (Rakuten, CJ) where the network isn't the
+    # seller — the actual merchant/advertiser, distinct from `brand`.
+    # Nullable and unused by direct retailers (eBay, Amazon, ...).
+    merchant_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    merchant_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     subcategory: Mapped[str | None] = mapped_column(String(255), nullable=True)
     gender: Mapped[Gender] = mapped_column(

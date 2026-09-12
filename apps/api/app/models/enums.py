@@ -41,6 +41,7 @@ class SubscriptionPlan(StrEnum):
 
 
 class SubscriptionStatus(StrEnum):
+    INCOMPLETE = "incomplete"  # created, awaiting the first invoice's card confirmation (real Stripe only)
     ACTIVE = "active"
     TRIALING = "trialing"
     PAST_DUE = "past_due"

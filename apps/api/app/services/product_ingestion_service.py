@@ -81,6 +81,8 @@ async def _upsert_product(
     product.category_id = category.id if category else None
     product.name = raw.name
     product.brand = raw.brand
+    product.merchant_name = raw.merchant_name
+    product.merchant_id = raw.merchant_id
     product.description = raw.description
     product.subcategory = raw.subcategory
     product.gender = gender

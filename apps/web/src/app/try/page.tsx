@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { SiteChrome } from "@/components/layout/SiteChrome";
 import { TryFlow } from "@/components/try/TryFlow";
 
@@ -11,7 +12,9 @@ export const metadata: Metadata = {
 export default function TryPage() {
   return (
     <SiteChrome>
-      <TryFlow />
+      <Suspense>
+        <TryFlow />
+      </Suspense>
     </SiteChrome>
   );
 }

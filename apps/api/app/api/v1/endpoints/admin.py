@@ -69,6 +69,16 @@ async def overview(_: AdminUser, db: DbSession):
             )
         )
     ).scalar_one()
+    revenue_cents_subscriptions_30d = (
+        await db.execute(
+            select(func.coalesce(func.sum(Payment.amount_cents), 0)).where(
+                Payment.status == PaymentStatus.SUCCEEDED,
+                Payment.created_at >= d30,
+                Payment.subscription_id.is_not(None),
+            )
+        )
+    ).scalar_one()
+    revenue_cents_one_off_30d = revenue_cents_30d - revenue_cents_subscriptions_30d
 
     ai_cost_usd_cents_30d = (
         await db.execute(select(func.coalesce(func.sum(AIUsage.cost_usd_cents), 0.0)).where(AIUsage.created_at >= d30))
@@ -90,6 +100,8 @@ async def overview(_: AdminUser, db: DbSession):
         affiliate_clicks_7d=affiliate_clicks_7d,
         revenue_cents_total=revenue_cents_total,
         revenue_cents_30d=revenue_cents_30d,
+        revenue_cents_subscriptions_30d=revenue_cents_subscriptions_30d,
+        revenue_cents_one_off_30d=revenue_cents_one_off_30d,
         ai_cost_usd_cents_30d=ai_cost_usd_cents_30d,
         ai_calls_30d=ai_calls_30d,
     )
@@ -181,6 +193,27 @@ async def list_retailers(_: AdminUser, db: DbSession):
             "base_commission_pct": r.base_commission_pct,
         }
         for r in result.scalars().all()
+    ]
+
+
+@router.get("/subscriptions")
+async def list_subscriptions(_: AdminUser, db: DbSession, limit: int = 50, offset: int = 0):
+    result = await db.execute(
+        select(Subscription).order_by(Subscription.created_at.desc()).limit(limit).offset(offset)
+    )
+    rows = result.scalars().all()
+    return [
+        {
+            "id": s.id,
+            "user_id": s.user_id,
+            "plan": s.plan.value,
+            "status": s.status.value,
+            "credits_per_cycle": s.credits_per_cycle,
+            "current_period_end": s.current_period_end,
+            "cancel_at_period_end": s.cancel_at_period_end,
+            "created_at": s.created_at,
+        }
+        for s in rows
     ]
 
 

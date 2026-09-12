@@ -8,8 +8,10 @@ from sqlalchemy.orm import selectinload
 from app.core.deps import CurrentUser, DbSession
 from app.models.outfit import SavedLook
 from app.models.preference import UserPreference
-from app.models.tryon import TryOnResult
+from app.models.product import Product
+from app.models.tryon import TryOnJob, TryOnResult
 from app.schemas.common import Message
+from app.schemas.saved_look import SavedLookOut
 from app.schemas.user import UpdateProfileRequest, UserOut, UserPreferenceOut, UserPreferenceUpdate
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -54,30 +56,45 @@ async def update_preferences(payload: UserPreferenceUpdate, user: CurrentUser, d
     return pref
 
 
-@router.get("/me/saved-looks")
+@router.get("/me/saved-looks", response_model=list[SavedLookOut])
 async def list_saved_looks(user: CurrentUser, db: DbSession):
     result = await db.execute(
         select(SavedLook)
         .where(SavedLook.user_id == user.id)
-        .options(selectinload(SavedLook.tryon_result))
+        .options(
+            selectinload(SavedLook.tryon_result)
+            .selectinload(TryOnResult.job)
+            .selectinload(TryOnJob.product)
+            .selectinload(Product.images),
+            selectinload(SavedLook.tryon_result)
+            .selectinload(TryOnResult.job)
+            .selectinload(TryOnJob.product)
+            .selectinload(Product.retailer),
+        )
         .order_by(SavedLook.created_at.desc())
     )
     looks = result.scalars().all()
     return [
-        {
-            "id": look.id,
-            "title": look.title,
-            "image_url": look.tryon_result.image_url if look.tryon_result else None,
-            "created_at": look.created_at,
-        }
+        SavedLookOut(
+            id=look.id,
+            title=look.title,
+            image_url=look.tryon_result.image_url if look.tryon_result else None,
+            product=look.tryon_result.job.product if look.tryon_result and look.tryon_result.job else None,
+            created_at=look.created_at,
+        )
         for look in looks
     ]
 
 
 @router.post("/me/saved-looks/{tryon_result_id}", status_code=status.HTTP_201_CREATED)
 async def save_look(tryon_result_id: str, user: CurrentUser, db: DbSession, title: str | None = None):
-    result = await db.get(TryOnResult, tryon_result_id)
-    if result is None:
+    result = await db.execute(
+        select(TryOnResult).where(TryOnResult.id == tryon_result_id).options(selectinload(TryOnResult.job))
+    )
+    tryon_result = result.scalar_one_or_none()
+    if tryon_result is None or tryon_result.job.user_id != user.id:
+        # Same 404 either way — never reveal that a result exists but
+        # belongs to someone else.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Try-on result not found")
 
     look = SavedLook(user_id=user.id, tryon_result_id=tryon_result_id, title=title)

@@ -1,12 +1,12 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { MIN_PHOTOS, PhotoUploader } from "@/components/upload/PhotoUploader";
 import { ApiError, affiliateGoUrl, resolveMediaUrl } from "@/lib/api/client";
-import { products as productsApi, tryon as tryonApi } from "@/lib/api/endpoints";
+import { products as productsApi, savedLooks as savedLooksApi, tryon as tryonApi } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
 import type { Product, TryOnJob, UserPhoto } from "@/lib/api/types";
 
@@ -23,6 +23,8 @@ const STAGE_LABEL: Record<TryOnJob["status"], string> = {
 
 export function TryFlow() {
   const router = useRouter();
+  const params = useSearchParams();
+  const preselectedProductId = params.get("product");
   const { user, isLoading: sessionLoading } = useSession();
   const qc = useQueryClient();
 
@@ -46,6 +48,18 @@ export function TryFlow() {
     queryFn: () => productsApi.list({ limit: 12, sort: "newest" }),
     enabled: step === 1,
   });
+
+  // Deep-linked from the AI stylist or product search (?product=<id>) — pin
+  // it into the picker's selection once we reach step 1, without changing
+  // step-advancement logic for everyone else.
+  const preselectedProductQuery = useQuery({
+    queryKey: ["products", "preselected", preselectedProductId],
+    queryFn: () => productsApi.get(preselectedProductId!),
+    enabled: !!preselectedProductId && step === 1 && !product,
+  });
+  useEffect(() => {
+    if (preselectedProductQuery.data && !product) setProduct(preselectedProductQuery.data);
+  }, [preselectedProductQuery.data, product]);
 
   const createJob = useMutation({
     mutationFn: () =>
@@ -230,7 +244,7 @@ export function TryFlow() {
                             />
                           )}
                           <span className="absolute left-2 top-2 rounded-md bg-surface/95 px-2 py-1 text-[10px] font-semibold text-ink">
-                            {p.retailer.name}
+                            {p.merchant_name ? `${p.retailer.name} · ${p.merchant_name}` : p.retailer.name}
                           </span>
                           <span
                             className={`absolute right-2 top-2 grid h-6 w-6 transform-gpu place-items-center rounded-full bg-sage text-[12px] text-white transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
@@ -387,10 +401,15 @@ function ResultStep({
           <span className="absolute right-4 top-4 rounded-full bg-sage px-3 py-1.5 text-[11px] font-semibold text-white">
             AI try-on result
           </span>
+          <p className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
+            AI-generated visualization — not a guarantee of exact fit, sizing, or color.
+          </p>
         </div>
 
         <div className="flex flex-col rounded-[26px] border border-line bg-surface p-6">
-          <p className="text-[11px] uppercase tracking-[0.14em] text-faint">{product.retailer.name}</p>
+          <p className="text-[11px] uppercase tracking-[0.14em] text-faint">
+            {product.merchant_name ? `${product.retailer.name} · ${product.merchant_name}` : product.retailer.name}
+          </p>
           <p className="mt-1 font-display text-[22px] text-ink">{product.name}</p>
           <p className="mt-1 text-[15px] text-muted">
             {(product.price_cents / 100).toFixed(2)} {product.currency.toUpperCase()}
@@ -410,6 +429,7 @@ function ResultStep({
             <Button href={affiliateGoUrl(product.id, "tryon_result")} size="md" className="w-full">
               Shop now <span aria-hidden="true">→</span>
             </Button>
+            <SaveLookButton tryonResultId={job.result!.id} />
             <Button variant="outline" size="md" className="w-full" onClick={onTryAnother}>
               Try another product
             </Button>
@@ -424,5 +444,29 @@ function ResultStep({
         </div>
       </div>
     </div>
+  );
+}
+
+function SaveLookButton({ tryonResultId }: { tryonResultId: string }) {
+  const save = useMutation({ mutationFn: () => savedLooksApi.save(tryonResultId) });
+
+  if (save.isSuccess) {
+    return (
+      <Button variant="outline" size="md" className="w-full" disabled>
+        Saved to your lookbook ✓
+      </Button>
+    );
+  }
+
+  return (
+    <Button
+      variant="outline"
+      size="md"
+      className="w-full"
+      disabled={save.isPending}
+      onClick={() => save.mutate()}
+    >
+      {save.isPending ? "Saving…" : "Save this look"}
+    </Button>
   );
 }

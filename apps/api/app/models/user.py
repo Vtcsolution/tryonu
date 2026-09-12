@@ -79,3 +79,19 @@ class PasswordResetToken(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class EmailVerificationToken(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """Single-use token emailed on registration. Verifying it flips
+    User.email_verified and releases the signup credit bonus (withheld
+    until verification — see services/auth_service.py) — same
+    hashed-token-at-rest pattern as PasswordResetToken."""
+
+    __tablename__ = "email_verification_tokens"
+
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

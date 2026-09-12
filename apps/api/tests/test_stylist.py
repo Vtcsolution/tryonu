@@ -80,6 +80,99 @@ async def test_stylist_history_is_scoped_to_the_current_user(client, db):
     assert resp.json() == []
 
 
+async def test_stylist_passes_recent_turns_as_context_on_a_follow_up(client, db, monkeypatch):
+    """Short-term memory: the second /ask call should see a recap of the
+    first turn's prompt+summary, so a follow-up like "what shoes go with
+    that" has something to refer to — without widening which products can
+    be chosen (still index-validated against the current candidate list)."""
+    captured_queries: list[StylistQuery] = []
+
+    class SpyProvider:
+        name = "spy"
+        model = "spy-1"
+
+        async def recommend(self, query: StylistQuery, candidates: list[StylistCandidate]) -> StylistRecommendation:
+            captured_queries.append(query)
+            return StylistRecommendation(summary="a spy summary", chosen_indexes=[0] if candidates else [])
+
+    monkeypatch.setattr("app.services.stylist_service.get_stylist_provider", lambda: SpyProvider())
+
+    await seed_product(db, name="Memory Item")
+    await register_and_login(client)
+
+    resp1 = await client.post("/api/v1/stylist/ask", json={"prompt": "black casual outfit", "max_items": 3})
+    assert resp1.status_code == 200
+
+    resp2 = await client.post("/api/v1/stylist/ask", json={"prompt": "what shoes go with that", "max_items": 3})
+    assert resp2.status_code == 200
+
+    assert len(captured_queries) == 2
+    assert captured_queries[0].recent_context is None  # nothing before the first turn
+    assert captured_queries[1].recent_context is not None
+    assert "black casual outfit" in captured_queries[1].recent_context
+    assert "a spy summary" in captured_queries[1].recent_context
+
+
+async def test_stylist_with_wardrobe_item_biases_candidates_toward_it(client, db):
+    """"Build an outfit around my black trousers" — the wardrobe item is
+    never a candidate itself (it's not a catalog Product); it should just
+    bias which real products the LLM even gets to see."""
+    from app.services.stylist_service import _fetch_candidates
+    from app.services.personalization_service import build_taste_profile
+
+    on_taste = await seed_product(db, name="Black Formal Shirt", color="black", style_tags=["formal"])
+    off_taste = await seed_product(db, name="Neon Sports Tee", color="neon green", style_tags=["athleisure"])
+    await register_and_login(client)
+
+    item_resp = await client.post(
+        "/api/v1/wardrobe", json={"name": "Black Trousers", "color": "black", "style_tags": ["formal"]}
+    )
+    wardrobe_item_id = item_resp.json()["id"]
+
+    resp = await client.post(
+        "/api/v1/stylist/ask",
+        json={"prompt": "what goes with this", "max_items": 3, "wardrobe_item_id": wardrobe_item_id},
+    )
+    assert resp.status_code == 200
+    # the wardrobe item itself never appears as a "product" — it isn't one
+    returned_ids = {p["id"] for p in resp.json()["products"]}
+    assert wardrobe_item_id not in returned_ids
+
+    from app.services.stylist_service import _wardrobe_anchor_profile
+    from app.models.wardrobe import WardrobeItem
+
+    item = await db.get(WardrobeItem, wardrobe_item_id)
+    profile = _wardrobe_anchor_profile(item)
+    from app.schemas.stylist import StylistAskRequest
+
+    req = StylistAskRequest(prompt="what goes with this", max_items=3)
+    candidates = await _fetch_candidates(db, req, profile)
+    ids = [c.id for c in candidates]
+
+    # on_taste (black/formal, matches the anchor) should survive the
+    # affinity-ranked cut and rank near the top. off_taste isn't asserted
+    # to survive at all — with many other zero-affinity products tied in
+    # this shared test-session DB, being crowded out of the top N by
+    # genuinely-irrelevant ties is the *correct* behavior, not a bug.
+    assert on_taste.id in ids
+    assert ids.index(on_taste.id) < 5
+    if off_taste.id in ids:  # not guaranteed to survive the cut at all — see above
+        assert ids.index(on_taste.id) < ids.index(off_taste.id)
+
+
+async def test_stylist_rejects_another_users_wardrobe_item(client, db):
+    await seed_product(db, name="Any Product")
+    await register_and_login(client)
+    item_resp = await client.post("/api/v1/wardrobe", json={"name": "Owner's Item"})
+    wardrobe_item_id = item_resp.json()["id"]
+
+    await register_and_login(client)  # a different user
+    resp = await client.post(
+        "/api/v1/stylist/ask", json={"prompt": "anything", "wardrobe_item_id": wardrobe_item_id}
+    )
+    assert resp.status_code == 404
+
+
 async def test_chat_recommend_outfit_routes_all_use_the_same_real_products_engine(client, db):
     """/chat, /recommend and /outfit are thin wrappers around the same
     ask_stylist() logic as /ask (see api/v1/endpoints/stylist.py) — confirm

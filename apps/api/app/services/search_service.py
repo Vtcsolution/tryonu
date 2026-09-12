@@ -19,11 +19,14 @@ from app.ai.embeddings import cosine_similarity, embed_text
 from app.models.product import Product
 from app.models.retailer import ProductCategory, Retailer
 from app.schemas.product import ProductSearchFilters
+from app.services.personalization_service import affinity_score, build_taste_profile
 
 _CANDIDATE_CAP = 500
 
 
-async def search_products(db: AsyncSession, filters: ProductSearchFilters) -> tuple[list[Product], int]:
+async def search_products(
+    db: AsyncSession, filters: ProductSearchFilters, *, user_id: str | None = None
+) -> tuple[list[Product], int]:
     stmt = select(Product).where(Product.is_active.is_(True)).options(
         selectinload(Product.images), selectinload(Product.retailer), selectinload(Product.category)
     )
@@ -64,11 +67,25 @@ async def search_products(db: AsyncSession, filters: ProductSearchFilters) -> tu
     stmt = stmt.limit(_CANDIDATE_CAP)
     products = list((await db.execute(stmt)).scalars().unique().all())
 
+    profile = await build_taste_profile(db, user_id) if user_id else None
+
     if filters.q and filters.sort == "relevance":
         query_vec = await embed_text(filters.q)
-        products.sort(
-            key=lambda p: cosine_similarity(query_vec, p.embedding or []), reverse=True
-        )
+        if profile and profile.has_signal:
+            # Blend textual relevance with taste — a query still dominates,
+            # personalization only nudges which close matches rank first.
+            products.sort(
+                key=lambda p: 0.75 * cosine_similarity(query_vec, p.embedding or [])
+                + 0.25 * affinity_score(p, profile),
+                reverse=True,
+            )
+        else:
+            products.sort(key=lambda p: cosine_similarity(query_vec, p.embedding or []), reverse=True)
+    elif not filters.q and filters.sort == "relevance" and profile and profile.has_signal:
+        # Plain browsing ("relevance", no query) previously had no real
+        # ordering at all — this is exactly where personalization has
+        # something to add instead of arbitrary DB order.
+        products.sort(key=lambda p: affinity_score(p, profile), reverse=True)
     elif filters.sort == "price_asc":
         products.sort(key=lambda p: p.price_cents)
     elif filters.sort == "price_desc":

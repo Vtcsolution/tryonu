@@ -13,6 +13,7 @@ from app.schemas.credit import (
     CreditPackageOut,
     CreditTransactionOut,
     PurchaseCreditsRequest,
+    PurchaseCreditsResponse,
 )
 from app.services import credit_service
 
@@ -44,7 +45,7 @@ async def packages(db: DbSession):
     return list(result.scalars().all())
 
 
-@router.post("/purchase", response_model=CreditTransactionOut)
+@router.post("/purchase", response_model=PurchaseCreditsResponse)
 async def purchase(payload: PurchaseCreditsRequest, user: CurrentUser, db: DbSession):
     package = await db.get(CreditPackage, payload.credit_package_id)
     if package is None or not package.is_active:
@@ -71,10 +72,18 @@ async def purchase(payload: PurchaseCreditsRequest, user: CurrentUser, db: DbSes
     await db.flush()
 
     if checkout.status != "succeeded":
+        # Real Stripe path: the PaymentIntent needs client-side confirmation
+        # (3DS, wallet, etc). The frontend confirms with client_secret via
+        # Stripe.js, then polls GET /credits/purchase/{payment_id} — credits
+        # are only ever granted server-side once Stripe's webhook reports
+        # payment_intent.succeeded (see api/v1/endpoints/webhooks.py).
+        # Never grant here based on what the client claims happened.
         await db.commit()
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail="Payment requires additional confirmation on the client (see client_secret)",
+        return PurchaseCreditsResponse(
+            payment_id=payment.id,
+            status=checkout.status,
+            client_secret=checkout.client_secret,
+            checkout_url=checkout.checkout_url,
         )
 
     entry = await credit_service.grant(
@@ -87,4 +96,29 @@ async def purchase(payload: PurchaseCreditsRequest, user: CurrentUser, db: DbSes
         note=f"Purchased {package.name}",
     )
     await db.commit()
-    return entry
+    return PurchaseCreditsResponse(
+        payment_id=payment.id,
+        status="succeeded",
+        credits_granted=package.credits,
+        new_balance=entry.balance_after,
+    )
+
+
+@router.get("/purchase/{payment_id}", response_model=PurchaseCreditsResponse)
+async def purchase_status(payment_id: str, user: CurrentUser, db: DbSession):
+    """Polled by the frontend after confirming a real Stripe payment
+    client-side — reflects whatever the webhook has (or hasn't yet)
+    recorded, never anything the client asserts."""
+    payment = await db.get(Payment, payment_id)
+    if payment is None or payment.user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payment not found")
+
+    if payment.status == PaymentStatus.SUCCEEDED:
+        return PurchaseCreditsResponse(
+            payment_id=payment.id,
+            status="succeeded",
+            new_balance=await credit_service.get_balance(db, user.id),
+        )
+    if payment.status == PaymentStatus.FAILED:
+        return PurchaseCreditsResponse(payment_id=payment.id, status="failed")
+    return PurchaseCreditsResponse(payment_id=payment.id, status="pending")

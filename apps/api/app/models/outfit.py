@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Enum, ForeignKey, Integer, String
+from sqlalchemy import JSON, Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -26,6 +26,12 @@ class Outfit(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     occasion: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_by_stylist: Mapped[bool] = mapped_column(default=False, nullable=False)
+
+    # Rule-based coherence score (color/style/gender/slot-diversity) — see
+    # services/outfit_compatibility.py. Computed once at creation time
+    # rather than live, so it doesn't drift if a product later changes.
+    compatibility_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    compatibility_notes: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     user: Mapped["User"] = relationship()
     items: Mapped[list["OutfitItem"]] = relationship(

@@ -58,3 +58,29 @@ async def test_admin_payments_list_is_admin_only(client, db):
     resp = await client.get("/api/v1/admin/payments")
     assert resp.status_code == 200
     assert isinstance(resp.json(), list)
+
+
+async def test_admin_subscriptions_list_is_admin_only(client, db):
+    data = await register_and_login(client)
+    resp = await client.get("/api/v1/admin/subscriptions")
+    assert resp.status_code == 403
+
+    await client.post("/api/v1/subscriptions/subscribe", json={"plan": "starter"})
+
+    await make_admin(db, data["user"]["id"])
+    resp = await client.get("/api/v1/admin/subscriptions")
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert any(r["plan"] == "starter" for r in rows)
+
+
+async def test_admin_overview_reports_revenue_by_source(client, db):
+    data = await register_and_login(client)
+    await client.post("/api/v1/subscriptions/subscribe", json={"plan": "pro"})
+    await make_admin(db, data["user"]["id"])
+
+    resp = await client.get("/api/v1/admin/overview")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["revenue_cents_subscriptions_30d"] >= 1999
+    assert body["revenue_cents_one_off_30d"] >= 0

@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
-import { Button } from "@/components/ui/Button";
+import { auth } from "@/lib/api/endpoints";
 import { useLogout, useSession } from "@/lib/auth/useSession";
 
 export function AccountMenu() {
@@ -11,6 +12,7 @@ export function AccountMenu() {
   const logout = useLogout();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const resend = useMutation({ mutationFn: auth.resendVerification });
 
   if (isLoading) {
     return <div className="h-9 w-[110px] animate-pulse rounded-full bg-ink/[0.06]" />;
@@ -41,8 +43,11 @@ export function AccountMenu() {
           {initial}
         </span>
         <span className="hidden font-display text-[13px] text-ink sm:inline">
-          {user.credits_balance} credits
+          {user.email_verified ? `${user.credits_balance} credits` : "Verify email"}
         </span>
+        {!user.email_verified && (
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#c0503a]" aria-hidden="true" />
+        )}
       </button>
 
       <div
@@ -50,20 +55,44 @@ export function AccountMenu() {
           open ? "visible translate-y-0 opacity-100" : "invisible -translate-y-1 opacity-0"
         }`}
       >
-        <div className="w-[200px] rounded-2xl border border-line bg-surface p-2 shadow-lift">
+        <div className="w-[220px] rounded-2xl border border-line bg-surface p-2 shadow-lift">
           <div className="px-3 py-2">
             <p className="truncate text-[13px] font-semibold text-ink">
               {user.full_name || user.email}
             </p>
-            <p className="text-[12px] text-muted">{user.credits_balance} credits</p>
+            <p className="text-[12px] text-muted">
+              {user.email_verified ? `${user.credits_balance} credits` : "0 credits — unverified"}
+            </p>
           </div>
-          <Link
-            href="/try"
-            onClick={() => setOpen(false)}
-            className="block rounded-xl px-3 py-2 text-[13px] text-ink-soft transition-colors hover:bg-paper-2"
-          >
-            Try-on studio
-          </Link>
+          {!user.email_verified && (
+            <button
+              type="button"
+              disabled={resend.isPending || resend.isSuccess}
+              onClick={() => resend.mutate()}
+              className="block w-full rounded-xl px-3 py-2 text-left text-[13px] text-sage-deep transition-colors hover:bg-paper-2 disabled:opacity-60"
+            >
+              {resend.isSuccess ? "Verification email sent" : resend.isPending ? "Sending…" : "Resend verification email"}
+            </button>
+          )}
+          {[
+            { href: "/try", label: "Try-on studio" },
+            { href: "/stylist", label: "AI Stylist" },
+            { href: "/outfits", label: "Outfit builder" },
+            { href: "/wardrobe", label: "My wardrobe" },
+            { href: "/saved", label: "Saved looks" },
+            { href: "/preferences", label: "Preferences" },
+            { href: "/credits", label: "Buy credits" },
+            ...(user.is_admin ? [{ href: "/admin", label: "Admin dashboard" }] : []),
+          ].map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => setOpen(false)}
+              className="block rounded-xl px-3 py-2 text-[13px] text-ink-soft transition-colors hover:bg-paper-2"
+            >
+              {item.label}
+            </Link>
+          ))}
           <button
             type="button"
             onClick={async () => {
