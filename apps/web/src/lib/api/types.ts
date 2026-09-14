@@ -111,6 +111,7 @@ export type TryOnJob = {
   credit_cost: number;
   error_message: string | null;
   product: Product | null;
+  outfit: Outfit | null;
   result: TryOnResult | null;
   queued_at: string | null;
   started_at: string | null;

@@ -334,6 +334,46 @@ async def test_fetch_products_dedupes_across_search_terms(monkeypatch):
     assert len(ids) == len(set(ids))  # no duplicates despite 12 search terms all matching
 
 
+async def test_fetch_products_skips_one_bad_term_and_keeps_the_rest(monkeypatch):
+    """Real bug, found live: Rakuten returned a 400 INVALID_CONTEXT_VALUE
+    for the "t-shirt" search term specifically while dress/jacket/jeans/
+    sneakers all succeeded — the old code let that one failure discard
+    every already-fetched result for the whole retailer."""
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/token":
+            return httpx.Response(200, json={"access_token": "tok", "expires_in": 3600})
+        if request.url.params.get("keyword") == "t-shirt":
+            return httpx.Response(
+                400, text="<result><Errors><ErrorID>INVALID_CONTEXT_VALUE</ErrorID></Errors></result>"
+            )
+        return httpx.Response(200, text=_search_xml(_DRESS_ITEM_XML))
+
+    _patch_transport(monkeypatch, httpx.MockTransport(handler))
+
+    provider = _provider()
+    products = await provider.fetch_products(limit=100)
+    assert len(products) > 0  # the other 11 terms' results weren't discarded
+
+
+async def test_fetch_products_raises_when_every_term_fails(monkeypatch):
+    """The flip side of the fix above: skipping one bad term is resilience,
+    but if *every* term fails the same way, that's a systemic problem
+    (bad auth, full outage) and must still raise — not silently report
+    zero products as if that were a normal empty catalog."""
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/token":
+            return httpx.Response(200, json={"access_token": "tok", "expires_in": 3600})
+        return httpx.Response(503, text="Service Unavailable")
+
+    _patch_transport(monkeypatch, httpx.MockTransport(handler))
+
+    provider = _provider()
+    with pytest.raises(RakutenAPIError):
+        await provider.fetch_products(limit=5)
+
+
 async def test_fetch_products_respects_limit(monkeypatch):
     items_xml = "".join(
         f'<item><sku>RKT-{i}</sku><productname>Item {i}</productname>'

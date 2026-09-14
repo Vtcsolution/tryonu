@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { SiteChrome } from "@/components/layout/SiteChrome";
 import { PreferencesForm } from "@/components/preferences/PreferencesForm";
 
@@ -10,7 +11,9 @@ export const metadata: Metadata = {
 export default function PreferencesPage() {
   return (
     <SiteChrome>
-      <PreferencesForm />
+      <Suspense>
+        <PreferencesForm />
+      </Suspense>
     </SiteChrome>
   );
 }

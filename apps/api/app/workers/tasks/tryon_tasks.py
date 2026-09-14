@@ -19,7 +19,7 @@ from app.core.config import get_settings
 from app.core.logging import logger
 from app.db.session import AsyncSessionLocal
 from app.models.ai_usage import AIUsage
-from app.models.enums import AIUsageKind, JobStatus
+from app.models.enums import AIUsageKind, JobStatus, OutfitSlot
 from app.models.outfit import OutfitItem
 from app.models.product import Product
 from app.models.tryon import TryOnJob, TryOnResult
@@ -28,6 +28,13 @@ from app.services.storage_service import get_storage, new_key
 
 settings = get_settings()
 MAX_ATTEMPTS = 3
+
+# FASHN composites a garment onto a body — it's built for clothing worn on
+# the torso/legs, not footwear/headwear/accessories. Outfit items outside
+# this set are still real products returned to the shopper (with their own
+# affiliate link) but are never sent to the try-on provider, since forcing
+# e.g. shoes through a garment-compositing model produces unreliable output.
+_RENDERABLE_SLOTS = {OutfitSlot.TOP, OutfitSlot.BOTTOM, OutfitSlot.DRESS, OutfitSlot.OUTERWEAR}
 
 
 def _absolute_url(url: str) -> str:
@@ -44,7 +51,7 @@ async def _garment_image_urls(session, job: TryOnJob) -> list[str]:
     if job.outfit_id is not None:
         result = await session.execute(
             select(OutfitItem)
-            .where(OutfitItem.outfit_id == job.outfit_id)
+            .where(OutfitItem.outfit_id == job.outfit_id, OutfitItem.slot.in_(_RENDERABLE_SLOTS))
             .options(selectinload(OutfitItem.product).selectinload(Product.images))
             .order_by(OutfitItem.position)
         )
@@ -78,7 +85,13 @@ async def run_tryon_job_async(job_id: str) -> None:
 
         garment_urls = await _garment_image_urls(session, job)
         if not garment_urls:
-            await _fail_job(session, job, "No product image available to try on", refund=True)
+            message = (
+                "This outfit has no clothing item FASHN can render (only footwear/accessories, "
+                "which aren't visually applied) — nothing to generate an image from"
+                if job.outfit_id is not None
+                else "No product image available to try on"
+            )
+            await _fail_job(session, job, message, refund=True)
             return
 
         model_url = _absolute_url(job.user_photo.url)
@@ -121,7 +134,7 @@ async def run_tryon_job_async(job_id: str) -> None:
                     reference_type="tryon_job",
                     reference_id=job.id,
                     success=False,
-                    error_message=str(exc),
+                    error_message=str(exc)[:512],  # AIUsage.error_message is VARCHAR(512)
                 )
             )
             await session.commit()
@@ -176,7 +189,7 @@ async def _handle_provider_error(session, job: TryOnJob, exc: TryOnProviderError
             reference_type="tryon_job",
             reference_id=job.id,
             success=False,
-            error_message=str(exc),
+            error_message=str(exc)[:512],  # AIUsage.error_message is VARCHAR(512)
         )
     )
     await _fail_job(session, job, str(exc), refund=True)

@@ -19,6 +19,6 @@ class UserPhotoOut(ORMModel):
 class FittingProfileStatus(ORMModel):
     photos: list[UserPhotoOut]
     has_front: bool
-    has_full_body: bool
+    has_back: bool
     is_ready: bool
     min_required: int = 2

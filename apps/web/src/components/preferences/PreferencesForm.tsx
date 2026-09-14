@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/Button";
@@ -20,12 +20,14 @@ const GENDERS: { value: Gender | null; label: string }[] = [
 
 export function PreferencesForm() {
   const router = useRouter();
+  const params = useSearchParams();
+  const next = params.get("next"); // set right after signup — onboarding step, not shown otherwise
   const qc = useQueryClient();
   const { user, isLoading: sessionLoading } = useSession();
 
   useEffect(() => {
-    if (!sessionLoading && !user) router.replace("/sign-in?next=/preferences");
-  }, [sessionLoading, user, router]);
+    if (!sessionLoading && !user) router.replace(`/sign-in?next=${encodeURIComponent(next ? `/preferences?next=${next}` : "/preferences")}`);
+  }, [sessionLoading, user, router, next]);
 
   const prefQuery = useQuery({
     queryKey: ["preferences"],
@@ -89,7 +91,8 @@ export function PreferencesForm() {
         Fashion <em>preferences</em>
       </h1>
       <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-muted">
-        Helps the AI stylist and search tailor recommendations to you.
+        Helps the AI stylist and search tailor recommendations to you — pick what fits, we&rsquo;ll
+        steer clear of anything outdated or off-brand for your taste.
       </p>
 
       <div className="mt-8 space-y-8 rounded-[26px] border border-line bg-surface p-6 sm:p-8">
@@ -165,6 +168,23 @@ export function PreferencesForm() {
         <Button size="md" className="w-full" disabled={save.isPending} onClick={onSubmit}>
           {save.isPending ? "Saving…" : save.isSuccess ? "Saved ✓" : "Save preferences"}
         </Button>
+
+        {next && (
+          <div className="flex items-center justify-between gap-4 pt-1">
+            <button
+              type="button"
+              onClick={() => router.push(next)}
+              className="text-[13px] text-faint underline-offset-2 hover:text-ink hover:underline"
+            >
+              Skip for now
+            </button>
+            {save.isSuccess && (
+              <Button href={next} size="sm" variant="outline">
+                Continue <span aria-hidden="true">→</span>
+              </Button>
+            )}
+          </div>
+        )}
       </div>
     </section>
   );

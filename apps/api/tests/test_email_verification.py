@@ -1,22 +1,24 @@
-"""Email verification: the signup-bonus gate that closes the credit-farming
-vector (100 free credits for an unverified account, scriptable at will)."""
+"""Email verification: confirms address ownership. Does not gate the
+signup bonus — that's granted immediately at registration (see
+test_auth.py::test_register_grants_signup_bonus_immediately) so a new
+account is usable right away."""
 
 from __future__ import annotations
 
 from tests.conftest import last_verification_token, register_and_login, unique_email
 
 
-async def test_unverified_account_has_zero_credits(client):
+async def test_unverified_account_already_has_its_signup_bonus(client):
     email = unique_email()
     await client.post(
         "/api/v1/auth/register", json={"email": email, "password": "password123", "full_name": "Test"}
     )
     resp = await client.get("/api/v1/auth/me")
-    assert resp.json()["credits_balance"] == 0
+    assert resp.json()["credits_balance"] == 100
     assert resp.json()["email_verified"] is False
 
 
-async def test_verify_email_grants_signup_bonus_exactly_once(client, db):
+async def test_verify_email_marks_verified_without_granting_more_credits(client, db):
     email = unique_email()
     await client.post(
         "/api/v1/auth/register", json={"email": email, "password": "password123", "full_name": "Test"}
@@ -27,10 +29,10 @@ async def test_verify_email_grants_signup_bonus_exactly_once(client, db):
     assert resp.status_code == 200
 
     me = await client.get("/api/v1/auth/me")
-    assert me.json()["credits_balance"] == 100
+    assert me.json()["credits_balance"] == 100  # unchanged — granted at registration, not here
     assert me.json()["email_verified"] is True
 
-    # the same token cannot be replayed for a second bonus
+    # the same token cannot be replayed
     resp = await client.post("/api/v1/auth/verify-email", json={"token": token})
     assert resp.status_code == 400
 

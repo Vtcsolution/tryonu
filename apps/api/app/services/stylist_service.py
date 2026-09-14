@@ -181,7 +181,7 @@ async def ask_stylist(db: AsyncSession, *, user_id: str, req: StylistAskRequest)
         recommendation = await provider.recommend(query, llm_candidates)
     except Exception as exc:  # noqa: BLE001
         success = False
-        error_message = str(exc)
+        error_message = str(exc)[:512]  # AIUsage.error_message is VARCHAR(512)
         recommendation = None
     latency_ms = int((time.perf_counter() - start) * 1000)
 

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
+import { VoiceInputButton } from "@/components/ui/VoiceInputButton";
 import { ApiError, affiliateGoUrl, resolveMediaUrl } from "@/lib/api/client";
 import { stylist as stylistApi, wardrobe as wardrobeApi } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
@@ -158,6 +159,7 @@ export function StylistChat() {
           placeholder="e.g. black formal outfit for a wedding under $300"
           className="h-11 flex-1 rounded-xl border border-line-strong bg-paper px-3.5 text-[14px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25"
         />
+        <VoiceInputButton onTranscript={(text) => setPrompt((p) => (p ? `${p} ${text}` : text))} />
         <input
           type="number"
           min={0}
@@ -207,6 +209,13 @@ function StylistExchange({ entry }: { entry: StylistResponse }) {
                 ))}
               </ul>
             )}
+            <Button
+              href={`/try?outfit=${entry.outfit.id}`}
+              size="sm"
+              className="mt-3 !h-8 w-full !text-[12px]"
+            >
+              Try this outfit on
+            </Button>
           </div>
         )}
 

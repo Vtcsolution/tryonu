@@ -192,6 +192,7 @@ export const preferences = {
 
 export const outfits = {
   list: () => apiFetch<Outfit[]>("/api/v1/outfits"),
+  get: (outfitId: string) => apiFetch<Outfit>(`/api/v1/outfits/${outfitId}`),
   create: (input: { name?: string; occasion?: string; items: OutfitItemInput[] }) =>
     apiFetch<Outfit>("/api/v1/outfits", { method: "POST", body: input }),
   remove: (outfitId: string) =>

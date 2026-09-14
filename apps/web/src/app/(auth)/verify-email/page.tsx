@@ -4,7 +4,7 @@ import { VerifyEmailPanel } from "./VerifyEmailPanel";
 
 export const metadata: Metadata = {
   title: "Verify your email",
-  description: "Confirm your email to unlock your free TryOnU credits.",
+  description: "Confirm your email address to secure your TryOnU account.",
 };
 
 export default function VerifyEmailPage() {

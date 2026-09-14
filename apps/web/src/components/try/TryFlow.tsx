@@ -2,13 +2,25 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
+import { VoiceInputButton } from "@/components/ui/VoiceInputButton";
 import { MIN_PHOTOS, PhotoUploader } from "@/components/upload/PhotoUploader";
 import { ApiError, affiliateGoUrl, resolveMediaUrl } from "@/lib/api/client";
-import { products as productsApi, savedLooks as savedLooksApi, tryon as tryonApi } from "@/lib/api/endpoints";
+import {
+  outfits as outfitsApi,
+  products as productsApi,
+  savedLooks as savedLooksApi,
+  stylist as stylistApi,
+  tryon as tryonApi,
+} from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
-import type { Product, TryOnJob, UserPhoto } from "@/lib/api/types";
+import type { Outfit, OutfitItem, Product, StylistResponse, TryOnJob, UserPhoto } from "@/lib/api/types";
+
+// Slots FASHN can actually composite onto the photo (garments worn on the
+// torso/legs) — shoes/watch/bag/accessory/other are still real matched
+// products with their own shop-now link, just never visually applied.
+const RENDERABLE_SLOTS = new Set(["top", "bottom", "dress", "outerwear"]);
 
 const STEPS = ["Fitting profile", "Choose product", "Your look"] as const;
 const TERMINAL: TryOnJob["status"][] = ["completed", "failed", "cancelled"];
@@ -25,6 +37,7 @@ export function TryFlow() {
   const router = useRouter();
   const params = useSearchParams();
   const preselectedProductId = params.get("product");
+  const preselectedOutfitId = params.get("outfit");
   const { user, isLoading: sessionLoading } = useSession();
   const qc = useQueryClient();
 
@@ -32,6 +45,9 @@ export function TryFlow() {
   const [userPhotos, setUserPhotos] = useState<UserPhoto[]>([]);
   const [profileReady, setProfileReady] = useState(false);
   const [product, setProduct] = useState<Product | null>(null);
+  const [outfit, setOutfit] = useState<Outfit | null>(null);
+  const [prompt, setPrompt] = useState("");
+  const [lastStylistReply, setLastStylistReply] = useState<StylistResponse | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
 
@@ -61,9 +77,46 @@ export function TryFlow() {
     if (preselectedProductQuery.data && !product) setProduct(preselectedProductQuery.data);
   }, [preselectedProductQuery.data, product]);
 
+  const preselectedOutfitQuery = useQuery({
+    queryKey: ["outfits", "preselected", preselectedOutfitId],
+    queryFn: () => outfitsApi.get(preselectedOutfitId!),
+    enabled: !!preselectedOutfitId && step === 1 && !outfit,
+  });
+  useEffect(() => {
+    if (preselectedOutfitQuery.data && !outfit) {
+      setOutfit(preselectedOutfitQuery.data);
+      setProduct(null);
+    }
+  }, [preselectedOutfitQuery.data, outfit]);
+
+  // Free-text "apply Armani shirt, leopard shoes, a hat" — reuses the same
+  // real-catalog-only AI stylist that powers /stylist, so this never
+  // invents a product; it just picks real matches and (when more than one)
+  // bundles them into an Outfit for the sequential multi-item try-on.
+  const askStylist = useMutation({
+    mutationFn: () => stylistApi.ask({ prompt: prompt.trim(), max_items: 6 }),
+    onSuccess: (res) => {
+      setLastStylistReply(res);
+      if (res.outfit) {
+        setOutfit(res.outfit);
+        setProduct(null);
+      } else if (res.products.length === 1) {
+        setProduct(res.products[0]);
+        setOutfit(null);
+      } else {
+        setProduct(null);
+        setOutfit(null);
+      }
+    },
+  });
+
   const createJob = useMutation({
     mutationFn: () =>
-      tryonApi.create({ user_photo_id: primaryPhoto!.id, product_id: product!.id }),
+      tryonApi.create({
+        user_photo_id: primaryPhoto!.id,
+        product_id: outfit ? undefined : product!.id,
+        outfit_id: outfit ? outfit.id : undefined,
+      }),
     onSuccess: (job) => {
       setJobId(job.id);
       setElapsedSec(0);
@@ -174,10 +227,107 @@ export function TryFlow() {
             Choose a <em>product</em>
           </h1>
           <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-muted">
-            Pulled live from connected retailers — pick something to try on.
+            Describe a look and our AI stylist will pull real matches from connected retailers —
+            or browse the catalog below.
           </p>
 
-          <div className="mt-8">
+          <form
+            className="mt-6 flex flex-col gap-2 rounded-[22px] border border-line bg-surface p-3 sm:flex-row sm:items-center"
+            onSubmit={(e: FormEvent) => {
+              e.preventDefault();
+              if (!prompt.trim() || askStylist.isPending) return;
+              askStylist.mutate();
+            }}
+          >
+            <input
+              type="text"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="e.g. Armani shirt, leopard-print shoes, a black hat"
+              className="h-11 flex-1 rounded-xl border border-line-strong bg-paper px-3.5 text-[14px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25"
+            />
+            <VoiceInputButton
+              onTranscript={(text) => setPrompt((p) => (p ? `${p} ${text}` : text))}
+            />
+            <Button type="submit" size="md" disabled={!prompt.trim() || askStylist.isPending}>
+              {askStylist.isPending ? "Styling…" : "Style it"}
+            </Button>
+          </form>
+
+          {askStylist.isError && (
+            <p className="mt-3 text-[13px] text-[#a4553f]" role="alert">
+              {askStylist.error instanceof ApiError
+                ? askStylist.error.detail
+                : "Couldn't reach the stylist. Please try again."}
+            </p>
+          )}
+
+          {lastStylistReply && !outfit && !product && (
+            <div className="mt-3 rounded-[18px] border border-dashed border-line p-4 text-[13px] text-muted">
+              {lastStylistReply.summary || "No matching real products found for that — try a different prompt, or browse below."}
+            </div>
+          )}
+
+          {(outfit || (product && lastStylistReply?.products.length === 1 && lastStylistReply.products[0].id === product.id)) && (
+            <div className="mt-4 animate-[tu-in-scale_0.35s_ease] rounded-[20px] border border-sage bg-sage-tint/30 p-4">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-sage-deep">
+                  {outfit ? `AI-styled outfit · ${outfit.items.length} items` : "AI-styled pick"}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOutfit(null);
+                    setProduct(null);
+                    setLastStylistReply(null);
+                  }}
+                  className="text-[12px] text-faint underline-offset-2 hover:text-ink hover:underline"
+                >
+                  Clear
+                </button>
+              </div>
+
+              {outfit ? (
+                <>
+                  <div className="mt-3 grid grid-cols-3 gap-2.5 sm:grid-cols-4">
+                    {outfit.items.map((item) => (
+                      <OutfitItemThumb key={item.id} item={item} />
+                    ))}
+                  </div>
+                  <p className="mt-3 text-[12px] text-muted">
+                    Clothing items are layered onto your photo; footwear/accessories are matched
+                    products with their own shop link, shown alongside the result.
+                  </p>
+                </>
+              ) : (
+                product && (
+                  <div className="mt-3 flex items-center gap-3">
+                    {(() => {
+                      const thumb = resolveMediaUrl(product.images[0]?.url);
+                      return thumb ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={thumb} alt={product.name} className="h-16 w-12 rounded-lg object-cover object-top" />
+                      ) : null;
+                    })()}
+                    <div>
+                      <p className="text-[13px] font-semibold text-ink">{product.name}</p>
+                      <p className="text-[12px] text-muted">
+                        {(product.price_cents / 100).toFixed(2)} {product.currency.toUpperCase()}
+                      </p>
+                    </div>
+                  </div>
+                )
+              )}
+            </div>
+          )}
+
+          <div className="mt-8 flex items-center gap-3 text-[12px] text-faint">
+            <span className="h-px flex-1 bg-line" />
+            or browse the catalog
+            <span className="h-px flex-1 bg-line" />
+          </div>
+
+          <div className="mt-6">
             {productsQuery.isLoading && (
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                 {Array.from({ length: 8 }).map((_, i) => (
@@ -229,7 +379,10 @@ export function TryFlow() {
                     >
                       <button
                         type="button"
-                        onClick={() => setProduct(p)}
+                        onClick={() => {
+                          setProduct(p);
+                          setOutfit(null);
+                        }}
                         className={`group tu-hover-card block w-full overflow-hidden rounded-[20px] border bg-surface text-left ${
                           selected ? "border-sage ring-2 ring-sage/40" : "border-line hover:border-line-strong"
                         }`}
@@ -279,7 +432,7 @@ export function TryFlow() {
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <Button
               size="md"
-              disabled={!product || createJob.isPending}
+              disabled={(!product && !outfit) || createJob.isPending}
               onClick={() => createJob.mutate()}
             >
               {createJob.isPending ? "Starting…" : "Generate try-on"}{" "}
@@ -319,7 +472,7 @@ export function TryFlow() {
             <p className="mt-2 text-[13px] text-muted">
               {jobQuery.data?.status === "failed"
                 ? jobQuery.data.error_message || "The AI provider couldn't complete this render. Your credits were refunded."
-                : `Rendering ${product?.name ?? "your look"} — this runs as a background job, so you could leave and come back.`}
+                : `Rendering ${outfit ? `your ${outfit.items.length}-item outfit` : (product?.name ?? "your look")} — this runs as a background job, so you could leave and come back.`}
             </p>
 
             {jobQuery.data?.status !== "failed" && (
@@ -340,7 +493,14 @@ export function TryFlow() {
 
             {jobQuery.data?.status === "failed" && (
               <div className="mt-6 flex justify-center gap-3">
-                <Button size="sm" onClick={() => setStep(1)}>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setProduct(null);
+                    setOutfit(null);
+                    setStep(1);
+                  }}
+                >
                   Try another product
                 </Button>
               </div>
@@ -350,22 +510,45 @@ export function TryFlow() {
       )}
 
       {/* STEP 3 — result */}
-      {step === 3 && jobQuery.data?.result && (product || jobQuery.data.product) && (
-        <ResultStep
-          job={jobQuery.data}
-          product={product || jobQuery.data.product!}
-          onTryAnother={() => {
-            setProduct(null);
-            setJobId(null);
-            setStep(1);
-          }}
-          onStartOver={() => {
-            setProduct(null);
-            setJobId(null);
-            setStep(0);
-          }}
-        />
-      )}
+      {step === 3 &&
+        jobQuery.data?.result &&
+        (jobQuery.data.outfit ? (
+          <OutfitResultStep
+            job={jobQuery.data}
+            outfit={jobQuery.data.outfit}
+            onTryAnother={() => {
+              setProduct(null);
+              setOutfit(null);
+              setJobId(null);
+              setStep(1);
+            }}
+            onStartOver={() => {
+              setProduct(null);
+              setOutfit(null);
+              setJobId(null);
+              setStep(0);
+            }}
+          />
+        ) : (
+          (product || jobQuery.data.product) && (
+            <ResultStep
+              job={jobQuery.data}
+              product={product || jobQuery.data.product!}
+              onTryAnother={() => {
+                setProduct(null);
+                setOutfit(null);
+                setJobId(null);
+                setStep(1);
+              }}
+              onStartOver={() => {
+                setProduct(null);
+                setOutfit(null);
+                setJobId(null);
+                setStep(0);
+              }}
+            />
+          )
+        ))}
     </section>
   );
 }
@@ -432,6 +615,127 @@ function ResultStep({
             <SaveLookButton tryonResultId={job.result!.id} />
             <Button variant="outline" size="md" className="w-full" onClick={onTryAnother}>
               Try another product
+            </Button>
+            <button
+              type="button"
+              onClick={onStartOver}
+              className="w-full text-center font-display text-[13px] text-muted transition-colors hover:text-ink"
+            >
+              Start over
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OutfitItemThumb({ item }: { item: OutfitItem }) {
+  const thumb = resolveMediaUrl(item.product.images[0]?.url);
+  const rendered = RENDERABLE_SLOTS.has(item.slot);
+  return (
+    <div className="overflow-hidden rounded-[14px] border border-line bg-surface">
+      <div className="relative aspect-square bg-paper-2">
+        {thumb && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={thumb} alt={item.product.name} className="h-full w-full object-cover object-top" />
+        )}
+        <span
+          className={`absolute bottom-1 left-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+            rendered ? "bg-sage text-white" : "bg-surface/95 text-ink-soft"
+          }`}
+        >
+          {rendered ? "on photo" : "matched"}
+        </span>
+      </div>
+      <p className="truncate px-1.5 py-1 text-[10.5px] text-ink-soft">{item.product.name}</p>
+    </div>
+  );
+}
+
+function OutfitResultStep({
+  job,
+  outfit,
+  onTryAnother,
+  onStartOver,
+}: {
+  job: TryOnJob;
+  outfit: Outfit;
+  onTryAnother: () => void;
+  onStartOver: () => void;
+}) {
+  const renderedCount = outfit.items.filter((i) => RENDERABLE_SLOTS.has(i.slot)).length;
+
+  return (
+    <div key="s3-outfit" className="animate-[tu-in-scale_0.45s_cubic-bezier(0.22,1,0.36,1)]">
+      <div className="flex items-center gap-2">
+        <span className="grid h-6 w-6 place-items-center rounded-full bg-sage text-[12px] text-white">✓</span>
+        <h1 className="font-display text-[clamp(24px,3.6vw,36px)] leading-tight text-ink">
+          Here&rsquo;s <em>you</em>, styled
+        </h1>
+      </div>
+
+      <div className="mt-6 grid gap-6 md:grid-cols-[1.4fr_1fr]">
+        <div className="relative aspect-[4/5] overflow-hidden rounded-[26px] border border-line shadow-lift md:aspect-auto md:min-h-[460px]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={resolveMediaUrl(job.result!.image_url)}
+            alt="AI try-on result — styled outfit"
+            className="h-full w-full object-cover object-top"
+          />
+          <span className="absolute right-4 top-4 rounded-full bg-sage px-3 py-1.5 text-[11px] font-semibold text-white">
+            AI try-on result
+          </span>
+          <p className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
+            {renderedCount} of {outfit.items.length} items applied to the photo — footwear/accessories
+            are matched products, not visually composited.
+          </p>
+        </div>
+
+        <div className="flex flex-col rounded-[26px] border border-line bg-surface p-6">
+          <p className="text-[11px] uppercase tracking-[0.14em] text-faint">
+            {outfit.items.length}-item outfit · {(outfit.total_price_cents / 100).toFixed(2)}
+          </p>
+          {outfit.compatibility_score != null && (
+            <p className="mt-1 text-[13px] text-muted">{outfit.compatibility_score}% style match</p>
+          )}
+
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            {outfit.items.map((item) => (
+              <OutfitItemThumb key={item.id} item={item} />
+            ))}
+          </div>
+
+          <div className="mt-5 space-y-1.5 border-t border-line pt-4">
+            {outfit.items.map((item) => (
+              <div key={item.id} className="flex items-center justify-between gap-2 text-[12.5px]">
+                <span className="truncate text-ink-soft">{item.product.name}</span>
+                <Button
+                  href={affiliateGoUrl(item.product.id, "tryon_result")}
+                  size="sm"
+                  variant="outline"
+                  className="!h-7 shrink-0 !px-2.5 !text-[11px]"
+                >
+                  Shop now
+                </Button>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 space-y-2 text-[13px] text-muted">
+            <p className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-sage" /> {job.credit_cost} credit
+              {job.credit_cost === 1 ? "" : "s"} used · job completed
+            </p>
+            <p className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-sage" /> Rendered by {job.provider}
+            </p>
+          </div>
+
+          <div className="mt-auto space-y-3 pt-6">
+            <SaveLookButton tryonResultId={job.result!.id} />
+            <Button variant="outline" size="md" className="w-full" onClick={onTryAnother}>
+              Try another look
             </Button>
             <button
               type="button"

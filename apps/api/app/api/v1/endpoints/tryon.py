@@ -12,7 +12,7 @@ from app.core.deps import CurrentUser, DbSession
 from app.core.rate_limit import rate_limiter
 from app.db.base import new_uuid
 from app.models.enums import CreditReason, JobStatus
-from app.models.outfit import Outfit
+from app.models.outfit import Outfit, OutfitItem
 from app.models.photo import UserPhoto
 from app.models.product import Product
 from app.models.tryon import TryOnJob
@@ -27,6 +27,8 @@ settings = get_settings()
 _LOAD_OPTS = (
     selectinload(TryOnJob.product).selectinload(Product.images),
     selectinload(TryOnJob.product).selectinload(Product.retailer),
+    selectinload(TryOnJob.outfit).selectinload(Outfit.items).selectinload(OutfitItem.product).selectinload(Product.images),
+    selectinload(TryOnJob.outfit).selectinload(Outfit.items).selectinload(OutfitItem.product).selectinload(Product.retailer),
     selectinload(TryOnJob.result),
 )
 

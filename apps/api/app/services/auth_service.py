@@ -46,9 +46,15 @@ async def register_user(db: AsyncSession, *, email: str, password: str, full_nam
     )
     db.add(user)
     await db.flush()
-    # The signup bonus is withheld until the address is verified (see
-    # verify_email below) — granting it unconditionally here would let
-    # anyone script unlimited free accounts for free AI usage.
+    await credit_service.grant(
+        db,
+        user_id=user.id,
+        amount=settings.SIGNUP_FREE_CREDITS,
+        reason=CreditReason.SIGNUP_BONUS,
+        reference_type="user",
+        reference_id=user.id,
+        note="Welcome bonus",
+    )
     await _send_verification_email(db, user)
     await db.commit()
     await db.refresh(user)
@@ -71,8 +77,8 @@ async def _send_verification_email(db: AsyncSession, user: User) -> None:
         to=user.email,
         subject="Verify your TryOnU email",
         text_body=(
-            f"Welcome to TryOnU! Verify your email to unlock your {settings.SIGNUP_FREE_CREDITS} "
-            f"free credits (link valid for {settings.EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES // 60} hours):\n"
+            f"Welcome to TryOnU! Please verify your email address "
+            f"(link valid for {settings.EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES // 60} hours):\n"
             f"{verify_url}\n\n"
             "If you didn't create this account, you can safely ignore this email."
         ),
@@ -93,15 +99,6 @@ async def verify_email(db: AsyncSession, *, token: str) -> User:
 
     stored.used_at = datetime.now(timezone.utc)
     user.email_verified = True
-    await credit_service.grant(
-        db,
-        user_id=user.id,
-        amount=settings.SIGNUP_FREE_CREDITS,
-        reason=CreditReason.SIGNUP_BONUS,
-        reference_type="user",
-        reference_id=user.id,
-        note="Welcome bonus — email verified",
-    )
     await db.commit()
     await db.refresh(user)
     logger.info("email_verified", user_id=user.id)

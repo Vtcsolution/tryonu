@@ -48,9 +48,9 @@ export function VerifyEmailPanel() {
             Email <em>verified</em>
           </>
         }
-        subtitle="Your free credits are ready."
+        subtitle="Your account is fully set up."
       >
-        <Button href="/try" size="md" className="w-full">
+        <Button href="/preferences?next=%2Ftry" size="md" className="w-full">
           Start your first try-on <span aria-hidden="true">→</span>
         </Button>
       </AuthCard>

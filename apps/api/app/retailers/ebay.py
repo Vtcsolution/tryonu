@@ -19,6 +19,7 @@ import time
 
 import httpx
 
+from app.core.logging import logger
 from app.retailers.base import ProductProvider, RawProduct
 from app.retailers.errors import RetailerNotConfiguredError
 
@@ -74,6 +75,8 @@ class EbayProductProvider(ProductProvider):
 
         products: list[RawProduct] = []
         seen_ids: set[str] = set()
+        last_error: Exception | None = None
+        any_term_succeeded = False
 
         async with httpx.AsyncClient(timeout=20) as client:
             token = await self._get_token(client)
@@ -86,13 +89,29 @@ class EbayProductProvider(ProductProvider):
             for term, category_slug in _SEARCH_TERMS:
                 if len(products) >= limit:
                     break
-                for raw in await self._search(client, headers, term, category_slug, per_term):
+                # One bad search term must not discard every term already
+                # fetched — skip it and keep going, same resilience
+                # guarantee sync_all_retailers gives at the retailer level.
+                # But if *every* term fails, that's a systemic problem —
+                # raise rather than silently reporting zero products as if
+                # that were a normal empty result.
+                try:
+                    term_results = await self._search(client, headers, term, category_slug, per_term)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("ebay_search_term_failed", term=term, error=str(exc))
+                    last_error = exc
+                    continue
+                any_term_succeeded = True
+                for raw in term_results:
                     if raw.retailer_product_id in seen_ids:
                         continue
                     seen_ids.add(raw.retailer_product_id)
                     products.append(raw)
                     if len(products) >= limit:
                         break
+
+        if not any_term_succeeded and last_error is not None:
+            raise last_error
 
         return products[:limit]
 

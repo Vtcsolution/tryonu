@@ -118,12 +118,13 @@ def last_verification_token(email: str) -> str:
 async def register_and_login(
     client: AsyncClient, *, email: str | None = None, password: str = "password123", verify: bool = True
 ) -> dict:
-    """Registers a fresh user and leaves the client authenticated (cookies
-    persist on the shared AsyncClient instance). Returns the response JSON.
+    """Registers a fresh user (already funded with the signup bonus — see
+    auth_service.register_user) and leaves the client authenticated
+    (cookies persist on the shared AsyncClient instance). Returns the
+    response JSON.
 
-    By default also verifies the email (the signup bonus is withheld until
-    verification — see auth_service.register_user), since most tests just
-    need a funded account and aren't exercising verification itself. Pass
+    By default also verifies the email, since most tests just need a
+    verified account and aren't exercising verification itself. Pass
     verify=False for tests of the unverified state."""
     email = email or unique_email()
     resp = await client.post(

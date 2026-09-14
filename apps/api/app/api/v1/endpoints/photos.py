@@ -37,12 +37,12 @@ async def fitting_profile_status(user: CurrentUser, db: DbSession):
     photos = list(result.scalars().all())
     kinds = {p.kind for p in photos}
     has_front = PhotoKind.FRONT in kinds
-    has_full_body = PhotoKind.FULL_BODY in kinds
+    has_back = PhotoKind.BACK in kinds
     return FittingProfileStatus(
         photos=photos,
         has_front=has_front,
-        has_full_body=has_full_body,
-        is_ready=has_front or has_full_body,
+        has_back=has_back,
+        is_ready=has_front and has_back,
     )
 
 

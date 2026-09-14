@@ -71,6 +71,7 @@ from dataclasses import dataclass
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
+from app.core.logging import logger
 from app.retailers.base import ProductProvider, RawProduct
 from app.retailers.errors import RetailerNotConfiguredError
 
@@ -358,18 +359,39 @@ class RakutenProductProvider(ProductProvider):
         products: list[RawProduct] = []
         seen_ids: set[str] = set()
         per_term = max(1, limit // len(_SEARCH_TERMS) + 1)
+        last_error: Exception | None = None
+        any_term_succeeded = False
 
         async with httpx.AsyncClient(timeout=20) as client:
             for term, category_slug in _SEARCH_TERMS:
                 if len(products) >= limit:
                     break
-                for raw in await self._search(client, term, category_slug, per_term):
+                # A single bad search term (real example: Rakuten returned
+                # a 400 INVALID_CONTEXT_VALUE for "t-shirt" while dress/
+                # jacket/jeans/sneakers all succeeded) must not discard
+                # every term already fetched — skip it and keep going,
+                # same resilience guarantee sync_all_retailers already
+                # gives at the retailer level. But if *every* term fails
+                # the same way, that's a systemic problem (bad auth, full
+                # outage) — raise rather than silently reporting zero
+                # products as if that were a normal empty result.
+                try:
+                    term_results = await self._search(client, term, category_slug, per_term)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("rakuten_search_term_failed", term=term, error=str(exc))
+                    last_error = exc
+                    continue
+                any_term_succeeded = True
+                for raw in term_results:
                     if raw.retailer_product_id in seen_ids:
                         continue
                     seen_ids.add(raw.retailer_product_id)
                     products.append(raw)
                     if len(products) >= limit:
                         break
+
+        if not any_term_succeeded and last_error is not None:
+            raise last_error
 
         return products[:limit]
 

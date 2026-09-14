@@ -44,10 +44,10 @@ export function SignUpForm() {
             Check your <em>email</em>
           </>
         }
-        subtitle={`We sent a verification link to ${email}. Verify it to unlock your 100 free credits.`}
+        subtitle={`Your 100 free credits are ready to use. We also sent a verification link to ${email} — verify when you get a chance.`}
       >
         <div className="space-y-3">
-          <Button href={next} size="md" className="w-full">
+          <Button href={`/preferences?next=${encodeURIComponent(next)}`} size="md" className="w-full">
             Continue to TryOnU <span aria-hidden="true">→</span>
           </Button>
           <Button
@@ -72,7 +72,7 @@ export function SignUpForm() {
           Create your <em>fitting profile</em>
         </>
       }
-      subtitle="100 free credits — verify your email to unlock them."
+      subtitle="Get 100 free credits the moment you sign up."
       footer={
         <>
           Already have an account?{" "}

@@ -6,21 +6,15 @@ import { resolveMediaUrl } from "@/lib/api/client";
 import { photos as photosApi } from "@/lib/api/endpoints";
 import type { PhotoKind, UserPhoto } from "@/lib/api/types";
 
-const SLOTS: { kind: PhotoKind; label: string }[] = [
-  { kind: "front", label: "Front" },
-  { kind: "left_45", label: "Left 45°" },
-  { kind: "right_45", label: "Right 45°" },
-  { kind: "left_side", label: "Left side" },
-  { kind: "right_side", label: "Right side" },
-  { kind: "full_body", label: "Full body" },
-  { kind: "back", label: "Back" },
-  { kind: "extra", label: "Extra" },
-  { kind: "extra", label: "Extra" },
-  { kind: "extra", label: "Extra" },
+const SLOTS: { kind: PhotoKind; label: string; required: boolean }[] = [
+  { kind: "front", label: "Front", required: true },
+  { kind: "back", label: "Back", required: true },
+  { kind: "left_side", label: "Left", required: false },
+  { kind: "right_side", label: "Right", required: false },
 ];
 
-const MAX_PHOTOS = 10;
-export const MIN_PHOTOS = 7; // encouraged, not enforced — see isReady below
+const MAX_PHOTOS = SLOTS.length;
+export const MIN_PHOTOS = SLOTS.filter((s) => s.required).length; // front + back
 
 type SlotUpload = { status: "uploading" | "error"; error?: string };
 
@@ -62,7 +56,9 @@ export function PhotoUploader({
   }, []);
 
   useEffect(() => {
-    const isReady = photos.some((p) => p.kind === "front" || p.kind === "full_body");
+    const isReady = SLOTS.filter((s) => s.required).every((s) =>
+      photos.some((p) => p.kind === s.kind)
+    );
     onPhotosChange?.(photos, isReady);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [photos]);
@@ -108,8 +104,10 @@ export function PhotoUploader({
   };
 
   const count = photos.length;
-  const pct = Math.min(100, Math.round((count / MIN_PHOTOS) * 100));
-  const isReady = photos.some((p) => p.kind === "front" || p.kind === "full_body");
+  const requiredSlots = SLOTS.filter((s) => s.required);
+  const requiredCount = requiredSlots.filter((s) => photos.some((p) => p.kind === s.kind)).length;
+  const pct = Math.min(100, Math.round((requiredCount / MIN_PHOTOS) * 100));
+  const isReady = requiredCount === MIN_PHOTOS;
 
   return (
     <div>
@@ -154,11 +152,11 @@ export function PhotoUploader({
           }}
         />
         <p className="mt-3 text-[12px] text-faint">
-          JPG, PNG, WEBP or HEIC · up to 12MB each · front or full-body required
+          JPG, PNG, WEBP or HEIC · up to 12MB each · front and back required, left/right optional
         </p>
       </div>
 
-      <div className="mt-5 grid grid-cols-5 gap-2.5">
+      <div className="mt-5 grid grid-cols-4 gap-2.5">
         {SLOTS.map((slot, i) => {
           const photo = photoForSlot(i, photos);
           const state = pending[i];
@@ -208,7 +206,7 @@ export function PhotoUploader({
         <span>
           {count} / {MAX_PHOTOS} photos
         </span>
-        <span>{isReady ? "Ready ✓" : "Add a front or full-body photo"}</span>
+        <span>{isReady ? "Ready ✓" : "Add a front and back photo"}</span>
       </div>
       {loadError && (
         <p className="mt-2 text-[12px] text-[#a4553f]" role="alert">
@@ -223,11 +221,5 @@ export function PhotoUploader({
 }
 
 function photoForSlot(index: number, photos: UserPhoto[]): UserPhoto | undefined {
-  const slot = SLOTS[index];
-  if (slot.kind !== "extra") return photos.find((p) => p.kind === slot.kind);
-  // "extra" slots: fill in order with whichever extras exist beyond the
-  // named slots, by upload order.
-  const extraIndex = SLOTS.slice(0, index).filter((s) => s.kind === "extra").length;
-  const extras = photos.filter((p) => p.kind === "extra");
-  return extras[extraIndex];
+  return photos.find((p) => p.kind === SLOTS[index].kind);
 }

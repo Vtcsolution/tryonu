@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from app.models.enums import JobStatus
 from app.schemas.common import ORMModel
+from app.schemas.outfit import OutfitOut
 from app.schemas.product import ProductOut
 
 
@@ -30,6 +31,7 @@ class TryOnJobOut(ORMModel):
     credit_cost: int
     error_message: str | None
     product: ProductOut | None
+    outfit: OutfitOut | None
     result: TryOnResultOut | None
     queued_at: datetime | None
     started_at: datetime | None
