@@ -740,7 +740,7 @@ function AngleGallery({
 }) {
   if (jobs.length < 2) return null;
   return (
-    <div className="absolute left-4 top-4 z-10 flex gap-2">
+    <>
       {jobs.map((j, i) => (
         <button
           key={j.id}
@@ -753,7 +753,7 @@ function AngleGallery({
           {PHOTO_KIND_LABEL[j.user_photo.kind]}
         </button>
       ))}
-    </div>
+    </>
   );
 }
 
@@ -782,17 +782,19 @@ function ResultStep({
       </div>
 
       <div className="mt-6 grid gap-6 md:grid-cols-[1.4fr_1fr]">
-        <div className="relative aspect-[4/5] overflow-hidden rounded-[26px] border border-line shadow-lift md:aspect-auto md:min-h-[460px]">
+        <div className="relative aspect-[4/5] overflow-hidden rounded-[26px] border border-line bg-paper-2 shadow-lift md:aspect-auto md:min-h-[460px]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={resolveMediaUrl(job.result!.image_url)}
             alt={`AI try-on result — ${product.name} — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}
-            className="h-full w-full object-cover object-top"
+            className="h-full w-full object-contain"
           />
-          <AngleGallery jobs={jobs} activeIndex={activeIndex} onSelect={setActiveIndex} />
-          <span className="absolute right-4 top-4 rounded-full bg-sage px-3 py-1.5 text-[11px] font-semibold text-white">
-            AI try-on result{jobs.length > 1 ? ` · ${PHOTO_KIND_LABEL[job.user_photo.kind]}` : ""}
-          </span>
+          <div className="absolute inset-x-3 top-3 z-10 flex flex-wrap items-start gap-2">
+            <AngleGallery jobs={jobs} activeIndex={activeIndex} onSelect={setActiveIndex} />
+            <span className="ml-auto rounded-full bg-sage px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm">
+              AI try-on result{jobs.length > 1 ? ` · ${PHOTO_KIND_LABEL[job.user_photo.kind]}` : ""}
+            </span>
+          </div>
           <p className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
             AI-generated visualization — not a guarantee of exact fit, sizing, or color.
           </p>
@@ -931,17 +933,19 @@ function OutfitResultStep({
       </div>
 
       <div className="mt-6 grid gap-6 md:grid-cols-[1.4fr_1fr]">
-        <div className="relative aspect-[4/5] overflow-hidden rounded-[26px] border border-line shadow-lift md:aspect-auto md:min-h-[460px]">
+        <div className="relative aspect-[4/5] overflow-hidden rounded-[26px] border border-line bg-paper-2 shadow-lift md:aspect-auto md:min-h-[460px]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={resolveMediaUrl(job.result!.image_url)}
             alt={`AI try-on result — styled outfit — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}
-            className="h-full w-full object-cover object-top"
+            className="h-full w-full object-contain"
           />
-          <AngleGallery jobs={jobs} activeIndex={activeIndex} onSelect={setActiveIndex} />
-          <span className="absolute right-4 top-4 rounded-full bg-sage px-3 py-1.5 text-[11px] font-semibold text-white">
-            AI try-on result{jobs.length > 1 ? ` · ${PHOTO_KIND_LABEL[job.user_photo.kind]}` : ""}
-          </span>
+          <div className="absolute inset-x-3 top-3 z-10 flex flex-wrap items-start gap-2">
+            <AngleGallery jobs={jobs} activeIndex={activeIndex} onSelect={setActiveIndex} />
+            <span className="ml-auto rounded-full bg-sage px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm">
+              AI try-on result{jobs.length > 1 ? ` · ${PHOTO_KIND_LABEL[job.user_photo.kind]}` : ""}
+            </span>
+          </div>
           <p className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
             {renderedCount} of {outfit.items.length} items applied to the photo — footwear/accessories
             are matched products, not visually composited.
@@ -950,7 +954,8 @@ function OutfitResultStep({
 
         <div className="flex flex-col rounded-[26px] border border-line bg-surface p-6">
           <p className="text-[11px] uppercase tracking-[0.14em] text-faint">
-            {outfit.items.length}-item outfit · {(outfit.total_price_cents / 100).toFixed(2)}
+            {outfit.items.length}-item outfit · {(outfit.total_price_cents / 100).toFixed(2)}{" "}
+            {(outfit.items[0]?.product.currency ?? "usd").toUpperCase()}
           </p>
           {outfit.compatibility_score != null && (
             <p className="mt-1 text-[13px] text-muted">{outfit.compatibility_score}% style match</p>
@@ -962,10 +967,15 @@ function OutfitResultStep({
             ))}
           </div>
 
-          <div className="mt-5 space-y-1.5 border-t border-line pt-4">
+          <div className="mt-5 space-y-2 border-t border-line pt-4">
             {outfit.items.map((item) => (
               <div key={item.id} className="flex items-center justify-between gap-2 text-[12.5px]">
-                <span className="truncate text-ink-soft">{item.product.name}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-ink-soft">{item.product.name}</span>
+                  <span className="block text-[11px] text-faint">
+                    {(item.product.price_cents / 100).toFixed(2)} {item.product.currency.toUpperCase()}
+                  </span>
+                </span>
                 <Button
                   href={affiliateGoUrl(item.product.id, "tryon_result")}
                   size="sm"
