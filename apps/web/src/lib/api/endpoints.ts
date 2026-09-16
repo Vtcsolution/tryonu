@@ -223,13 +223,17 @@ export const outfits = {
 /* --------------------------------- try-on ---------------------------------- */
 
 export const tryon = {
-  create: (input: { user_photo_id: string; product_id?: string; outfit_id?: string }) =>
+  create: (input: { user_photo_id: string; product_id?: string; outfit_id?: string; wardrobe_item_id?: string }) =>
     apiFetch<TryOnJob>("/api/v1/tryon", { method: "POST", body: input }),
 
   // One job per photo angle (e.g. front + back) — same product/outfit,
   // charged per job. See POST /tryon/multi.
-  createMulti: (input: { user_photo_ids: string[]; product_id?: string; outfit_id?: string }) =>
-    apiFetch<TryOnJob[]>("/api/v1/tryon/multi", { method: "POST", body: input }),
+  createMulti: (input: {
+    user_photo_ids: string[];
+    product_id?: string;
+    outfit_id?: string;
+    wardrobe_item_id?: string;
+  }) => apiFetch<TryOnJob[]>("/api/v1/tryon/multi", { method: "POST", body: input }),
 
   get: (jobId: string) => apiFetch<TryOnJob>(`/api/v1/tryon/${jobId}`),
 

@@ -312,3 +312,78 @@ async def test_multi_tryon_checks_total_cost_upfront_not_partway(client, db):
     # nothing was charged — not even a partial debit for the one job that
     # would have fit
     assert await credit_balance(db, user_id) == 5
+
+
+async def _create_wardrobe_item_with_photo(client, *, name: str = "My Denim Jacket") -> str:
+    item = (await client.post("/api/v1/wardrobe", json={"name": name})).json()
+    files = {"file": ("item.jpg", small_jpeg_bytes(), "image/jpeg")}
+    resp = await client.post(f"/api/v1/wardrobe/{item['id']}/photo", files=files)
+    assert resp.status_code == 200, resp.text
+    return item["id"]
+
+
+async def test_wardrobe_item_tryon_composites_the_users_own_upload(client, db, monkeypatch):
+    """"Upload your own item" — never a shoppable Product, just the user's
+    own photo composited onto their fitting photo."""
+    async def fake_generate(self, payload):  # noqa: ARG001
+        return TryOnOutput(image_bytes=small_jpeg_bytes(), provider_job_id="fake-ok", latency_ms=1)
+
+    monkeypatch.setattr(MockTryOnProvider, "generate", fake_generate)
+
+    await register_and_login(client)
+    photo_id = await _upload_front_photo(client)
+    item_id = await _create_wardrobe_item_with_photo(client, name="Vintage Denim Jacket")
+    user_id = (await client.get("/api/v1/auth/me")).json()["id"]
+
+    resp = await client.post(
+        "/api/v1/tryon", json={"user_photo_id": photo_id, "wardrobe_item_id": item_id}
+    )
+    assert resp.status_code == 201, resp.text
+    job = resp.json()
+    assert job["credit_cost"] == 5
+    assert job["wardrobe_item"]["name"] == "Vintage Denim Jacket"
+    assert job["product"] is None
+    assert job["outfit"] is None
+
+    finished = await _poll_until_terminal(client, job["id"])
+    assert finished["status"] == "completed"
+    assert finished["result"]["image_url"]
+
+
+async def test_wardrobe_item_tryon_requires_a_photo_first(client, db):
+    await register_and_login(client)
+    photo_id = await _upload_front_photo(client)
+    item = (await client.post("/api/v1/wardrobe", json={"name": "No Photo Yet"})).json()
+
+    resp = await client.post(
+        "/api/v1/tryon", json={"user_photo_id": photo_id, "wardrobe_item_id": item["id"]}
+    )
+    assert resp.status_code == 400
+
+
+async def test_wardrobe_item_tryon_rejects_someone_elses_item(client, db):
+    await register_and_login(client)
+    item_id = await _create_wardrobe_item_with_photo(client)
+
+    # a second, different user shouldn't be able to try on someone else's upload
+    await client.post("/api/v1/auth/logout")
+    await register_and_login(client)
+    photo_id = await _upload_front_photo(client)
+
+    resp = await client.post(
+        "/api/v1/tryon", json={"user_photo_id": photo_id, "wardrobe_item_id": item_id}
+    )
+    assert resp.status_code == 404
+
+
+async def test_tryon_rejects_more_than_one_target(client, db):
+    await register_and_login(client)
+    photo_id = await _upload_front_photo(client)
+    product = await seed_product(db)
+    item_id = await _create_wardrobe_item_with_photo(client)
+
+    resp = await client.post(
+        "/api/v1/tryon",
+        json={"user_photo_id": photo_id, "product_id": product.id, "wardrobe_item_id": item_id},
+    )
+    assert resp.status_code == 400

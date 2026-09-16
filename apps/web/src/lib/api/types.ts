@@ -143,6 +143,7 @@ export type TryOnJob = {
   error_message: string | null;
   product: Product | null;
   outfit: Outfit | null;
+  wardrobe_item: WardrobeItem | null;
   result: TryOnResult | null;
   user_photo: UserPhoto;
   queued_at: string | null;

@@ -48,6 +48,9 @@ async def _garment_image_urls(session, job: TryOnJob) -> list[str]:
         img = job.product.primary_image_url
         return [img] if img else []
 
+    if job.wardrobe_item is not None:
+        return [job.wardrobe_item.image_url] if job.wardrobe_item.image_url else []
+
     if job.outfit_id is not None:
         result = await session.execute(
             select(OutfitItem)
@@ -68,6 +71,7 @@ async def run_tryon_job_async(job_id: str) -> None:
             .where(TryOnJob.id == job_id)
             .options(
                 selectinload(TryOnJob.product).selectinload(Product.images),
+                selectinload(TryOnJob.wardrobe_item),
                 selectinload(TryOnJob.user_photo),
             )
         )
@@ -89,7 +93,7 @@ async def run_tryon_job_async(job_id: str) -> None:
                 "This outfit has no clothing item FASHN can render (only footwear/accessories, "
                 "which aren't visually applied) — nothing to generate an image from"
                 if job.outfit_id is not None
-                else "No product image available to try on"
+                else "No garment image available to try on"
             )
             await _fail_job(session, job, message, refund=True)
             return

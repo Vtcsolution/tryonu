@@ -9,22 +9,26 @@ from app.schemas.common import ORMModel
 from app.schemas.outfit import OutfitOut
 from app.schemas.photo import UserPhotoOut
 from app.schemas.product import ProductOut
+from app.schemas.wardrobe import WardrobeItemOut
 
 
 class CreateTryOnRequest(BaseModel):
     user_photo_id: str
     product_id: str | None = None
     outfit_id: str | None = None
+    wardrobe_item_id: str | None = None
 
 
 class CreateMultiTryOnRequest(BaseModel):
-    """One job per photo, same product/outfit — e.g. front + back angles.
-    Charged per job (2 photos = double the cost of one), checked upfront
-    against the whole batch, not partially charged if a later one fails."""
+    """One job per photo, same product/outfit/wardrobe item — e.g. front +
+    back angles. Charged per job (2 photos = double the cost of one),
+    checked upfront against the whole batch, not partially charged if a
+    later one fails."""
 
     user_photo_ids: list[str]
     product_id: str | None = None
     outfit_id: str | None = None
+    wardrobe_item_id: str | None = None
 
 
 class TryOnResultOut(ORMModel):
@@ -43,6 +47,7 @@ class TryOnJobOut(ORMModel):
     error_message: str | None
     product: ProductOut | None
     outfit: OutfitOut | None
+    wardrobe_item: WardrobeItemOut | None
     result: TryOnResultOut | None
     user_photo: UserPhotoOut
     queued_at: datetime | None

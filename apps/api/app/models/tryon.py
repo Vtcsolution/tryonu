@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from app.models.photo import UserPhoto
     from app.models.product import Product
     from app.models.user import User
+    from app.models.wardrobe import WardrobeItem
 
 
 class TryOnJob(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -30,13 +31,18 @@ class TryOnJob(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     user_photo_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("user_photos.id", ondelete="RESTRICT"), nullable=False
     )
-    # Single-product try-on. For a combined-outfit try-on, product_id is
-    # null and outfit_id is set instead.
+    # Exactly one of these three is set: a single catalog product, a
+    # combined outfit, or a garment from the user's own uploaded wardrobe
+    # (never shoppable — no price, no affiliate link, just their own photo
+    # composited onto their fitting photo).
     product_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("products.id", ondelete="RESTRICT"), nullable=True
     )
     outfit_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("outfits.id", ondelete="RESTRICT"), nullable=True
+    )
+    wardrobe_item_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("wardrobe_items.id", ondelete="RESTRICT"), nullable=True
     )
 
     provider: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -58,6 +64,7 @@ class TryOnJob(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     user_photo: Mapped["UserPhoto"] = relationship()
     product: Mapped["Product | None"] = relationship()
     outfit: Mapped["Outfit | None"] = relationship()
+    wardrobe_item: Mapped["WardrobeItem | None"] = relationship()
     result: Mapped["TryOnResult | None"] = relationship(
         back_populates="job", cascade="all, delete-orphan", uselist=False
     )

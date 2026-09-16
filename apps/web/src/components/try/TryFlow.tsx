@@ -2,7 +2,7 @@
 
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { VoiceInputButton } from "@/components/ui/VoiceInputButton";
 import { MIN_PHOTOS, PhotoUploader } from "@/components/upload/PhotoUploader";
@@ -14,6 +14,7 @@ import {
   savedLooks as savedLooksApi,
   stylist as stylistApi,
   tryon as tryonApi,
+  wardrobe as wardrobeApi,
 } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
 import type {
@@ -25,6 +26,7 @@ import type {
   StylistResponse,
   TryOnJob,
   UserPhoto,
+  WardrobeItem,
 } from "@/lib/api/types";
 
 // Slots FASHN can actually composite onto the photo (garments worn on the
@@ -70,11 +72,14 @@ export function TryFlow() {
   const [profileReady, setProfileReady] = useState(false);
   const [product, setProduct] = useState<Product | null>(null);
   const [outfit, setOutfit] = useState<Outfit | null>(null);
+  const [customItem, setCustomItem] = useState<WardrobeItem | null>(null);
   const [prompt, setPrompt] = useState("");
   const [lastStylistReply, setLastStylistReply] = useState<StylistResponse | null>(null);
   const [jobIds, setJobIds] = useState<string[]>([]);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [multiAngle, setMultiAngle] = useState(false);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // gate the whole flow behind auth — a try-on always needs a stored photo
   useEffect(() => {
@@ -113,7 +118,30 @@ export function TryFlow() {
     onSuccess: (p) => {
       setProduct(p);
       setOutfit(null);
+      setCustomItem(null);
       setLastStylistReply(null);
+    },
+  });
+
+  // "Upload your own item" — the user's own photo of something they
+  // already own, never a shoppable catalog Product. Two-step against the
+  // existing wardrobe API: create the item, then attach the photo.
+  const wardrobeQuery = useQuery({
+    queryKey: ["wardrobe"],
+    queryFn: wardrobeApi.list,
+    enabled: step === 1,
+  });
+  const uploadCustomItem = useMutation({
+    mutationFn: async (file: File) => {
+      const item = await wardrobeApi.create({ name: file.name.replace(/\.[^/.]+$/, "").slice(0, 80) || "My item" });
+      return wardrobeApi.uploadPhoto(item.id, file);
+    },
+    onSuccess: (item) => {
+      setCustomItem(item);
+      setProduct(null);
+      setOutfit(null);
+      setLastStylistReply(null);
+      qc.invalidateQueries({ queryKey: ["wardrobe"] });
     },
   });
 
@@ -164,6 +192,7 @@ export function TryFlow() {
     mutationFn: () => stylistApi.ask({ prompt: prompt.trim(), max_items: 6 }),
     onSuccess: (res) => {
       setLastStylistReply(res);
+      setCustomItem(null);
       if (res.outfit) {
         setOutfit(res.outfit);
         setProduct(null);
@@ -179,18 +208,15 @@ export function TryFlow() {
 
   const createJob = useMutation({
     mutationFn: async () => {
+      const target = customItem
+        ? { wardrobe_item_id: customItem.id }
+        : outfit
+          ? { outfit_id: outfit.id }
+          : { product_id: product!.id };
       if (multiAngle && canMultiAngle) {
-        return tryonApi.createMulti({
-          user_photo_ids: [primaryPhoto!.id, secondaryPhoto!.id],
-          product_id: outfit ? undefined : product!.id,
-          outfit_id: outfit ? outfit.id : undefined,
-        });
+        return tryonApi.createMulti({ user_photo_ids: [primaryPhoto!.id, secondaryPhoto!.id], ...target });
       }
-      const job = await tryonApi.create({
-        user_photo_id: primaryPhoto!.id,
-        product_id: outfit ? undefined : product!.id,
-        outfit_id: outfit ? outfit.id : undefined,
-      });
+      const job = await tryonApi.create({ user_photo_id: primaryPhoto!.id, ...target });
       return [job];
     },
     onSuccess: (jobs) => {
@@ -310,32 +336,127 @@ export function TryFlow() {
             Choose a <em>product</em>
           </h1>
           <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-muted">
-            Describe a look and our AI stylist will pull real matches from connected retailers —
-            or browse the catalog below.
+            Describe a look and our AI stylist will pull real matches from connected retailers,
+            upload something you already own to try it on, or browse the catalog below.
           </p>
 
-          <form
-            className="mt-6 flex flex-col gap-2 rounded-[22px] border border-line bg-surface p-3 sm:flex-row sm:items-center"
-            onSubmit={(e: FormEvent) => {
-              e.preventDefault();
-              if (!prompt.trim() || askStylist.isPending) return;
-              askStylist.mutate();
-            }}
-          >
-            <input
-              type="text"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="e.g. Armani shirt, leopard-print shoes, a black hat"
-              className="h-11 flex-1 rounded-xl border border-line-strong bg-paper px-3.5 text-[14px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25"
-            />
-            <VoiceInputButton
-              onTranscript={(text) => setPrompt((p) => (p ? `${p} ${text}` : text))}
-            />
-            <Button type="submit" size="md" disabled={!prompt.trim() || askStylist.isPending}>
-              {askStylist.isPending ? "Styling…" : "Style it"}
-            </Button>
-          </form>
+          <div className="mt-6 flex flex-col gap-2 rounded-[26px] border border-line bg-surface p-2 sm:flex-row sm:items-center">
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => setAddMenuOpen((o) => !o)}
+                aria-label="Add your own item"
+                aria-expanded={addMenuOpen}
+                className={`grid h-11 w-11 place-items-center rounded-full border text-[20px] leading-none transition-colors ${
+                  addMenuOpen
+                    ? "border-sage bg-sage text-white"
+                    : "border-line-strong text-ink-soft hover:border-sage hover:text-sage-deep"
+                }`}
+              >
+                +
+              </button>
+
+              {addMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setAddMenuOpen(false)} />
+                  <div className="absolute left-0 top-full z-20 mt-2 w-[280px] overflow-hidden rounded-[18px] border border-line bg-surface p-1.5 shadow-lift">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAddMenuOpen(false);
+                        fileInputRef.current?.click();
+                      }}
+                      className="flex w-full items-start gap-3 rounded-[12px] px-3 py-2.5 text-left transition-colors hover:bg-paper-2"
+                    >
+                      <span className="mt-0.5 text-[16px]" aria-hidden="true">📎</span>
+                      <span>
+                        <span className="block text-[13.5px] font-semibold text-ink">Upload your own item</span>
+                        <span className="block text-[12px] text-faint">
+                          Try on a photo of something you already own
+                        </span>
+                      </span>
+                    </button>
+
+                    {wardrobeQuery.data && wardrobeQuery.data.filter((w) => w.image_url).length > 0 && (
+                      <div className="mt-1 max-h-56 overflow-y-auto border-t border-line/70 pt-1">
+                        <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-faint">
+                          From your wardrobe
+                        </p>
+                        {wardrobeQuery.data
+                          .filter((w) => w.image_url)
+                          .map((w) => (
+                            <button
+                              key={w.id}
+                              type="button"
+                              onClick={() => {
+                                setCustomItem(w);
+                                setProduct(null);
+                                setOutfit(null);
+                                setLastStylistReply(null);
+                                setAddMenuOpen(false);
+                              }}
+                              className="flex w-full items-center gap-3 rounded-[12px] px-3 py-2 text-left transition-colors hover:bg-paper-2"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={resolveMediaUrl(w.image_url)}
+                                alt={w.name}
+                                className="h-9 w-9 shrink-0 rounded-md object-cover object-top"
+                              />
+                              <span className="truncate text-[13px] text-ink">{w.name}</span>
+                            </button>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) uploadCustomItem.mutate(file);
+                  e.target.value = "";
+                }}
+              />
+            </div>
+
+            <form
+              className="flex flex-1 items-center gap-1.5"
+              onSubmit={(e: FormEvent) => {
+                e.preventDefault();
+                if (!prompt.trim() || askStylist.isPending) return;
+                askStylist.mutate();
+              }}
+            >
+              <input
+                type="text"
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="Ask your stylist — e.g. Armani shirt, leopard-print shoes, a black hat"
+                className="h-11 flex-1 rounded-full bg-transparent px-2.5 text-[14px] text-ink outline-none placeholder:text-faint"
+              />
+              <VoiceInputButton
+                onTranscript={(text) => setPrompt((p) => (p ? `${p} ${text}` : text))}
+              />
+              <button
+                type="submit"
+                disabled={!prompt.trim() || askStylist.isPending}
+                aria-label="Ask stylist"
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-sage text-white transition-opacity disabled:opacity-40"
+              >
+                {askStylist.isPending ? (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                ) : (
+                  <span aria-hidden="true">↑</span>
+                )}
+              </button>
+            </form>
+          </div>
 
           {askStylist.isError && (
             <p className="mt-3 text-[13px] text-[#a4553f]" role="alert">
@@ -343,6 +464,46 @@ export function TryFlow() {
                 ? askStylist.error.detail
                 : "Couldn't reach the stylist. Please try again."}
             </p>
+          )}
+
+          {uploadCustomItem.isPending && (
+            <p className="mt-3 text-[13px] text-muted">Uploading your photo…</p>
+          )}
+          {uploadCustomItem.isError && (
+            <p className="mt-3 text-[13px] text-[#a4553f]" role="alert">
+              {uploadCustomItem.error instanceof ApiError
+                ? uploadCustomItem.error.detail
+                : "Couldn't upload that photo. Please try again."}
+            </p>
+          )}
+
+          {customItem && (
+            <div className="mt-4 flex animate-[tu-in-scale_0.35s_ease] items-center justify-between gap-3 rounded-[20px] border border-sage bg-sage-tint/30 p-4">
+              <div className="flex min-w-0 items-center gap-3">
+                {customItem.image_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={resolveMediaUrl(customItem.image_url)}
+                    alt={customItem.name}
+                    className="h-16 w-12 shrink-0 rounded-lg object-cover object-top"
+                  />
+                )}
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-sage-deep">
+                    Your own item
+                  </p>
+                  <p className="truncate text-[13px] font-semibold text-ink">{customItem.name}</p>
+                  <p className="text-[11.5px] text-faint">Not shoppable — just your upload</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCustomItem(null)}
+                className="shrink-0 text-[12px] text-faint underline-offset-2 hover:text-ink hover:underline"
+              >
+                Clear
+              </button>
+            </div>
           )}
 
           {lastStylistReply && !outfit && !product && (
@@ -568,7 +729,7 @@ export function TryFlow() {
             </p>
           )}
 
-          {canMultiAngle && (product || outfit) && (
+          {canMultiAngle && (product || outfit || customItem) && (
             <label className="mt-6 flex cursor-pointer items-start gap-3 rounded-[16px] border border-line bg-surface p-4 text-[13px]">
               <input
                 type="checkbox"
@@ -591,7 +752,7 @@ export function TryFlow() {
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <Button
               size="md"
-              disabled={(!product && !outfit) || createJob.isPending || selectLive.isPending}
+              disabled={(!product && !outfit && !customItem) || createJob.isPending || selectLive.isPending}
               onClick={() => createJob.mutate()}
             >
               {createJob.isPending
@@ -640,7 +801,7 @@ export function TryFlow() {
               {allTerminal && !anyCompleted
                 ? jobsData.find((j) => j.status === "failed")?.error_message ||
                   "The AI provider couldn't complete this render. Your credits were refunded."
-                : `Rendering ${outfit ? `your ${outfit.items.length}-item outfit` : (product?.name ?? "your look")}${jobIds.length > 1 ? ", both angles" : ""} — this runs as a background job, so you could leave and come back.`}
+                : `Rendering ${outfit ? `your ${outfit.items.length}-item outfit` : (product?.name ?? customItem?.name ?? "your look")}${jobIds.length > 1 ? ", both angles" : ""} — this runs as a background job, so you could leave and come back.`}
             </p>
 
             {(!allTerminal || anyCompleted) && (
@@ -669,6 +830,7 @@ export function TryFlow() {
                   onClick={() => {
                     setProduct(null);
                     setOutfit(null);
+                    setCustomItem(null);
                     setJobIds([]);
                     setStep(1);
                   }}
@@ -691,6 +853,7 @@ export function TryFlow() {
             onTryAnother={() => {
               setProduct(null);
               setOutfit(null);
+              setCustomItem(null);
               setJobIds([]);
               setMultiAngle(false);
               setStep(1);
@@ -698,6 +861,28 @@ export function TryFlow() {
             onStartOver={() => {
               setProduct(null);
               setOutfit(null);
+              setCustomItem(null);
+              setJobIds([]);
+              setMultiAngle(false);
+              setStep(0);
+            }}
+          />
+        ) : completedJobs[0].wardrobe_item || customItem ? (
+          <WardrobeResultStep
+            jobs={completedJobs}
+            item={completedJobs[0].wardrobe_item || customItem!}
+            onTryAnother={() => {
+              setProduct(null);
+              setOutfit(null);
+              setCustomItem(null);
+              setJobIds([]);
+              setMultiAngle(false);
+              setStep(1);
+            }}
+            onStartOver={() => {
+              setProduct(null);
+              setOutfit(null);
+              setCustomItem(null);
               setJobIds([]);
               setMultiAngle(false);
               setStep(0);
@@ -711,6 +896,7 @@ export function TryFlow() {
               onTryAnother={() => {
                 setProduct(null);
                 setOutfit(null);
+                setCustomItem(null);
                 setJobIds([]);
                 setMultiAngle(false);
                 setStep(1);
@@ -718,6 +904,7 @@ export function TryFlow() {
               onStartOver={() => {
                 setProduct(null);
                 setOutfit(null);
+                setCustomItem(null);
                 setJobIds([]);
                 setMultiAngle(false);
                 setStep(0);
@@ -1002,6 +1189,85 @@ function OutfitResultStep({
             <SaveLookButton tryonResultId={job.result!.id} />
             <Button variant="outline" size="md" className="w-full" onClick={onTryAnother}>
               Try another look
+            </Button>
+            <button
+              type="button"
+              onClick={onStartOver}
+              className="w-full text-center font-display text-[13px] text-muted transition-colors hover:text-ink"
+            >
+              Start over
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WardrobeResultStep({
+  jobs,
+  item,
+  onTryAnother,
+  onStartOver,
+}: {
+  jobs: TryOnJob[];
+  item: WardrobeItem;
+  onTryAnother: () => void;
+  onStartOver: () => void;
+}) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const job = jobs[activeIndex] ?? jobs[0];
+  const totalCredits = jobs.reduce((sum, j) => sum + j.credit_cost, 0);
+
+  return (
+    <div key="s3-wardrobe" className="animate-[tu-in-scale_0.45s_cubic-bezier(0.22,1,0.36,1)]">
+      <div className="flex items-center gap-2">
+        <span className="grid h-6 w-6 place-items-center rounded-full bg-sage text-[12px] text-white">✓</span>
+        <h1 className="font-display text-[clamp(24px,3.6vw,36px)] leading-tight text-ink">
+          Here&rsquo;s <em>you</em>, in {item.name}
+        </h1>
+      </div>
+
+      <div className="mt-6 grid gap-6 md:grid-cols-[1.4fr_1fr]">
+        <div className="relative aspect-[4/5] overflow-hidden rounded-[26px] border border-line bg-paper-2 shadow-lift md:aspect-auto md:min-h-[460px]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={resolveMediaUrl(job.result!.image_url)}
+            alt={`AI try-on result — ${item.name} — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}
+            className="h-full w-full object-contain"
+          />
+          <div className="absolute inset-x-3 top-3 z-10 flex flex-wrap items-start gap-2">
+            <AngleGallery jobs={jobs} activeIndex={activeIndex} onSelect={setActiveIndex} />
+            <span className="ml-auto rounded-full bg-sage px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm">
+              AI try-on result{jobs.length > 1 ? ` · ${PHOTO_KIND_LABEL[job.user_photo.kind]}` : ""}
+            </span>
+          </div>
+          <p className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
+            AI-generated visualization — not a guarantee of exact fit, sizing, or color.
+          </p>
+        </div>
+
+        <div className="flex flex-col rounded-[26px] border border-line bg-surface p-6">
+          <p className="text-[11px] uppercase tracking-[0.14em] text-faint">Your own item</p>
+          <p className="mt-1 font-display text-[22px] text-ink">{item.name}</p>
+          <p className="mt-1 text-[13px] text-muted">
+            Not shoppable — this is your own upload, not a catalog product.
+          </p>
+
+          <div className="mt-5 space-y-2 text-[13px] text-muted">
+            <p className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-sage" /> {totalCredits} credit
+              {totalCredits === 1 ? "" : "s"} used · {jobs.length > 1 ? `${jobs.length} angles` : "job"} completed
+            </p>
+            <p className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-sage" /> Rendered by {job.provider}
+            </p>
+          </div>
+
+          <div className="mt-auto space-y-3 pt-6">
+            <SaveLookButton tryonResultId={job.result!.id} />
+            <Button variant="outline" size="md" className="w-full" onClick={onTryAnother}>
+              Try another item
             </Button>
             <button
               type="button"
