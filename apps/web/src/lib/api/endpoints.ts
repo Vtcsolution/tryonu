@@ -7,6 +7,7 @@ import type {
   CreditPackage,
   CreditTransaction,
   FittingProfileStatus,
+  LiveProduct,
   Outfit,
   OutfitItemInput,
   Page,
@@ -93,6 +94,21 @@ export const products = {
   retailers: () => apiFetch<{ id: string; slug: string; name: string; logo_url: string | null }[]>(
     "/api/v1/products/meta/retailers",
   ),
+
+  // Turns one live search result into a real, saved product — the only
+  // point a live-searched item enters our database. Called right before
+  // creating a try-on/outfit with it, not when it's merely shown on screen.
+  selectLive: (input: { query: string; retailer_slug: string; retailer_product_id: string }) =>
+    apiFetch<Product>("/api/v1/products/select-live", { method: "POST", body: input }),
+};
+
+/* ------------------------------ live search ------------------------------- */
+
+export const liveSearch = {
+  // Fetched fresh from retailer APIs on every call — never reads from or
+  // writes to our product catalog. See products.selectLive to persist one.
+  search: (q: string, limit = 24) =>
+    apiFetch<LiveProduct[]>(`/api/v1/search/live?q=${encodeURIComponent(q)}&limit=${limit}`),
 };
 
 /* --------------------------------- credits --------------------------------- */

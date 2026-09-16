@@ -48,6 +48,39 @@ class ProductOut(ORMModel):
         return self.price_cents / 100
 
 
+class LiveProductOut(BaseModel):
+    """A search result fetched live from a retailer API — never saved to
+    our database. Has no `id` (nothing to redirect an affiliate click or
+    a try-on job to yet); select it via POST /api/v1/products/select-live
+    first, which persists it and returns a real ProductOut with an id."""
+
+    retailer_slug: str
+    retailer_product_id: str
+    name: str
+    brand: str | None
+    merchant_name: str | None
+    description: str | None
+    subcategory: str | None
+    gender: str
+    color: str | None
+    sizes: list[str]
+    style_tags: list[str]
+    price_cents: int
+    currency: str
+    rating: float | None
+    rating_count: int
+    availability: str
+    product_url: str
+    images: list[str]
+    retailer_name: str
+
+
+class SelectLiveProductRequest(BaseModel):
+    query: str
+    retailer_slug: str
+    retailer_product_id: str
+
+
 class ProductSearchFilters(BaseModel):
     q: str | None = None
     category: str | None = None

@@ -121,6 +121,22 @@ async def _upsert_product(
     return product
 
 
+async def persist_single_product(db: AsyncSession, provider: ProductProvider, raw: RawProduct) -> Product:
+    """The one place a *live-searched* result (see live_search_service.py)
+    becomes a real, saved row — called only when a user actually selects
+    that specific product (for a try-on, or via the AI stylist choosing
+    it), never speculatively for a whole search-results page. Reuses the
+    exact same normalization/upsert logic as the bulk sync path, so a
+    product looked up live and one that happened to already be synced
+    come out identical."""
+    retailer = await _get_or_create_retailer(db, provider)
+    category = await _get_or_create_category(db, raw.category_slug)
+    product = await _upsert_product(db, retailer, category, raw, provider)
+    await db.commit()
+    await db.refresh(product)
+    return product
+
+
 async def sync_all_retailers(db: AsyncSession, *, limit_per_retailer: int = 200) -> dict[str, int]:
     """Returns {retailer_slug: products_upserted}. Never raises for a single
     misconfigured/unreachable retailer — that retailer is skipped and

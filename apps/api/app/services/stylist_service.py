@@ -1,7 +1,11 @@
 """AI fashion stylist: turns a free-text ask into a curated set of *real*
-catalog products. The LLM never sees or invents products outside a
-pre-filtered candidate shortlist — see app/ai/llm/base.py for how that's
-enforced.
+products, fetched live from retailer APIs at request time — never from a
+pre-synced local catalog (see live_search_service.py). The LLM never sees
+or invents products outside a pre-filtered candidate shortlist — see
+app/ai/llm/base.py for how that's enforced. A candidate only ever becomes
+a saved row in our own database at the very end, and only for the
+specific items the LLM actually chose — see
+product_ingestion_service.persist_single_product.
 """
 
 from __future__ import annotations
@@ -11,22 +15,23 @@ import time
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.ai.llm.base import StylistCandidate, StylistQuery
 from app.ai.llm.registry import get_stylist_provider
 from app.models.ai_usage import AIUsage
 from app.models.enums import AIUsageKind, OutfitSlot
 from app.models.outfit import Outfit, OutfitItem
-from app.models.product import Product
 from app.models.stylist import StylistRequest
 from app.models.wardrobe import WardrobeItem
+from app.retailers.base import RawProduct
 from app.schemas.stylist import StylistAskRequest
+from app.services.live_search_service import LiveSearchResult, live_search
 from app.services.outfit_compatibility import score_outfit
 from app.services.personalization_service import TasteProfile, affinity_score, build_taste_profile
+from app.services.product_ingestion_service import persist_single_product
 
 _CANDIDATE_POOL_SIZE = 40
-_CANDIDATE_FETCH_POOL_SIZE = 1000  # widened before personalized re-ranking trims to _CANDIDATE_POOL_SIZE
+_LIVE_FETCH_POOL_SIZE = 60  # widened before personalized re-ranking trims to _CANDIDATE_POOL_SIZE
 _RECENT_TURNS = 3
 
 
@@ -87,42 +92,31 @@ def _wardrobe_context_line(item: WardrobeItem) -> str:
     )
 
 
-async def _fetch_candidates(db: AsyncSession, req: StylistAskRequest, profile: TasteProfile | None) -> list[Product]:
-    stmt = select(Product).where(Product.is_active.is_(True)).options(
-        selectinload(Product.images), selectinload(Product.retailer), selectinload(Product.category)
-    )
+async def _fetch_candidates(req: StylistAskRequest, profile: TasteProfile | None) -> list[LiveSearchResult]:
+    """Every candidate is fetched fresh from retailer APIs for this exact
+    prompt — nothing here is a pre-synced local row. Budget filtering and
+    personalized re-ranking both happen over that live pool in Python
+    rather than in SQL, since there's no local table to filter/sort with a
+    WHERE/ORDER BY."""
+    pool = await live_search(req.prompt, limit=_LIVE_FETCH_POOL_SIZE)
+
     if req.budget_min_cents is not None:
-        stmt = stmt.where(Product.price_cents >= req.budget_min_cents)
+        pool = [r for r in pool if r.raw.price_cents >= req.budget_min_cents]
     if req.budget_max_cents is not None:
-        stmt = stmt.where(Product.price_cents <= req.budget_max_cents)
+        pool = [r for r in pool if r.raw.price_cents <= req.budget_max_cents]
 
     if profile and profile.has_signal:
-        # Widen the pool, then trim to the LLM's shortlist size by taste —
-        # the LLM only ever sees the final _CANDIDATE_POOL_SIZE, so
-        # personalization decides which real products it gets to choose
-        # from, never what it's allowed to invent.
-        #
-        # _CANDIDATE_FETCH_POOL_SIZE is generously large specifically so
-        # an unordered LIMIT can't arbitrarily exclude relevant products
-        # before affinity ranking (below) even gets to see them — an
-        # ordered-but-still-capped fetch doesn't actually fix that (a
-        # fresh UUID has no special position under any ordering); it just
-        # needs to comfortably exceed real catalog size until Phase 1
-        # brings enough inventory to warrant a real ANN/relevance query
-        # here (same tradeoff search_service.py documents for its own
-        # candidate cap).
-        wide_stmt = stmt.limit(_CANDIDATE_FETCH_POOL_SIZE)
-        pool = list((await db.execute(wide_stmt)).scalars().unique().all())
-        pool.sort(key=lambda p: affinity_score(p, profile), reverse=True)
-        return pool[:_CANDIDATE_POOL_SIZE]
+        # affinity_score only reads .color/.brand/.style_tags — present on
+        # RawProduct with the same names, so this works unmodified even
+        # though its signature says Product.
+        pool.sort(key=lambda r: affinity_score(r.raw, profile), reverse=True)  # type: ignore[arg-type]
 
-    stmt = stmt.limit(_CANDIDATE_POOL_SIZE)
-    return list((await db.execute(stmt)).scalars().unique().all())
+    return pool[:_CANDIDATE_POOL_SIZE]
 
 
-def _slot_for(product: Product) -> OutfitSlot:
-    cat = (product.category.slug if product.category else "") or ""
-    name = product.name.lower()
+def _slot_for(raw: RawProduct) -> OutfitSlot:
+    cat = raw.category_slug or ""
+    name = raw.name.lower()
     if "dress" in cat or "dress" in name:
         return OutfitSlot.DRESS
     if "coat" in cat or "jacket" in cat or "bomber" in name or "coat" in name:
@@ -148,18 +142,18 @@ async def ask_stylist(db: AsyncSession, *, user_id: str, req: StylistAskRequest)
     # An explicit "build around this" anchor takes priority over general
     # taste — the user asked for something specific, not just a good match.
     profile = _wardrobe_anchor_profile(wardrobe_item) if wardrobe_item else await build_taste_profile(db, user_id)
-    candidates = await _fetch_candidates(db, req, profile)
+    candidates = await _fetch_candidates(req, profile)
     llm_candidates = [
         StylistCandidate(
             index=i,
-            name=p.name,
-            brand=p.brand,
-            category=p.category.name if p.category else None,
-            color=p.color,
-            price_cents=p.price_cents,
-            style_tags=p.style_tags or [],
+            name=r.raw.name,
+            brand=r.raw.brand,
+            category=r.raw.category_slug,
+            color=r.raw.color,
+            price_cents=r.raw.price_cents,
+            style_tags=r.raw.style_tags or [],
         )
-        for i, p in enumerate(candidates)
+        for i, r in enumerate(candidates)
     ]
 
     provider = get_stylist_provider()
@@ -215,11 +209,15 @@ async def ask_stylist(db: AsyncSession, *, user_id: str, req: StylistAskRequest)
         await db.refresh(stylist_request)
         return stylist_request
 
-    chosen_products = [candidates[i] for i in recommendation.chosen_indexes if 0 <= i < len(candidates)]
+    chosen_results = [candidates[i] for i in recommendation.chosen_indexes if 0 <= i < len(candidates)]
+
+    # The one point a live-searched candidate becomes a saved row — only
+    # for what the LLM actually chose, never the rest of the pool it saw.
+    chosen_products = [await persist_single_product(db, r.provider, r.raw) for r in chosen_results]
 
     outfit: Outfit | None = None
     if len(chosen_products) > 1:
-        slots = [_slot_for(p) for p in chosen_products]
+        slots = [_slot_for(r.raw) for r in chosen_results]
         coherence = score_outfit(chosen_products, slots)
         outfit = Outfit(
             user_id=user_id,

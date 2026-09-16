@@ -71,6 +71,32 @@ export type Product = {
   created_at: string;
 };
 
+// A search result fetched live from a retailer API — never has an `id`,
+// since it isn't saved to our database yet. Select it via
+// products.selectLive() first, which persists it and returns a real
+// Product with an id, before it can be used for a try-on/outfit.
+export type LiveProduct = {
+  retailer_slug: string;
+  retailer_product_id: string;
+  name: string;
+  brand: string | null;
+  merchant_name: string | null;
+  description: string | null;
+  subcategory: string | null;
+  gender: string;
+  color: string | null;
+  sizes: string[];
+  style_tags: string[];
+  price_cents: number;
+  currency: string;
+  rating: number | null;
+  rating_count: number;
+  availability: string;
+  product_url: string;
+  images: string[];
+  retailer_name: string;
+};
+
 export type Page<T> = {
   items: T[];
   total: number;

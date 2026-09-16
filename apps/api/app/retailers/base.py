@@ -54,6 +54,15 @@ class ProductProvider(ABC):
         """Return normalized products from this retailer's feed/API."""
         ...
 
+    async def search_live(self, *, query: str, limit: int = 24) -> list[RawProduct]:
+        """On-demand search for one arbitrary user query, fetched fresh at
+        request time — never from a pre-synced local catalog. Optional:
+        a provider that doesn't (yet) support live per-query search raises
+        NotImplementedError rather than silently returning nothing, so
+        live_search_service can tell "no results" apart from "can't ask
+        this retailer that way."""
+        raise NotImplementedError(f"{self.slug} does not support live search")
+
     def build_affiliate_url(self, product_url: str, *, tracking_tag: str) -> str:
         """Default: append a generic affiliate/tracking query param. Real
         retailer adapters override this with their program's exact scheme

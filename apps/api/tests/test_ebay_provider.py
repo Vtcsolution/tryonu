@@ -18,6 +18,12 @@ async def test_fetch_products_without_credentials_raises_not_configured():
         await provider.fetch_products(limit=10)
 
 
+async def test_search_live_without_credentials_raises_not_configured():
+    provider = EbayProductProvider(client_id=None, client_secret=None, campaign_id=None)
+    with pytest.raises(RetailerNotConfiguredError):
+        await provider.search_live(query="denim jacket", limit=10)
+
+
 def _fake_transport(*, items_by_query: dict[str, list[dict]]):
     async def handler(request: httpx.Request) -> httpx.Response:
         if request.url.host == "api.ebay.com" and request.url.path == "/identity/v1/oauth2/token":
@@ -94,6 +100,25 @@ async def test_fetch_products_skips_unusable_items_and_dedupes(monkeypatch):
         httpx.AsyncClient(), {"Authorization": "Bearer x", "X-EBAY-C-MARKETPLACE-ID": "EBAY_US"}, "jacket", "jackets", 10
     )
     assert [p.retailer_product_id for p in products] == ["v1|good|0", "v1|good|0"]
+
+
+async def test_search_live_returns_real_matches_for_an_arbitrary_query(monkeypatch):
+    jacket_item = {
+        "itemId": "v1|999|0",
+        "title": "Lee Riders Blue Denim Jacket",
+        "price": {"value": "30.00", "currency": "USD"},
+        "itemWebUrl": "https://www.ebay.com/itm/999",
+        "image": {"imageUrl": "https://i.ebayimg.com/jacket.jpg"},
+    }
+    transport = _fake_transport(items_by_query={"denim jacket": [jacket_item]})
+    _patch_transport(monkeypatch, transport)
+
+    provider = EbayProductProvider(client_id="cid", client_secret="csecret", campaign_id=None)
+    products = await provider.search_live(query="denim jacket", limit=10)
+
+    assert len(products) == 1
+    assert products[0].retailer_product_id == "v1|999|0"
+    assert products[0].name == "Lee Riders Blue Denim Jacket"
 
 
 def test_build_affiliate_url_uses_campaign_id_when_set():

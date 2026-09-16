@@ -11,7 +11,10 @@ async def test_list_products_returns_only_real_seeded_products(client, db):
     p1 = await seed_product(db, name="Cream Poncho", price_cents=3200)
     p2 = await seed_product(db, name="Rust Bomber Jacket", price_cents=9900)
 
-    resp = await client.get("/api/v1/products")
+    # High limit — the DB is shared across the whole test session, so by
+    # the time this runs there may be more than the default page size (24)
+    # of other tests' products already in it.
+    resp = await client.get("/api/v1/products", params={"limit": 100})
     assert resp.status_code == 200
     body = resp.json()
     names = {item["name"] for item in body["items"]}

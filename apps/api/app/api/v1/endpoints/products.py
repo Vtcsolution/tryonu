@@ -4,16 +4,48 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.core.deps import DbSession, OptionalUser
+from app.core.deps import CurrentUser, DbSession, OptionalUser
 from app.models.enums import Gender
 from app.models.product import Product
 from app.models.retailer import ProductCategory, Retailer
 from app.schemas.common import Page
-from app.schemas.product import ProductOut, ProductSearchFilters, RetailerOut
+from app.schemas.product import ProductOut, ProductSearchFilters, RetailerOut, SelectLiveProductRequest
 from app.services import history_service
+from app.services.live_search_service import find_live_result
+from app.services.product_ingestion_service import persist_single_product
 from app.services.search_service import search_products
 
 router = APIRouter(prefix="/products", tags=["products"])
+
+
+@router.post("/select-live", response_model=ProductOut, status_code=status.HTTP_201_CREATED)
+async def select_live_product(payload: SelectLiveProductRequest, _: CurrentUser, db: DbSession):
+    """Turns one result from GET /api/v1/search/live into a real, saved
+    product — the only point a live-searched item enters our database,
+    triggered by a user actually picking it (for a try-on, or the AI
+    stylist choosing it), never speculatively for a whole results page.
+    Re-locates the item live rather than trusting the client-echoed
+    payload, so price/availability/url are current at the moment of
+    saving, not whatever was on screen when the search first ran."""
+    result = await find_live_result(
+        payload.query, retailer_slug=payload.retailer_slug, retailer_product_id=payload.retailer_product_id
+    )
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="That item is no longer available from the retailer — try searching again",
+        )
+    product = await persist_single_product(db, result.provider, result.raw)
+
+    # persist_single_product's own refresh() doesn't eager-load relationships
+    # ProductOut needs (images, retailer) — AsyncSession can't lazy-load them
+    # during response serialization, so fetch it back with both attached.
+    reloaded = await db.execute(
+        select(Product)
+        .where(Product.id == product.id)
+        .options(selectinload(Product.images), selectinload(Product.retailer))
+    )
+    return reloaded.scalar_one()
 
 
 @router.get("", response_model=Page[ProductOut])

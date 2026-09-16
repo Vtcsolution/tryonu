@@ -115,6 +115,19 @@ class EbayProductProvider(ProductProvider):
 
         return products[:limit]
 
+    async def search_live(self, *, query: str, limit: int = 24) -> list[RawProduct]:
+        if not (self._client_id and self._client_secret):
+            raise RetailerNotConfiguredError(
+                "eBay API credentials not set (EBAY_CLIENT_ID / EBAY_CLIENT_SECRET)"
+            )
+        async with httpx.AsyncClient(timeout=20) as client:
+            token = await self._get_token(client)
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "X-EBAY-C-MARKETPLACE-ID": self._marketplace_id,
+            }
+            return await self._search(client, headers, query, category_slug="search", limit=limit)
+
     async def _get_token(self, client: httpx.AsyncClient) -> str:
         if self._token and time.monotonic() < self._token_expires_at:
             return self._token

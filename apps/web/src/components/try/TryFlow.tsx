@@ -8,6 +8,7 @@ import { VoiceInputButton } from "@/components/ui/VoiceInputButton";
 import { MIN_PHOTOS, PhotoUploader } from "@/components/upload/PhotoUploader";
 import { ApiError, affiliateGoUrl, resolveMediaUrl } from "@/lib/api/client";
 import {
+  liveSearch as liveSearchApi,
   outfits as outfitsApi,
   products as productsApi,
   savedLooks as savedLooksApi,
@@ -15,7 +16,7 @@ import {
   tryon as tryonApi,
 } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
-import type { Outfit, OutfitItem, Product, StylistResponse, TryOnJob, UserPhoto } from "@/lib/api/types";
+import type { LiveProduct, Outfit, OutfitItem, Product, StylistResponse, TryOnJob, UserPhoto } from "@/lib/api/types";
 
 // Slots FASHN can actually composite onto the photo (garments worn on the
 // torso/legs) — shoes/watch/bag/accessory/other are still real matched
@@ -59,10 +60,31 @@ export function TryFlow() {
   const primaryPhoto =
     userPhotos.find((p) => p.kind === "front") ?? userPhotos.find((p) => p.kind === "full_body") ?? userPhotos[0];
 
-  const productsQuery = useQuery({
-    queryKey: ["products", "try-picker"],
-    queryFn: () => productsApi.list({ limit: 12, sort: "newest" }),
-    enabled: step === 1,
+  // The browse-grid is a live search against real retailer APIs, not our
+  // own catalog — nothing here is a locally stored product until a user
+  // actually picks one (see selectLive below).
+  const [browseQuery, setBrowseQuery] = useState("");
+  const liveSearchQuery = useQuery({
+    queryKey: ["search", "live", browseQuery],
+    queryFn: () => liveSearchApi.search(browseQuery.trim(), 12),
+    enabled: step === 1 && browseQuery.trim().length > 1,
+  });
+
+  // The one place a browsed (not AI-picked) item becomes a real, saved
+  // product — triggered by the user actually clicking it, not shown
+  // speculatively for the whole results page.
+  const selectLive = useMutation({
+    mutationFn: (item: LiveProduct) =>
+      productsApi.selectLive({
+        query: browseQuery.trim(),
+        retailer_slug: item.retailer_slug,
+        retailer_product_id: item.retailer_product_id,
+      }),
+    onSuccess: (p) => {
+      setProduct(p);
+      setOutfit(null);
+      setLastStylistReply(null);
+    },
   });
 
   // Deep-linked from the AI stylist or product search (?product=<id>) — pin
@@ -323,12 +345,24 @@ export function TryFlow() {
 
           <div className="mt-8 flex items-center gap-3 text-[12px] text-faint">
             <span className="h-px flex-1 bg-line" />
-            or browse the catalog
+            or search for something specific
             <span className="h-px flex-1 bg-line" />
           </div>
 
-          <div className="mt-6">
-            {productsQuery.isLoading && (
+          <input
+            type="text"
+            value={browseQuery}
+            onChange={(e) => setBrowseQuery(e.target.value)}
+            placeholder="e.g. blue denim jacket"
+            className="mt-4 h-11 w-full rounded-xl border border-line-strong bg-paper px-3.5 text-[14px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25"
+          />
+          <p className="mt-2 text-[11.5px] text-faint">
+            Pulled live from connected retailers every time you search — nothing here is stored
+            until you pick one.
+          </p>
+
+          <div className="mt-4">
+            {liveSearchQuery.isFetching && (
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                 {Array.from({ length: 8 }).map((_, i) => (
                   <div key={i} className="animate-pulse overflow-hidden rounded-[20px] border border-line">
@@ -342,48 +376,53 @@ export function TryFlow() {
               </div>
             )}
 
-            {productsQuery.isError && (
+            {liveSearchQuery.isError && (
               <div className="rounded-[20px] border border-line bg-surface p-8 text-center">
                 <p className="text-[14px] text-muted">
-                  {productsQuery.error instanceof ApiError
-                    ? productsQuery.error.detail
-                    : "Couldn't load products."}
+                  {liveSearchQuery.error instanceof ApiError
+                    ? liveSearchQuery.error.detail
+                    : "Couldn't search right now."}
                 </p>
                 <Button
                   variant="outline"
                   size="sm"
                   className="mt-4"
-                  onClick={() => productsQuery.refetch()}
+                  onClick={() => liveSearchQuery.refetch()}
                 >
                   Retry
                 </Button>
               </div>
             )}
 
-            {productsQuery.data && productsQuery.data.items.length === 0 && (
+            {!liveSearchQuery.isFetching && liveSearchQuery.data && liveSearchQuery.data.length === 0 && (
               <div className="rounded-[20px] border border-line bg-surface p-8 text-center text-[14px] text-muted">
-                No products in the catalog yet — check back soon.
+                No real matches for that search — try different words.
               </div>
             )}
 
-            {productsQuery.data && productsQuery.data.items.length > 0 && (
+            {!liveSearchQuery.isFetching && liveSearchQuery.data && liveSearchQuery.data.length > 0 && (
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                {productsQuery.data.items.map((p, i) => {
-                  const selected = product?.id === p.id;
-                  const thumb = resolveMediaUrl(p.images[0]?.url);
+                {liveSearchQuery.data.map((item, i) => {
+                  const selected =
+                    product != null &&
+                    !outfit &&
+                    product.retailer.slug === item.retailer_slug &&
+                    product.name === item.name;
+                  const selecting =
+                    selectLive.isPending &&
+                    selectLive.variables?.retailer_product_id === item.retailer_product_id;
+                  const thumb = resolveMediaUrl(item.images[0]);
                   return (
                     <div
-                      key={p.id}
+                      key={`${item.retailer_slug}:${item.retailer_product_id}`}
                       style={{ animationDelay: `${i * 60}ms` }}
                       className="animate-[tu-in-scale_0.4s_ease_both]"
                     >
                       <button
                         type="button"
-                        onClick={() => {
-                          setProduct(p);
-                          setOutfit(null);
-                        }}
-                        className={`group tu-hover-card block w-full overflow-hidden rounded-[20px] border bg-surface text-left ${
+                        disabled={selectLive.isPending}
+                        onClick={() => selectLive.mutate(item)}
+                        className={`group tu-hover-card block w-full overflow-hidden rounded-[20px] border bg-surface text-left disabled:opacity-60 ${
                           selected ? "border-sage ring-2 ring-sage/40" : "border-line hover:border-line-strong"
                         }`}
                       >
@@ -392,25 +431,29 @@ export function TryFlow() {
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
                               src={thumb}
-                              alt={p.name}
+                              alt={item.name}
                               className="tu-hover-media h-full w-full object-cover object-top"
                             />
                           )}
                           <span className="absolute left-2 top-2 rounded-md bg-surface/95 px-2 py-1 text-[10px] font-semibold text-ink">
-                            {p.merchant_name ? `${p.retailer.name} · ${p.merchant_name}` : p.retailer.name}
+                            {item.merchant_name ? `${item.retailer_name} · ${item.merchant_name}` : item.retailer_name}
                           </span>
                           <span
-                            className={`absolute right-2 top-2 grid h-6 w-6 transform-gpu place-items-center rounded-full bg-sage text-[12px] text-white transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                              selected ? "scale-100 opacity-100" : "scale-50 opacity-0"
+                            className={`absolute right-2 top-2 grid h-6 w-6 transform-gpu place-items-center rounded-full text-[12px] text-white transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                              selecting
+                                ? "scale-100 animate-spin rounded-full border-2 border-white/40 border-t-white bg-transparent opacity-100"
+                                : selected
+                                  ? "scale-100 bg-sage opacity-100"
+                                  : "scale-50 bg-sage opacity-0"
                             }`}
                           >
-                            ✓
+                            {!selecting && "✓"}
                           </span>
                         </div>
                         <div className="p-3">
-                          <p className="truncate text-[13px] font-semibold text-ink">{p.name}</p>
+                          <p className="truncate text-[13px] font-semibold text-ink">{item.name}</p>
                           <p className="mt-0.5 text-[12px] text-muted">
-                            {(p.price_cents / 100).toFixed(2)} {p.currency.toUpperCase()}
+                            {(item.price_cents / 100).toFixed(2)} {item.currency.toUpperCase()}
                           </p>
                         </div>
                       </button>
@@ -420,6 +463,14 @@ export function TryFlow() {
               </div>
             )}
           </div>
+
+          {selectLive.isError && (
+            <p className="mt-3 text-[13px] text-[#a4553f]" role="alert">
+              {selectLive.error instanceof ApiError
+                ? selectLive.error.detail
+                : "Couldn't save that pick — it may no longer be available. Try again."}
+            </p>
+          )}
 
           {createJob.isError && (
             <p className="mt-4 text-[13px] text-[#a4553f]" role="alert">
@@ -432,7 +483,7 @@ export function TryFlow() {
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <Button
               size="md"
-              disabled={(!product && !outfit) || createJob.isPending}
+              disabled={(!product && !outfit) || createJob.isPending || selectLive.isPending}
               onClick={() => createJob.mutate()}
             >
               {createJob.isPending ? "Starting…" : "Generate try-on"}{" "}

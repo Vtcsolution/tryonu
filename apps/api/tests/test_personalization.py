@@ -76,9 +76,41 @@ async def test_stylist_candidate_shortlist_is_biased_toward_saved_look_taste(cli
     job = await _poll_until_terminal(client, job_resp.json()["id"])
     await client.post(f"/api/v1/users/me/saved-looks/{job['result']['id']}")
 
-    # a fresh product matching that taste, and one that doesn't
-    on_taste = await seed_product(db, name="Cream Cozy Cardigan", color="cream", style_tags=["cozy"])
-    off_taste = await seed_product(db, name="Neon Clubwear Top", color="neon green", style_tags=["clubwear"])
+    # a fresh live-searched candidate matching that taste, and one that
+    # doesn't — candidates are fetched live (mocked here), not from a
+    # pre-synced catalog, so these are never persisted at all unless the
+    # LLM (not called in this test) actually chose one.
+    from app.retailers.base import RawProduct
+    from app.services.live_search_service import LiveSearchResult
+    from tests.test_stylist import _FakeLiveProvider
+
+    on_taste = RawProduct(
+        retailer_product_id="live-cardigan",
+        name="Cream Cozy Cardigan",
+        color="cream",
+        style_tags=["cozy"],
+        price_cents=5000,
+        product_url="https://www.ebay.com/itm/cardigan",
+        images=[],
+    )
+    off_taste = RawProduct(
+        retailer_product_id="live-clubwear",
+        name="Neon Clubwear Top",
+        color="neon green",
+        style_tags=["clubwear"],
+        price_cents=5000,
+        product_url="https://www.ebay.com/itm/clubwear",
+        images=[],
+    )
+    provider = _FakeLiveProvider()
+
+    async def fake_live_search(query, *, limit=24):
+        return [
+            LiveSearchResult(provider=provider, raw=on_taste),
+            LiveSearchResult(provider=provider, raw=off_taste),
+        ]
+
+    monkeypatch.setattr("app.services.stylist_service.live_search", fake_live_search)
 
     from app.services.stylist_service import _fetch_candidates
     from app.schemas.stylist import StylistAskRequest
@@ -89,6 +121,6 @@ async def test_stylist_candidate_shortlist_is_biased_toward_saved_look_taste(cli
     assert profile.has_signal is True
 
     req = StylistAskRequest(prompt="something to wear", max_items=5)
-    candidates = await _fetch_candidates(db, req, profile)
-    ids = [c.id for c in candidates]
-    assert ids.index(on_taste.id) < ids.index(off_taste.id)
+    candidates = await _fetch_candidates(req, profile)
+    names = [c.raw.name for c in candidates]
+    assert names.index(on_taste.name) < names.index(off_taste.name)

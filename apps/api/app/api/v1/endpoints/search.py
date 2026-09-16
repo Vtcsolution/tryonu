@@ -6,16 +6,52 @@ second implementation."""
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query, status
 
 from app.core.deps import DbSession, OptionalUser
 from app.models.enums import Gender
 from app.schemas.common import Page
-from app.schemas.product import ProductOut, ProductSearchFilters
+from app.schemas.product import LiveProductOut, ProductOut, ProductSearchFilters
 from app.services import history_service
+from app.services.live_search_service import live_search
 from app.services.search_service import search_products
 
 router = APIRouter(prefix="/search", tags=["search"])
+
+
+@router.get("/live", response_model=list[LiveProductOut])
+async def search_live(q: str = Query(..., min_length=1), limit: int = Query(default=24, le=48)):
+    """Fetched fresh from retailer APIs (eBay today) on every call — never
+    reads from or writes to our product catalog. See
+    POST /api/v1/products/select-live for turning one result into a real,
+    saved product once a user actually picks it."""
+    if not q.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="q must not be empty")
+    results = await live_search(q.strip(), limit=limit)
+    return [
+        LiveProductOut(
+            retailer_slug=r.provider.slug,
+            retailer_product_id=r.raw.retailer_product_id,
+            name=r.raw.name,
+            brand=r.raw.brand,
+            merchant_name=r.raw.merchant_name,
+            description=r.raw.description,
+            subcategory=r.raw.subcategory,
+            gender=r.raw.gender,
+            color=r.raw.color,
+            sizes=r.raw.sizes,
+            style_tags=r.raw.style_tags,
+            price_cents=r.raw.price_cents,
+            currency=r.raw.currency,
+            rating=r.raw.rating,
+            rating_count=r.raw.rating_count,
+            availability=r.raw.availability,
+            product_url=r.raw.product_url,
+            images=r.raw.images,
+            retailer_name=r.provider.display_name,
+        )
+        for r in results
+    ]
 
 
 @router.get("", response_model=Page[ProductOut])
