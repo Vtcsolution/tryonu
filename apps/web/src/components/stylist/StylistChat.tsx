@@ -150,27 +150,43 @@ export function StylistChat() {
 
       <form
         onSubmit={onSubmit}
-        className="sticky bottom-4 mt-3 flex flex-col gap-2 rounded-[22px] border border-line bg-surface p-3 shadow-lift sm:flex-row sm:items-center"
+        className="sticky bottom-4 mt-3 flex flex-col gap-2 rounded-[26px] border border-line bg-surface p-2 shadow-lift"
       >
-        <input
-          type="text"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="e.g. black formal outfit for a wedding under $300"
-          className="h-11 flex-1 rounded-xl border border-line-strong bg-paper px-3.5 text-[14px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25"
-        />
-        <VoiceInputButton onTranscript={(text) => setPrompt((p) => (p ? `${p} ${text}` : text))} />
-        <input
-          type="number"
-          min={0}
-          value={budgetMax}
-          onChange={(e) => setBudgetMax(e.target.value)}
-          placeholder="Max $"
-          className="h-11 w-full rounded-xl border border-line-strong bg-paper px-3.5 text-[14px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25 sm:w-24"
-        />
-        <Button type="submit" size="md" disabled={!prompt.trim() || ask.isPending}>
-          {ask.isPending ? "Asking…" : "Ask"}
-        </Button>
+        <div className="flex items-center gap-1.5">
+          <input
+            type="text"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="e.g. black formal outfit for a wedding under $300"
+            className="h-11 flex-1 rounded-full bg-transparent px-3 text-[14px] text-ink outline-none placeholder:text-faint"
+          />
+          <VoiceInputButton onTranscript={(text) => setPrompt((p) => (p ? `${p} ${text}` : text))} />
+          <button
+            type="submit"
+            disabled={!prompt.trim() || ask.isPending}
+            aria-label="Ask stylist"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-sage text-white transition-opacity disabled:opacity-40"
+          >
+            {ask.isPending ? (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+            ) : (
+              <span aria-hidden="true">↑</span>
+            )}
+          </button>
+        </div>
+        <div className="flex items-center gap-2 border-t border-line/70 px-1.5 pt-2">
+          <label className="flex items-center gap-1.5 text-[12.5px] text-faint">
+            Budget
+            <input
+              type="number"
+              min={0}
+              value={budgetMax}
+              onChange={(e) => setBudgetMax(e.target.value)}
+              placeholder="Max $"
+              className="h-8 w-20 rounded-full border border-line-strong bg-paper px-3 text-[13px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25"
+            />
+          </label>
+        </div>
       </form>
     </section>
   );
