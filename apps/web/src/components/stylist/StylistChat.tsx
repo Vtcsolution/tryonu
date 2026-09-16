@@ -6,9 +6,9 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { VoiceInputButton } from "@/components/ui/VoiceInputButton";
 import { ApiError, affiliateGoUrl, resolveMediaUrl } from "@/lib/api/client";
-import { stylist as stylistApi, wardrobe as wardrobeApi } from "@/lib/api/endpoints";
+import { products as productsApi, stylist as stylistApi, wardrobe as wardrobeApi } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
-import type { Product, StylistResponse } from "@/lib/api/types";
+import type { LiveProduct, Product, StylistResponse } from "@/lib/api/types";
 
 const PROMPT_SUGGESTIONS = [
   "Build me a wedding outfit under $400",
@@ -222,7 +222,7 @@ function StylistExchange({ entry }: { entry: StylistResponse }) {
         {entry.products.length > 0 && (
           <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
             {entry.products.map((p) => (
-              <StylistProductCard key={p.id} product={p} />
+              <StylistProductCard key={p.id} product={p} alternatives={entry.alternatives[p.id] ?? []} />
             ))}
           </div>
         )}
@@ -231,8 +231,18 @@ function StylistExchange({ entry }: { entry: StylistResponse }) {
   );
 }
 
-function StylistProductCard({ product }: { product: Product }) {
+function StylistProductCard({ product, alternatives }: { product: Product; alternatives: LiveProduct[] }) {
   const thumb = resolveMediaUrl(product.images[0]?.url);
+  const shopAlternative = useMutation({
+    mutationFn: (item: LiveProduct) =>
+      productsApi.selectLive({
+        query: item.search_term ?? item.name,
+        retailer_slug: item.retailer_slug,
+        retailer_product_id: item.retailer_product_id,
+      }),
+    onSuccess: (p) => window.open(affiliateGoUrl(p.id, "stylist"), "_blank", "noopener,noreferrer"),
+  });
+
   return (
     <div className="overflow-hidden rounded-[16px] border border-line bg-surface">
       <div className="relative aspect-[3/4] bg-paper-2">
@@ -246,6 +256,22 @@ function StylistProductCard({ product }: { product: Product }) {
         <p className="mt-0.5 text-[11px] text-muted">
           {(product.price_cents / 100).toFixed(2)} {product.currency.toUpperCase()}
         </p>
+        {alternatives.length > 0 && (
+          <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5">
+            {alternatives.map((alt) => (
+              <button
+                key={`${alt.retailer_slug}:${alt.retailer_product_id}`}
+                type="button"
+                disabled={shopAlternative.isPending}
+                onClick={() => shopAlternative.mutate(alt)}
+                title={`${alt.name} — ${(alt.price_cents / 100).toFixed(2)} ${alt.currency.toUpperCase()}`}
+                className="shrink-0 rounded-full border border-line px-2 py-0.5 text-[10px] text-ink-soft transition-colors hover:border-sage disabled:opacity-60"
+              >
+                {(alt.price_cents / 100).toFixed(0)} {alt.currency.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="mt-2 flex gap-1.5">
           <Button href={`/try?product=${product.id}`} size="sm" variant="outline" className="!h-8 flex-1 !px-2 !text-[11px]">
             Try it on

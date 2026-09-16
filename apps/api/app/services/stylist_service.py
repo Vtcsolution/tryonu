@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import re
 import time
+from dataclasses import dataclass
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
@@ -133,12 +134,20 @@ def _wardrobe_context_line(item: WardrobeItem) -> str:
     )
 
 
-async def _fetch_candidates(req: StylistAskRequest, profile: TasteProfile | None) -> list[LiveSearchResult]:
+@dataclass(frozen=True, slots=True)
+class _Candidate:
+    result: LiveSearchResult
+    term: str  # the exact query that produced it — used to find alternatives sharing it
+
+
+async def _fetch_candidates(req: StylistAskRequest, profile: TasteProfile | None) -> list[_Candidate]:
     """Every candidate is fetched fresh from retailer APIs for this exact
     prompt — nothing here is a pre-synced local row. Budget filtering and
     personalized re-ranking both happen over that live pool in Python
     rather than in SQL, since there's no local table to filter/sort with a
-    WHERE/ORDER BY."""
+    WHERE/ORDER BY. Each candidate keeps the term that found it, so
+    ask_stylist can offer real alternatives at other price points for
+    whichever ones the LLM ends up choosing."""
     terms = _extract_search_terms(req.prompt)
     if terms:
         # One short search per distinct item mentioned (see
@@ -147,32 +156,54 @@ async def _fetch_candidates(req: StylistAskRequest, profile: TasteProfile | None
         # contains every item type at once.
         per_term_limit = max(4, _LIVE_FETCH_POOL_SIZE // len(terms))
         term_results = await asyncio.gather(*(live_search(t, limit=per_term_limit) for t in terms))
-        pool = []
+        pool: list[_Candidate] = []
         seen_ids: set[tuple[str, str]] = set()
-        for results in term_results:
+        for term, results in zip(terms, term_results):
             for r in results:
                 key = (r.provider.slug, r.raw.retailer_product_id)
                 if key in seen_ids:
                     continue
                 seen_ids.add(key)
-                pool.append(r)
+                pool.append(_Candidate(result=r, term=term))
     else:
         # No recognized item word (e.g. a bare brand/style ask) — fall
         # back to the prompt as a single query, same as before.
-        pool = await live_search(req.prompt, limit=_LIVE_FETCH_POOL_SIZE)
+        pool = [_Candidate(result=r, term=req.prompt) for r in await live_search(req.prompt, limit=_LIVE_FETCH_POOL_SIZE)]
 
     if req.budget_min_cents is not None:
-        pool = [r for r in pool if r.raw.price_cents >= req.budget_min_cents]
+        pool = [c for c in pool if c.result.raw.price_cents >= req.budget_min_cents]
     if req.budget_max_cents is not None:
-        pool = [r for r in pool if r.raw.price_cents <= req.budget_max_cents]
+        pool = [c for c in pool if c.result.raw.price_cents <= req.budget_max_cents]
 
     if profile and profile.has_signal:
         # affinity_score only reads .color/.brand/.style_tags — present on
         # RawProduct with the same names, so this works unmodified even
         # though its signature says Product.
-        pool.sort(key=lambda r: affinity_score(r.raw, profile), reverse=True)  # type: ignore[arg-type]
+        pool.sort(key=lambda c: affinity_score(c.result.raw, profile), reverse=True)  # type: ignore[arg-type]
 
     return pool[:_CANDIDATE_POOL_SIZE]
+
+
+_MAX_ALTERNATIVES = 3
+
+
+def _alternatives_for(chosen: _Candidate, pool: list[_Candidate]) -> list[RawProduct]:
+    """Other real, live-fetched results for the same item type — spanning
+    low to high price so "show me other options, cheap and expensive" is
+    real data, not invented. Never includes the chosen item itself."""
+    same_term = [
+        c.result.raw
+        for c in pool
+        if c.term == chosen.term and c.result.raw.retailer_product_id != chosen.result.raw.retailer_product_id
+    ]
+    if not same_term:
+        return []
+    by_price = sorted(same_term, key=lambda raw: raw.price_cents)
+    if len(by_price) <= _MAX_ALTERNATIVES:
+        return by_price
+    # spread across the price range rather than just "the next 3 cheapest"
+    step = (len(by_price) - 1) / (_MAX_ALTERNATIVES - 1)
+    return [by_price[round(i * step)] for i in range(_MAX_ALTERNATIVES)]
 
 
 def _slot_for(raw: RawProduct) -> OutfitSlot:
@@ -195,7 +226,9 @@ def _slot_for(raw: RawProduct) -> OutfitSlot:
     return OutfitSlot.OTHER
 
 
-async def ask_stylist(db: AsyncSession, *, user_id: str, req: StylistAskRequest) -> StylistRequest:
+async def ask_stylist(
+    db: AsyncSession, *, user_id: str, req: StylistAskRequest
+) -> tuple[StylistRequest, dict[str, tuple[str, list[RawProduct]]]]:
     wardrobe_item: WardrobeItem | None = None
     if req.wardrobe_item_id:
         wardrobe_item = await _load_owned_wardrobe_item(db, user_id, req.wardrobe_item_id)
@@ -207,14 +240,14 @@ async def ask_stylist(db: AsyncSession, *, user_id: str, req: StylistAskRequest)
     llm_candidates = [
         StylistCandidate(
             index=i,
-            name=r.raw.name,
-            brand=r.raw.brand,
-            category=r.raw.category_slug,
-            color=r.raw.color,
-            price_cents=r.raw.price_cents,
-            style_tags=r.raw.style_tags or [],
+            name=c.result.raw.name,
+            brand=c.result.raw.brand,
+            category=c.result.raw.category_slug,
+            color=c.result.raw.color,
+            price_cents=c.result.raw.price_cents,
+            style_tags=c.result.raw.style_tags or [],
         )
-        for i, r in enumerate(candidates)
+        for i, c in enumerate(candidates)
     ]
 
     provider = get_stylist_provider()
@@ -268,17 +301,25 @@ async def ask_stylist(db: AsyncSession, *, user_id: str, req: StylistAskRequest)
         db.add(stylist_request)
         await db.commit()
         await db.refresh(stylist_request)
-        return stylist_request
+        return stylist_request, {}
 
-    chosen_results = [candidates[i] for i in recommendation.chosen_indexes if 0 <= i < len(candidates)]
+    chosen = [candidates[i] for i in recommendation.chosen_indexes if 0 <= i < len(candidates)]
 
     # The one point a live-searched candidate becomes a saved row — only
     # for what the LLM actually chose, never the rest of the pool it saw.
-    chosen_products = [await persist_single_product(db, r.provider, r.raw) for r in chosen_results]
+    chosen_products = [await persist_single_product(db, c.result.provider, c.result.raw) for c in chosen]
+
+    # Real alternatives at other price points for each chosen item — from
+    # results already fetched above, never an extra API call, never
+    # invented. Keeps the search term alongside them so a client can
+    # re-locate and persist one via POST /products/select-live if picked.
+    alternatives_by_product_id = {
+        product.id: (c.term, _alternatives_for(c, candidates)) for product, c in zip(chosen_products, chosen)
+    }
 
     outfit: Outfit | None = None
     if len(chosen_products) > 1:
-        slots = [_slot_for(r.raw) for r in chosen_results]
+        slots = [_slot_for(c.result.raw) for c in chosen]
         coherence = score_outfit(chosen_products, slots)
         outfit = Outfit(
             user_id=user_id,
@@ -306,4 +347,4 @@ async def ask_stylist(db: AsyncSession, *, user_id: str, req: StylistAskRequest)
     db.add(stylist_request)
     await db.commit()
     await db.refresh(stylist_request)
-    return stylist_request
+    return stylist_request, alternatives_by_product_id

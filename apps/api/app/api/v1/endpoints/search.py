@@ -13,7 +13,7 @@ from app.models.enums import Gender
 from app.schemas.common import Page
 from app.schemas.product import LiveProductOut, ProductOut, ProductSearchFilters
 from app.services import history_service
-from app.services.live_search_service import live_search
+from app.services.live_search_service import live_search, to_live_product_out
 from app.services.search_service import search_products
 
 router = APIRouter(prefix="/search", tags=["search"])
@@ -28,30 +28,7 @@ async def search_live(q: str = Query(..., min_length=1), limit: int = Query(defa
     if not q.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="q must not be empty")
     results = await live_search(q.strip(), limit=limit)
-    return [
-        LiveProductOut(
-            retailer_slug=r.provider.slug,
-            retailer_product_id=r.raw.retailer_product_id,
-            name=r.raw.name,
-            brand=r.raw.brand,
-            merchant_name=r.raw.merchant_name,
-            description=r.raw.description,
-            subcategory=r.raw.subcategory,
-            gender=r.raw.gender,
-            color=r.raw.color,
-            sizes=r.raw.sizes,
-            style_tags=r.raw.style_tags,
-            price_cents=r.raw.price_cents,
-            currency=r.raw.currency,
-            rating=r.raw.rating,
-            rating_count=r.raw.rating_count,
-            availability=r.raw.availability,
-            product_url=r.raw.product_url,
-            images=r.raw.images,
-            retailer_name=r.provider.display_name,
-        )
-        for r in results
-    ]
+    return [to_live_product_out(r) for r in results]
 
 
 @router.get("", response_model=Page[ProductOut])

@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from app.schemas.common import ORMModel
 from app.schemas.outfit import OutfitOut
-from app.schemas.product import ProductOut
+from app.schemas.product import LiveProductOut, ProductOut
 
 
 class StylistAskRequest(BaseModel):
@@ -29,4 +29,10 @@ class StylistAskResponse(ORMModel):
     summary: str
     products: list[ProductOut]
     outfit: OutfitOut | None
+    # Real alternatives at other price points for each recommended product
+    # (single-product or outfit item), keyed by that product's id — fetched
+    # live alongside the pick itself, never a separate/extra API call, and
+    # never invented. Empty for /history replays (only available right
+    # when the recommendation was made).
+    alternatives: dict[str, list[LiveProductOut]] = {}
     created_at: datetime

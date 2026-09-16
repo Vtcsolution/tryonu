@@ -73,6 +73,11 @@ class LiveProductOut(BaseModel):
     product_url: str
     images: list[str]
     retailer_name: str
+    # The exact query that found this result — pass it straight back as
+    # SelectLiveProductRequest.query to persist this specific item via
+    # POST /products/select-live. None from GET /search/live (the client
+    # already knows what it searched); set for AI-stylist alternatives.
+    search_term: str | None = None
 
 
 class SelectLiveProductRequest(BaseModel):

@@ -188,10 +188,78 @@ async def test_stylist_with_wardrobe_item_biases_candidates_toward_it(client, mo
     anchor_profile = _wardrobe_anchor_profile(anchor_item)
     req = StylistAskRequest(prompt="what goes with this", max_items=3)
     candidates = await _fetch_candidates(req, anchor_profile)
-    names = [c.raw.name for c in candidates]
+    names = [c.result.raw.name for c in candidates]
 
     assert on_taste.name in names
     assert names.index(on_taste.name) < names.index(off_taste.name)
+
+
+async def test_stylist_returns_real_alternatives_at_different_prices(client, monkeypatch):
+    """The actual feature: alongside the chosen product, real alternatives
+    from the same search — at different price points — come back too, not
+    just the one winner."""
+    options = [
+        _raw("Budget Jacket", price_cents=3000),
+        _raw("Mid Jacket", price_cents=6000),
+        _raw("Premium Jacket", price_cents=12000),
+        _raw("Luxury Jacket", price_cents=20000),
+    ]
+    _patch_live_search(monkeypatch, _live_results(*options))
+
+    class PicksFirstProvider:
+        name = "picks-first"
+        model = "picks-first-1"
+
+        async def recommend(self, query: StylistQuery, candidates: list[StylistCandidate]) -> StylistRecommendation:
+            return StylistRecommendation(summary="the budget one", chosen_indexes=[0])
+
+    monkeypatch.setattr("app.services.stylist_service.get_stylist_provider", lambda: PicksFirstProvider())
+    await register_and_login(client)
+
+    resp = await client.post("/api/v1/stylist/ask", json={"prompt": "a leather jacket", "max_items": 1})
+    assert resp.status_code == 200
+    body = resp.json()
+    chosen = body["products"][0]
+    assert chosen["name"] == "Budget Jacket"
+
+    alts = body["alternatives"][chosen["id"]]
+    alt_names = {a["name"] for a in alts}
+    assert "Budget Jacket" not in alt_names  # never includes the chosen item itself
+    assert alt_names == {"Mid Jacket", "Premium Jacket", "Luxury Jacket"}
+    prices = [a["price_cents"] for a in alts]
+    assert prices == sorted(prices)  # low to high
+    # carries the search term back, so a client can persist one via
+    # POST /products/select-live without needing to know what was searched
+    assert all(a["search_term"] == "leather jacket" for a in alts)
+
+
+async def test_stylist_alternatives_span_the_price_range_not_just_cheapest(client, monkeypatch):
+    """With more real options than the alternatives cap, pick low/mid/high
+    across the range — not just the N cheapest — so "top, low etc" prices
+    are genuinely represented."""
+    options = [_raw(f"Jacket {i}", price_cents=(i + 1) * 1000) for i in range(6)]  # 1000..6000
+    _patch_live_search(monkeypatch, _live_results(*options))
+
+    class PicksLastProvider:
+        name = "picks-last"
+        model = "picks-last-1"
+
+        async def recommend(self, query: StylistQuery, candidates: list[StylistCandidate]) -> StylistRecommendation:
+            return StylistRecommendation(summary="picked", chosen_indexes=[5])  # the priciest, 6000
+
+    monkeypatch.setattr("app.services.stylist_service.get_stylist_provider", lambda: PicksLastProvider())
+    await register_and_login(client)
+
+    resp = await client.post("/api/v1/stylist/ask", json={"prompt": "a denim jacket", "max_items": 1})
+    body = resp.json()
+    chosen = body["products"][0]
+    alts = body["alternatives"][chosen["id"]]
+    assert len(alts) == 3
+    prices = sorted(a["price_cents"] for a in alts)
+    # from the 5 remaining options (1000..5000), spans low and high — not
+    # just the 3 cheapest (which would be 1000/2000/3000)
+    assert prices[0] == 1000
+    assert prices[-1] == 5000
 
 
 def test_extract_search_terms_splits_a_multi_item_outfit_prompt():

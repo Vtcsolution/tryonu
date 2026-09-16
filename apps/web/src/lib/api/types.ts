@@ -95,6 +95,11 @@ export type LiveProduct = {
   product_url: string;
   images: string[];
   retailer_name: string;
+  // The exact query that found this result — pass back as-is to
+  // products.selectLive() to persist this specific item. Null from plain
+  // browse search (the caller already knows what it searched); set for
+  // AI-stylist alternatives.
+  search_term: string | null;
 };
 
 export type Page<T> = {
@@ -206,6 +211,10 @@ export type StylistResponse = {
   summary: string;
   products: Product[];
   outfit: Outfit | null;
+  // Real alternatives at other price points, keyed by the recommended
+  // product's id (single-product pick or outfit item) — fetched live
+  // alongside the pick itself. Empty for /stylist/history replays.
+  alternatives: Record<string, LiveProduct[]>;
   created_at: string;
 };
 

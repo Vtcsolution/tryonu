@@ -22,12 +22,38 @@ from app.core.logging import logger
 from app.retailers.base import ProductProvider, RawProduct
 from app.retailers.errors import RetailerNotConfiguredError
 from app.retailers.registry import get_all_providers
+from app.schemas.product import LiveProductOut
 
 
 @dataclass(frozen=True, slots=True)
 class LiveSearchResult:
     provider: ProductProvider
     raw: RawProduct
+
+
+def to_live_product_out(result: LiveSearchResult) -> LiveProductOut:
+    r = result.raw
+    return LiveProductOut(
+        retailer_slug=result.provider.slug,
+        retailer_product_id=r.retailer_product_id,
+        name=r.name,
+        brand=r.brand,
+        merchant_name=r.merchant_name,
+        description=r.description,
+        subcategory=r.subcategory,
+        gender=r.gender,
+        color=r.color,
+        sizes=r.sizes,
+        style_tags=r.style_tags,
+        price_cents=r.price_cents,
+        currency=r.currency,
+        rating=r.rating,
+        rating_count=r.rating_count,
+        availability=r.availability,
+        product_url=r.product_url,
+        images=r.images,
+        retailer_name=result.provider.display_name,
+    )
 
 
 async def live_search(query: str, *, limit: int = 24) -> list[LiveSearchResult]:

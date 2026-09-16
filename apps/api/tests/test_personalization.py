@@ -122,5 +122,5 @@ async def test_stylist_candidate_shortlist_is_biased_toward_saved_look_taste(cli
 
     req = StylistAskRequest(prompt="something to wear", max_items=5)
     candidates = await _fetch_candidates(req, profile)
-    names = [c.raw.name for c in candidates]
+    names = [c.result.raw.name for c in candidates]
     assert names.index(on_taste.name) < names.index(off_taste.name)

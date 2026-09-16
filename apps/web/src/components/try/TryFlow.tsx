@@ -87,6 +87,21 @@ export function TryFlow() {
     },
   });
 
+  // "Shop" on an alternative (a real result the AI saw but didn't pick) —
+  // persists it the same way selectLive does, then opens the real,
+  // tracked affiliate link. Doesn't change the current try-on selection.
+  const shopAlternative = useMutation({
+    mutationFn: (item: LiveProduct) =>
+      productsApi.selectLive({
+        query: item.search_term ?? item.name,
+        retailer_slug: item.retailer_slug,
+        retailer_product_id: item.retailer_product_id,
+      }),
+    onSuccess: (p) => {
+      window.open(affiliateGoUrl(p.id, "stylist"), "_blank", "noopener,noreferrer");
+    },
+  });
+
   // Deep-linked from the AI stylist or product search (?product=<id>) — pin
   // it into the picker's selection once we reach step 1, without changing
   // step-advancement logic for everyone else.
@@ -320,24 +335,51 @@ export function TryFlow() {
                     Clothing items are layered onto your photo; footwear/accessories are matched
                     products with their own shop link, shown alongside the result.
                   </p>
+                  <div className="mt-4 space-y-3 border-t border-line/70 pt-3">
+                    {outfit.items.map((item) => {
+                      const alts = lastStylistReply?.alternatives[item.product.id] ?? [];
+                      if (alts.length === 0) return null;
+                      return (
+                        <AlternativesRow
+                          key={item.id}
+                          label={item.product.name}
+                          alternatives={alts}
+                          onShop={(a) => shopAlternative.mutate(a)}
+                          isShopping={shopAlternative.isPending}
+                        />
+                      );
+                    })}
+                  </div>
                 </>
               ) : (
                 product && (
-                  <div className="mt-3 flex items-center gap-3">
-                    {(() => {
-                      const thumb = resolveMediaUrl(product.images[0]?.url);
-                      return thumb ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={thumb} alt={product.name} className="h-16 w-12 rounded-lg object-cover object-top" />
-                      ) : null;
-                    })()}
-                    <div>
-                      <p className="text-[13px] font-semibold text-ink">{product.name}</p>
-                      <p className="text-[12px] text-muted">
-                        {(product.price_cents / 100).toFixed(2)} {product.currency.toUpperCase()}
-                      </p>
+                  <>
+                    <div className="mt-3 flex items-center gap-3">
+                      {(() => {
+                        const thumb = resolveMediaUrl(product.images[0]?.url);
+                        return thumb ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={thumb} alt={product.name} className="h-16 w-12 rounded-lg object-cover object-top" />
+                        ) : null;
+                      })()}
+                      <div>
+                        <p className="text-[13px] font-semibold text-ink">{product.name}</p>
+                        <p className="text-[12px] text-muted">
+                          {(product.price_cents / 100).toFixed(2)} {product.currency.toUpperCase()}
+                        </p>
+                      </div>
                     </div>
-                  </div>
+                    {(lastStylistReply?.alternatives[product.id] ?? []).length > 0 && (
+                      <div className="mt-4 border-t border-line/70 pt-3">
+                        <AlternativesRow
+                          label={product.name}
+                          alternatives={lastStylistReply!.alternatives[product.id]}
+                          onShop={(a) => shopAlternative.mutate(a)}
+                          isShopping={shopAlternative.isPending}
+                        />
+                      </div>
+                    )}
+                  </>
                 )
               )}
             </div>
@@ -700,6 +742,49 @@ function OutfitItemThumb({ item }: { item: OutfitItem }) {
         </span>
       </div>
       <p className="truncate px-1.5 py-1 text-[10.5px] text-ink-soft">{item.product.name}</p>
+    </div>
+  );
+}
+
+function AlternativesRow({
+  label,
+  alternatives,
+  onShop,
+  isShopping,
+}: {
+  label: string;
+  alternatives: LiveProduct[];
+  onShop: (item: LiveProduct) => void;
+  isShopping: boolean;
+}) {
+  return (
+    <div>
+      <p className="truncate text-[11px] text-faint">Other options for &ldquo;{label}&rdquo;</p>
+      <div className="mt-1.5 flex gap-2 overflow-x-auto pb-1">
+        {alternatives.map((alt) => {
+          const thumb = resolveMediaUrl(alt.images[0]);
+          return (
+            <button
+              key={`${alt.retailer_slug}:${alt.retailer_product_id}`}
+              type="button"
+              disabled={isShopping}
+              onClick={() => onShop(alt)}
+              title={`${alt.name} — ${(alt.price_cents / 100).toFixed(2)} ${alt.currency.toUpperCase()}`}
+              className="flex w-20 shrink-0 flex-col overflow-hidden rounded-[12px] border border-line bg-surface text-left transition-colors hover:border-sage disabled:opacity-60"
+            >
+              <div className="relative aspect-square bg-paper-2">
+                {thumb && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={thumb} alt={alt.name} className="h-full w-full object-cover object-top" />
+                )}
+              </div>
+              <p className="px-1 py-1 text-[10px] font-semibold text-ink-soft">
+                {(alt.price_cents / 100).toFixed(0)} {alt.currency.toUpperCase()}
+              </p>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

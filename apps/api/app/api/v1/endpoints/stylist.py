@@ -9,7 +9,8 @@ from app.core.rate_limit import rate_limiter
 from app.models.outfit import Outfit, OutfitItem
 from app.models.product import Product
 from app.models.stylist import StylistRequest
-from app.schemas.product import ProductOut
+from app.retailers.base import RawProduct
+from app.schemas.product import LiveProductOut, ProductOut
 from app.schemas.stylist import StylistAskRequest, StylistAskResponse
 from app.services import history_service
 from app.services.similarity_service import find_cheaper, find_similar
@@ -20,12 +21,54 @@ router = APIRouter(prefix="/stylist", tags=["stylist"])
 _stylist_rate_limit = Depends(rate_limiter("stylist_ask", limit=20, window_seconds=3600))
 
 
+def _live_alternatives_out(
+    alternatives: dict[str, tuple[str, list[RawProduct]]],
+) -> dict[str, list[LiveProductOut]]:
+    # These RawProducts came straight from eBay's live search (see
+    # stylist_service._alternatives_for) — not yet a saved Product, so
+    # there's no ProductProvider instance to pass to to_live_product_out;
+    # eBay is the only live-search-capable retailer right now anyway.
+    return {
+        product_id: [
+            LiveProductOut(
+                retailer_slug="ebay",
+                retailer_product_id=raw.retailer_product_id,
+                name=raw.name,
+                brand=raw.brand,
+                merchant_name=raw.merchant_name,
+                description=raw.description,
+                subcategory=raw.subcategory,
+                gender=raw.gender,
+                color=raw.color,
+                sizes=raw.sizes,
+                style_tags=raw.style_tags,
+                price_cents=raw.price_cents,
+                currency=raw.currency,
+                rating=raw.rating,
+                rating_count=raw.rating_count,
+                availability=raw.availability,
+                product_url=raw.product_url,
+                images=raw.images,
+                retailer_name="eBay",
+                search_term=term,
+            )
+            for raw in raws
+        ]
+        for product_id, (term, raws) in alternatives.items()
+    }
+
+
 async def _run_stylist_request(payload: StylistAskRequest, user_id: str, db: DbSession) -> StylistAskResponse:
-    request_row = await ask_stylist(db, user_id=user_id, req=payload)
-    return await _to_response(db, request_row)
+    request_row, alternatives = await ask_stylist(db, user_id=user_id, req=payload)
+    return await _to_response(db, request_row, alternatives=alternatives)
 
 
-async def _to_response(db: DbSession, request_row: StylistRequest) -> StylistAskResponse:
+async def _to_response(
+    db: DbSession,
+    request_row: StylistRequest,
+    *,
+    alternatives: dict[str, tuple[str, list[RawProduct]]] | None = None,
+) -> StylistAskResponse:
     products: list[Product] = []
     if request_row.recommended_product_ids:
         result = await db.execute(
@@ -54,6 +97,7 @@ async def _to_response(db: DbSession, request_row: StylistRequest) -> StylistAsk
         summary=request_row.response_summary or "",
         products=products,
         outfit=outfit,
+        alternatives=_live_alternatives_out(alternatives or {}),
         created_at=request_row.created_at,
     )
 
