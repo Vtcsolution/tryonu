@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { ApiError } from "@/lib/api/client";
 import { auth } from "@/lib/api/endpoints";
@@ -74,9 +74,8 @@ export function ResetPasswordForm() {
         </p>
       ) : (
         <form onSubmit={onSubmit} className="space-y-4" noValidate>
-          <Input
+          <PasswordInput
             label="New password"
-            type="password"
             autoComplete="new-password"
             required
             minLength={8}

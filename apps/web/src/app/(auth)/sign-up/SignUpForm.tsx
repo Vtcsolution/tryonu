@@ -6,6 +6,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { ApiError } from "@/lib/api/client";
@@ -98,9 +99,8 @@ export function SignUpForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
-        <Input
+        <PasswordInput
           label="Password"
-          type="password"
           autoComplete="new-password"
           required
           minLength={8}
