@@ -237,7 +237,7 @@ async def test_stylist_alternatives_span_the_price_range_not_just_cheapest(clien
     """With more real options than the alternatives cap, pick low/mid/high
     across the range — not just the N cheapest — so "top, low etc" prices
     are genuinely represented."""
-    options = [_raw(f"Jacket {i}", price_cents=(i + 1) * 1000) for i in range(6)]  # 1000..6000
+    options = [_raw(f"Jacket {i}", price_cents=(i + 1) * 1000) for i in range(12)]  # 1000..12000
     _patch_live_search(monkeypatch, _live_results(*options))
 
     class PicksLastProvider:
@@ -245,7 +245,7 @@ async def test_stylist_alternatives_span_the_price_range_not_just_cheapest(clien
         model = "picks-last-1"
 
         async def recommend(self, query: StylistQuery, candidates: list[StylistCandidate]) -> StylistRecommendation:
-            return StylistRecommendation(summary="picked", chosen_indexes=[5])  # the priciest, 6000
+            return StylistRecommendation(summary="picked", chosen_indexes=[11])  # the priciest, 12000
 
     monkeypatch.setattr("app.services.stylist_service.get_stylist_provider", lambda: PicksLastProvider())
     await register_and_login(client)
@@ -254,12 +254,12 @@ async def test_stylist_alternatives_span_the_price_range_not_just_cheapest(clien
     body = resp.json()
     chosen = body["products"][0]
     alts = body["alternatives"][chosen["id"]]
-    assert len(alts) == 3
+    assert len(alts) == 8
     prices = sorted(a["price_cents"] for a in alts)
-    # from the 5 remaining options (1000..5000), spans low and high — not
-    # just the 3 cheapest (which would be 1000/2000/3000)
+    # from the 11 remaining options (1000..11000), spans low and high — not
+    # just the 8 cheapest (which would top out at 8000)
     assert prices[0] == 1000
-    assert prices[-1] == 5000
+    assert prices[-1] == 11000
 
 
 def test_extract_search_terms_splits_a_multi_item_outfit_prompt():

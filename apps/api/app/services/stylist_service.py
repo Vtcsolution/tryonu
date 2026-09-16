@@ -184,7 +184,7 @@ async def _fetch_candidates(req: StylistAskRequest, profile: TasteProfile | None
     return pool[:_CANDIDATE_POOL_SIZE]
 
 
-_MAX_ALTERNATIVES = 3
+_MAX_ALTERNATIVES = 8
 
 
 def _alternatives_for(chosen: _Candidate, pool: list[_Candidate]) -> list[RawProduct]:

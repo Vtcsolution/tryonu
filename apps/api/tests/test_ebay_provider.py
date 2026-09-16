@@ -79,6 +79,32 @@ async def test_fetch_products_maps_real_browse_api_shape(monkeypatch):
     assert p.availability == "in_stock"
 
 
+async def test_fetch_products_upsizes_ebay_thumbnails_to_the_largest_available(monkeypatch):
+    """Real quality bug, confirmed live against eBay's own CDN: the Browse
+    API's image.imageUrl comes back at "s-l225" (a 225px thumbnail) even
+    though the exact same photo is served at "s-l1600" from the identical
+    path — that 1600px version is what actually gets composited as the
+    try-on garment image, so a blurry source meant a blurry result."""
+    item = {
+        "itemId": "v1|hd|0",
+        "title": "Armani Shirt",
+        "price": {"value": "39.99", "currency": "USD"},
+        "itemWebUrl": "https://www.ebay.com/itm/hd",
+        "image": {"imageUrl": "https://i.ebayimg.com/images/g/PSwAAeSwMp1qqfqS/s-l225.jpg"},
+        "additionalImages": [{"imageUrl": "https://i.ebayimg.com/images/g/61gAAeSwnkFqqfqD/s-l500.jpg"}],
+    }
+    transport = _fake_transport(items_by_query={"jacket": [item]})
+    _patch_transport(monkeypatch, transport)
+
+    provider = EbayProductProvider(client_id="cid", client_secret="csecret", campaign_id=None)
+    products = await provider.fetch_products(limit=1)
+
+    assert products[0].images == [
+        "https://i.ebayimg.com/images/g/PSwAAeSwMp1qqfqS/s-l1600.jpg",
+        "https://i.ebayimg.com/images/g/61gAAeSwnkFqqfqD/s-l1600.jpg",
+    ]
+
+
 async def test_fetch_products_skips_unusable_items_and_dedupes(monkeypatch):
     good = {
         "itemId": "v1|good|0",

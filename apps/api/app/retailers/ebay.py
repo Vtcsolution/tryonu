@@ -15,6 +15,7 @@ reached or the term's results run out.
 
 from __future__ import annotations
 
+import re
 import time
 
 import httpx
@@ -27,6 +28,19 @@ _TOKEN_URL = "https://api.ebay.com/identity/v1/oauth2/token"
 _SEARCH_URL = "https://api.ebay.com/buy/browse/v1/item_summary/search"
 _OAUTH_SCOPE = "https://api.ebay.com/oauth/api_scope"
 _PAGE_SIZE = 50
+
+# eBay's Browse API returns image.imageUrl at "s-l225" (225px) — a real
+# thumbnail, not remotely HD. eBay's own CDN serves the exact same photo at
+# multiple fixed sizes from the same path (confirmed live: swapping the
+# size segment returns 200, not a 404), and "s-l1600" is the largest it
+# offers — used for our try-on garment image, this is the size actually
+# composited onto the user's photo, so a blurry source directly meant a
+# blurry result.
+_IMAGE_SIZE_RE = re.compile(r"/s-l\d+\.jpg$")
+
+
+def _hd_image(url: str) -> str:
+    return _IMAGE_SIZE_RE.sub("/s-l1600.jpg", url)
 
 # Curated fashion search terms -> our category slug. eBay's Browse API
 # doesn't reliably return brand/gender/color on item_summary rows (only on
@@ -168,8 +182,8 @@ class EbayProductProvider(ProductProvider):
     @staticmethod
     def _to_raw_product(item: dict, category_slug: str) -> RawProduct:
         price = item["price"]
-        images = [item["image"]["imageUrl"]] if item.get("image", {}).get("imageUrl") else []
-        images += [img["imageUrl"] for img in item.get("additionalImages", []) if img.get("imageUrl")]
+        images = [_hd_image(item["image"]["imageUrl"])] if item.get("image", {}).get("imageUrl") else []
+        images += [_hd_image(img["imageUrl"]) for img in item.get("additionalImages", []) if img.get("imageUrl")]
 
         condition = (item.get("condition") or "").upper()
         availability = "out_of_stock" if condition == "SOLD" else "in_stock"
