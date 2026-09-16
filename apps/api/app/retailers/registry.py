@@ -14,7 +14,6 @@ from app.retailers.daraz import DarazProductProvider
 from app.retailers.ebay import EbayProductProvider
 from app.retailers.flipkart import FlipkartProductProvider
 from app.retailers.rakuten import RakutenProductProvider
-from app.retailers.sample import SampleCatalogProvider
 
 
 def get_rakuten_provider() -> RakutenProductProvider:
@@ -35,9 +34,15 @@ def get_rakuten_provider() -> RakutenProductProvider:
 
 
 def get_all_providers() -> list[ProductProvider]:
+    """Real retailers only — app/retailers/sample.py (SampleCatalogProvider)
+    is deliberately excluded here. It was only ever a bootstrap fixture to
+    prove the ingestion pipeline before any real retailer was configured;
+    now that eBay/CJ/Rakuten are live, syncing its fake demo rows back in
+    (and re-marking them is_active on every run) would mix fake products
+    into real search/AI-stylist results indistinguishably from real ones.
+    The class stays importable for tests, which construct it directly."""
     settings = get_settings()
     return [
-        SampleCatalogProvider(),
         AmazonProductProvider(
             access_key=settings.AMAZON_ACCESS_KEY,
             secret_key=settings.AMAZON_SECRET_KEY,
