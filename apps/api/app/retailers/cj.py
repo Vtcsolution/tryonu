@@ -92,6 +92,14 @@ class CJProductProvider(ProductProvider):
 
         return products[:limit]
 
+    async def search_live(self, *, query: str, limit: int = 24) -> list[RawProduct]:
+        if not (self._api_token and self._company_id):
+            raise RetailerNotConfiguredError(
+                "CJ Affiliate credentials not set (CJ_API_TOKEN / CJ_WEBSITE_ID)"
+            )
+        async with httpx.AsyncClient(timeout=20) as client:
+            return await self._search(client, query, category_slug="search", limit=limit)
+
     async def _search(
         self, client: httpx.AsyncClient, query: str, category_slug: str, limit: int
     ) -> list[RawProduct]:

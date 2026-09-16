@@ -403,6 +403,13 @@ class RakutenProductProvider(ProductProvider):
         async with httpx.AsyncClient(timeout=20) as client:
             return await self._search(client, keyword, category_slug="preview", limit=limit)
 
+    async def search_live(self, *, query: str, limit: int = 24) -> list[RawProduct]:
+        # Same call as preview_search — kept as a separate method name so
+        # the admin diagnostics endpoint and the real browse/AI-stylist
+        # live search path (live_search_service.py) read as what they are,
+        # even though today they do the same thing.
+        return await self.preview_search(keyword=query, limit=limit)
+
     async def _search(
         self, client: httpx.AsyncClient, keyword: str, category_slug: str, limit: int
     ) -> list[RawProduct]:

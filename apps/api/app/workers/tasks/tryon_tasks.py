@@ -196,11 +196,16 @@ async def _handle_provider_error(session, job: TryOnJob, exc: TryOnProviderError
 
 
 async def _fail_job(session, job: TryOnJob, message: str, *, refund: bool) -> None:  # noqa: ANN001
+    # Real bug, found via flaky-test investigation: this used to be two
+    # separate commits (status, then refund). A reader on a different
+    # session/connection (e.g. the frontend polling the job, or a test
+    # checking the balance right after seeing "failed") could observe the
+    # job as failed *before* the refund had landed — a real, if narrow,
+    # "where are my credits" moment. One commit makes both changes atomic:
+    # an external reader sees either neither or both, never the gap.
     job.status = JobStatus.FAILED
     job.error_message = message[:2000]
     job.completed_at = datetime.now(timezone.utc)
-    await session.commit()
-    logger.error("tryon_job_failed", job_id=job.id, error=message)
 
     if refund:
         await credit_service.refund(
@@ -210,7 +215,9 @@ async def _fail_job(session, job: TryOnJob, message: str, *, refund: bool) -> No
             reference_type="tryon_job",
             reference_id=job.id,
         )
-        await session.commit()
+
+    await session.commit()
+    logger.error("tryon_job_failed", job_id=job.id, error=message)
 
 
 def run_tryon_job(job_id: str) -> None:

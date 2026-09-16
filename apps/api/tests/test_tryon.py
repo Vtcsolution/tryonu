@@ -34,6 +34,13 @@ async def _upload_front_photo(client) -> str:
     return resp.json()["id"]
 
 
+async def _upload_back_photo(client) -> str:
+    files = {"file": ("back.jpg", small_jpeg_bytes(), "image/jpeg")}
+    resp = await client.post("/api/v1/photos", files=files, data={"kind": "back"})
+    assert resp.status_code == 201, resp.text
+    return resp.json()["id"]
+
+
 async def test_tryon_success_debits_credits_and_completes(client, db, monkeypatch):
     async def fake_generate(self, payload):  # noqa: ARG001
         return TryOnOutput(image_bytes=small_jpeg_bytes(), provider_job_id="fake-ok", latency_ms=1)
@@ -226,3 +233,82 @@ async def test_tryon_insufficient_credits_returns_402(client, db):
         "/api/v1/tryon", json={"user_photo_id": photo_id, "product_id": product.id}
     )
     assert resp.status_code == 402
+
+
+async def test_multi_tryon_creates_one_job_per_photo_and_shows_which_angle(client, db, monkeypatch):
+    """"Show me the front and the back" — one job per uploaded angle, same
+    product, each result tagged with which photo it came from."""
+    async def fake_generate(self, payload):  # noqa: ARG001
+        return TryOnOutput(image_bytes=small_jpeg_bytes(), provider_job_id="fake-ok", latency_ms=1)
+
+    monkeypatch.setattr(MockTryOnProvider, "generate", fake_generate)
+
+    await register_and_login(client)
+    front_id = await _upload_front_photo(client)
+    back_id = await _upload_back_photo(client)
+    product = await seed_product(db, name="Multi-Angle Product")
+    user_id = (await client.get("/api/v1/auth/me")).json()["id"]
+
+    resp = await client.post(
+        "/api/v1/tryon/multi", json={"user_photo_ids": [front_id, back_id], "product_id": product.id}
+    )
+    assert resp.status_code == 201, resp.text
+    jobs = resp.json()
+    assert len(jobs) == 2
+    assert {j["user_photo"]["kind"] for j in jobs} == {"front", "back"}
+    assert all(j["credit_cost"] == 5 for j in jobs)
+    # charged for both up front — one debit per job, same as two single calls
+    assert await credit_balance(db, user_id) == 90
+
+    for job in jobs:
+        finished = await _poll_until_terminal(client, job["id"])
+        assert finished["status"] == "completed"
+
+
+async def test_multi_tryon_requires_at_least_two_photos(client, db):
+    await register_and_login(client)
+    photo_id = await _upload_front_photo(client)
+    product = await seed_product(db)
+
+    resp = await client.post(
+        "/api/v1/tryon/multi", json={"user_photo_ids": [photo_id], "product_id": product.id}
+    )
+    assert resp.status_code == 400
+
+
+async def test_multi_tryon_rejects_duplicate_photo_ids(client, db):
+    await register_and_login(client)
+    photo_id = await _upload_front_photo(client)
+    product = await seed_product(db)
+
+    resp = await client.post(
+        "/api/v1/tryon/multi", json={"user_photo_ids": [photo_id, photo_id], "product_id": product.id}
+    )
+    assert resp.status_code == 400
+
+
+async def test_multi_tryon_checks_total_cost_upfront_not_partway(client, db):
+    """Real design requirement: with just enough credits for ONE job but
+    not two, the whole batch must be rejected before any job (and its
+    debit) is created — never leaving the user with only one of the two
+    angles they asked for."""
+    await register_and_login(client)
+    front_id = await _upload_front_photo(client)
+    back_id = await _upload_back_photo(client)
+    product = await seed_product(db)
+    user_id = (await client.get("/api/v1/auth/me")).json()["id"]
+
+    # leave exactly 5 credits — enough for one job (cost 5), not two (cost 10)
+    await credit_service.debit(
+        db, user_id=user_id, amount=95, reason=CreditReason.ADMIN_ADJUSTMENT,
+        reference_type="test", reference_id="drain-multi",
+    )
+    await db.commit()
+
+    resp = await client.post(
+        "/api/v1/tryon/multi", json={"user_photo_ids": [front_id, back_id], "product_id": product.id}
+    )
+    assert resp.status_code == 402
+    # nothing was charged — not even a partial debit for the one job that
+    # would have fit
+    assert await credit_balance(db, user_id) == 5

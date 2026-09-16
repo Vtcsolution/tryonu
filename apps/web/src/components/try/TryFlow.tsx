@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
@@ -16,7 +16,16 @@ import {
   tryon as tryonApi,
 } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
-import type { LiveProduct, Outfit, OutfitItem, Product, StylistResponse, TryOnJob, UserPhoto } from "@/lib/api/types";
+import type {
+  LiveProduct,
+  Outfit,
+  OutfitItem,
+  PhotoKind,
+  Product,
+  StylistResponse,
+  TryOnJob,
+  UserPhoto,
+} from "@/lib/api/types";
 
 // Slots FASHN can actually composite onto the photo (garments worn on the
 // torso/legs) — shoes/watch/bag/accessory/other are still real matched
@@ -34,6 +43,20 @@ const STAGE_LABEL: Record<TryOnJob["status"], string> = {
   cancelled: "Cancelled",
 };
 
+// Human labels for the multi-angle result gallery — not every kind is a
+// realistic "second angle" pick, but the map covers everything PhotoUploader
+// can produce.
+const PHOTO_KIND_LABEL: Record<PhotoKind, string> = {
+  front: "Front view",
+  full_body: "Full body",
+  left_side: "Left side",
+  right_side: "Right side",
+  left_45: "Left 45°",
+  right_45: "Right 45°",
+  back: "Back view",
+  extra: "Extra angle",
+};
+
 export function TryFlow() {
   const router = useRouter();
   const params = useSearchParams();
@@ -49,8 +72,9 @@ export function TryFlow() {
   const [outfit, setOutfit] = useState<Outfit | null>(null);
   const [prompt, setPrompt] = useState("");
   const [lastStylistReply, setLastStylistReply] = useState<StylistResponse | null>(null);
-  const [jobId, setJobId] = useState<string | null>(null);
+  const [jobIds, setJobIds] = useState<string[]>([]);
   const [elapsedSec, setElapsedSec] = useState(0);
+  const [multiAngle, setMultiAngle] = useState(false);
 
   // gate the whole flow behind auth — a try-on always needs a stored photo
   useEffect(() => {
@@ -59,6 +83,12 @@ export function TryFlow() {
 
   const primaryPhoto =
     userPhotos.find((p) => p.kind === "front") ?? userPhotos.find((p) => p.kind === "full_body") ?? userPhotos[0];
+  // A second angle to render alongside the primary one — prefer an explicit
+  // back photo (the common "front + back" case), else any other distinct
+  // uploaded angle.
+  const secondaryPhoto = userPhotos.find((p) => p.kind === "back" && p.id !== primaryPhoto?.id)
+    ?? userPhotos.find((p) => p.id !== primaryPhoto?.id);
+  const canMultiAngle = !!primaryPhoto && !!secondaryPhoto;
 
   // The browse-grid is a live search against real retailer APIs, not our
   // own catalog — nothing here is a locally stored product until a user
@@ -148,39 +178,55 @@ export function TryFlow() {
   });
 
   const createJob = useMutation({
-    mutationFn: () =>
-      tryonApi.create({
+    mutationFn: async () => {
+      if (multiAngle && canMultiAngle) {
+        return tryonApi.createMulti({
+          user_photo_ids: [primaryPhoto!.id, secondaryPhoto!.id],
+          product_id: outfit ? undefined : product!.id,
+          outfit_id: outfit ? outfit.id : undefined,
+        });
+      }
+      const job = await tryonApi.create({
         user_photo_id: primaryPhoto!.id,
         product_id: outfit ? undefined : product!.id,
         outfit_id: outfit ? outfit.id : undefined,
-      }),
-    onSuccess: (job) => {
-      setJobId(job.id);
+      });
+      return [job];
+    },
+    onSuccess: (jobs) => {
+      setJobIds(jobs.map((j) => j.id));
       setElapsedSec(0);
       setStep(2);
       qc.invalidateQueries({ queryKey: ["session", "me"] }); // credits just changed
     },
   });
 
-  const jobQuery = useQuery({
-    queryKey: ["tryon-job", jobId],
-    queryFn: () => tryonApi.get(jobId!),
-    enabled: !!jobId && step === 2,
-    refetchInterval: (query) => (query.state.data && TERMINAL.includes(query.state.data.status) ? false : 1200),
+  const jobQueries = useQueries({
+    queries: jobIds.map((id) => ({
+      queryKey: ["tryon-job", id],
+      queryFn: () => tryonApi.get(id),
+      enabled: !!id,
+      refetchInterval: (query: { state: { data?: TryOnJob } }) =>
+        query.state.data && TERMINAL.includes(query.state.data.status) ? false : 1200,
+    })),
   });
+  const jobsData = jobQueries.map((q) => q.data).filter((j): j is TryOnJob => !!j);
+  const allTerminal = jobIds.length > 0 && jobsData.length === jobIds.length && jobsData.every((j) => TERMINAL.includes(j.status));
+  const anyCompleted = jobsData.some((j) => j.status === "completed");
+  const completedJobs = jobsData.filter((j) => j.status === "completed");
 
   useEffect(() => {
-    if (step !== 2 || !jobQuery.data || TERMINAL.includes(jobQuery.data.status)) return;
+    if (step !== 2 || jobsData.length === 0 || allTerminal) return;
     const t = setInterval(() => setElapsedSec((s) => s + 1), 1000);
     return () => clearInterval(t);
-  }, [step, jobQuery.data]);
+  }, [step, jobsData.length, allTerminal]);
 
   useEffect(() => {
-    if (jobQuery.data?.status === "completed") {
+    if (step === 2 && allTerminal && anyCompleted) {
       setStep(3);
       qc.invalidateQueries({ queryKey: ["session", "me"] });
     }
-  }, [jobQuery.data?.status, qc]);
+  }, [step, allTerminal, anyCompleted, qc]);
 
   const activeStepIndex = Math.min(step, 2);
 
@@ -522,13 +568,37 @@ export function TryFlow() {
             </p>
           )}
 
+          {canMultiAngle && (product || outfit) && (
+            <label className="mt-6 flex cursor-pointer items-start gap-3 rounded-[16px] border border-line bg-surface p-4 text-[13px]">
+              <input
+                type="checkbox"
+                checked={multiAngle}
+                onChange={(e) => setMultiAngle(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-sage"
+              />
+              <span>
+                <span className="font-semibold text-ink">
+                  Also render {PHOTO_KIND_LABEL[secondaryPhoto!.kind].toLowerCase()}
+                </span>
+                <span className="block text-[12px] text-muted">
+                  Generates a second result from your {PHOTO_KIND_LABEL[secondaryPhoto!.kind].toLowerCase()} photo so
+                  you can see both angles — uses a separate credit charge per angle.
+                </span>
+              </span>
+            </label>
+          )}
+
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <Button
               size="md"
               disabled={(!product && !outfit) || createJob.isPending || selectLive.isPending}
               onClick={() => createJob.mutate()}
             >
-              {createJob.isPending ? "Starting…" : "Generate try-on"}{" "}
+              {createJob.isPending
+                ? "Starting…"
+                : multiAngle && canMultiAngle
+                  ? "Generate both angles"
+                  : "Generate try-on"}{" "}
               {!createJob.isPending && <span aria-hidden="true">→</span>}
             </Button>
             <button
@@ -546,7 +616,7 @@ export function TryFlow() {
       {step === 2 && (
         <div key="s2" className="animate-[tu-in-scale_0.4s_cubic-bezier(0.22,1,0.36,1)]">
           <div className="rounded-[28px] border border-line bg-surface px-6 py-16 text-center">
-            {jobQuery.data?.status !== "failed" ? (
+            {!allTerminal || anyCompleted ? (
               <div className="relative mx-auto grid h-24 w-24 place-items-center">
                 <span className="absolute inset-0 rounded-full border-2 border-line" />
                 <span className="absolute inset-0 animate-[tu-spin_0.9s_linear_infinite] rounded-full border-2 border-transparent border-t-sage" />
@@ -560,37 +630,46 @@ export function TryFlow() {
             )}
 
             <p className="mt-7 font-display text-[20px] text-ink">
-              {jobQuery.data ? STAGE_LABEL[jobQuery.data.status] : "Starting…"}
+              {jobsData.length === 0
+                ? "Starting…"
+                : jobIds.length > 1
+                  ? jobsData.map((j) => `${PHOTO_KIND_LABEL[j.user_photo.kind]}: ${STAGE_LABEL[j.status]}`).join(" · ")
+                  : STAGE_LABEL[jobsData[0].status]}
             </p>
             <p className="mt-2 text-[13px] text-muted">
-              {jobQuery.data?.status === "failed"
-                ? jobQuery.data.error_message || "The AI provider couldn't complete this render. Your credits were refunded."
-                : `Rendering ${outfit ? `your ${outfit.items.length}-item outfit` : (product?.name ?? "your look")} — this runs as a background job, so you could leave and come back.`}
+              {allTerminal && !anyCompleted
+                ? jobsData.find((j) => j.status === "failed")?.error_message ||
+                  "The AI provider couldn't complete this render. Your credits were refunded."
+                : `Rendering ${outfit ? `your ${outfit.items.length}-item outfit` : (product?.name ?? "your look")}${jobIds.length > 1 ? ", both angles" : ""} — this runs as a background job, so you could leave and come back.`}
             </p>
 
-            {jobQuery.data?.status !== "failed" && (
+            {(!allTerminal || anyCompleted) && (
               <div className="mx-auto mt-6 h-2 max-w-sm overflow-hidden rounded-full bg-paper-2">
                 <div className="tu-flowline h-full w-full rounded-full opacity-70" />
               </div>
             )}
 
             <div className="mx-auto mt-5 flex max-w-sm flex-wrap items-center justify-center gap-2 text-[11px] text-faint">
+              {jobIds.map((id) => (
+                <span key={id} className="rounded-full border border-line px-2 py-1">
+                  job #{id.slice(0, 8)}
+                </span>
+              ))}
               <span className="rounded-full border border-line px-2 py-1">
-                job #{jobId?.slice(0, 8)}
-              </span>
-              <span className="rounded-full border border-line px-2 py-1">
-                {jobQuery.data?.credit_cost ?? "—"} credit{jobQuery.data?.credit_cost === 1 ? "" : "s"} reserved
+                {jobsData.length > 0 ? jobsData.reduce((sum, j) => sum + j.credit_cost, 0) : "—"} credit
+                {jobsData.reduce((sum, j) => sum + j.credit_cost, 0) === 1 ? "" : "s"} reserved
               </span>
               <span className="rounded-full border border-line px-2 py-1">refund on failure</span>
             </div>
 
-            {jobQuery.data?.status === "failed" && (
+            {allTerminal && !anyCompleted && (
               <div className="mt-6 flex justify-center gap-3">
                 <Button
                   size="sm"
                   onClick={() => {
                     setProduct(null);
                     setOutfit(null);
+                    setJobIds([]);
                     setStep(1);
                   }}
                 >
@@ -604,39 +683,43 @@ export function TryFlow() {
 
       {/* STEP 3 — result */}
       {step === 3 &&
-        jobQuery.data?.result &&
-        (jobQuery.data.outfit ? (
+        completedJobs.length > 0 &&
+        (completedJobs[0].outfit ? (
           <OutfitResultStep
-            job={jobQuery.data}
-            outfit={jobQuery.data.outfit}
+            jobs={completedJobs}
+            outfit={completedJobs[0].outfit}
             onTryAnother={() => {
               setProduct(null);
               setOutfit(null);
-              setJobId(null);
+              setJobIds([]);
+              setMultiAngle(false);
               setStep(1);
             }}
             onStartOver={() => {
               setProduct(null);
               setOutfit(null);
-              setJobId(null);
+              setJobIds([]);
+              setMultiAngle(false);
               setStep(0);
             }}
           />
         ) : (
-          (product || jobQuery.data.product) && (
+          (product || completedJobs[0].product) && (
             <ResultStep
-              job={jobQuery.data}
-              product={product || jobQuery.data.product!}
+              jobs={completedJobs}
+              product={product || completedJobs[0].product!}
               onTryAnother={() => {
                 setProduct(null);
                 setOutfit(null);
-                setJobId(null);
+                setJobIds([]);
+                setMultiAngle(false);
                 setStep(1);
               }}
               onStartOver={() => {
                 setProduct(null);
                 setOutfit(null);
-                setJobId(null);
+                setJobIds([]);
+                setMultiAngle(false);
                 setStep(0);
               }}
             />
@@ -646,17 +729,49 @@ export function TryFlow() {
   );
 }
 
+function AngleGallery({
+  jobs,
+  activeIndex,
+  onSelect,
+}: {
+  jobs: TryOnJob[];
+  activeIndex: number;
+  onSelect: (i: number) => void;
+}) {
+  if (jobs.length < 2) return null;
+  return (
+    <div className="absolute left-4 top-4 z-10 flex gap-2">
+      {jobs.map((j, i) => (
+        <button
+          key={j.id}
+          type="button"
+          onClick={() => onSelect(i)}
+          className={`rounded-full px-3 py-1.5 text-[11px] font-semibold shadow-sm transition-colors ${
+            i === activeIndex ? "bg-sage text-white" : "bg-surface/90 text-ink hover:bg-surface"
+          }`}
+        >
+          {PHOTO_KIND_LABEL[j.user_photo.kind]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function ResultStep({
-  job,
+  jobs,
   product,
   onTryAnother,
   onStartOver,
 }: {
-  job: TryOnJob;
+  jobs: TryOnJob[];
   product: Product;
   onTryAnother: () => void;
   onStartOver: () => void;
 }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const job = jobs[activeIndex] ?? jobs[0];
+  const totalCredits = jobs.reduce((sum, j) => sum + j.credit_cost, 0);
+
   return (
     <div key="s3" className="animate-[tu-in-scale_0.45s_cubic-bezier(0.22,1,0.36,1)]">
       <div className="flex items-center gap-2">
@@ -671,11 +786,12 @@ function ResultStep({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={resolveMediaUrl(job.result!.image_url)}
-            alt={`AI try-on result — ${product.name}`}
+            alt={`AI try-on result — ${product.name} — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}
             className="h-full w-full object-cover object-top"
           />
+          <AngleGallery jobs={jobs} activeIndex={activeIndex} onSelect={setActiveIndex} />
           <span className="absolute right-4 top-4 rounded-full bg-sage px-3 py-1.5 text-[11px] font-semibold text-white">
-            AI try-on result
+            AI try-on result{jobs.length > 1 ? ` · ${PHOTO_KIND_LABEL[job.user_photo.kind]}` : ""}
           </span>
           <p className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
             AI-generated visualization — not a guarantee of exact fit, sizing, or color.
@@ -693,8 +809,8 @@ function ResultStep({
 
           <div className="mt-5 space-y-2 text-[13px] text-muted">
             <p className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-sage" /> {job.credit_cost} credit
-              {job.credit_cost === 1 ? "" : "s"} used · job completed
+              <span className="h-1.5 w-1.5 rounded-full bg-sage" /> {totalCredits} credit
+              {totalCredits === 1 ? "" : "s"} used · {jobs.length > 1 ? `${jobs.length} angles` : "job"} completed
             </p>
             <p className="flex items-center gap-2">
               <span className="h-1.5 w-1.5 rounded-full bg-sage" /> Rendered by {job.provider}
@@ -790,17 +906,20 @@ function AlternativesRow({
 }
 
 function OutfitResultStep({
-  job,
+  jobs,
   outfit,
   onTryAnother,
   onStartOver,
 }: {
-  job: TryOnJob;
+  jobs: TryOnJob[];
   outfit: Outfit;
   onTryAnother: () => void;
   onStartOver: () => void;
 }) {
   const renderedCount = outfit.items.filter((i) => RENDERABLE_SLOTS.has(i.slot)).length;
+  const [activeIndex, setActiveIndex] = useState(0);
+  const job = jobs[activeIndex] ?? jobs[0];
+  const totalCredits = jobs.reduce((sum, j) => sum + j.credit_cost, 0);
 
   return (
     <div key="s3-outfit" className="animate-[tu-in-scale_0.45s_cubic-bezier(0.22,1,0.36,1)]">
@@ -816,11 +935,12 @@ function OutfitResultStep({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={resolveMediaUrl(job.result!.image_url)}
-            alt="AI try-on result — styled outfit"
+            alt={`AI try-on result — styled outfit — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}
             className="h-full w-full object-cover object-top"
           />
+          <AngleGallery jobs={jobs} activeIndex={activeIndex} onSelect={setActiveIndex} />
           <span className="absolute right-4 top-4 rounded-full bg-sage px-3 py-1.5 text-[11px] font-semibold text-white">
-            AI try-on result
+            AI try-on result{jobs.length > 1 ? ` · ${PHOTO_KIND_LABEL[job.user_photo.kind]}` : ""}
           </span>
           <p className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
             {renderedCount} of {outfit.items.length} items applied to the photo — footwear/accessories
@@ -860,8 +980,8 @@ function OutfitResultStep({
 
           <div className="mt-5 space-y-2 text-[13px] text-muted">
             <p className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-sage" /> {job.credit_cost} credit
-              {job.credit_cost === 1 ? "" : "s"} used · job completed
+              <span className="h-1.5 w-1.5 rounded-full bg-sage" /> {totalCredits} credit
+              {totalCredits === 1 ? "" : "s"} used · {jobs.length > 1 ? `${jobs.length} angles` : "job"} completed
             </p>
             <p className="flex items-center gap-2">
               <span className="h-1.5 w-1.5 rounded-full bg-sage" /> Rendered by {job.provider}

@@ -17,8 +17,9 @@ from app.models.photo import UserPhoto
 from app.models.product import Product
 from app.models.tryon import TryOnJob
 from app.schemas.common import Page
-from app.schemas.tryon import CreateTryOnRequest, TryOnJobOut
+from app.schemas.tryon import CreateMultiTryOnRequest, CreateTryOnRequest, TryOnJobOut
 from app.services import credit_service
+from app.services.credit_service import InsufficientCreditsError
 from app.services.queue import enqueue_tryon_job
 
 router = APIRouter(prefix="/tryon", tags=["try-on"])
@@ -30,39 +31,42 @@ _LOAD_OPTS = (
     selectinload(TryOnJob.outfit).selectinload(Outfit.items).selectinload(OutfitItem.product).selectinload(Product.images),
     selectinload(TryOnJob.outfit).selectinload(Outfit.items).selectinload(OutfitItem.product).selectinload(Product.retailer),
     selectinload(TryOnJob.result),
+    selectinload(TryOnJob.user_photo),
 )
 
+_tryon_rate_limit = Depends(rate_limiter("tryon_create", limit=settings.RATE_LIMIT_TRYON_PER_HOUR, window_seconds=3600))
 
-@router.post(
-    "",
-    response_model=TryOnJobOut,
-    status_code=status.HTTP_201_CREATED,
-    dependencies=[
-        Depends(rate_limiter("tryon_create", limit=settings.RATE_LIMIT_TRYON_PER_HOUR, window_seconds=3600))
-    ],
-)
-async def create_tryon(payload: CreateTryOnRequest, user: CurrentUser, db: DbSession):
-    if bool(payload.product_id) == bool(payload.outfit_id):
+
+async def _resolve_product_or_outfit(db: DbSession, user: CurrentUser, *, product_id: str | None, outfit_id: str | None) -> int:
+    """Validates exactly one of product/outfit is a real, owned/active
+    target and returns the per-job credit cost — shared by the single and
+    multi-photo creation endpoints so they can never drift apart."""
+    if bool(product_id) == bool(outfit_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Provide exactly one of product_id or outfit_id"
         )
-
-    photo = await db.get(UserPhoto, payload.user_photo_id)
-    if photo is None or photo.user_id != user.id or photo.is_deleted:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fitting profile photo not found")
-
-    cost = settings.TRYON_CREDIT_COST
-
-    if payload.product_id:
-        product = await db.get(Product, payload.product_id)
+    if product_id:
+        product = await db.get(Product, product_id)
         if product is None or not product.is_active:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
-    else:
-        outfit = await db.get(Outfit, payload.outfit_id)
-        if outfit is None or outfit.user_id != user.id:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Outfit not found")
-        cost = settings.OUTFIT_TRYON_CREDIT_COST
+        return settings.TRYON_CREDIT_COST
 
+    outfit = await db.get(Outfit, outfit_id)
+    if outfit is None or outfit.user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Outfit not found")
+    return settings.OUTFIT_TRYON_CREDIT_COST
+
+
+async def _load_owned_photo(db: DbSession, user: CurrentUser, photo_id: str) -> UserPhoto:
+    photo = await db.get(UserPhoto, photo_id)
+    if photo is None or photo.user_id != user.id or photo.is_deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fitting profile photo not found")
+    return photo
+
+
+async def _create_one_job(
+    db: DbSession, user: CurrentUser, *, photo: UserPhoto, product_id: str | None, outfit_id: str | None, cost: int
+) -> str:
     provider = get_tryon_provider()
     job_id = new_uuid()
 
@@ -74,15 +78,15 @@ async def create_tryon(payload: CreateTryOnRequest, user: CurrentUser, db: DbSes
         reason=CreditReason.TRYON_DEBIT,
         reference_type="tryon_job",
         reference_id=job_id,
-        note=f"Try-on ({'product' if payload.product_id else 'outfit'})",
+        note=f"Try-on ({'product' if product_id else 'outfit'})",
     )
 
     job = TryOnJob(
         id=job_id,
         user_id=user.id,
         user_photo_id=photo.id,
-        product_id=payload.product_id,
-        outfit_id=payload.outfit_id,
+        product_id=product_id,
+        outfit_id=outfit_id,
         provider=provider.name,
         provider_model=provider.model,
         status=JobStatus.QUEUED,
@@ -91,11 +95,51 @@ async def create_tryon(payload: CreateTryOnRequest, user: CurrentUser, db: DbSes
     )
     db.add(job)
     await db.commit()
-
     enqueue_tryon_job(job.id)
+    return job_id
 
-    result = await db.execute(select(TryOnJob).where(TryOnJob.id == job.id).options(*_LOAD_OPTS))
+
+async def _load_job(db: DbSession, job_id: str) -> TryOnJob:
+    result = await db.execute(select(TryOnJob).where(TryOnJob.id == job_id).options(*_LOAD_OPTS))
     return result.scalar_one()
+
+
+@router.post("", response_model=TryOnJobOut, status_code=status.HTTP_201_CREATED, dependencies=[_tryon_rate_limit])
+async def create_tryon(payload: CreateTryOnRequest, user: CurrentUser, db: DbSession):
+    cost = await _resolve_product_or_outfit(db, user, product_id=payload.product_id, outfit_id=payload.outfit_id)
+    photo = await _load_owned_photo(db, user, payload.user_photo_id)
+    job_id = await _create_one_job(
+        db, user, photo=photo, product_id=payload.product_id, outfit_id=payload.outfit_id, cost=cost
+    )
+    return await _load_job(db, job_id)
+
+
+@router.post("/multi", response_model=list[TryOnJobOut], status_code=status.HTTP_201_CREATED, dependencies=[_tryon_rate_limit])
+async def create_tryon_multi(payload: CreateMultiTryOnRequest, user: CurrentUser, db: DbSession):
+    """One job per photo (e.g. front + back angles), same product/outfit —
+    for showing "how it looks from the front and the back" side by side.
+    Charged per job; the whole batch's cost is checked against the
+    current balance up front, so a partway insufficient-credits failure
+    can never leave the user with only some of the angles they asked for
+    and paid for."""
+    if len(payload.user_photo_ids) < 2:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Provide at least 2 photos, or use POST /tryon for one")
+    if len(set(payload.user_photo_ids)) != len(payload.user_photo_ids):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Duplicate photo ids")
+
+    cost = await _resolve_product_or_outfit(db, user, product_id=payload.product_id, outfit_id=payload.outfit_id)
+    photos = [await _load_owned_photo(db, user, pid) for pid in payload.user_photo_ids]
+
+    total_cost = cost * len(photos)
+    balance = await credit_service.get_balance(db, user.id)
+    if balance < total_cost:
+        raise InsufficientCreditsError(required=total_cost, available=balance)
+
+    job_ids = [
+        await _create_one_job(db, user, photo=photo, product_id=payload.product_id, outfit_id=payload.outfit_id, cost=cost)
+        for photo in photos
+    ]
+    return [await _load_job(db, job_id) for job_id in job_ids]
 
 
 @router.get("", response_model=Page[TryOnJobOut])

@@ -28,6 +28,12 @@ async def test_fetch_products_without_company_id_raises_not_configured():
         await provider.fetch_products(limit=10)
 
 
+async def test_search_live_without_credentials_raises_not_configured():
+    provider = CJProductProvider(api_token=None, company_id=None)
+    with pytest.raises(RetailerNotConfiguredError):
+        await provider.search_live(query="denim jacket", limit=10)
+
+
 def _patch_transport(monkeypatch, handler):
     transport = httpx.MockTransport(handler)
     original_init = httpx.AsyncClient.__init__
@@ -82,6 +88,28 @@ async def test_fetch_products_sends_company_id_and_maps_real_response_shape(monk
     # the tracked clickUrl is used as product_url, not the raw `link`
     assert p.product_url == "https://www.dpbolvw.net/click-1234-5678?url=..."
     assert p.images == ["https://cj.example/main.jpg", "https://cj.example/alt.jpg"]
+
+
+async def test_search_live_returns_real_matches_for_an_arbitrary_query(monkeypatch):
+    item = {
+        "id": "pid_live",
+        "title": "Live Search Jacket",
+        "link": "https://retailer.example/jacket",
+        "linkCode": {"clickUrl": "https://www.dpbolvw.net/click-live"},
+        "price": {"amount": "59.00", "currency": "USD"},
+    }
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"data": {"products": {"resultList": [item]}}})
+
+    _patch_transport(monkeypatch, handler)
+
+    provider = CJProductProvider(api_token="test-token", company_id="cid_999")
+    products = await provider.search_live(query="denim jacket", limit=10)
+
+    assert len(products) == 1
+    assert products[0].retailer_product_id == "pid_live"
+    assert products[0].name == "Live Search Jacket"
 
 
 async def test_fetch_products_falls_back_to_raw_link_when_no_click_url(monkeypatch):

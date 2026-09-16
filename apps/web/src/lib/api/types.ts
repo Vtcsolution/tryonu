@@ -144,6 +144,7 @@ export type TryOnJob = {
   product: Product | null;
   outfit: Outfit | null;
   result: TryOnResult | null;
+  user_photo: UserPhoto;
   queued_at: string | null;
   started_at: string | null;
   completed_at: string | null;

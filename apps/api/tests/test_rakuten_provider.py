@@ -393,6 +393,21 @@ async def test_fetch_products_respects_limit(monkeypatch):
     assert len(products) == 7
 
 
+# -------------------------------------------------------------- live search
+async def test_search_live_returns_real_matches_for_an_arbitrary_query(monkeypatch):
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/token":
+            return httpx.Response(200, json={"access_token": "tok", "expires_in": 3600})
+        return httpx.Response(200, text=_search_xml(_DRESS_ITEM_XML))
+
+    _patch_transport(monkeypatch, httpx.MockTransport(handler))
+
+    provider = _provider()
+    products = await provider.search_live(query="cocktail dress", limit=10)
+    assert len(products) == 1
+    assert products[0].retailer_product_id == "RKT-1001"
+
+
 # --------------------------------------------------------- affiliate url ---
 
 
