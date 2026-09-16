@@ -69,6 +69,42 @@ async def test_fashn_submit_uses_model_name_and_inputs_shape(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_fashn_max_submit_uses_product_image_not_garment_image(monkeypatch):
+    """Regression test for a real bug found by probing the live FASHN API
+    directly: tryon-max rejects "garment_image"/"category" outright
+    ("not allowed") and requires "product_image" instead — tryon-v1.6's
+    shape does not carry over. Confirmed live: every tryon-max request was
+    400ing before this fix, so no generation was ever actually happening
+    while that model was configured."""
+    captured = {}
+
+    def check(data):
+        captured.update(data)
+
+    transport = _fake_transport(submit_payload_check=check)
+
+    original_init = httpx.AsyncClient.__init__
+
+    def patched_init(self, *args, **kwargs):
+        kwargs["transport"] = transport
+        original_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(httpx.AsyncClient, "__init__", patched_init)
+    monkeypatch.setattr("app.ai.providers.fashn.asyncio.sleep", lambda *_a, **_kw: _noop())
+
+    provider = FASHNTryOnProvider(api_key="fa-test", base_url="https://api.fashn.ai/v1", model="tryon-max")
+    await provider.generate(
+        TryOnInput(model_image_url="https://example.com/model.jpg", garment_image_url="https://example.com/garment.jpg")
+    )
+
+    assert captured["model_name"] == "tryon-max"
+    assert captured["inputs"]["model_image"] == "https://example.com/model.jpg"
+    assert captured["inputs"]["product_image"] == "https://example.com/garment.jpg"
+    assert "garment_image" not in captured["inputs"]
+    assert "category" not in captured["inputs"]
+
+
+@pytest.mark.asyncio
 async def test_fashn_failed_status_raises_provider_error(monkeypatch):
     async def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/run"):

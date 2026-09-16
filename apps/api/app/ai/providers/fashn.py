@@ -62,18 +62,32 @@ class FASHNTryOnProvider(VirtualTryOnProvider):
         )
 
     async def _submit(self, client: httpx.AsyncClient, headers: dict, payload: TryOnInput) -> dict:
+        # tryon-v1.6 and tryon-max do NOT share an inputs schema, despite both
+        # posting to the same /run endpoint — confirmed directly against
+        # FASHN's API (not just docs): tryon-max rejects "garment_image" and
+        # "category" outright ("not allowed") and requires "product_image"
+        # instead. Sending v1.6's shape to tryon-max 400s on every single
+        # request; the account's real-money generation spend was never
+        # actually reaching the model.
+        if self.model == "tryon-max":
+            inputs = {
+                "model_image": payload.model_image_url,
+                "product_image": payload.garment_image_url,
+                "resolution": "2k",
+                "generation_mode": "quality",
+            }
+        else:
+            inputs = {
+                "model_image": payload.model_image_url,
+                "garment_image": payload.garment_image_url,
+                "category": payload.category,
+            }
+
         try:
             resp = await client.post(
                 f"{self._base_url}/run",
                 headers=headers,
-                json={
-                    "model_name": self.model,
-                    "inputs": {
-                        "model_image": payload.model_image_url,
-                        "garment_image": payload.garment_image_url,
-                        "category": payload.category,
-                    },
-                },
+                json={"model_name": self.model, "inputs": inputs},
             )
         except httpx.RequestError as exc:
             raise TryOnProviderError(f"FASHN request failed: {exc}", retryable=True) from exc

@@ -29,10 +29,11 @@ import type {
   WardrobeItem,
 } from "@/lib/api/types";
 
-// Slots FASHN can actually composite onto the photo (garments worn on the
-// torso/legs) — shoes/watch/bag/accessory/other are still real matched
-// products with their own shop-now link, just never visually applied.
-const RENDERABLE_SLOTS = new Set(["top", "bottom", "dress", "outerwear"]);
+// Slots FASHN's tryon-max model can composite onto the photo — watch/bag/
+// accessory/other are still real matched products with their own shop-now
+// link, just never visually applied. Must match the backend's
+// _renderable_slots("tryon-max") in app/workers/tasks/tryon_tasks.py.
+const RENDERABLE_SLOTS = new Set(["top", "bottom", "dress", "outerwear", "shoes"]);
 
 const STEPS = ["Fitting profile", "Choose product", "Your look"] as const;
 const TERMINAL: TryOnJob["status"][] = ["completed", "failed", "cancelled"];
@@ -539,8 +540,9 @@ export function TryFlow() {
                     ))}
                   </div>
                   <p className="mt-3 text-[12px] text-muted">
-                    Clothing items are layered onto your photo; footwear/accessories are matched
-                    products with their own shop link, shown alongside the result.
+                    Clothing and shoes are layered onto your photo; watches, bags, and other
+                    accessories are matched products with their own shop link, shown alongside
+                    the result.
                   </p>
                   <div className="mt-4 space-y-3 border-t border-line/70 pt-3">
                     {outfit.items.map((item) => {
@@ -1134,8 +1136,8 @@ function OutfitResultStep({
             </span>
           </div>
           <p className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
-            {renderedCount} of {outfit.items.length} items applied to the photo — footwear/accessories
-            are matched products, not visually composited.
+            {renderedCount} of {outfit.items.length} items applied to the photo — remaining
+            accessories are matched products, not visually composited.
           </p>
         </div>
 

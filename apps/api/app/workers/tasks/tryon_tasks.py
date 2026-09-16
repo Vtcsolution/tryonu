@@ -29,12 +29,18 @@ from app.services.storage_service import get_storage, new_key
 settings = get_settings()
 MAX_ATTEMPTS = 3
 
-# FASHN composites a garment onto a body — it's built for clothing worn on
-# the torso/legs, not footwear/headwear/accessories. Outfit items outside
-# this set are still real products returned to the shopper (with their own
-# affiliate link) but are never sent to the try-on provider, since forcing
-# e.g. shoes through a garment-compositing model produces unreliable output.
+# tryon-v1.6 only composites garments worn on the torso/legs — its
+# "category" field is limited to tops/bottoms/one-pieces, so footwear sent
+# to it produces unreliable output. tryon-max has no such restriction (it
+# accepts any wearable item, footwear included, per FASHN's own docs) — so
+# the extra slots below only widen the render set when that specific model
+# is actually configured, confirmed live against FASHN's API.
 _RENDERABLE_SLOTS = {OutfitSlot.TOP, OutfitSlot.BOTTOM, OutfitSlot.DRESS, OutfitSlot.OUTERWEAR}
+_MAX_MODEL_EXTRA_SLOTS = {OutfitSlot.SHOES}
+
+
+def _renderable_slots(model: str) -> set[OutfitSlot]:
+    return _RENDERABLE_SLOTS | _MAX_MODEL_EXTRA_SLOTS if model == "tryon-max" else _RENDERABLE_SLOTS
 
 
 def _absolute_url(url: str) -> str:
@@ -43,7 +49,7 @@ def _absolute_url(url: str) -> str:
     return url
 
 
-async def _garment_image_urls(session, job: TryOnJob) -> list[str]:
+async def _garment_image_urls(session, job: TryOnJob, renderable_slots: set[OutfitSlot]) -> list[str]:
     if job.product is not None:
         img = job.product.primary_image_url
         return [img] if img else []
@@ -54,7 +60,7 @@ async def _garment_image_urls(session, job: TryOnJob) -> list[str]:
     if job.outfit_id is not None:
         result = await session.execute(
             select(OutfitItem)
-            .where(OutfitItem.outfit_id == job.outfit_id, OutfitItem.slot.in_(_RENDERABLE_SLOTS))
+            .where(OutfitItem.outfit_id == job.outfit_id, OutfitItem.slot.in_(renderable_slots))
             .options(selectinload(OutfitItem.product).selectinload(Product.images))
             .order_by(OutfitItem.position)
         )
@@ -87,10 +93,11 @@ async def run_tryon_job_async(job_id: str) -> None:
         job.started_at = datetime.now(timezone.utc)
         await session.commit()
 
-        garment_urls = await _garment_image_urls(session, job)
+        provider = get_tryon_provider()
+        garment_urls = await _garment_image_urls(session, job, _renderable_slots(provider.model))
         if not garment_urls:
             message = (
-                "This outfit has no clothing item FASHN can render (only footwear/accessories, "
+                "This outfit has no clothing item FASHN can render (only accessories, "
                 "which aren't visually applied) — nothing to generate an image from"
                 if job.outfit_id is not None
                 else "No garment image available to try on"
@@ -99,7 +106,6 @@ async def run_tryon_job_async(job_id: str) -> None:
             return
 
         model_url = _absolute_url(job.user_photo.url)
-        provider = get_tryon_provider()
 
         current_model_url = model_url
         final_bytes: bytes | None = None

@@ -12,6 +12,7 @@ from app.ai.providers.mock import MockTryOnProvider
 from app.models.enums import CreditReason, OutfitSlot
 from app.models.outfit import Outfit, OutfitItem
 from app.services import credit_service
+from app.workers.tasks.tryon_tasks import _renderable_slots
 from tests.conftest import credit_balance, register_and_login, seed_product, small_jpeg_bytes
 
 TERMINAL = {"completed", "failed", "cancelled"}
@@ -198,6 +199,17 @@ async def test_outfit_tryon_only_composites_renderable_slots(client, db, monkeyp
     assert len(calls) == 1
     assert finished["outfit"]["items"][0]["slot"] == "top"
     assert finished["outfit"]["items"][1]["slot"] == "shoes"
+
+
+def test_renderable_slots_only_adds_shoes_for_tryon_max():
+    """tryon-v1.6's "category" field only accepts tops/bottoms/one-pieces —
+    confirmed live against FASHN's API that tryon-max has no such
+    restriction, so shoes render only under that specific model. A
+    deployment still on v1.6 must never get footwear sent to it."""
+    assert OutfitSlot.SHOES in _renderable_slots("tryon-max")
+    assert OutfitSlot.SHOES not in _renderable_slots("tryon-v1.6")
+    assert OutfitSlot.SHOES not in _renderable_slots("mock-v1")
+    assert OutfitSlot.ACCESSORY not in _renderable_slots("tryon-max")
 
 
 async def test_outfit_tryon_with_only_non_renderable_items_fails_clearly(client, db):
