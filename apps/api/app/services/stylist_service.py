@@ -10,6 +10,8 @@ product_ingestion_service.persist_single_product.
 
 from __future__ import annotations
 
+import asyncio
+import re
 import time
 
 from fastapi import HTTPException, status
@@ -33,6 +35,45 @@ from app.services.product_ingestion_service import persist_single_product
 _CANDIDATE_POOL_SIZE = 40
 _LIVE_FETCH_POOL_SIZE = 60  # widened before personalized re-ranking trims to _CANDIDATE_POOL_SIZE
 _RECENT_TURNS = 3
+
+# Real, live-confirmed bug: eBay indexes individual product listings, not
+# outfits — searching "jacket AND jeans AND sneakers" as one sentence
+# essentially never matches a single real listing (a title would need all
+# three words), so a multi-item outfit prompt returned zero candidates.
+# These are the item-type words we recognize in a free-text prompt so each
+# one becomes its own short search ("leather jacket", "sneakers", ...) —
+# exactly the kind of query eBay's search reliably handles — merged into
+# one candidate pool, same end result as the old fixed-category-list bulk
+# ingestion, just derived from this prompt instead of a hardcoded list.
+_ITEM_CATEGORY_WORDS = {
+    "dress", "dresses", "jacket", "jackets", "jean", "jeans", "sneaker", "sneakers",
+    "shoe", "shoes", "boot", "boots", "t-shirt", "tshirt", "shirt", "shirts", "sweater",
+    "sweaters", "hoodie", "hoodies", "coat", "coats", "blazer", "blazers", "suit", "suits",
+    "handbag", "handbags", "bag", "bags", "sunglasses", "watch", "watches", "hat", "hats",
+    "cap", "caps", "skirt", "skirts", "shorts", "scarf", "scarves", "belt", "belts",
+    "trouser", "trousers", "pant", "pants", "legging", "leggings", "cardigan", "vest",
+    "gown", "romper", "jumpsuit", "sandals", "heels", "flats", "loafers", "trainers",
+}
+_TERM_STOPWORDS = {"a", "an", "the", "and", "with", "or", "for", "to", "of", "in", "on", "over", "under"}
+
+
+def _extract_search_terms(prompt: str) -> list[str]:
+    """Finds each recognized item-type word in the prompt and pairs it with
+    an immediately preceding descriptive word when there is one ("leather
+    jacket", not just "jacket") — one short query per distinct item
+    mentioned, in the order they appear, deduplicated."""
+    words = re.findall(r"[a-z']+", prompt.lower())
+    terms: list[str] = []
+    seen: set[str] = set()
+    for i, word in enumerate(words):
+        if word not in _ITEM_CATEGORY_WORDS:
+            continue
+        prev = words[i - 1] if i > 0 else ""
+        term = f"{prev} {word}" if prev and prev not in _TERM_STOPWORDS and prev not in _ITEM_CATEGORY_WORDS else word
+        if term not in seen:
+            seen.add(term)
+            terms.append(term)
+    return terms
 
 
 async def _recent_context(db: AsyncSession, user_id: str) -> str | None:
@@ -98,7 +139,27 @@ async def _fetch_candidates(req: StylistAskRequest, profile: TasteProfile | None
     personalized re-ranking both happen over that live pool in Python
     rather than in SQL, since there's no local table to filter/sort with a
     WHERE/ORDER BY."""
-    pool = await live_search(req.prompt, limit=_LIVE_FETCH_POOL_SIZE)
+    terms = _extract_search_terms(req.prompt)
+    if terms:
+        # One short search per distinct item mentioned (see
+        # _extract_search_terms) — a multi-item outfit prompt otherwise
+        # returns zero results, since no single real listing's title
+        # contains every item type at once.
+        per_term_limit = max(4, _LIVE_FETCH_POOL_SIZE // len(terms))
+        term_results = await asyncio.gather(*(live_search(t, limit=per_term_limit) for t in terms))
+        pool = []
+        seen_ids: set[tuple[str, str]] = set()
+        for results in term_results:
+            for r in results:
+                key = (r.provider.slug, r.raw.retailer_product_id)
+                if key in seen_ids:
+                    continue
+                seen_ids.add(key)
+                pool.append(r)
+    else:
+        # No recognized item word (e.g. a bare brand/style ask) — fall
+        # back to the prompt as a single query, same as before.
+        pool = await live_search(req.prompt, limit=_LIVE_FETCH_POOL_SIZE)
 
     if req.budget_min_cents is not None:
         pool = [r for r in pool if r.raw.price_cents >= req.budget_min_cents]

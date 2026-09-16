@@ -194,6 +194,75 @@ async def test_stylist_with_wardrobe_item_biases_candidates_toward_it(client, mo
     assert names.index(on_taste.name) < names.index(off_taste.name)
 
 
+def test_extract_search_terms_splits_a_multi_item_outfit_prompt():
+    """Real bug, found live: eBay indexes individual listings, not
+    outfits — searching "jacket AND jeans AND sneakers" as one sentence
+    returned zero results, because no real listing's title contains every
+    item word at once. Each item mentioned must become its own query."""
+    from app.services.stylist_service import _extract_search_terms
+
+    terms = _extract_search_terms(
+        "A stylish men's leather jacket paired with denim jeans and sneakers, casual streetwear outfit"
+    )
+    assert "leather jacket" in terms
+    assert "denim jeans" in terms
+    assert "sneakers" in terms
+    # only the item words, not filler like "stylish"/"casual"/"streetwear"/"outfit"
+    assert not any("stylish" in t or "outfit" in t for t in terms)
+
+
+def test_extract_search_terms_returns_empty_for_a_prompt_with_no_recognized_item():
+    from app.services.stylist_service import _extract_search_terms
+
+    assert _extract_search_terms("something for a black-tie gala") == []
+
+
+async def test_stylist_searches_each_outfit_item_separately_not_as_one_sentence(client, monkeypatch):
+    """The actual end-to-end fix: a multi-item prompt must trigger one
+    live_search call per item type, not a single call with the whole
+    sentence (which is exactly what returned zero candidates in
+    production)."""
+    calls: list[str] = []
+
+    async def fake_live_search(query: str, *, limit: int = 24):
+        calls.append(query)
+        if "jacket" in query:
+            return _live_results(_raw("Leather Jacket"))
+        if "jeans" in query:
+            return _live_results(_raw("Denim Jeans"))
+        if "sneakers" in query:
+            return _live_results(_raw("Running Sneakers"))
+        return []
+
+    class PicksEverythingProvider:
+        name = "picks-everything"
+        model = "picks-everything-1"
+
+        async def recommend(self, query: StylistQuery, candidates: list[StylistCandidate]) -> StylistRecommendation:
+            return StylistRecommendation(summary="all of it", chosen_indexes=list(range(len(candidates))))
+
+    monkeypatch.setattr("app.services.stylist_service.get_stylist_provider", lambda: PicksEverythingProvider())
+    monkeypatch.setattr("app.services.stylist_service.live_search", fake_live_search)
+    await register_and_login(client)
+
+    resp = await client.post(
+        "/api/v1/stylist/ask",
+        json={
+            "prompt": "A stylish leather jacket paired with denim jeans and sneakers, streetwear outfit",
+            "max_items": 6,
+        },
+    )
+    assert resp.status_code == 200
+    # every item type actually got its own search — never the raw sentence
+    assert not any("paired with" in c or "streetwear" in c for c in calls)
+    assert any("jacket" in c for c in calls)
+    assert any("jeans" in c for c in calls)
+    assert any("sneakers" in c for c in calls)
+
+    names = {p["name"] for p in resp.json()["products"]}
+    assert names & {"Leather Jacket", "Denim Jeans", "Running Sneakers"}
+
+
 async def test_stylist_rejects_another_users_wardrobe_item(client):
     await register_and_login(client)
     item_resp = await client.post("/api/v1/wardrobe", json={"name": "Owner's Item"})
