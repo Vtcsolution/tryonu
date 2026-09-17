@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { Logo } from "@/components/ui/Logo";
 import { useSession } from "@/lib/auth/useSession";
 import {
   AIUsageTab,
@@ -12,102 +14,145 @@ import {
   SubscriptionsTab,
   SystemTab,
 } from "./ActivityTabs";
+import { AdminShell, type NavGroup } from "./AdminShell";
 import { ProductsTab, RetailersTab } from "./CatalogTabs";
 import { CreditPackagesTab } from "./CreditPackagesTab";
 import { SettingsTab } from "./SettingsTab";
 import { TryOnsTab } from "./TryOnsTab";
 import { UsersTab } from "./UsersTab";
 
-const NAV = [
-  { group: "Monitor", tabs: ["Overview"] },
-  { group: "Manage", tabs: ["Users", "Try-ons", "Products", "Retailers", "Credit packs"] },
-  { group: "Configure", tabs: ["Settings & API keys", "System"] },
-  { group: "Money & activity", tabs: ["Payments", "Subscriptions", "Shop clicks", "AI usage", "Audit log"] },
-] as const;
+type Tab =
+  | "overview"
+  | "users"
+  | "tryons"
+  | "products"
+  | "retailers"
+  | "packs"
+  | "settings"
+  | "system"
+  | "payments"
+  | "subscriptions"
+  | "clicks"
+  | "ai-usage"
+  | "audit";
 
-type Tab = (typeof NAV)[number]["tabs"][number];
+const NAV: readonly NavGroup<Tab>[] = [
+  { group: "Monitor", tabs: [{ id: "overview", label: "Overview", icon: "overview" }] },
+  {
+    group: "Manage",
+    tabs: [
+      { id: "users", label: "Users", icon: "users" },
+      { id: "tryons", label: "Try-ons", icon: "tryons" },
+      { id: "products", label: "Products", icon: "products" },
+      { id: "retailers", label: "Retailers", icon: "retailers" },
+      { id: "packs", label: "Credit packs", icon: "packs" },
+    ],
+  },
+  {
+    group: "Configure",
+    tabs: [
+      { id: "settings", label: "Settings & API keys", icon: "settings" },
+      { id: "system", label: "System", icon: "system" },
+    ],
+  },
+  {
+    group: "Money & activity",
+    tabs: [
+      { id: "payments", label: "Payments", icon: "payments" },
+      { id: "subscriptions", label: "Subscriptions", icon: "subscriptions" },
+      { id: "clicks", label: "Shop clicks", icon: "clicks" },
+      { id: "ai-usage", label: "AI usage", icon: "ai" },
+      { id: "audit", label: "Audit log", icon: "audit" },
+    ],
+  },
+];
+
+const TAB_IDS = new Set<string>(NAV.flatMap((g) => g.tabs.map((t) => t.id)));
+const labelFor = (tab: Tab) => NAV.flatMap((g) => g.tabs).find((t) => t.id === tab)?.label ?? "";
+
+function tabFromHash(): Tab {
+  const hash = typeof window === "undefined" ? "" : window.location.hash.slice(1);
+  return TAB_IDS.has(hash) ? (hash as Tab) : "overview";
+}
 
 export function AdminDashboard() {
   const { user, isLoading: sessionLoading } = useSession();
-  const [tab, setTab] = useState<Tab>("Overview");
   const router = useRouter();
+  const [tab, setTab] = useState<Tab>("overview");
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
-    if (!sessionLoading && !user) router.replace("/sign-in?next=/admin");
+    if (!sessionLoading && !user) {
+      router.replace(`/sign-in?next=${encodeURIComponent(`/admin${window.location.hash}`)}`);
+    }
   }, [sessionLoading, user, router]);
+
+  // the current section lives in the URL hash (/admin#users) so a refresh,
+  // bookmark or shared link opens the same section
+  useEffect(() => {
+    setTab(tabFromHash());
+    const onHash = () => setTab(tabFromHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  useEffect(() => {
+    document.title = `${labelFor(tab)} · Admin · TryOnU`;
+  }, [tab]);
+
+  const selectTab = useCallback((next: Tab) => {
+    setTab(next);
+    window.history.replaceState(null, "", `#${next}`);
+    window.scrollTo({ top: 0 });
+  }, []);
 
   if (sessionLoading || !user) {
     return (
-      <section className="mx-auto w-[min(1280px,calc(100%-42px))] py-24 text-center">
-        <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-line-strong border-t-sage" />
-      </section>
+      <div className="grid min-h-screen place-items-center bg-paper">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-line-strong border-t-sage" />
+      </div>
     );
   }
 
   if (!user.is_admin) {
     return (
-      <section className="mx-auto w-[min(680px,calc(100%-42px))] py-24 text-center">
-        <p className="font-display text-[20px] text-ink">Not authorized</p>
-        <p className="mt-2 text-[14px] text-muted">
-          You&rsquo;re signed in as {user.email}, which isn&rsquo;t an admin account.
-        </p>
-      </section>
+      <div className="grid min-h-screen place-items-center bg-paper px-6">
+        <div className="max-w-sm text-center">
+          <Logo size={30} className="justify-center" />
+          <p className="mt-6 font-display text-[22px] text-ink">Not authorized</p>
+          <p className="mt-2 text-[14px] text-muted">
+            You&rsquo;re signed in as {user.email}, which isn&rsquo;t an admin account.
+          </p>
+          <Link href="/" className="mt-5 inline-block text-[13px] text-sage-deep hover:underline">
+            ← Back to TryOnU
+          </Link>
+        </div>
+      </div>
     );
   }
 
   return (
-    <section className="mx-auto w-[min(1280px,calc(100%-42px))] py-10 md:py-14">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <h1 className="font-display text-[clamp(26px,4vw,38px)] leading-tight text-ink">
-          Admin <em>panel</em>
-        </h1>
-        <p className="text-[12px] text-faint">Signed in as {user.email}</p>
-      </div>
-
-      <div className="mt-6 gap-8 lg:grid lg:grid-cols-[200px_1fr]">
-        <nav aria-label="Admin sections" className="mb-6 lg:mb-0">
-          <div className="flex gap-4 overflow-x-auto pb-2 lg:sticky lg:top-6 lg:flex-col lg:gap-5 lg:overflow-visible lg:pb-0">
-            {NAV.map(({ group, tabs }) => (
-              <div key={group} className="shrink-0">
-                <p className="mb-1.5 hidden text-[10.5px] font-semibold uppercase tracking-[0.12em] text-faint lg:block">
-                  {group}
-                </p>
-                <div className="flex gap-1.5 lg:flex-col lg:gap-0.5">
-                  {tabs.map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setTab(t)}
-                      aria-current={tab === t ? "page" : undefined}
-                      className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-left text-[13px] transition-colors lg:rounded-[10px] ${
-                        tab === t ? "bg-sage text-white" : "text-ink-soft hover:bg-paper-2"
-                      }`}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </nav>
-
-        <div className="min-w-0">
-          {tab === "Overview" && <OverviewTab />}
-          {tab === "System" && <SystemTab />}
-          {tab === "Settings & API keys" && <SettingsTab />}
-          {tab === "Users" && <UsersTab currentAdminId={user.id} />}
-          {tab === "Try-ons" && <TryOnsTab />}
-          {tab === "Products" && <ProductsTab />}
-          {tab === "Retailers" && <RetailersTab />}
-          {tab === "Credit packs" && <CreditPackagesTab />}
-          {tab === "Payments" && <PaymentsTab />}
-          {tab === "Subscriptions" && <SubscriptionsTab />}
-          {tab === "Shop clicks" && <AffiliateClicksTab />}
-          {tab === "AI usage" && <AIUsageTab />}
-          {tab === "Audit log" && <AuditLogTab />}
-        </div>
-      </div>
-    </section>
+    <AdminShell
+      nav={NAV}
+      active={tab}
+      onSelect={selectTab}
+      email={user.email}
+      drawerOpen={drawerOpen}
+      setDrawerOpen={setDrawerOpen}
+    >
+      {tab === "overview" && <OverviewTab />}
+      {tab === "users" && <UsersTab currentAdminId={user.id} />}
+      {tab === "tryons" && <TryOnsTab />}
+      {tab === "products" && <ProductsTab />}
+      {tab === "retailers" && <RetailersTab />}
+      {tab === "packs" && <CreditPackagesTab />}
+      {tab === "settings" && <SettingsTab />}
+      {tab === "system" && <SystemTab />}
+      {tab === "payments" && <PaymentsTab />}
+      {tab === "subscriptions" && <SubscriptionsTab />}
+      {tab === "clicks" && <AffiliateClicksTab />}
+      {tab === "ai-usage" && <AIUsageTab />}
+      {tab === "audit" && <AuditLogTab />}
+    </AdminShell>
   );
 }
