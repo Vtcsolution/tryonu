@@ -430,6 +430,31 @@ export type AdminAIUsage = {
   created_at: string;
 };
 
+export type AdminSettingField = {
+  key: string;
+  label: string;
+  kind: "secret" | "text" | "bool" | "int" | "choice";
+  choices: string[];
+  help: string;
+  source: "admin" | "env" | "default";
+  is_set: boolean;
+  // secrets: masked tail only ("••••1234") — never the real value
+  value: string | null;
+  unreadable: boolean;
+  warning: string | null;
+};
+
+export type AdminSettingGroup = {
+  id: string;
+  label: string;
+  testable: boolean;
+  fields: AdminSettingField[];
+};
+
+export type AdminSettings = { groups: AdminSettingGroup[] };
+
+export type ConnectionTestResult = { ok: boolean; message: string };
+
 export type ProductSearchParams = {
   q?: string;
   category?: string;

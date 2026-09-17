@@ -17,6 +17,7 @@ from app.ai.providers.base import TryOnInput, TryOnProviderError
 from app.ai.providers.registry import get_tryon_provider
 from app.core.config import get_settings
 from app.core.logging import logger
+from app.core.runtime_settings import refresh_if_stale
 from app.db.session import AsyncSessionLocal
 from app.models.ai_usage import AIUsage
 from app.models.enums import AIUsageKind, JobStatus, OutfitSlot
@@ -71,6 +72,7 @@ async def _garment_image_urls(session, job: TryOnJob, renderable_slots: set[Outf
 
 
 async def run_tryon_job_async(job_id: str) -> None:
+    await refresh_if_stale()
     async with AsyncSessionLocal() as session:
         result = await session.execute(
             select(TryOnJob)

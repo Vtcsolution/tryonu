@@ -11,6 +11,7 @@ from app.api.media import router as media_router
 from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.core.logging import RequestLoggingMiddleware, configure_logging, logger
+from app.core.runtime_settings import refresh_if_stale
 from app.services.storage_service import is_s3_configured
 
 settings = get_settings()
@@ -29,6 +30,8 @@ async def lifespan(app: FastAPI):  # noqa: ANN201
         stylist_provider=settings.LLM_PROVIDER,
         payment_provider=settings.PAYMENT_PROVIDER,
     )
+    # admin-panel overrides (app_settings table) take precedence over .env
+    await refresh_if_stale(force=True)
     yield
     logger.info("shutdown")
 
@@ -50,6 +53,13 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.add_middleware(RequestLoggingMiddleware)
+
+    @app.middleware("http")
+    async def sync_runtime_settings(request: Request, call_next):  # noqa: ANN202
+        # throttled to one DB check per REFRESH_SECONDS per process, so a
+        # key saved from the admin panel reaches every worker without a restart
+        await refresh_if_stale()
+        return await call_next(request)
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):  # noqa: ANN202, ARG001

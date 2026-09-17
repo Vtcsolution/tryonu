@@ -13,12 +13,14 @@ import {
 } from "./ActivityTabs";
 import { ProductsTab, RetailersTab } from "./CatalogTabs";
 import { CreditPackagesTab } from "./CreditPackagesTab";
+import { SettingsTab } from "./SettingsTab";
 import { TryOnsTab } from "./TryOnsTab";
 import { UsersTab } from "./UsersTab";
 
 const NAV = [
-  { group: "Monitor", tabs: ["Overview", "System"] },
+  { group: "Monitor", tabs: ["Overview"] },
   { group: "Manage", tabs: ["Users", "Try-ons", "Products", "Retailers", "Credit packs"] },
+  { group: "Configure", tabs: ["Settings & API keys", "System"] },
   { group: "Money & activity", tabs: ["Payments", "Subscriptions", "Shop clicks", "AI usage", "Audit log"] },
 ] as const;
 
@@ -85,6 +87,7 @@ export function AdminDashboard() {
         <div className="min-w-0">
           {tab === "Overview" && <OverviewTab />}
           {tab === "System" && <SystemTab />}
+          {tab === "Settings & API keys" && <SettingsTab />}
           {tab === "Users" && <UsersTab currentAdminId={user.id} />}
           {tab === "Try-ons" && <TryOnsTab />}
           {tab === "Products" && <ProductsTab />}

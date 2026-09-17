@@ -7,12 +7,14 @@ import type {
   AdminOverview,
   AdminProduct,
   AdminRetailer,
+  AdminSettings,
   AdminSystemStatus,
   AdminTryOnJob,
   AdminUser,
   AdminUserDetail,
   AuthResponse,
   CompatibilityPreview,
+  ConnectionTestResult,
   CreditBalance,
   CreditPackage,
   CreditTransaction,
@@ -147,6 +149,13 @@ export const credits = {
 export const admin = {
   overview: () => apiFetch<AdminOverview>("/api/v1/admin/overview"),
   system: () => apiFetch<AdminSystemStatus>("/api/v1/admin/system"),
+
+  settings: () => apiFetch<AdminSettings>("/api/v1/admin/settings"),
+  // null reverts that key to the server's .env / default
+  updateSettings: (values: Record<string, string | null>) =>
+    apiFetch<AdminSettings>("/api/v1/admin/settings", { method: "PUT", body: { values } }),
+  testConnection: (group: string) =>
+    apiFetch<ConnectionTestResult>(`/api/v1/admin/settings/test/${group}`, { method: "POST" }),
 
   users: (params: { q?: string; limit?: number; offset?: number } = {}) =>
     apiFetch<Page<AdminUser>>(`/api/v1/admin/users${qs(params)}`),
