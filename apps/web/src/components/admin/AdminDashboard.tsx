@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useSession } from "@/lib/auth/useSession";
 import {
   AIUsageTab,
@@ -29,8 +30,13 @@ type Tab = (typeof NAV)[number]["tabs"][number];
 export function AdminDashboard() {
   const { user, isLoading: sessionLoading } = useSession();
   const [tab, setTab] = useState<Tab>("Overview");
+  const router = useRouter();
 
-  if (sessionLoading) {
+  useEffect(() => {
+    if (!sessionLoading && !user) router.replace("/sign-in?next=/admin");
+  }, [sessionLoading, user, router]);
+
+  if (sessionLoading || !user) {
     return (
       <section className="mx-auto w-[min(1280px,calc(100%-42px))] py-24 text-center">
         <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-line-strong border-t-sage" />
@@ -38,11 +44,13 @@ export function AdminDashboard() {
     );
   }
 
-  if (!user || !user.is_admin) {
+  if (!user.is_admin) {
     return (
       <section className="mx-auto w-[min(680px,calc(100%-42px))] py-24 text-center">
         <p className="font-display text-[20px] text-ink">Not authorized</p>
-        <p className="mt-2 text-[14px] text-muted">This page is for TryOnU admins only.</p>
+        <p className="mt-2 text-[14px] text-muted">
+          You&rsquo;re signed in as {user.email}, which isn&rsquo;t an admin account.
+        </p>
       </section>
     );
   }
