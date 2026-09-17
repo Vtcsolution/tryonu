@@ -3,6 +3,7 @@ and so string-based relationship() forward refs resolve at mapper
 configuration time."""
 
 from app.db.base import Base  # noqa: F401
+from app.models.admin_audit import AdminAuditLog  # noqa: F401
 from app.models.affiliate import AffiliateClick  # noqa: F401
 from app.models.affiliate_network import AffiliateNetwork  # noqa: F401
 from app.models.ai_usage import AIUsage  # noqa: F401

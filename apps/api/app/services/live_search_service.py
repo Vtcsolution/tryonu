@@ -18,7 +18,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from sqlalchemy import select
+
 from app.core.logging import logger
+from app.db.session import AsyncSessionLocal
+from app.models.product import Product
+from app.models.retailer import Retailer
 from app.retailers.base import ProductProvider, RawProduct
 from app.retailers.errors import RetailerNotConfiguredError
 from app.retailers.registry import get_all_providers
@@ -56,15 +61,41 @@ def to_live_product_out(result: LiveSearchResult) -> LiveProductOut:
     )
 
 
+async def _disabled_retailer_slugs() -> set[str]:
+    async with AsyncSessionLocal() as session:
+        rows = await session.execute(select(Retailer.slug).where(Retailer.is_active.is_(False)))
+        return set(rows.scalars().all())
+
+
+async def _hidden_product_keys(results: list[LiveSearchResult]) -> set[tuple[str, str]]:
+    ids = {r.raw.retailer_product_id for r in results}
+    if not ids:
+        return set()
+    async with AsyncSessionLocal() as session:
+        rows = await session.execute(
+            select(Retailer.slug, Product.retailer_product_id)
+            .join(Retailer, Product.retailer_id == Retailer.id)
+            .where(Product.is_active.is_(False), Product.retailer_product_id.in_(ids))
+        )
+        return {(slug, pid) for slug, pid in rows.all()}
+
+
 async def live_search(query: str, *, limit: int = 24) -> list[LiveSearchResult]:
     """Fan out one query to every retailer that supports live search,
     skipping (not failing on) an unconfigured or currently-broken one —
-    same resilience guarantee the bulk sync path gives per retailer."""
+    same resilience guarantee the bulk sync path gives per retailer.
+
+    Results never come from our own database, so admin controls are
+    applied here: a retailer an admin disabled isn't queried at all, and a
+    product an admin hid is dropped even though the retailer still lists it."""
     results: list[LiveSearchResult] = []
+    disabled = await _disabled_retailer_slugs()
 
     for provider in get_all_providers():
         if len(results) >= limit:
             break
+        if provider.slug in disabled:
+            continue
         try:
             provider_results = await provider.search_live(query=query, limit=limit - len(results))
         except NotImplementedError:
@@ -77,6 +108,9 @@ async def live_search(query: str, *, limit: int = 24) -> list[LiveSearchResult]:
 
         results.extend(LiveSearchResult(provider=provider, raw=raw) for raw in provider_results)
 
+    hidden = await _hidden_product_keys(results)
+    if hidden:
+        results = [r for r in results if (r.provider.slug, r.raw.retailer_product_id) not in hidden]
     return results[:limit]
 
 

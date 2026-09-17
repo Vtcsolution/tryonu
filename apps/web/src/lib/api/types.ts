@@ -325,6 +325,111 @@ export type AdminOverview = {
   ai_calls_30d: number;
 };
 
+export type AdminUser = {
+  id: string;
+  email: string;
+  full_name: string | null;
+  auth_provider: "local" | "google";
+  is_active: boolean;
+  is_admin: boolean;
+  email_verified: boolean;
+  credits_balance: number;
+  last_login_at: string | null;
+  created_at: string;
+};
+
+export type AdminUserDetail = {
+  user: AdminUser;
+  tryon_jobs_total: number;
+  photos_total: number;
+  wardrobe_items_total: number;
+  affiliate_clicks_total: number;
+  recent_transactions: CreditTransaction[];
+};
+
+export type AdminTryOnJob = TryOnJob & { user_email: string | null };
+
+export type AdminProduct = {
+  id: string;
+  name: string;
+  brand: string | null;
+  retailer_slug: string;
+  retailer_name: string;
+  price_cents: number;
+  currency: string;
+  image_url: string | null;
+  product_url: string;
+  is_active: boolean;
+  created_at: string;
+};
+
+export type AdminRetailer = {
+  slug: string;
+  name: string;
+  is_active: boolean;
+  base_commission_pct: number | null;
+  affiliate_network: string | null;
+  integration_built: boolean;
+  credentials_configured: boolean;
+  commission_tracking_configured: boolean | null;
+  saved_products: number;
+};
+
+export type AdminCreditPackage = {
+  id: string;
+  name: string;
+  credits: number;
+  price_cents: number;
+  currency: string;
+  is_active: boolean;
+  created_at: string;
+};
+
+export type AdminSystemStatus = {
+  env: string;
+  tryon_provider: string;
+  fashn_model: string;
+  llm_provider: string;
+  payment_provider: string;
+  email_provider: string;
+  storage: string;
+  job_queue: string;
+  signup_free_credits: number;
+  tryon_credit_cost: number;
+  outfit_tryon_credit_cost: number;
+};
+
+export type AdminAuditEntry = {
+  id: string;
+  admin_email: string | null;
+  action: string;
+  target_type: string;
+  target_id: string;
+  detail: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export type AdminAffiliateClick = {
+  id: string;
+  product_id: string;
+  product_name: string | null;
+  retailer_name: string | null;
+  user_email: string | null;
+  source: string;
+  created_at: string;
+};
+
+export type AdminAIUsage = {
+  id: string;
+  kind: string;
+  provider: string;
+  model: string;
+  success: boolean;
+  latency_ms: number | null;
+  cost_usd_cents: number | null;
+  created_at: string;
+};
+
 export type ProductSearchParams = {
   q?: string;
   category?: string;

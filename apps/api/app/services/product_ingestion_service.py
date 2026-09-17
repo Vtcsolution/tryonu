@@ -96,7 +96,8 @@ async def _upsert_product(
     product.product_url = raw.product_url
     product.affiliate_url = affiliate_url
     product.availability = availability
-    product.is_active = True
+    # is_active is deliberately not reset here: an admin-hidden product must
+    # stay hidden when someone re-selects it or a sync touches it again.
     product.last_synced_at = datetime.now(timezone.utc)
 
     embedding_text = product_embedding_text(

@@ -1,6 +1,16 @@
 import { apiFetch } from "./client";
 import type {
+  AdminAIUsage,
+  AdminAffiliateClick,
+  AdminAuditEntry,
+  AdminCreditPackage,
   AdminOverview,
+  AdminProduct,
+  AdminRetailer,
+  AdminSystemStatus,
+  AdminTryOnJob,
+  AdminUser,
+  AdminUserDetail,
   AuthResponse,
   CompatibilityPreview,
   CreditBalance,
@@ -136,12 +146,50 @@ export const credits = {
 
 export const admin = {
   overview: () => apiFetch<AdminOverview>("/api/v1/admin/overview"),
-  users: (limit = 50, offset = 0) => apiFetch<Page<User>>(`/api/v1/admin/users?limit=${limit}&offset=${offset}`),
-  // These come back as plain arrays of ad-hoc row shapes (see api/v1/endpoints/admin.py) —
-  // typed loosely here since the dashboard just renders known fields off each row.
-  subscriptions: () => apiFetch<Record<string, unknown>[]>("/api/v1/admin/subscriptions"),
-  payments: () => apiFetch<Record<string, unknown>[]>("/api/v1/admin/payments"),
-  retailers: () => apiFetch<Record<string, unknown>[]>("/api/v1/admin/retailers"),
+  system: () => apiFetch<AdminSystemStatus>("/api/v1/admin/system"),
+
+  users: (params: { q?: string; limit?: number; offset?: number } = {}) =>
+    apiFetch<Page<AdminUser>>(`/api/v1/admin/users${qs(params)}`),
+  userDetail: (userId: string) => apiFetch<AdminUserDetail>(`/api/v1/admin/users/${userId}`),
+  updateUser: (userId: string, input: { is_active?: boolean; is_admin?: boolean; email_verified?: boolean }) =>
+    apiFetch<AdminUser>(`/api/v1/admin/users/${userId}`, { method: "PATCH", body: input }),
+  adjustCredits: (userId: string, input: { amount: number; note: string }) =>
+    apiFetch<AdminUser>(`/api/v1/admin/users/${userId}/credits`, { method: "POST", body: input }),
+
+  tryonJobs: (params: { status_filter?: string; limit?: number; offset?: number } = {}) =>
+    apiFetch<Page<AdminTryOnJob>>(`/api/v1/admin/tryon-jobs${qs(params)}`),
+  cancelTryonJob: (jobId: string) =>
+    apiFetch<AdminTryOnJob>(`/api/v1/admin/tryon-jobs/${jobId}/cancel`, { method: "POST" }),
+
+  products: (params: { q?: string; retailer?: string; active?: boolean; limit?: number; offset?: number } = {}) =>
+    apiFetch<Page<AdminProduct>>(`/api/v1/admin/products${qs(params)}`),
+  updateProduct: (productId: string, input: { is_active: boolean }) =>
+    apiFetch<AdminProduct>(`/api/v1/admin/products/${productId}`, { method: "PATCH", body: input }),
+
+  retailers: () => apiFetch<AdminRetailer[]>("/api/v1/admin/retailers"),
+  updateRetailer: (slug: string, input: { is_active?: boolean; base_commission_pct?: number | null }) =>
+    apiFetch<AdminRetailer[]>(`/api/v1/admin/retailers/${slug}`, { method: "PATCH", body: input }),
+
+  creditPackages: () => apiFetch<AdminCreditPackage[]>("/api/v1/admin/credit-packages"),
+  createCreditPackage: (input: { name: string; credits: number; price_cents: number; currency?: string }) =>
+    apiFetch<AdminCreditPackage>("/api/v1/admin/credit-packages", { method: "POST", body: input }),
+  updateCreditPackage: (
+    packageId: string,
+    input: { name?: string; credits?: number; price_cents?: number; is_active?: boolean },
+  ) => apiFetch<AdminCreditPackage>(`/api/v1/admin/credit-packages/${packageId}`, { method: "PATCH", body: input }),
+
+  affiliateClicks: (params: { limit?: number; offset?: number } = {}) =>
+    apiFetch<AdminAffiliateClick[]>(`/api/v1/admin/affiliate-clicks${qs(params)}`),
+  aiUsage: (params: { limit?: number; offset?: number } = {}) =>
+    apiFetch<AdminAIUsage[]>(`/api/v1/admin/ai-usage${qs(params)}`),
+  auditLog: (params: { limit?: number; offset?: number } = {}) =>
+    apiFetch<Page<AdminAuditEntry>>(`/api/v1/admin/audit-log${qs(params)}`),
+
+  // Plain arrays of ad-hoc row shapes (see api/v1/endpoints/admin.py).
+  subscriptions: (params: { limit?: number; offset?: number } = {}) =>
+    apiFetch<Record<string, unknown>[]>(`/api/v1/admin/subscriptions${qs(params)}`),
+  payments: (params: { limit?: number; offset?: number } = {}) =>
+    apiFetch<Record<string, unknown>[]>(`/api/v1/admin/payments${qs(params)}`),
 };
 
 /* -------------------------------- wardrobe --------------------------------- */

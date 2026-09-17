@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useState, type InputHTMLAttributes } from "react";
+import { forwardRef, useId, useState, type InputHTMLAttributes } from "react";
 
 type Props = Omit<InputHTMLAttributes<HTMLInputElement>, "type"> & {
   label?: string;
@@ -14,16 +14,22 @@ export const PasswordInput = forwardRef<HTMLInputElement, Props>(function Passwo
   ref,
 ) {
   const [visible, setVisible] = useState(false);
+  const generatedId = useId();
+  const inputId = id ?? generatedId;
 
+  // The toggle button must stay outside the <label>: nested inside it, the
+  // input's accessible name becomes "Password Show password".
   return (
-    <label className="block">
+    <div>
       {label && (
-        <span className="mb-1.5 block text-[13px] font-medium text-ink-soft">{label}</span>
+        <label htmlFor={inputId} className="mb-1.5 block text-[13px] font-medium text-ink-soft">
+          {label}
+        </label>
       )}
       <div className="relative">
         <input
           ref={ref}
-          id={id}
+          id={inputId}
           type={visible ? "text" : "password"}
           className={`h-11 w-full rounded-xl border bg-surface px-3.5 pr-11 text-[14px] text-ink outline-none transition-colors duration-200 placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25 ${
             error ? "border-[#c0503a]" : "border-line-strong"
@@ -42,7 +48,7 @@ export const PasswordInput = forwardRef<HTMLInputElement, Props>(function Passwo
         </button>
       </div>
       {error && <span className="mt-1.5 block text-[12px] text-[#a4553f]">{error}</span>}
-    </label>
+    </div>
   );
 });
 

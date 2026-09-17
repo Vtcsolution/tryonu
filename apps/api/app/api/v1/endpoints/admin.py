@@ -3,8 +3,10 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
+from sqlalchemy.orm import selectinload
 
+from app.api.v1.endpoints.tryon import _LOAD_OPTS as TRYON_LOAD_OPTS
 from app.core.deps import AdminUser, DbSession
 from app.models.affiliate import AffiliateClick
 from app.models.ai_usage import AIUsage
@@ -14,10 +16,9 @@ from app.models.retailer import Retailer
 from app.models.subscription import Payment, Subscription
 from app.models.tryon import TryOnJob
 from app.models.user import User
-from app.schemas.admin import AdminOverview
+from app.schemas.admin import AdminOverview, AdminTryOnJobOut, AdminUserOut
 from app.schemas.common import Page
 from app.schemas.tryon import TryOnJobOut
-from app.schemas.user import UserOut
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -107,35 +108,37 @@ async def overview(_: AdminUser, db: DbSession):
     )
 
 
-@router.get("/users", response_model=Page[UserOut])
-async def list_users(_: AdminUser, db: DbSession, limit: int = 50, offset: int = 0):
-    total = (await db.execute(select(func.count(User.id)))).scalar_one()
-    result = await db.execute(select(User).order_by(User.created_at.desc()).limit(limit).offset(offset))
+@router.get("/users", response_model=Page[AdminUserOut])
+async def list_users(_: AdminUser, db: DbSession, q: str | None = None, limit: int = 50, offset: int = 0):
+    stmt = select(User)
+    if q:
+        like = f"%{q.strip().lower()}%"
+        stmt = stmt.where(or_(func.lower(User.email).like(like), func.lower(User.full_name).like(like)))
+    total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one()
+    result = await db.execute(stmt.order_by(User.created_at.desc()).limit(limit).offset(offset))
     return Page(items=list(result.scalars().all()), total=total, limit=limit, offset=offset)
 
 
-@router.get("/tryon-jobs", response_model=Page[TryOnJobOut])
+@router.get("/tryon-jobs", response_model=Page[AdminTryOnJobOut])
 async def list_all_tryon_jobs(
     _: AdminUser, db: DbSession, status_filter: JobStatus | None = None, limit: int = 50, offset: int = 0
 ):
-    from sqlalchemy.orm import selectinload
-
     stmt = select(TryOnJob)
     if status_filter:
         stmt = stmt.where(TryOnJob.status == status_filter)
 
-    total = len((await db.execute(stmt.with_only_columns(TryOnJob.id))).all())
+    total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one()
     result = await db.execute(
-        stmt.options(
-            selectinload(TryOnJob.product).selectinload(Product.images),
-            selectinload(TryOnJob.product).selectinload(Product.retailer),
-            selectinload(TryOnJob.result),
-        )
+        stmt.options(*TRYON_LOAD_OPTS, selectinload(TryOnJob.user))
         .order_by(TryOnJob.created_at.desc())
         .limit(limit)
         .offset(offset)
     )
-    return Page(items=list(result.scalars().all()), total=total, limit=limit, offset=offset)
+    items = [
+        AdminTryOnJobOut(**TryOnJobOut.model_validate(job).model_dump(), user_email=job.user.email if job.user else None)
+        for job in result.scalars().all()
+    ]
+    return Page(items=items, total=total, limit=limit, offset=offset)
 
 
 @router.get("/ai-usage")
@@ -162,37 +165,28 @@ async def list_ai_usage(_: AdminUser, db: DbSession, limit: int = 50, offset: in
 @router.get("/affiliate-clicks")
 async def list_affiliate_clicks(_: AdminUser, db: DbSession, limit: int = 50, offset: int = 0):
     result = await db.execute(
-        select(AffiliateClick).order_by(AffiliateClick.created_at.desc()).limit(limit).offset(offset)
+        select(AffiliateClick)
+        .options(
+            selectinload(AffiliateClick.product),
+            selectinload(AffiliateClick.retailer),
+            selectinload(AffiliateClick.user),
+        )
+        .order_by(AffiliateClick.created_at.desc())
+        .limit(limit)
+        .offset(offset)
     )
     rows = result.scalars().all()
     return [
         {
             "id": r.id,
             "product_id": r.product_id,
-            "retailer_id": r.retailer_id,
-            "user_id": r.user_id,
+            "product_name": r.product.name if r.product else None,
+            "retailer_name": r.retailer.name if r.retailer else None,
+            "user_email": r.user.email if r.user else None,
             "source": r.source.value,
             "created_at": r.created_at,
         }
         for r in rows
-    ]
-
-
-@router.get("/retailers")
-async def list_retailers(_: AdminUser, db: DbSession):
-    from sqlalchemy.orm import selectinload
-
-    result = await db.execute(select(Retailer).options(selectinload(Retailer.network)))
-    return [
-        {
-            "id": r.id,
-            "slug": r.slug,
-            "name": r.name,
-            "is_active": r.is_active,
-            "affiliate_network": r.network.name if r.network else r.affiliate_network,
-            "base_commission_pct": r.base_commission_pct,
-        }
-        for r in result.scalars().all()
     ]
 
 

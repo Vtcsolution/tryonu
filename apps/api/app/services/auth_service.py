@@ -222,7 +222,7 @@ async def revoke_refresh_token(db: AsyncSession, *, refresh_token: str, user_id:
         await db.commit()
 
 
-async def _revoke_all_refresh_tokens(db: AsyncSession, user_id: str) -> None:
+async def revoke_all_refresh_tokens(db: AsyncSession, user_id: str) -> None:
     result = await db.execute(
         select(RefreshToken).where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
     )
@@ -287,6 +287,6 @@ async def reset_password(db: AsyncSession, *, token: str, new_password: str) -> 
     user.hashed_password = hash_password(new_password)
     stored.used_at = datetime.now(timezone.utc)
     # a password reset is a strong signal to sign the account out everywhere
-    await _revoke_all_refresh_tokens(db, user.id)
+    await revoke_all_refresh_tokens(db, user.id)
     await db.commit()
     logger.info("password_reset_completed", user_id=user.id)

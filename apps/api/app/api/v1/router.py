@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
     admin,
+    admin_controls,
     admin_rakuten,
     affiliate,
     auth,
@@ -35,4 +36,5 @@ api_router.include_router(stylist.router)
 api_router.include_router(affiliate.router)
 api_router.include_router(webhooks.router)
 api_router.include_router(admin.router)
+api_router.include_router(admin_controls.router)
 api_router.include_router(admin_rakuten.router)
