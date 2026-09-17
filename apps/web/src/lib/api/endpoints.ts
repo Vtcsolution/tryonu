@@ -12,6 +12,7 @@ import type {
   AdminTryOnJob,
   AdminUser,
   AdminUserDetail,
+  AnalyticsReport,
   AuthResponse,
   CompatibilityPreview,
   ConnectionTestResult,
@@ -149,6 +150,7 @@ export const credits = {
 export const admin = {
   overview: () => apiFetch<AdminOverview>("/api/v1/admin/overview"),
   system: () => apiFetch<AdminSystemStatus>("/api/v1/admin/system"),
+  analytics: (days: number) => apiFetch<AnalyticsReport>(`/api/v1/admin/analytics?days=${days}`),
 
   settings: () => apiFetch<AdminSettings>("/api/v1/admin/settings"),
   // null reverts that key to the server's .env / default

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request, status
@@ -12,6 +13,7 @@ from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.core.logging import RequestLoggingMiddleware, configure_logging, logger
 from app.core.runtime_settings import refresh_if_stale
+from app.services.analytics_service import download_geoip_db, geoip_available
 from app.services.storage_service import is_s3_configured
 
 settings = get_settings()
@@ -32,6 +34,9 @@ async def lifespan(app: FastAPI):  # noqa: ANN201
     )
     # admin-panel overrides (app_settings table) take precedence over .env
     await refresh_if_stale(force=True)
+    if settings.GEOIP_AUTO_DOWNLOAD and not geoip_available():
+        # visitor countries show as "unknown" until this finishes; never block startup on it
+        app.state.geoip_download = asyncio.create_task(download_geoip_db())
     yield
     logger.info("shutdown")
 

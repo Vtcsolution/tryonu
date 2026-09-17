@@ -8,6 +8,7 @@ from app.api.v1.endpoints import (
     admin_settings,
     admin_rakuten,
     affiliate,
+    analytics,
     auth,
     credits,
     outfits,
@@ -35,6 +36,8 @@ api_router.include_router(tryon.router)
 api_router.include_router(outfits.router)
 api_router.include_router(stylist.router)
 api_router.include_router(affiliate.router)
+api_router.include_router(analytics.router)
+api_router.include_router(analytics.admin_router)
 api_router.include_router(webhooks.router)
 api_router.include_router(admin.router)
 api_router.include_router(admin_controls.router)

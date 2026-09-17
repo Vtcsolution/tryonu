@@ -15,6 +15,7 @@ import {
   SystemTab,
 } from "./ActivityTabs";
 import { AdminShell, type NavGroup } from "./AdminShell";
+import { AnalyticsTab } from "./AnalyticsTab";
 import { ProductsTab, RetailersTab } from "./CatalogTabs";
 import { CreditPackagesTab } from "./CreditPackagesTab";
 import { SettingsTab } from "./SettingsTab";
@@ -23,6 +24,7 @@ import { UsersTab } from "./UsersTab";
 
 type Tab =
   | "overview"
+  | "analytics"
   | "users"
   | "tryons"
   | "products"
@@ -37,7 +39,13 @@ type Tab =
   | "audit";
 
 const NAV: readonly NavGroup<Tab>[] = [
-  { group: "Monitor", tabs: [{ id: "overview", label: "Overview", icon: "overview" }] },
+  {
+    group: "Monitor",
+    tabs: [
+      { id: "overview", label: "Overview", icon: "overview" },
+      { id: "analytics", label: "Visitor analytics", icon: "analytics" },
+    ],
+  },
   {
     group: "Manage",
     tabs: [
@@ -141,6 +149,7 @@ export function AdminDashboard() {
       setDrawerOpen={setDrawerOpen}
     >
       {tab === "overview" && <OverviewTab />}
+      {tab === "analytics" && <AnalyticsTab />}
       {tab === "users" && <UsersTab currentAdminId={user.id} />}
       {tab === "tryons" && <TryOnsTab />}
       {tab === "products" && <ProductsTab />}

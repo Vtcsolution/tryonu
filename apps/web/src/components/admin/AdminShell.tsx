@@ -206,6 +206,7 @@ function SidebarContent<T extends string>({
 
 export type IconName =
   | "overview"
+  | "analytics"
   | "users"
   | "tryons"
   | "products"
@@ -224,6 +225,7 @@ export type IconName =
 
 const PATHS: Record<IconName, string> = {
   overview: "M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z",
+  analytics: "M3 20h18M6 16v-4M11 16V8M16 16v-6M21 16V5",
   users: "M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21v-1a7 7 0 0 1 14 0v1M16 3.5a4 4 0 0 1 0 7.5M22 21v-1a7 7 0 0 0-4-6.3",
   tryons: "M12 3l1.8 4.9L19 9.7l-5.2 1.8L12 16l-1.8-4.5L5 9.7l5.2-1.8zM18.5 15l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z",
   products: "M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9zM7.5 7.5h.01",

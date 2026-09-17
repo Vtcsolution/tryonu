@@ -8,3 +8,4 @@ storage/
 .pytest_cache/
 .ruff_cache/
 *.egg-info/
+data/geoip/

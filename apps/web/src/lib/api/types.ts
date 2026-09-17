@@ -455,6 +455,28 @@ export type AdminSettings = { groups: AdminSettingGroup[] };
 
 export type ConnectionTestResult = { ok: boolean; message: string };
 
+export type AnalyticsBreakdown = { key: string; visitors: number; views: number };
+
+export type AnalyticsReport = {
+  days: number;
+  geoip_available: boolean;
+  views: number;
+  visitors: number;
+  sessions: number;
+  signed_in_visitors: number;
+  live_visitors: number;
+  avg_duration_ms: number | null;
+  bounce_rate: number | null;
+  pages_per_session: number | null;
+  daily: { date: string; views: number; visitors: number }[];
+  countries: AnalyticsBreakdown[];
+  devices: AnalyticsBreakdown[];
+  browsers: AnalyticsBreakdown[];
+  operating_systems: AnalyticsBreakdown[];
+  referrers: AnalyticsBreakdown[];
+  pages: { path: string; views: number; visitors: number; avg_duration_ms: number | null }[];
+};
+
 export type ProductSearchParams = {
   q?: string;
   category?: string;

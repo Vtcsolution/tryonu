@@ -24,6 +24,9 @@
   --color-sage-ink: #3b463c;
   --color-sage-tint: #e5ebe0;
   --color-sage-tint-2: #d5e0d1;
+  /* data-viz mark color: the brand sage reads as gray on a chart, so a
+     more saturated green, validated for chroma/lightness/contrast */
+  --color-chart: #44874d;
 
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", sans-serif;
@@ -67,6 +70,7 @@
     --color-sage-ink: #3b463c;
     --color-sage-tint: #242c20;
     --color-sage-tint-2: #2c3527;
+    --color-chart: #5fa35c;
 
     --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.3),
       0 12px 40px -12px rgba(0, 0, 0, 0.5);
@@ -95,6 +99,7 @@
   --color-sage-ink: #3b463c;
   --color-sage-tint: #242c20;
   --color-sage-tint-2: #2c3527;
+  --color-chart: #5fa35c;
 
   --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.3),
     0 12px 40px -12px rgba(0, 0, 0, 0.5);

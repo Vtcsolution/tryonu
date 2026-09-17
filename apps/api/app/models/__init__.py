@@ -6,6 +6,7 @@ from app.db.base import Base  # noqa: F401
 from app.models.admin_audit import AdminAuditLog  # noqa: F401
 from app.models.app_setting import AppSetting  # noqa: F401
 from app.models.affiliate import AffiliateClick  # noqa: F401
+from app.models.analytics import PageView  # noqa: F401
 from app.models.affiliate_network import AffiliateNetwork  # noqa: F401
 from app.models.ai_usage import AIUsage  # noqa: F401
 from app.models.credit import CreditPackage, CreditTransaction  # noqa: F401

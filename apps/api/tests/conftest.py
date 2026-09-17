@@ -33,6 +33,8 @@ os.environ["S3_ENDPOINT_URL"] = ""
 os.environ["S3_ACCESS_KEY_ID"] = ""
 os.environ["STORAGE_LOCAL_DIR"] = str(TEST_STORAGE_DIR)
 os.environ["CORS_ORIGINS"] = '["http://testserver"]'
+os.environ["GEOIP_AUTO_DOWNLOAD"] = "false"
+os.environ["GEOIP_DB_PATH"] = str(TEST_STORAGE_DIR / "no-geoip.mmdb")
 
 import contextlib  # noqa: E402
 import io  # noqa: E402

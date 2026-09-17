@@ -168,6 +168,13 @@ class Settings(BaseSettings):
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30
     EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES: int = 1440
 
+    # --- visitor analytics ---
+    # DB-IP "IP to Country Lite" (CC BY 4.0) — looked up locally, so visitor
+    # IPs are never sent to a third party. Downloaded automatically on
+    # startup when missing (or run `python -m app.scripts.update_geoip`).
+    GEOIP_DB_PATH: str = "data/geoip/dbip-country-lite.mmdb"
+    GEOIP_AUTO_DOWNLOAD: bool = True
+
     # --- rate limiting ---
     RATE_LIMIT_PER_MINUTE: int = 120
     RATE_LIMIT_TRYON_PER_HOUR: int = 30
