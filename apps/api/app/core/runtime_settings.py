@@ -45,8 +45,12 @@ class SettingSpec:
 
 SPECS: tuple[SettingSpec, ...] = (
     # --- AI try-on ---
-    SettingSpec("VIRTUAL_TRYON_PROVIDER", "Try-on provider", "ai_tryon", "choice", ("fashn", "mock"),
-                "“mock” returns a stamped placeholder instead of a real render. Falls back to mock if no API key is set."),
+    SettingSpec("VIRTUAL_TRYON_PROVIDER", "Try-on provider", "ai_tryon", "choice", ("openai", "fashn", "mock"),
+                "“openai” dresses the photo in the whole outfit at once (shoes, bags and jewellery included) using "
+                "the OpenAI API key; “fashn” renders clothing one piece at a time; “mock” returns a placeholder. "
+                "Falls back to mock if the chosen provider has no API key."),
+    SettingSpec("OPENAI_IMAGE_MODEL", "OpenAI try-on image model", "ai_tryon", "text",
+                help="Used when the try-on provider is “openai”, e.g. gpt-image-1."),
     SettingSpec("FASHN_API_KEY", "FASHN API key", "ai_tryon", "secret"),
     SettingSpec("FASHN_MODEL", "FASHN model", "ai_tryon", "choice", ("tryon-max", "tryon-v1.6"),
                 "tryon-max is higher quality and can render shoes; tryon-v1.6 is clothing only."),

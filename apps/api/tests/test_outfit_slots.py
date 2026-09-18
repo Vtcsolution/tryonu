@@ -70,3 +70,15 @@ def test_each_layer_gets_an_explicit_category_or_instruction():
     assert "over the person's current outfit" in mx.prompt
     kameez = _tryon_input("https://img.example/me.jpg", _Layer("https://img.example/k.jpg", OutfitSlot.DRESS), "tryon-v1.6")
     assert kameez.category == "one-pieces"
+
+
+def test_whole_outfit_render_includes_shoes_bag_and_every_piece_of_jewellery():
+    items = [*_OUTFIT, (OutfitSlot.ACCESSORY, "Jhumka earrings"), (OutfitSlot.BAG, "Leather clutch")]
+    assert render_plan(items, "gpt-image-1", whole_outfit=True) == [
+        (2, OutfitSlot.DRESS),
+        (1, OutfitSlot.OUTERWEAR),
+        (0, OutfitSlot.SHOES),
+        (3, OutfitSlot.ACCESSORY),
+        (4, OutfitSlot.ACCESSORY),
+        (5, OutfitSlot.BAG),
+    ]

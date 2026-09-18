@@ -32,6 +32,15 @@ class TryOnInput:
 
 
 @dataclass(frozen=True, slots=True)
+class OutfitPiece:
+    """One product to put on the person in a whole-outfit render."""
+
+    image_url: str
+    slot: str  # OutfitSlot value: dress, top, shoes, bag, accessory, ...
+    name: str
+
+
+@dataclass(frozen=True, slots=True)
 class TryOnOutput:
     image_bytes: bytes
     content_type: str = "image/jpeg"
@@ -45,8 +54,16 @@ class VirtualTryOnProvider(ABC):
     #: the specific model/version, recorded on every TryOnJob for auditability
     model: str
 
+    #: True when the provider dresses the person in a whole outfit in ONE
+    #: render (generate_outfit) — every item at once, shoes/bags/jewellery
+    #: included — instead of one garment per call chained together.
+    whole_outfit: bool = False
+
     @abstractmethod
     async def generate(self, payload: TryOnInput) -> TryOnOutput:
         """Runs the full submit -> poll -> download cycle and returns the
         final image bytes, or raises TryOnProviderError."""
         ...
+
+    async def generate_outfit(self, model_image_url: str, pieces: list[OutfitPiece]) -> TryOnOutput:
+        raise NotImplementedError

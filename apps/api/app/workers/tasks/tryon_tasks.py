@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.ai.providers.base import TryOnInput, TryOnProviderError
+from app.ai.providers.base import OutfitPiece, TryOnInput, TryOnProviderError
 from app.ai.providers.registry import get_tryon_provider
 from app.core.config import get_settings
 from app.core.logging import logger
@@ -32,8 +32,8 @@ from app.services.storage_service import get_storage, new_key
 settings = get_settings()
 MAX_ATTEMPTS = 3
 
-def _renderable_slots(model: str) -> set[OutfitSlot]:
-    return renderable_slots(model)
+def _renderable_slots(model: str, whole_outfit: bool = False) -> set[OutfitSlot]:
+    return renderable_slots(model, whole_outfit)
 
 
 def _absolute_url(url: str) -> str:
@@ -46,15 +46,17 @@ def _absolute_url(url: str) -> str:
 class _Layer:
     image_url: str
     slot: OutfitSlot | None  # None: a single item we know nothing about — let the model infer
+    name: str = "the product"
 
 
-async def _garment_layers(session, job: TryOnJob, model: str) -> list[_Layer]:
+async def _garment_layers(session, job: TryOnJob, model: str, whole_outfit: bool = False) -> list[_Layer]:
     if job.product is not None:
         img = job.product.primary_image_url
-        return [_Layer(img, slot_for(job.product.name))] if img else []
+        return [_Layer(img, slot_for(job.product.name), job.product.name)] if img else []
 
     if job.wardrobe_item is not None:
-        return [_Layer(job.wardrobe_item.image_url, None)] if job.wardrobe_item.image_url else []
+        item = job.wardrobe_item
+        return [_Layer(item.image_url, None, item.name)] if item.image_url else []
 
     if job.outfit_id is not None:
         result = await session.execute(
@@ -64,8 +66,8 @@ async def _garment_layers(session, job: TryOnJob, model: str) -> list[_Layer]:
             .order_by(OutfitItem.position)
         )
         items = [i for i in result.scalars().all() if i.product and i.product.primary_image_url]
-        plan = render_plan([(i.slot, i.product.name) for i in items], model)
-        return [_Layer(items[idx].product.primary_image_url, slot) for idx, slot in plan]
+        plan = render_plan([(i.slot, i.product.name) for i in items], model, whole_outfit)
+        return [_Layer(items[idx].product.primary_image_url, slot, items[idx].product.name) for idx, slot in plan]
 
     return []
 
@@ -106,7 +108,7 @@ async def run_tryon_job_async(job_id: str) -> None:
         await session.commit()
 
         provider = get_tryon_provider()
-        layers = await _garment_layers(session, job, provider.model)
+        layers = await _garment_layers(session, job, provider.model, provider.whole_outfit)
         if not layers:
             message = (
                 "This outfit has no clothing item FASHN can render (only accessories, "
@@ -124,6 +126,20 @@ async def run_tryon_job_async(job_id: str) -> None:
         final_content_type = "image/jpeg"
 
         try:
+            if provider.whole_outfit:
+                # one render with every item at once (shoes, bags, jewellery too)
+                pieces = [
+                    OutfitPiece(
+                        image_url=_absolute_url(layer.image_url),
+                        slot=(layer.slot or OutfitSlot.TOP).value,
+                        name=layer.name,
+                    )
+                    for layer in layers
+                ]
+                output = await provider.generate_outfit(model_url, pieces)
+                await _complete_job(session, job, output.image_bytes, output.content_type, provider.name, provider.model)
+                return
+
             # Multi-item outfits are rendered as a sequential chain: each
             # garment is applied on top of the previous step's result.
             for layer in layers:

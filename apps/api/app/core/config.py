@@ -101,7 +101,7 @@ class Settings(BaseSettings):
     # --- AI providers ---
     # "mock" needs no credentials and simulates a realistic job lifecycle —
     # used automatically whenever the real provider has no API key set.
-    VIRTUAL_TRYON_PROVIDER: Literal["fashn", "mock"] = "mock"
+    VIRTUAL_TRYON_PROVIDER: Literal["fashn", "openai", "mock"] = "mock"
     FASHN_API_KEY: str | None = None
     FASHN_API_BASE_URL: str = "https://api.fashn.ai/v1"
     FASHN_MODEL: Literal["tryon-v1.6", "tryon-max"] = "tryon-v1.6"
@@ -110,6 +110,8 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str | None = None
     OPENAI_MODEL: str = "gpt-4o-mini"
     OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
+    # try-on via OpenAI image editing (VIRTUAL_TRYON_PROVIDER=openai)
+    OPENAI_IMAGE_MODEL: str = "gpt-image-1"
     EMBEDDING_DIM: int = 1536
 
     # --- retailer / affiliate credentials (each optional; the adapter
@@ -187,6 +189,8 @@ class Settings(BaseSettings):
         # Never hard-fail because a key is missing — degrade to mock so the
         # rest of the stack (jobs, credits, storage) stays testable.
         if self.VIRTUAL_TRYON_PROVIDER == "fashn" and not self.FASHN_API_KEY:
+            self.VIRTUAL_TRYON_PROVIDER = "mock"
+        if self.VIRTUAL_TRYON_PROVIDER == "openai" and not self.OPENAI_API_KEY:
             self.VIRTUAL_TRYON_PROVIDER = "mock"
         if self.LLM_PROVIDER == "openai" and not self.OPENAI_API_KEY:
             self.LLM_PROVIDER = "mock"

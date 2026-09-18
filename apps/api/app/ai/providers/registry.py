@@ -13,6 +13,7 @@ from functools import lru_cache
 from app.ai.providers.base import VirtualTryOnProvider
 from app.ai.providers.fashn import FASHNTryOnProvider
 from app.ai.providers.mock import MockTryOnProvider
+from app.ai.providers.openai_image import OpenAIImageTryOnProvider
 from app.core.config import get_settings
 
 
@@ -25,6 +26,12 @@ def get_tryon_provider() -> VirtualTryOnProvider:
             api_key=settings.FASHN_API_KEY,  # type: ignore[arg-type]
             base_url=settings.FASHN_API_BASE_URL,
             model=settings.FASHN_MODEL,
+        )
+
+    if settings.VIRTUAL_TRYON_PROVIDER == "openai":
+        return OpenAIImageTryOnProvider(
+            api_key=settings.OPENAI_API_KEY,  # type: ignore[arg-type]
+            model=settings.OPENAI_IMAGE_MODEL,
         )
 
     return MockTryOnProvider()

@@ -125,7 +125,13 @@ MAX_PROMPT = {
 }
 
 
-def renderable_slots(model: str) -> set[OutfitSlot]:
+_WEARABLE = _CLOTHING | {OutfitSlot.SHOES, OutfitSlot.BAG, OutfitSlot.WATCH, OutfitSlot.ACCESSORY}
+
+
+def renderable_slots(model: str, whole_outfit: bool = False) -> set[OutfitSlot]:
+    if whole_outfit:
+        # one image-editing render of the whole look: anything wearable
+        return set(_WEARABLE)
     # tryon-max draws footwear too (FASHN docs: clothing, shoes, hats, …);
     # v1.6 is clothing only
     return _CLOTHING | {OutfitSlot.SHOES} if model == "tryon-max" else set(_CLOTHING)
@@ -136,21 +142,32 @@ def effective_slot(slot: OutfitSlot, product_name: str) -> OutfitSlot:
     return slot_for(product_name) if slot == OutfitSlot.OTHER else slot
 
 
-def render_plan(items: list[tuple[OutfitSlot, str]], model: str) -> list[tuple[int, OutfitSlot]]:
+def render_plan(
+    items: list[tuple[OutfitSlot, str]], model: str, whole_outfit: bool = False
+) -> list[tuple[int, OutfitSlot]]:
     """(index into `items`, slot) for each item the try-on will draw, in
     drawing order: the base outfit first, then layers over it, then shoes.
 
-    - one item per slot — a second top would just replace the first
-    - on tryon-v1.6 a full outfit (shalwar kameez, dress) is drawn alone:
-      v1.6 can't layer, so a waistcoat sent after it replaces the kameez's
-      top instead of going over it. tryon-max layers it properly.
+    - one item per slot — a second top would just replace the first —
+      except jewellery, where bangles AND earrings are both worn
+    - a full outfit (shalwar kameez, dress) replaces any separate top/bottom
+    - on tryon-v1.6 a full outfit is drawn alone: v1.6 can't layer, so a
+      waistcoat sent after it replaces the kameez's top instead of going
+      over it. tryon-max and whole-outfit renders layer it properly.
     """
-    allowed = renderable_slots(model)
-    picked: dict[OutfitSlot, int] = {}
+    allowed = renderable_slots(model, whole_outfit)
+    picked: list[tuple[int, OutfitSlot]] = []
     for i, (slot, name) in enumerate(items):
         s = effective_slot(slot, name)
-        if s in allowed and s not in picked:
-            picked[s] = i
-    if model != "tryon-max" and OutfitSlot.DRESS in picked:
-        picked = {s: i for s, i in picked.items() if s == OutfitSlot.DRESS}
-    return sorted(((i, s) for s, i in picked.items()), key=lambda p: (LAYER_ORDER.get(p[1], 9), p[0]))
+        if s not in allowed:
+            continue
+        if s != OutfitSlot.ACCESSORY and any(ps == s for _, ps in picked):
+            continue
+        picked.append((i, s))
+    slots = {s for _, s in picked}
+    if OutfitSlot.DRESS in slots:
+        if whole_outfit or model == "tryon-max":
+            picked = [(i, s) for i, s in picked if s not in (OutfitSlot.TOP, OutfitSlot.BOTTOM)]
+        else:
+            picked = [(i, s) for i, s in picked if s == OutfitSlot.DRESS]
+    return sorted(picked, key=lambda p: (LAYER_ORDER.get(p[1], 9), p[0]))

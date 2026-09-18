@@ -58,5 +58,6 @@ class OutfitOut(ORMModel):
         try-on worker uses, so the "on photo" labels never over-promise."""
         from app.ai.providers.registry import get_tryon_provider
 
-        plan = render_plan([(i.slot, i.product.name) for i in self.items], get_tryon_provider().model)
+        provider = get_tryon_provider()
+        plan = render_plan([(i.slot, i.product.name) for i in self.items], provider.model, provider.whole_outfit)
         return [self.items[idx].id for idx, _ in plan]
