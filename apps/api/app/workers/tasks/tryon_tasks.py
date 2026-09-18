@@ -25,6 +25,7 @@ from app.models.outfit import OutfitItem
 from app.models.product import Product
 from app.models.tryon import TryOnJob, TryOnResult
 from app.services import credit_service
+from app.services.outfit_slots import LAYER_ORDER, slot_for
 from app.services.storage_service import get_storage, new_key
 
 settings = get_settings()
@@ -61,12 +62,23 @@ async def _garment_image_urls(session, job: TryOnJob, renderable_slots: set[Outf
     if job.outfit_id is not None:
         result = await session.execute(
             select(OutfitItem)
-            .where(OutfitItem.outfit_id == job.outfit_id, OutfitItem.slot.in_(renderable_slots))
+            .where(OutfitItem.outfit_id == job.outfit_id)
             .options(selectinload(OutfitItem.product).selectinload(Product.images))
             .order_by(OutfitItem.position)
         )
-        items = result.scalars().all()
-        return [i.product.primary_image_url for i in items if i.product and i.product.primary_image_url]
+        layers: list[tuple[int, int, str]] = []
+        for pos, item in enumerate(result.scalars().all()):
+            if not item.product or not item.product.primary_image_url:
+                continue
+            slot = item.slot
+            if slot == OutfitSlot.OTHER:
+                # saved before the classifier knew this kind of item (e.g. a
+                # kurta pajama) — classify it again from the product itself
+                slot = slot_for(item.product.name)
+            if slot in renderable_slots:
+                layers.append((LAYER_ORDER.get(slot, 9), pos, item.product.primary_image_url))
+        # base outfit first, then a waistcoat/jacket over it, then shoes
+        return [url for _, _, url in sorted(layers)]
 
     return []
 

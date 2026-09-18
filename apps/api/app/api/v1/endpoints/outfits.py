@@ -14,7 +14,9 @@ from app.schemas.outfit import (
     CreateOutfitRequest,
     OutfitOut,
 )
+from app.models.enums import OutfitSlot
 from app.services.outfit_compatibility import score_outfit
+from app.services.outfit_slots import slot_for
 
 router = APIRouter(prefix="/outfits", tags=["outfits"])
 
@@ -39,7 +41,13 @@ async def create_outfit(payload: CreateOutfitRequest, user: CurrentUser, db: DbS
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Products not found: {missing}")
 
     ordered_products = [found[i.product_id] for i in payload.items]
-    coherence = score_outfit(ordered_products, [i.slot for i in payload.items])
+    # "other" is what older outfits carried for items the classifier didn't
+    # know yet (a kurta pajama) — swapping an item copies the slot, so
+    # classify those from the product instead of passing "other" along
+    slots = [
+        slot_for(p.name) if i.slot == OutfitSlot.OTHER else i.slot for i, p in zip(payload.items, ordered_products)
+    ]
+    coherence = score_outfit(ordered_products, slots)
 
     outfit = Outfit(
         user_id=user.id,
@@ -50,8 +58,8 @@ async def create_outfit(payload: CreateOutfitRequest, user: CurrentUser, db: DbS
     )
     db.add(outfit)
     await db.flush()
-    for pos, item in enumerate(payload.items):
-        db.add(OutfitItem(outfit_id=outfit.id, product_id=item.product_id, slot=item.slot, position=pos))
+    for pos, (item, slot) in enumerate(zip(payload.items, slots)):
+        db.add(OutfitItem(outfit_id=outfit.id, product_id=item.product_id, slot=slot, position=pos))
     await db.commit()
 
     result = await db.execute(select(Outfit).where(Outfit.id == outfit.id).options(*_LOAD_OPTS))

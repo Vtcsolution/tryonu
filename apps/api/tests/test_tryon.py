@@ -201,6 +201,42 @@ async def test_outfit_tryon_only_composites_renderable_slots(client, db, monkeyp
     assert finished["outfit"]["items"][1]["slot"] == "shoes"
 
 
+async def test_outfit_tryon_draws_the_full_outfit_first_then_layers_over_it(client, db, monkeypatch):
+    """Real bug: a kurta pajama saved as "other" was never drawn, so the
+    photo kept its jeans with only the waistcoat on top. It's re-classified
+    at render time and drawn before the waistcoat; the bangle stays a
+    matched product."""
+    calls: list[str] = []
+
+    async def fake_generate(self, payload):  # noqa: ARG001
+        calls.append(payload.garment_image_url)
+        return TryOnOutput(image_bytes=small_jpeg_bytes(), provider_job_id="fake-ok", latency_ms=1)
+
+    monkeypatch.setattr(MockTryOnProvider, "generate", fake_generate)
+    await register_and_login(client)
+    photo_id = await _upload_front_photo(client)
+    user_id = (await client.get("/api/v1/auth/me")).json()["id"]
+
+    outfit = Outfit(user_id=user_id)
+    db.add(outfit)
+    await db.flush()
+    rows = [
+        ("Men's Paisley Formal Tuxedo Vest Tie & Hankie set", OutfitSlot.OUTERWEAR, "https://img.example/vest.jpg"),
+        ("White Indian Cotton Kurta Pajama Men's Shalwar kameez", OutfitSlot.OTHER, "https://img.example/kurta.jpg"),
+        ("Kundan Bangles Set", OutfitSlot.OTHER, "https://img.example/bangles.jpg"),
+    ]
+    for pos, (name, slot, img) in enumerate(rows):
+        product = await seed_product(db, name=name, image_url=img)
+        db.add(OutfitItem(outfit_id=outfit.id, product_id=product.id, slot=slot, position=pos))
+    await db.commit()
+
+    resp = await client.post("/api/v1/tryon", json={"user_photo_id": photo_id, "outfit_id": outfit.id})
+    assert resp.status_code == 201, resp.text
+    finished = await _poll_until_terminal(client, resp.json()["id"])
+    assert finished["status"] == "completed"
+    assert calls == ["https://img.example/kurta.jpg", "https://img.example/vest.jpg"]
+
+
 def test_renderable_slots_only_adds_shoes_for_tryon_max():
     """tryon-v1.6's "category" field only accepts tops/bottoms/one-pieces —
     confirmed live against FASHN's API that tryon-max has no such

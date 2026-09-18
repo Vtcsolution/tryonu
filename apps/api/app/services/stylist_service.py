@@ -30,6 +30,7 @@ from app.retailers.base import RawProduct
 from app.schemas.stylist import StylistAskRequest
 from app.services.live_search_service import LiveSearchResult, live_search
 from app.services.outfit_compatibility import score_outfit
+from app.services.outfit_slots import slot_for
 from app.services.personalization_service import TasteProfile, affinity_score, build_taste_profile
 from app.services.product_ingestion_service import persist_single_product
 
@@ -290,23 +291,7 @@ def _alternatives_for(chosen: _Candidate, pool: list[_Candidate], picked_ids: se
 
 
 def _slot_for(raw: RawProduct) -> OutfitSlot:
-    cat = raw.category_slug or ""
-    name = raw.name.lower()
-    if "dress" in cat or "dress" in name:
-        return OutfitSlot.DRESS
-    if "coat" in cat or "jacket" in cat or "bomber" in name or "coat" in name:
-        return OutfitSlot.OUTERWEAR
-    if "shoe" in cat or "boot" in name:
-        return OutfitSlot.SHOES
-    if "denim" in cat or "pant" in cat or "jean" in name:
-        return OutfitSlot.BOTTOM
-    if "top" in cat or "shirt" in name or "sweater" in name or "poncho" in name:
-        return OutfitSlot.TOP
-    if "watch" in name:
-        return OutfitSlot.WATCH
-    if "bag" in name:
-        return OutfitSlot.BAG
-    return OutfitSlot.OTHER
+    return slot_for(raw.name, raw.category_slug)
 
 
 async def ask_stylist(
