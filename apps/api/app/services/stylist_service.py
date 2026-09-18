@@ -63,6 +63,11 @@ _ITEM_CATEGORY_WORDS = {
     "jewellery", "jewelry", "bangle", "bangles", "bracelet", "bracelets", "ring", "rings",
     "earring", "earrings", "jhumka", "jhumkas", "necklace", "necklaces", "choker", "pendant",
     "anklet", "anklets", "tikka", "clutch", "clutches",
+    # the rest of the onboarding taxonomy's items (app/core/taxonomy.py), so
+    # a preference-built suggestion searches for every item it names
+    "jilbab", "shawl", "shawls", "blouse", "blouses", "top", "tops", "activewear", "pin",
+    "smartwatch", "chinos", "tuxedo", "wallet", "wallets", "cufflinks", "accessories",
+    "backpack", "backpacks", "payal", "chappal", "purse", "tote", "romper", "rompers", "set", "sets",
 }
 _TERM_STOPWORDS = {"a", "an", "the", "and", "with", "or", "for", "to", "of", "in", "on", "over", "under"}
 _WOMEN_WORDS = {"women", "women's", "womens", "woman", "woman's", "ladies", "lady", "girls", "girl's", "female"}
@@ -74,8 +79,8 @@ def _extract_search_terms(prompt: str) -> list[str]:
     in the order they appear, deduplicated:
     - item words written back to back ("shalwar kameez", "khussa shoes")
       stay one item, but a comma splits them ("jacket, jeans")
-    - one preceding descriptive word is kept ("leather jacket", "gold
-      bangles")
+    - up to two describing words right before it are kept ("leather
+      jacket", "white lawn shalwar kameez")
     - "for women" / "men's" anywhere in the prompt is added to every query,
       since eBay otherwise mixes in the other gender's listings."""
     tokens = [(m.group(), m.start(), m.end()) for m in re.finditer(r"[a-z']+", prompt.lower())]
@@ -101,15 +106,19 @@ def _extract_search_terms(prompt: str) -> list[str]:
         while j + 1 < len(words) and words[j + 1] in _ITEM_CATEGORY_WORDS and joined(j, j + 1):
             j += 1
         parts = words[i : j + 1]
-        prev = words[i - 1] if i > 0 else ""
-        if (
-            prev
-            and prev not in _TERM_STOPWORDS
-            and prev not in _ITEM_CATEGORY_WORDS
-            and prev not in _WOMEN_WORDS
-            and prev not in _MEN_WORDS
+        # up to two describing words right before it ("white lawn")
+        k = i
+        while (
+            k > 0
+            and i - k < 2
+            and joined(k - 1, k)
+            and words[k - 1] not in _TERM_STOPWORDS
+            and words[k - 1] not in _ITEM_CATEGORY_WORDS
+            and words[k - 1] not in _WOMEN_WORDS
+            and words[k - 1] not in _MEN_WORDS
         ):
-            parts = [prev, *parts]
+            k -= 1
+        parts = [*words[k:i], *parts]
         if gender:
             parts = [gender, *parts]
         term = " ".join(parts)
@@ -224,10 +233,39 @@ async def _fetch_candidates(req: StylistAskRequest, profile: TasteProfile | None
         # though its signature says Product.
         pool.sort(key=lambda c: affinity_score(c.result.raw, profile), reverse=True)  # type: ignore[arg-type]
 
-    return pool[:_CANDIDATE_POOL_SIZE]
+    # trim without dropping any item entirely: take from each item's
+    # (already taste-ranked) results in turn
+    by_term: dict[str, list[_Candidate]] = {}
+    for c in pool:
+        by_term.setdefault(c.term, []).append(c)
+    trimmed: list[_Candidate] = []
+    queues = list(by_term.values())
+    while len(trimmed) < _CANDIDATE_POOL_SIZE and any(queues):
+        for q in queues:
+            if q and len(trimmed) < _CANDIDATE_POOL_SIZE:
+                trimmed.append(q.pop(0))
+    return trimmed
 
 
 _MAX_ALTERNATIVES = 8
+
+
+def _one_of_each_item(chosen: list[_Candidate], pool: list[_Candidate], max_items: int) -> list[_Candidate]:
+    """When the ask names several items ("shalwar kameez with bangles and
+    khussa"), the outfit gets one of each — the model's pick for that item
+    where it made one, else the best-ranked result for it (the pool is
+    already sorted by taste). Without this a model could return six pairs
+    of khussa and no kameez; the other options for each item are still
+    offered as alternatives. A single-item ask keeps every pick."""
+    terms = list(dict.fromkeys(c.term for c in pool))
+    if len(terms) < 2:
+        return chosen
+    by_term: dict[str, _Candidate] = {}
+    for c in chosen:
+        by_term.setdefault(c.term, c)
+    for c in pool:
+        by_term.setdefault(c.term, c)
+    return [by_term[t] for t in terms if t in by_term][:max_items]
 
 
 def _alternatives_for(chosen: _Candidate, pool: list[_Candidate], picked_ids: set[str]) -> list[RawProduct]:
@@ -348,7 +386,9 @@ async def ask_stylist(
         await db.refresh(stylist_request)
         return stylist_request, {}
 
-    chosen = [candidates[i] for i in recommendation.chosen_indexes if 0 <= i < len(candidates)]
+    chosen = _one_of_each_item(
+        [candidates[i] for i in recommendation.chosen_indexes if 0 <= i < len(candidates)], candidates, req.max_items
+    )
 
     # The one point a live-searched candidate becomes a saved row — only
     # for what the LLM actually chose, never the rest of the pool it saw.

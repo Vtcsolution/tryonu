@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
@@ -95,8 +96,21 @@ export function TryFlow() {
   const [prompt, setPrompt] = useState("");
   const prefQuery = useQuery({ queryKey: ["preferences"], queryFn: preferencesApi.get, enabled: !!user });
   const gender = prefQuery.data?.gender;
+  const suggestionsQuery = useQuery({
+    queryKey: ["stylist", "suggestions"],
+    queryFn: stylistApi.suggestions,
+    enabled: !!user,
+  });
+  const personalPrompts = suggestionsQuery.data?.prompts ?? [];
+  // built from the categories/colours they picked; generic starters until they've picked any
   const starterPrompts =
-    gender === "men" ? MEN_PROMPTS : gender === "women" ? WOMEN_PROMPTS : [...WOMEN_PROMPTS.slice(0, 3), ...MEN_PROMPTS.slice(0, 2)];
+    personalPrompts.length > 0
+      ? personalPrompts
+      : gender === "men"
+        ? MEN_PROMPTS
+        : gender === "women"
+          ? WOMEN_PROMPTS
+          : [...WOMEN_PROMPTS.slice(0, 3), ...MEN_PROMPTS.slice(0, 2)];
   const [lastStylistReply, setLastStylistReply] = useState<StylistResponse | null>(null);
   // after "Try on" swaps an alternative in: which item to highlight, and what to restore on Undo
   const [swappedInId, setSwappedInId] = useState<string | null>(null);
@@ -547,7 +561,18 @@ export function TryFlow() {
 
           {!lastStylistReply && (
             <div className="mt-3">
-              <p className="text-[11.5px] text-faint">Try one of these — tap to ask</p>
+              <p className="text-[11.5px] text-faint">
+                {personalPrompts.length > 0 ? (
+                  <>
+                    Suggested from your preferences — tap to ask ·{" "}
+                    <Link href="/preferences" className="underline-offset-2 hover:text-ink hover:underline">
+                      edit
+                    </Link>
+                  </>
+                ) : (
+                  "Try one of these — tap to ask"
+                )}
+              </p>
               <div className="tu-stagger mt-2 flex flex-wrap gap-2">
                 {starterPrompts.map((text) => (
                   <button

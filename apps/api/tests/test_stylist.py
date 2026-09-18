@@ -292,7 +292,7 @@ def test_extract_search_terms_understands_desi_wear_and_jewellery():
         "Red embroidered shalwar kameez for women with gold bangles, jhumka earrings and khussa shoes"
     )
     assert terms == [
-        "women embroidered shalwar kameez",
+        "women red embroidered shalwar kameez",
         "women gold bangles",
         "women jhumka earrings",
         "women khussa shoes",
@@ -414,3 +414,41 @@ async def test_stylist_alternatives_never_offer_another_item_already_in_the_outf
         alt_names = {a["name"] for a in body["alternatives"].get(p["id"], [])}
         assert alt_names.isdisjoint(chosen_names)
         assert alt_names == {"Premium Jacket"}
+
+
+async def test_multi_item_ask_gets_one_of_each_item_even_if_the_model_overpicks_one(client, monkeypatch):
+    """Real bug, seen in a smoke run: "shalwar kameez with bangles and
+    khussa" came back as six pairs of khussa. Each item named gets one
+    pick; the rest stay available as alternatives."""
+
+    async def fake_live_search(query: str, *, limit: int = 24):
+        if "shalwar kameez" in query:
+            return _live_results(_raw("Embroidered Shalwar Kameez", price_cents=9000))
+        if "bangles" in query:
+            return _live_results(_raw("Glass Bangles Set", price_cents=4000))
+        return _live_results(*(_raw(f"Khussa {i}", price_cents=1000 + i) for i in range(6)))
+
+    monkeypatch.setattr("app.services.stylist_service.live_search", fake_live_search)
+
+    class OverpicksShoesProvider:
+        name = "overpicks"
+        model = "overpicks-1"
+
+        async def recommend(self, query: StylistQuery, candidates: list[StylistCandidate]) -> StylistRecommendation:
+            return StylistRecommendation(
+                summary="shoes", chosen_indexes=[c.index for c in candidates if c.name.startswith("Khussa")]
+            )
+
+    monkeypatch.setattr("app.services.stylist_service.get_stylist_provider", lambda: OverpicksShoesProvider())
+    await register_and_login(client)
+
+    resp = await client.post(
+        "/api/v1/stylist/ask",
+        json={"prompt": "Embroidered shalwar kameez for women with bangles and khussa", "max_items": 6},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    names = [p["name"] for p in body["products"]]
+    assert names == ["Embroidered Shalwar Kameez", "Glass Bangles Set", "Khussa 0"]
+    khussa_id = body["products"][2]["id"]
+    assert len(body["alternatives"][khussa_id]) == 5

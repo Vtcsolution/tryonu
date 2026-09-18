@@ -7,18 +7,29 @@ from sqlalchemy.orm import selectinload
 from app.core.deps import CurrentUser, DbSession
 from app.core.rate_limit import rate_limiter
 from app.models.outfit import Outfit, OutfitItem
+from app.models.preference import UserPreference
 from app.models.product import Product
 from app.models.stylist import StylistRequest
 from app.retailers.base import RawProduct
 from app.schemas.product import LiveProductOut, ProductOut
 from app.schemas.stylist import StylistAskRequest, StylistAskResponse
 from app.services import history_service
+from app.services.prompt_suggestions import suggest_prompts
 from app.services.similarity_service import find_cheaper, find_similar
 from app.services.stylist_service import ask_stylist
 
 router = APIRouter(prefix="/stylist", tags=["stylist"])
 
 _stylist_rate_limit = Depends(rate_limiter("stylist_ask", limit=20, window_seconds=3600))
+
+
+@router.get("/suggestions")
+async def prompt_suggestions(user: CurrentUser, db: DbSession) -> dict[str, list[str]]:
+    """Tap-to-ask prompts built from the user's saved preferences — empty
+    when they haven't picked any categories yet (the client then shows
+    generic starters)."""
+    pref = await db.scalar(select(UserPreference).where(UserPreference.user_id == user.id))
+    return {"prompts": suggest_prompts(pref)}
 
 
 def _live_alternatives_out(

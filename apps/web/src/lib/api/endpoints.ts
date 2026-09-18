@@ -242,6 +242,8 @@ export const stylist = {
   ask: (input: StylistAskInput) =>
     apiFetch<StylistResponse>("/api/v1/stylist/ask", { method: "POST", body: input }),
   history: () => apiFetch<StylistResponse[]>("/api/v1/stylist/history"),
+  // tap-to-ask prompts built from the user's saved preferences (empty if none)
+  suggestions: () => apiFetch<{ prompts: string[] }>("/api/v1/stylist/suggestions"),
 };
 
 /* ------------------------------- saved looks -------------------------------- */
