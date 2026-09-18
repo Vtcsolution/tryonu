@@ -53,6 +53,10 @@ SPECS: tuple[SettingSpec, ...] = (
                 help="With FASHN tryon-v1.6 (clothing only), outfits that also include shoes, bags, jewellery, hats "
                 "or any other accessory are drawn by OpenAI in one pass. OpenAI can change the face; FASHN tryon-max "
                 "draws every item itself and keeps it. Falls back to FASHN if OpenAI fails."),
+    SettingSpec("TRYON_KEEP_ORIGINAL_FACE", "Keep the person's real face", "ai_tryon", "bool",
+                help="After the outfit is drawn, the person's own face from their photo is blended back onto the "
+                "result — AI models redraw faces and they drift. Skipped automatically when the face can't be "
+                "matched safely."),
     SettingSpec("OPENAI_IMAGE_MODEL", "OpenAI try-on image model", "ai_tryon", "text",
                 help="Used when the try-on provider is “openai”, e.g. gpt-image-1."),
     SettingSpec("FASHN_API_KEY", "FASHN API key", "ai_tryon", "secret"),

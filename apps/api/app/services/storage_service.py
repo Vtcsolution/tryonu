@@ -35,6 +35,9 @@ class StorageBackend(ABC):
     def delete(self, key: str) -> None: ...
 
     @abstractmethod
+    def read(self, key: str) -> bytes: ...
+
+    @abstractmethod
     def signed_url(self, key: str, ttl_seconds: int | None = None) -> str: ...
 
 
@@ -61,6 +64,9 @@ class S3StorageBackend(StorageBackend):
 
     def delete(self, key: str) -> None:
         self._client.delete_object(Bucket=self._bucket, Key=key)
+
+    def read(self, key: str) -> bytes:
+        return self._client.get_object(Bucket=self._bucket, Key=key)["Body"].read()
 
     def signed_url(self, key: str, ttl_seconds: int | None = None) -> str:
         if settings.S3_PUBLIC_BASE_URL:
@@ -96,6 +102,9 @@ class LocalDiskStorageBackend(StorageBackend):
     def delete(self, key: str) -> None:
         path = self._path(key)
         path.unlink(missing_ok=True)
+
+    def read(self, key: str) -> bytes:
+        return self._path(key).read_bytes()
 
     def signed_url(self, key: str, ttl_seconds: int | None = None) -> str:
         exp = int(time.time()) + (ttl_seconds or settings.SIGNED_URL_TTL_SECONDS)

@@ -116,6 +116,9 @@ class Settings(BaseSettings):
     # jewellery with OpenAI instead (FASHN can't draw those), falling back
     # to FASHN if OpenAI fails. Needs OPENAI_API_KEY.
     TRYON_OPENAI_FOR_FULL_LOOKS: bool = True
+    # put the person's own face back on every try-on result (see
+    # app/services/face_restore.py) — models redraw faces and they drift
+    TRYON_KEEP_ORIGINAL_FACE: bool = True
     EMBEDDING_DIM: int = 1536
 
     # --- retailer / affiliate credentials (each optional; the adapter

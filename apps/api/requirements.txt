@@ -32,6 +32,7 @@ boto3==1.35.71            # S3 / Cloudflare R2 (S3-compatible)
 httpx==0.27.2
 maxminddb==2.6.2
 Pillow==11.0.0             # image validation / optimization
+opencv-python-headless==4.10.0.84  # face detection + blending to keep the person's real face on try-on results
 
 # --- misc ---
 python-slugify==8.0.4

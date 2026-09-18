@@ -26,7 +26,15 @@ from app.models.outfit import OutfitItem
 from app.models.product import Product
 from app.models.tryon import TryOnJob, TryOnResult
 from app.services import credit_service
-from app.services.outfit_slots import MAX_PROMPT, V16_CATEGORY, render_plan, renderable_slots, slot_for
+from app.services.face_restore import restore_face
+from app.services.outfit_slots import (
+    MAX_PROMPT,
+    V16_CATEGORY,
+    render_plan,
+    renderable_slots,
+    slot_for,
+    worn_on_head,
+)
 from app.services.storage_service import get_storage, new_key
 
 settings = get_settings()
@@ -145,7 +153,10 @@ async def run_tryon_job_async(job_id: str) -> None:
                     )
                     await session.commit()
                 else:
-                    await _complete_job(session, job, output.image_bytes, output.content_type, full.name, full.model)
+                    await _complete_job(
+                        session, job, output.image_bytes, output.content_type, full.name, full.model,
+                        drawn=[layer.name for layer in full_layers],
+                    )
                     return
 
         if not layers:
@@ -168,7 +179,10 @@ async def run_tryon_job_async(job_id: str) -> None:
             if provider.whole_outfit:
                 # one render with every item at once (shoes, bags, jewellery too)
                 output = await provider.generate_outfit(model_url, _outfit_pieces(layers))
-                await _complete_job(session, job, output.image_bytes, output.content_type, provider.name, provider.model)
+                await _complete_job(
+                    session, job, output.image_bytes, output.content_type, provider.name, provider.model,
+                    drawn=[layer.name for layer in layers],
+                )
                 return
 
             # Multi-item outfits are rendered as a sequential chain: each
@@ -185,7 +199,10 @@ async def run_tryon_job_async(job_id: str) -> None:
                     get_storage().put(interim_key, final_bytes, final_content_type)
                     current_model_url = _absolute_url(get_storage().signed_url(interim_key, ttl_seconds=600))
 
-            await _complete_job(session, job, final_bytes, final_content_type, provider.name, provider.model)
+            await _complete_job(
+                session, job, final_bytes, final_content_type, provider.name, provider.model,
+                drawn=[layer.name for layer in layers],
+            )
 
         except TryOnProviderError as exc:
             await _handle_provider_error(session, job, exc, provider.name, provider.model)
@@ -207,7 +224,41 @@ async def run_tryon_job_async(job_id: str) -> None:
             await session.commit()
 
 
-async def _complete_job(session, job: TryOnJob, image_bytes: bytes, content_type: str, provider_name: str, provider_model: str) -> None:  # noqa: ANN001
+async def _with_original_face(
+    job: TryOnJob, image_bytes: bytes, content_type: str, drawn: list[str]
+) -> tuple[bytes, str]:
+    """The result with the person's own face blended back in, or unchanged
+    if that's off or can't be done safely. Never fails the job."""
+    if not settings.TRYON_KEEP_ORIGINAL_FACE or job.user_photo is None:
+        return image_bytes, content_type
+    if any(worn_on_head(name) for name in drawn):
+        # a hat, sunglasses, earrings… were just drawn on the head — the
+        # original head would paint over them
+        logger.info("tryon_face_restore_skipped_head_item", job_id=job.id)
+        return image_bytes, content_type
+    try:
+        original = await asyncio.to_thread(get_storage().read, job.user_photo.storage_key)
+        restored = await asyncio.to_thread(restore_face, original, image_bytes)
+    except Exception as exc:  # noqa: BLE001 — a failed restore must never lose the render
+        logger.warning("tryon_face_restore_failed", job_id=job.id, error=str(exc)[:300])
+        return image_bytes, content_type
+    if restored is None:
+        logger.info("tryon_face_restore_skipped", job_id=job.id)
+        return image_bytes, content_type
+    return restored, "image/jpeg"
+
+
+async def _complete_job(  # noqa: ANN001
+    session,
+    job: TryOnJob,
+    image_bytes: bytes,
+    content_type: str,
+    provider_name: str,
+    provider_model: str,
+    *,
+    drawn: list[str] = (),  # type: ignore[assignment]
+) -> None:
+    image_bytes, content_type = await _with_original_face(job, image_bytes, content_type, list(drawn))
     ext = "jpg" if content_type == "image/jpeg" else content_type.split("/")[-1]
     key = new_key("tryon", "results", job.user_id, f"{job.id}.{ext}")
     storage = get_storage()

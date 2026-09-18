@@ -92,6 +92,19 @@ def slot_for(name: str, category_slug: str | None = None) -> OutfitSlot:
     return OutfitSlot.OTHER
 
 
+# items worn on the head or face — putting the person's original head back
+# on the result (face_restore) would erase them, so those looks skip it
+_HEAD_WORN = re.compile(
+    r"\b(hat|hats|cap|caps|beanie|beret|fedora|turban|pagri|topi|helmet|hood|sunglasses|glasses|eyeglasses|"
+    r"spectacles|goggles|earring|earrings|jhumka|jhumkas|chandbali|studs|tikka|nose pin|nose ring|nath|"
+    r"headband|hairband|hair clip|hair accessories|tiara|crown|bandana|hijab|niqab|veil|mask)\b"
+)
+
+
+def worn_on_head(product_name: str) -> bool:
+    return bool(_HEAD_WORN.search(product_name.lower()))
+
+
 # drawing order on the photo: the base outfit first, then layers over it
 LAYER_ORDER = {
     OutfitSlot.DRESS: 0,
