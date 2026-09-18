@@ -125,6 +125,9 @@ MAX_PROMPT = {
 }
 
 
+# providers that dress the person in the whole look in one render
+WHOLE_OUTFIT_PROVIDERS = {"openai"}
+
 _WEARABLE = _CLOTHING | {OutfitSlot.SHOES, OutfitSlot.BAG, OutfitSlot.WATCH, OutfitSlot.ACCESSORY}
 
 

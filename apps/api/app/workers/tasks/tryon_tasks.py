@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.ai.providers.base import OutfitPiece, TryOnInput, TryOnProviderError
-from app.ai.providers.registry import get_tryon_provider
+from app.ai.providers.registry import get_full_look_provider, get_tryon_provider
 from app.core.config import get_settings
 from app.core.logging import logger
 from app.core.runtime_settings import refresh_if_stale
@@ -31,6 +31,7 @@ from app.services.storage_service import get_storage, new_key
 
 settings = get_settings()
 MAX_ATTEMPTS = 3
+
 
 def _renderable_slots(model: str, whole_outfit: bool = False) -> set[OutfitSlot]:
     return renderable_slots(model, whole_outfit)
@@ -72,6 +73,13 @@ async def _garment_layers(session, job: TryOnJob, model: str, whole_outfit: bool
     return []
 
 
+def _outfit_pieces(layers: list[_Layer]) -> list[OutfitPiece]:
+    return [
+        OutfitPiece(image_url=_absolute_url(layer.image_url), slot=(layer.slot or OutfitSlot.TOP).value, name=layer.name)
+        for layer in layers
+    ]
+
+
 def _tryon_input(model_url: str, layer: _Layer, model: str) -> TryOnInput:
     garment_url = _absolute_url(layer.image_url)
     if layer.slot is None:
@@ -109,6 +117,37 @@ async def run_tryon_job_async(job_id: str) -> None:
 
         provider = get_tryon_provider()
         layers = await _garment_layers(session, job, provider.model, provider.whole_outfit)
+
+        # A look the main provider can't fully draw (FASHN: no shoes, bags or
+        # jewellery) goes to the whole-outfit provider first; if that fails
+        # the job still completes with the main provider below.
+        full = get_full_look_provider()
+        if job.outfit_id is not None and full is not None and full is not provider:
+            full_layers = await _garment_layers(session, job, full.model, True)
+            if len(full_layers) > len(layers):
+                try:
+                    output = await full.generate_outfit(
+                        _absolute_url(job.user_photo.url), _outfit_pieces(full_layers)
+                    )
+                except TryOnProviderError as exc:
+                    logger.warning("tryon_full_look_failed_falling_back", job_id=job.id, error=str(exc)[:300])
+                    session.add(
+                        AIUsage(
+                            user_id=job.user_id,
+                            kind=AIUsageKind.VIRTUAL_TRYON,
+                            provider=full.name,
+                            model=full.model,
+                            reference_type="tryon_job",
+                            reference_id=job.id,
+                            success=False,
+                            error_message=str(exc)[:512],
+                        )
+                    )
+                    await session.commit()
+                else:
+                    await _complete_job(session, job, output.image_bytes, output.content_type, full.name, full.model)
+                    return
+
         if not layers:
             message = (
                 "This outfit has no clothing item FASHN can render (only accessories, "
@@ -128,15 +167,7 @@ async def run_tryon_job_async(job_id: str) -> None:
         try:
             if provider.whole_outfit:
                 # one render with every item at once (shoes, bags, jewellery too)
-                pieces = [
-                    OutfitPiece(
-                        image_url=_absolute_url(layer.image_url),
-                        slot=(layer.slot or OutfitSlot.TOP).value,
-                        name=layer.name,
-                    )
-                    for layer in layers
-                ]
-                output = await provider.generate_outfit(model_url, pieces)
+                output = await provider.generate_outfit(model_url, _outfit_pieces(layers))
                 await _complete_job(session, job, output.image_bytes, output.content_type, provider.name, provider.model)
                 return
 

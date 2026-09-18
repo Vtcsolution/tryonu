@@ -133,3 +133,97 @@ async def test_whole_outfit_provider_gets_every_item_in_one_call(client, db, mon
         ("bag", "bag.jpg"),
     ]
     assert sorted(finished["outfit"]["rendered_item_ids"]) == sorted(i["id"] for i in finished["outfit"]["items"])
+
+
+async def _outfit_with_shoes_and_bag(client, db):
+    from tests.test_tryon import _upload_front_photo
+
+    await register_and_login(client)
+    photo_id = await _upload_front_photo(client)
+    user_id = (await client.get("/api/v1/auth/me")).json()["id"]
+    outfit = Outfit(user_id=user_id)
+    db.add(outfit)
+    await db.flush()
+    rows = [
+        ("J. Shalwar Qameez Brown Color", OutfitSlot.DRESS, "https://img.example/kameez.jpg"),
+        ("Men Leather Oxford Shoes", OutfitSlot.SHOES, "https://img.example/shoes.jpg"),
+        ('18" Medium Duffle Bag Gym Sports Duffel', OutfitSlot.BAG, "https://img.example/bag.jpg"),
+    ]
+    for pos, (name, slot, img) in enumerate(rows):
+        product = await seed_product(db, name=name, image_url=img)
+        db.add(OutfitItem(outfit_id=outfit.id, product_id=product.id, slot=slot, position=pos))
+    await db.commit()
+    return photo_id, outfit.id
+
+
+def _fashn_main_with_openai_for_full_looks(monkeypatch):
+    """Production setup: FASHN is the main provider (clothing only) and an
+    OpenAI key is set, so full looks go to OpenAI automatically."""
+    from app.ai.providers.mock import MockTryOnProvider
+
+    main = MockTryOnProvider()
+    full = OpenAIImageTryOnProvider(api_key="sk-test", model="gpt-image-1")
+    for target in ("app.workers.tasks.tryon_tasks", "app.ai.providers.registry"):
+        monkeypatch.setattr(f"{target}.get_tryon_provider", lambda: main)
+        monkeypatch.setattr(f"{target}.get_full_look_provider", lambda: full)
+    return main
+
+
+async def test_a_look_with_shoes_and_a_bag_goes_to_openai_automatically(client, db, monkeypatch):
+    """Real complaint: FASHN drew the kameez and left the shoes and bag off.
+    Without anyone switching providers, a look FASHN can't fully draw is
+    rendered by OpenAI — all three items."""
+    from tests.test_tryon import _poll_until_terminal
+
+    main = _fashn_main_with_openai_for_full_looks(monkeypatch)
+    calls: list[list[OutfitPiece]] = []
+
+    async def fake_generate_outfit(self, model_image_url, pieces):  # noqa: ARG001
+        calls.append(pieces)
+        return TryOnOutput(image_bytes=small_jpeg_bytes())
+
+    async def main_must_not_run(self, payload):  # noqa: ARG001
+        raise AssertionError("the clothing-only provider should not have been used")
+
+    monkeypatch.setattr(OpenAIImageTryOnProvider, "generate_outfit", fake_generate_outfit)
+    monkeypatch.setattr(type(main), "generate", main_must_not_run)
+
+    photo_id, outfit_id = await _outfit_with_shoes_and_bag(client, db)
+    resp = await client.post("/api/v1/tryon", json={"user_photo_id": photo_id, "outfit_id": outfit_id})
+    finished = await _poll_until_terminal(client, resp.json()["id"])
+
+    assert finished["status"] == "completed", finished
+    assert finished["provider"] == "openai"
+    assert [p.slot for p in calls[0]] == ["dress", "shoes", "bag"]
+    assert len(finished["outfit"]["rendered_item_ids"]) == 3
+
+
+async def test_if_openai_fails_the_look_still_renders_with_the_main_provider(client, db, monkeypatch):
+    """e.g. an OpenAI org that isn't verified for image models: the user
+    still gets the clothing drawn by FASHN, and the labels say so."""
+    from app.ai.providers.base import TryOnProviderError
+    from tests.test_tryon import _poll_until_terminal
+
+    main = _fashn_main_with_openai_for_full_looks(monkeypatch)
+
+    async def openai_refuses(self, model_image_url, pieces):  # noqa: ARG001
+        raise TryOnProviderError("OpenAI image edit failed (403): organization must be verified")
+
+    main_calls: list[str] = []
+
+    async def main_generate(self, payload):  # noqa: ARG001
+        main_calls.append(payload.garment_image_url)
+        return TryOnOutput(image_bytes=small_jpeg_bytes())
+
+    monkeypatch.setattr(OpenAIImageTryOnProvider, "generate_outfit", openai_refuses)
+    monkeypatch.setattr(type(main), "generate", main_generate)
+
+    photo_id, outfit_id = await _outfit_with_shoes_and_bag(client, db)
+    resp = await client.post("/api/v1/tryon", json={"user_photo_id": photo_id, "outfit_id": outfit_id})
+    finished = await _poll_until_terminal(client, resp.json()["id"])
+
+    assert finished["status"] == "completed", finished
+    assert finished["provider"] == "mock"
+    assert main_calls == ["https://img.example/kameez.jpg"]
+    kameez = next(i for i in finished["outfit"]["items"] if i["slot"] == "dress")
+    assert finished["outfit"]["rendered_item_ids"] == [kameez["id"]]

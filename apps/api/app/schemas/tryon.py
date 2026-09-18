@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from app.models.enums import JobStatus
 from app.schemas.common import ORMModel
@@ -54,3 +54,11 @@ class TryOnJobOut(ORMModel):
     started_at: datetime | None
     completed_at: datetime | None
     created_at: datetime
+
+    @model_validator(mode="after")
+    def _labels_match_what_was_drawn(self) -> "TryOnJobOut":
+        # a finished job's "on photo" labels follow the engine that actually
+        # drew it (e.g. FASHN after an OpenAI fallback), not today's config
+        if self.outfit is not None and self.status == JobStatus.COMPLETED:
+            self.outfit.drawn_by(self.provider, self.provider_model)
+        return self

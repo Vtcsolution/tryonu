@@ -112,6 +112,10 @@ class Settings(BaseSettings):
     OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
     # try-on via OpenAI image editing (VIRTUAL_TRYON_PROVIDER=openai)
     OPENAI_IMAGE_MODEL: str = "gpt-image-1"
+    # with the FASHN provider: render outfits that include shoes, bags or
+    # jewellery with OpenAI instead (FASHN can't draw those), falling back
+    # to FASHN if OpenAI fails. Needs OPENAI_API_KEY.
+    TRYON_OPENAI_FOR_FULL_LOOKS: bool = True
     EMBEDDING_DIM: int = 1536
 
     # --- retailer / affiliate credentials (each optional; the adapter

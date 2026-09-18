@@ -41,6 +41,7 @@ import io  # noqa: E402
 import shutil  # noqa: E402
 import uuid  # noqa: E402
 
+import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 from PIL import Image  # noqa: E402
@@ -92,6 +93,20 @@ async def _reset_rate_limits():
 
     _local_buckets.clear()
     yield
+
+
+@pytest.fixture(autouse=True)
+def _reset_tryon_providers():
+    """Provider factories are lru_cached; a test that swaps in a provider
+    must not leave it cached for the next test (a leaked OpenAI provider
+    would make later tests try to reach the real API)."""
+    from app.ai.providers.registry import get_full_look_provider, get_tryon_provider
+
+    get_tryon_provider.cache_clear()
+    get_full_look_provider.cache_clear()
+    yield
+    get_tryon_provider.cache_clear()
+    get_full_look_provider.cache_clear()
 
 
 def unique_email(prefix: str = "test") -> str:

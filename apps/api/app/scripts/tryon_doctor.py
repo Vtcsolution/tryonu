@@ -88,6 +88,9 @@ async def main() -> int:
     print(f"  IN USE NOW                 : {effective.VIRTUAL_TRYON_PROVIDER}")
     if overrides.get("VIRTUAL_TRYON_PROVIDER") == "openai" and effective.VIRTUAL_TRYON_PROVIDER != "openai":
         print("  !! 'openai' is chosen but no OpenAI API key is set, so it falls back to mock")
+    if effective.VIRTUAL_TRYON_PROVIDER == "fashn":
+        auto = effective.TRYON_OPENAI_FOR_FULL_LOOKS and effective.OPENAI_API_KEY
+        print(f"  Shoes/bags/jewellery looks : {'drawn by OpenAI (auto)' if auto else 'FASHN only — not drawn'}")
     print(f"  FASHN model                : {effective.FASHN_MODEL}  (key {_yes(effective.FASHN_API_KEY)})")
     print(f"  OpenAI image model         : {effective.OPENAI_IMAGE_MODEL}  (key {_yes(effective.OPENAI_API_KEY)})")
     if effective.OPENAI_API_KEY:

@@ -49,6 +49,9 @@ SPECS: tuple[SettingSpec, ...] = (
                 "“openai” dresses the photo in the whole outfit at once (shoes, bags and jewellery included) using "
                 "the OpenAI API key; “fashn” renders clothing one piece at a time; “mock” returns a placeholder. "
                 "Falls back to mock if the chosen provider has no API key."),
+    SettingSpec("TRYON_OPENAI_FOR_FULL_LOOKS", "Use OpenAI for shoes, bags & jewellery", "ai_tryon", "bool",
+                help="With the FASHN provider, outfits that include shoes, bags or jewellery are drawn by OpenAI "
+                "in one pass (FASHN can't draw them). Falls back to FASHN if OpenAI fails. Needs the OpenAI API key."),
     SettingSpec("OPENAI_IMAGE_MODEL", "OpenAI try-on image model", "ai_tryon", "text",
                 help="Used when the try-on provider is “openai”, e.g. gpt-image-1."),
     SettingSpec("FASHN_API_KEY", "FASHN API key", "ai_tryon", "secret"),
@@ -100,7 +103,7 @@ SPECS: tuple[SettingSpec, ...] = (
 SPECS_BY_KEY = {s.key: s for s in SPECS}
 
 GROUPS: tuple[tuple[str, str], ...] = (
-    ("ai_tryon", "AI try-on (FASHN)"),
+    ("ai_tryon", "AI try-on"),
     ("ai_stylist", "AI stylist (OpenAI)"),
     ("ebay", "eBay"),
     ("cj", "CJ Affiliate"),
@@ -166,11 +169,17 @@ def validate_value(key: str, value: str) -> None:
 
 def _clear_provider_caches() -> None:
     from app.ai.llm.registry import get_stylist_provider
-    from app.ai.providers.registry import get_tryon_provider
+    from app.ai.providers.registry import get_full_look_provider, get_tryon_provider
     from app.email.registry import get_email_provider
     from app.payments.registry import get_payment_provider
 
-    for cached in (get_tryon_provider, get_stylist_provider, get_email_provider, get_payment_provider):
+    for cached in (
+        get_tryon_provider,
+        get_full_look_provider,
+        get_stylist_provider,
+        get_email_provider,
+        get_payment_provider,
+    ):
         cached.cache_clear()
 
 
