@@ -42,7 +42,8 @@ async def fitting_profile_status(user: CurrentUser, db: DbSession):
         photos=photos,
         has_front=has_front,
         has_back=has_back,
-        is_ready=has_front and has_back,
+        # a front photo is enough to render; back/side photos only add angles
+        is_ready=has_front or PhotoKind.FULL_BODY in kinds,
     )
 
 

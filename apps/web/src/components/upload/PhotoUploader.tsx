@@ -8,13 +8,13 @@ import type { PhotoKind, UserPhoto } from "@/lib/api/types";
 
 const SLOTS: { kind: PhotoKind; label: string; required: boolean }[] = [
   { kind: "front", label: "Front", required: true },
-  { kind: "back", label: "Back", required: true },
+  { kind: "back", label: "Back", required: false },
   { kind: "left_side", label: "Left", required: false },
   { kind: "right_side", label: "Right", required: false },
 ];
 
 const MAX_PHOTOS = SLOTS.length;
-export const MIN_PHOTOS = SLOTS.filter((s) => s.required).length; // front + back
+export const MIN_PHOTOS = SLOTS.filter((s) => s.required).length; // just the front
 
 type SlotUpload = { status: "uploading" | "error"; error?: string };
 
@@ -152,7 +152,7 @@ export function PhotoUploader({
           }}
         />
         <p className="mt-3 text-[12px] text-faint">
-          JPG, PNG, WEBP or HEIC · up to 12MB each · front and back required, left/right optional
+          JPG, PNG, WEBP or HEIC · up to 12MB each · front required · back and sides optional
         </p>
       </div>
 
@@ -206,7 +206,7 @@ export function PhotoUploader({
         <span>
           {count} / {MAX_PHOTOS} photos
         </span>
-        <span>{isReady ? "Ready ✓" : "Add a front and back photo"}</span>
+        <span>{isReady ? "Ready ✓" : "Add a front photo"}</span>
       </div>
       {loadError && (
         <p className="mt-2 text-[12px] text-[#a4553f]" role="alert">

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { VoiceInputButton } from "@/components/ui/VoiceInputButton";
-import { MIN_PHOTOS, PhotoUploader } from "@/components/upload/PhotoUploader";
+import { PhotoUploader } from "@/components/upload/PhotoUploader";
 import { ApiError, affiliateGoUrl, resolveMediaUrl, thumbnailUrl } from "@/lib/api/client";
 import {
   liveSearch as liveSearchApi,
@@ -369,7 +369,7 @@ export function TryFlow() {
             Build your <em>fitting profile</em>
           </h1>
           <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-muted">
-            Add {MIN_PHOTOS}–10 clear photos for the best results. We reuse them for every
+            A clear front photo is all you need — add back and side photos for even better results. We reuse them for every
             try-on. Nothing is shared with retailers.
           </p>
 

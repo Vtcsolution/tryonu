@@ -399,3 +399,13 @@ async def test_tryon_rejects_more_than_one_target(client, db):
         json={"user_photo_id": photo_id, "product_id": product.id, "wardrobe_item_id": item_id},
     )
     assert resp.status_code == 400
+
+
+async def test_fitting_profile_is_ready_with_just_a_front_photo(client):
+    await register_and_login(client)
+    assert (await client.get("/api/v1/photos/status")).json()["is_ready"] is False
+
+    await _upload_front_photo(client)
+    status = (await client.get("/api/v1/photos/status")).json()
+    assert status["is_ready"] is True
+    assert status["has_back"] is False
