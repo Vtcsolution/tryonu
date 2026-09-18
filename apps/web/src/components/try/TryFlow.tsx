@@ -10,6 +10,7 @@ import { ApiError, affiliateGoUrl, resolveMediaUrl, thumbnailUrl } from "@/lib/a
 import {
   liveSearch as liveSearchApi,
   outfits as outfitsApi,
+  preferences as preferencesApi,
   products as productsApi,
   savedLooks as savedLooksApi,
   stylist as stylistApi,
@@ -34,6 +35,22 @@ import type {
 // accessory/other are still real matched products with their own shop-now
 // link, just never visually applied. Must match the backend's
 // _renderable_slots("tryon-max") in app/workers/tasks/tryon_tasks.py.
+// Tap-to-ask starters under the stylist box, matched to the shopper's gender preference
+const WOMEN_PROMPTS = [
+  "Embroidered shalwar kameez for women with gold bangles and khussa shoes",
+  "Lawn kurti for women with palazzo and kolhapuri chappals",
+  "Bridal lehenga for women with jhumka earrings and a gold necklace",
+  "Black abaya for women with a clutch and heels",
+  "Pishwas frock for women with a dupatta and maang tikka",
+  "Silver bangles, rings and jhumka earrings for women",
+];
+const MEN_PROMPTS = [
+  "White shalwar kameez for men with a black waistcoat and peshawari chappals",
+  "Cream sherwani for men with khussa shoes",
+  "Cotton kurta for men with jeans and sneakers",
+  "Navy suit for men with brown loafers and a watch",
+];
+
 const RENDERABLE_SLOTS = new Set(["top", "bottom", "dress", "outerwear", "shoes"]);
 
 const STEPS = ["Fitting profile", "Choose product", "Your look"] as const;
@@ -76,6 +93,10 @@ export function TryFlow() {
   const [outfit, setOutfit] = useState<Outfit | null>(null);
   const [customItem, setCustomItem] = useState<WardrobeItem | null>(null);
   const [prompt, setPrompt] = useState("");
+  const prefQuery = useQuery({ queryKey: ["preferences"], queryFn: preferencesApi.get, enabled: !!user });
+  const gender = prefQuery.data?.gender;
+  const starterPrompts =
+    gender === "men" ? MEN_PROMPTS : gender === "women" ? WOMEN_PROMPTS : [...WOMEN_PROMPTS.slice(0, 3), ...MEN_PROMPTS.slice(0, 2)];
   const [lastStylistReply, setLastStylistReply] = useState<StylistResponse | null>(null);
   // after "Try on" swaps an alternative in: which item to highlight, and what to restore on Undo
   const [swappedInId, setSwappedInId] = useState<string | null>(null);
@@ -255,7 +276,7 @@ export function TryFlow() {
   // invents a product; it just picks real matches and (when more than one)
   // bundles them into an Outfit for the sequential multi-item try-on.
   const askStylist = useMutation({
-    mutationFn: () => stylistApi.ask({ prompt: prompt.trim(), max_items: 6 }),
+    mutationFn: (text: string) => stylistApi.ask({ prompt: text.trim(), max_items: 6 }),
     onSuccess: (res) => {
       setLastStylistReply(res);
       setCustomItem(null);
@@ -496,14 +517,14 @@ export function TryFlow() {
               onSubmit={(e: FormEvent) => {
                 e.preventDefault();
                 if (!prompt.trim() || askStylist.isPending) return;
-                askStylist.mutate();
+                askStylist.mutate(prompt);
               }}
             >
               <input
                 type="text"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Ask your stylist — e.g. Armani shirt, leopard-print shoes, a black hat"
+                placeholder="Ask your stylist — e.g. shalwar kameez with bangles and khussa"
                 className="h-11 flex-1 rounded-full bg-transparent px-2.5 text-[14px] text-ink outline-none placeholder:text-faint"
               />
               <VoiceInputButton
@@ -523,6 +544,28 @@ export function TryFlow() {
               </button>
             </form>
           </div>
+
+          {!lastStylistReply && (
+            <div className="mt-3">
+              <p className="text-[11.5px] text-faint">Try one of these — tap to ask</p>
+              <div className="tu-stagger mt-2 flex flex-wrap gap-2">
+                {starterPrompts.map((text) => (
+                  <button
+                    key={text}
+                    type="button"
+                    disabled={askStylist.isPending}
+                    onClick={() => {
+                      setPrompt(text);
+                      askStylist.mutate(text);
+                    }}
+                    className="tu-press rounded-full border border-line bg-surface px-3.5 py-1.5 text-left text-[12.5px] text-ink-soft transition-colors hover:border-sage hover:text-ink disabled:opacity-50"
+                  >
+                    {text}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {askStylist.isError && (
             <p className="mt-3 text-[13px] text-[#a4553f]" role="alert">

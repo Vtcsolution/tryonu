@@ -272,9 +272,9 @@ def test_extract_search_terms_splits_a_multi_item_outfit_prompt():
     terms = _extract_search_terms(
         "A stylish men's leather jacket paired with denim jeans and sneakers, casual streetwear outfit"
     )
-    assert "leather jacket" in terms
-    assert "denim jeans" in terms
-    assert "sneakers" in terms
+    assert "men leather jacket" in terms
+    assert "men denim jeans" in terms
+    assert "men sneakers" in terms
     # only the item words, not filler like "stylish"/"casual"/"streetwear"/"outfit"
     assert not any("stylish" in t or "outfit" in t for t in terms)
 
@@ -283,6 +283,26 @@ def test_extract_search_terms_returns_empty_for_a_prompt_with_no_recognized_item
     from app.services.stylist_service import _extract_search_terms
 
     assert _extract_search_terms("something for a black-tie gala") == []
+
+
+def test_extract_search_terms_understands_desi_wear_and_jewellery():
+    from app.services.stylist_service import _extract_search_terms
+
+    terms = _extract_search_terms(
+        "Red embroidered shalwar kameez for women with gold bangles, jhumka earrings and khussa shoes"
+    )
+    assert terms == [
+        "women embroidered shalwar kameez",
+        "women gold bangles",
+        "women jhumka earrings",
+        "women khussa shoes",
+    ]
+
+
+def test_extract_search_terms_keeps_comma_separated_items_apart():
+    from app.services.stylist_service import _extract_search_terms
+
+    assert _extract_search_terms("jacket, jeans, sneakers") == ["jacket", "jeans", "sneakers"]
 
 
 async def test_stylist_searches_each_outfit_item_separately_not_as_one_sentence(client, monkeypatch):

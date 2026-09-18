@@ -54,26 +54,69 @@ _ITEM_CATEGORY_WORDS = {
     "cap", "caps", "skirt", "skirts", "shorts", "scarf", "scarves", "belt", "belts",
     "trouser", "trousers", "pant", "pants", "legging", "leggings", "cardigan", "vest",
     "gown", "romper", "jumpsuit", "sandals", "heels", "flats", "loafers", "trainers",
+    # South Asian wear — "shalwar kameez" is two item words in a row, kept
+    # together as one search (see _extract_search_terms)
+    "shalwar", "salwar", "kameez", "kurta", "kurtas", "kurti", "kurtis", "lehenga", "lehengas",
+    "saree", "sarees", "sari", "anarkali", "pishwas", "dupatta", "dupattas", "sherwani", "waistcoat",
+    "abaya", "abayas", "hijab", "frock", "frocks", "palazzo", "palazzos", "khussa", "khussas", "kolhapuri", "chappal", "chappals", "mojari",
+    # jewellery & accessories
+    "jewellery", "jewelry", "bangle", "bangles", "bracelet", "bracelets", "ring", "rings",
+    "earring", "earrings", "jhumka", "jhumkas", "necklace", "necklaces", "choker", "pendant",
+    "anklet", "anklets", "tikka", "clutch", "clutches",
 }
 _TERM_STOPWORDS = {"a", "an", "the", "and", "with", "or", "for", "to", "of", "in", "on", "over", "under"}
+_WOMEN_WORDS = {"women", "women's", "womens", "woman", "woman's", "ladies", "lady", "girls", "girl's", "female"}
+_MEN_WORDS = {"men", "men's", "mens", "man", "man's", "gents", "boys", "boy's", "male"}
 
 
 def _extract_search_terms(prompt: str) -> list[str]:
-    """Finds each recognized item-type word in the prompt and pairs it with
-    an immediately preceding descriptive word when there is one ("leather
-    jacket", not just "jacket") — one short query per distinct item
-    mentioned, in the order they appear, deduplicated."""
-    words = re.findall(r"[a-z']+", prompt.lower())
+    """Finds each recognized item in the prompt, one short query per item,
+    in the order they appear, deduplicated:
+    - item words written back to back ("shalwar kameez", "khussa shoes")
+      stay one item, but a comma splits them ("jacket, jeans")
+    - one preceding descriptive word is kept ("leather jacket", "gold
+      bangles")
+    - "for women" / "men's" anywhere in the prompt is added to every query,
+      since eBay otherwise mixes in the other gender's listings."""
+    tokens = [(m.group(), m.start(), m.end()) for m in re.finditer(r"[a-z']+", prompt.lower())]
+    words = [t[0] for t in tokens]
+    gender = ""
+    if any(w in _WOMEN_WORDS for w in words):
+        gender = "women"
+    elif any(w in _MEN_WORDS for w in words):
+        gender = "men"
+
+    def joined(a: int, b: int) -> bool:
+        # the two tokens are separated by plain spaces only — no comma etc.
+        return prompt[tokens[a][2] : tokens[b][1]].strip() == ""
+
     terms: list[str] = []
     seen: set[str] = set()
-    for i, word in enumerate(words):
-        if word not in _ITEM_CATEGORY_WORDS:
+    i = 0
+    while i < len(words):
+        if words[i] not in _ITEM_CATEGORY_WORDS:
+            i += 1
             continue
+        j = i
+        while j + 1 < len(words) and words[j + 1] in _ITEM_CATEGORY_WORDS and joined(j, j + 1):
+            j += 1
+        parts = words[i : j + 1]
         prev = words[i - 1] if i > 0 else ""
-        term = f"{prev} {word}" if prev and prev not in _TERM_STOPWORDS and prev not in _ITEM_CATEGORY_WORDS else word
+        if (
+            prev
+            and prev not in _TERM_STOPWORDS
+            and prev not in _ITEM_CATEGORY_WORDS
+            and prev not in _WOMEN_WORDS
+            and prev not in _MEN_WORDS
+        ):
+            parts = [prev, *parts]
+        if gender:
+            parts = [gender, *parts]
+        term = " ".join(parts)
         if term not in seen:
             seen.add(term)
             terms.append(term)
+        i = j + 1
     return terms
 
 
