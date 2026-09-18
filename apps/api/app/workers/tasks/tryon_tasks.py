@@ -186,6 +186,10 @@ async def _complete_job(session, job: TryOnJob, image_bytes: bytes, content_type
     session.add(TryOnResult(job_id=job.id, storage_key=key, image_url=url))
     job.status = JobStatus.COMPLETED
     job.completed_at = datetime.now(timezone.utc)
+    # the engine that actually drew it — the one recorded at creation can be
+    # stale if the provider was switched while the job was queued
+    job.provider = provider_name
+    job.provider_model = provider_model
 
     session.add(
         AIUsage(
