@@ -294,9 +294,157 @@ body {
   animation: tu-dash 1.4s linear infinite;
 }
 
+/* --- admin panel motion (transform/opacity only, so it stays on the GPU) --- */
+@keyframes tu-admin-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes tu-pop {
+  from {
+    opacity: 0;
+    transform: scale3d(0.98, 0.98, 1) translate3d(0, -4px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes tu-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes tu-bar-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes tu-line-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* section switch */
+/* fill-mode backwards (not both): holds the start frame during the delay but
+   releases transform afterwards, so hover transforms on children still work */
+.tu-page {
+  animation: tu-admin-enter 0.42s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+/* children cascade in one after another */
+.tu-stagger > * {
+  animation: tu-admin-enter 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+.tu-stagger > *:nth-child(2) { animation-delay: 45ms; }
+.tu-stagger > *:nth-child(3) { animation-delay: 90ms; }
+.tu-stagger > *:nth-child(4) { animation-delay: 135ms; }
+.tu-stagger > *:nth-child(5) { animation-delay: 180ms; }
+.tu-stagger > *:nth-child(6) { animation-delay: 225ms; }
+.tu-stagger > *:nth-child(7) { animation-delay: 270ms; }
+.tu-stagger > *:nth-child(n + 8) { animation-delay: 300ms; }
+
+.tu-pop {
+  animation: tu-pop 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+.tu-fade {
+  animation: tu-fade 0.35s ease both;
+}
+
+/* buttons: gentle lift on hover, quick squeeze on press */
+.tu-press {
+  transition:
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    opacity 0.2s ease;
+}
+.tu-press:hover:not(:disabled) {
+  transform: translate3d(0, -1px, 0);
+}
+.tu-press:active:not(:disabled) {
+  transform: scale3d(0.95, 0.95, 1);
+  transition-duration: 0.08s;
+}
+/* press-only variant for list items, where a hover lift would look jumpy */
+.tu-tap {
+  transition:
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    color 0.2s ease,
+    background-color 0.2s ease;
+}
+.tu-tap:active:not(:disabled) {
+  transform: scale3d(0.97, 0.97, 1);
+  transition-duration: 0.08s;
+}
+
+.tu-lift {
+  transition:
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.3s ease;
+}
+.tu-lift:hover {
+  transform: translate3d(0, -2px, 0);
+}
+
+/* sidebar: one highlight that glides to the selected item */
+.tu-nav-indicator {
+  transition:
+    transform 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.2s ease;
+}
+
+.tu-bar {
+  transform-origin: left center;
+  animation: tu-bar-grow 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* pair with pathLength="1" on the <path> */
+.tu-line-draw {
+  stroke-dasharray: 1;
+  animation: tu-line-draw 1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+  .tu-page,
+  .tu-stagger > *,
+  .tu-pop,
+  .tu-fade,
+  .tu-bar,
+  .tu-line-draw {
+    animation: none !important;
+  }
+  .tu-press,
+  .tu-press:hover,
+  .tu-press:active,
+  .tu-tap,
+  .tu-tap:active,
+  .tu-lift,
+  .tu-lift:hover {
+    transform: none;
+    transition: none;
+  }
+  /* positioned by transform — keep it, just drop the glide */
+  .tu-nav-indicator {
+    transition: none;
   }
   .reveal,
   .reveal.is-visible {

@@ -148,20 +148,22 @@ export function AdminDashboard() {
       drawerOpen={drawerOpen}
       setDrawerOpen={setDrawerOpen}
     >
-      {tab === "overview" && <OverviewTab />}
-      {tab === "analytics" && <AnalyticsTab />}
-      {tab === "users" && <UsersTab currentAdminId={user.id} />}
-      {tab === "tryons" && <TryOnsTab />}
-      {tab === "products" && <ProductsTab />}
-      {tab === "retailers" && <RetailersTab />}
-      {tab === "packs" && <CreditPackagesTab />}
-      {tab === "settings" && <SettingsTab />}
-      {tab === "system" && <SystemTab />}
-      {tab === "payments" && <PaymentsTab />}
-      {tab === "subscriptions" && <SubscriptionsTab />}
-      {tab === "clicks" && <AffiliateClicksTab />}
-      {tab === "ai-usage" && <AIUsageTab />}
-      {tab === "audit" && <AuditLogTab />}
+      <div key={tab} className="tu-page">
+        {tab === "overview" && <OverviewTab />}
+        {tab === "analytics" && <AnalyticsTab />}
+        {tab === "users" && <UsersTab currentAdminId={user.id} />}
+        {tab === "tryons" && <TryOnsTab />}
+        {tab === "products" && <ProductsTab />}
+        {tab === "retailers" && <RetailersTab />}
+        {tab === "packs" && <CreditPackagesTab />}
+        {tab === "settings" && <SettingsTab />}
+        {tab === "system" && <SystemTab />}
+        {tab === "payments" && <PaymentsTab />}
+        {tab === "subscriptions" && <SubscriptionsTab />}
+        {tab === "clicks" && <AffiliateClicksTab />}
+        {tab === "ai-usage" && <AIUsageTab />}
+        {tab === "audit" && <AuditLogTab />}
+      </div>
     </AdminShell>
   );
 }

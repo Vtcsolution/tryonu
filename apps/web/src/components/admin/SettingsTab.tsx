@@ -45,7 +45,7 @@ export function SettingsTab() {
       ) : query.isError || !query.data ? (
         <ErrorNote>{errorText(query.error, "Couldn't load settings.")}</ErrorNote>
       ) : (
-        <div className="space-y-5">
+        <div className="tu-stagger space-y-5">
           {query.data.groups.map((group) => (
             <SettingsGroupCard key={group.id} group={group} />
           ))}
@@ -113,7 +113,7 @@ function SettingsGroupCard({ group }: { group: AdminSettingGroup }) {
       {test && (
         <p
           role="status"
-          className={`mt-3 rounded-[12px] border px-3 py-2 text-[12.5px] ${
+          className={`tu-pop mt-3 rounded-[12px] border px-3 py-2 text-[12.5px] ${
             test.ok ? "border-sage/40 bg-sage-tint/30 text-sage-deep" : "border-[#c0503a]/30 bg-[#c0503a]/10 text-[#a4553f]"
           }`}
         >
@@ -145,7 +145,7 @@ function SettingsGroupCard({ group }: { group: AdminSettingGroup }) {
             Discard
           </SmallButton>
         )}
-        {saved && !dirty && <span className="text-[12.5px] text-sage-deep">Saved — live within ~15 seconds.</span>}
+        {saved && !dirty && <span className="tu-fade text-[12.5px] text-sage-deep">Saved — live within ~15 seconds.</span>}
         {save.isError && <ErrorNote>{errorText(save.error, "Couldn't save.")}</ErrorNote>}
       </div>
     </section>

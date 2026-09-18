@@ -150,7 +150,7 @@ function UserDetailPanel({ userId, isSelf, onClose }: { userId: string; isSelf: 
   };
 
   return (
-    <div className="mb-6 rounded-[20px] border border-sage/50 bg-sage-tint/20 p-5">
+    <div className="tu-pop mb-6 rounded-[20px] border border-sage/50 bg-sage-tint/20 p-5">
       {detail.isLoading || !detail.data ? (
         detail.isError ? <ErrorNote>{errorText(detail.error, "Couldn't load this user.")}</ErrorNote> : <TableSkeleton />
       ) : (
@@ -168,7 +168,7 @@ function UserDetailPanel({ userId, isSelf, onClose }: { userId: string; isSelf: 
             <SmallButton onClick={onClose}>Close</SmallButton>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <div className="tu-stagger mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
             <StatTile label="Credits" value={detail.data.user.credits_balance} />
             <StatTile label="Try-ons" value={detail.data.tryon_jobs_total} />
             <StatTile label="Photos" value={detail.data.photos_total} />

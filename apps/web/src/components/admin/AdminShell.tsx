@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Logo } from "@/components/ui/Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { useLogout } from "@/lib/auth/useSession";
@@ -64,7 +64,7 @@ export function AdminShell<T extends string>({
 
       <div className={`fixed inset-0 z-50 lg:hidden ${drawerOpen ? "" : "pointer-events-none"}`} aria-hidden={!drawerOpen}>
         <div
-          className={`absolute inset-0 bg-black/45 transition-opacity duration-300 ${drawerOpen ? "opacity-100" : "opacity-0"}`}
+          className={`absolute inset-0 bg-black/45 backdrop-blur-[2px] transition-opacity duration-300 ${drawerOpen ? "opacity-100" : "opacity-0"}`}
           onClick={() => setDrawerOpen(false)}
         />
         <div
@@ -87,7 +87,7 @@ export function AdminShell<T extends string>({
             type="button"
             onClick={() => setDrawerOpen(true)}
             aria-label="Open navigation"
-            className="-ml-1 grid h-10 w-10 place-items-center rounded-full text-ink-soft hover:bg-ink/[0.06] lg:hidden"
+            className="tu-press -ml-1 grid h-10 w-10 place-items-center rounded-full text-ink-soft hover:bg-ink/[0.06] lg:hidden"
           >
             <Icon name="menu" />
           </button>
@@ -101,7 +101,7 @@ export function AdminShell<T extends string>({
           <div className="ml-auto flex items-center gap-2">
             <Link
               href="/"
-              className="hidden h-9 items-center gap-1.5 rounded-full border border-line px-3.5 text-[12.5px] text-ink-soft transition-colors hover:border-line-strong hover:text-ink sm:inline-flex"
+              className="tu-press hidden h-9 items-center gap-1.5 rounded-full border border-line px-3.5 text-[12.5px] text-ink-soft hover:border-line-strong hover:text-ink sm:inline-flex"
             >
               <Icon name="external" size={15} />
               View site
@@ -131,6 +131,30 @@ function SidebarContent<T extends string>({
 }) {
   const router = useRouter();
   const logout = useLogout();
+  const listRef = useRef<HTMLDivElement>(null);
+  const [indicator, setIndicator] = useState({ top: 0, height: 0, ready: false, animate: false });
+
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const place = () => {
+      const button = list.querySelector<HTMLElement>(`[data-tab="${CSS.escape(active)}"]`);
+      // hidden copy of the sidebar (desktop vs drawer) has no layout to measure
+      if (!button || button.offsetHeight === 0) return;
+      // layout offsets, not getBoundingClientRect: the button is mid-press
+      // (scaled) when clicked, and transforms would skew the measurement
+      setIndicator((prev) => ({
+        top: button.offsetTop,
+        height: button.offsetHeight,
+        ready: true,
+        animate: prev.ready,
+      }));
+    };
+    place();
+    const ro = new ResizeObserver(place);
+    ro.observe(list);
+    return () => ro.disconnect();
+  }, [active]);
 
   return (
     <>
@@ -142,31 +166,52 @@ function SidebarContent<T extends string>({
       </div>
 
       <nav aria-label="Admin sections" className="flex-1 overflow-y-auto px-3 py-4">
-        {nav.map(({ group, tabs }) => (
-          <div key={group} className="mb-5 last:mb-0">
-            <p className="mb-1.5 px-3 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-faint">{group}</p>
-            <ul className="space-y-0.5">
-              {tabs.map((t) => {
-                const isActive = t.id === active;
-                return (
-                  <li key={t.id}>
-                    <button
-                      type="button"
-                      onClick={() => onSelect(t.id)}
-                      aria-current={isActive ? "page" : undefined}
-                      className={`flex w-full items-center gap-3 rounded-[10px] px-3 py-2 text-left text-[13.5px] transition-colors ${
-                        isActive ? "bg-sage text-white" : "text-ink-soft hover:bg-paper-2 hover:text-ink"
-                      }`}
-                    >
-                      <Icon name={t.icon} size={17} />
-                      {t.label}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
+        <div ref={listRef} className="relative">
+          <span
+            aria-hidden="true"
+            className={`tu-nav-indicator pointer-events-none absolute inset-x-0 top-0 rounded-[10px] bg-sage ${
+              indicator.ready ? "opacity-100" : "opacity-0"
+            }`}
+            style={{
+              transform: `translate3d(0, ${indicator.top}px, 0)`,
+              height: indicator.height,
+              // first placement snaps into position; only later changes glide
+              transitionDuration: indicator.animate ? undefined : "0s",
+            }}
+          />
+          {nav.map(({ group, tabs }) => (
+            <div key={group} className="mb-5 last:mb-0">
+              <p className="mb-1.5 px-3 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-faint">{group}</p>
+              <ul className="space-y-0.5">
+                {tabs.map((t) => {
+                  const isActive = t.id === active;
+                  return (
+                    <li key={t.id}>
+                      <button
+                        type="button"
+                        data-tab={t.id}
+                        onClick={() => onSelect(t.id)}
+                        aria-current={isActive ? "page" : undefined}
+                        className={`tu-tap group relative flex w-full items-center gap-3 rounded-[10px] px-3 py-2 text-left text-[13.5px] ${
+                          isActive ? "text-white" : "text-ink-soft hover:bg-paper-2 hover:text-ink"
+                        }`}
+                      >
+                        <span
+                          className={`transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                            isActive ? "" : "group-hover:translate-x-0.5"
+                          }`}
+                        >
+                          <Icon name={t.icon} size={17} />
+                        </span>
+                        {t.label}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
       </nav>
 
       <div className="shrink-0 border-t border-line p-3">
@@ -184,7 +229,7 @@ function SidebarContent<T extends string>({
         <div className="mt-1 grid grid-cols-2 gap-2">
           <Link
             href="/"
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-line text-[12px] text-ink-soft hover:border-line-strong hover:text-ink"
+            className="tu-press inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-line text-[12px] text-ink-soft hover:border-line-strong hover:text-ink"
           >
             <Icon name="external" size={14} />
             Site
@@ -193,7 +238,7 @@ function SidebarContent<T extends string>({
             type="button"
             disabled={logout.isPending}
             onClick={() => logout.mutate(undefined, { onSuccess: () => router.replace("/sign-in") })}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-line text-[12px] text-ink-soft hover:border-[#c0503a]/40 hover:text-[#a4553f] disabled:opacity-50"
+            className="tu-press inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-line text-[12px] text-ink-soft hover:border-[#c0503a]/40 hover:text-[#a4553f] disabled:opacity-50"
           >
             <Icon name="logout" size={14} />
             Sign out

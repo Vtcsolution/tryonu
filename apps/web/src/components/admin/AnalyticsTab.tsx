@@ -64,7 +64,7 @@ export function AnalyticsTab() {
             type="button"
             aria-pressed={days === r.days}
             onClick={() => setDays(r.days)}
-            className={`h-8 rounded-full px-3.5 text-[12.5px] transition-colors ${
+            className={`tu-press h-8 rounded-full px-3.5 text-[12.5px] ${
               days === r.days ? "bg-ink text-paper" : "border border-line text-ink-soft hover:border-line-strong hover:text-ink"
             }`}
           >
@@ -79,8 +79,8 @@ export function AnalyticsTab() {
       ) : query.isError || !query.data ? (
         <ErrorNote>{errorText(query.error, "Couldn't load analytics.")}</ErrorNote>
       ) : (
-        <div className={`space-y-6 transition-opacity ${query.isFetching && query.isPlaceholderData ? "opacity-60" : ""}`}>
-          <Report data={query.data} />
+        <div className={`tu-stagger space-y-6 transition-opacity ${query.isFetching && query.isPlaceholderData ? "opacity-60" : ""}`}>
+          <Report key={query.data.days} data={query.data} />
         </div>
       )}
     </div>
@@ -98,7 +98,7 @@ function Report({ data }: { data: AnalyticsReport }) {
         </p>
       )}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="tu-stagger grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <StatTile label="Visitors" value={nf.format(data.visitors)} />
         <StatTile label="Page views" value={nf.format(data.views)} />
         <StatTile label="Avg. time on page" value={formatDuration(data.avg_duration_ms)} />
@@ -229,7 +229,7 @@ function BarList({
                 title={`${nf.format(r.visitors)} visitors, ${nf.format(r.views)} page views`}
               >
                 <div
-                  className="h-2 rounded-r-full bg-[var(--color-chart)]"
+                  className="tu-bar h-2 rounded-r-full bg-[var(--color-chart)]"
                   style={{ width: `${Math.max((r.visitors / max) * 100, 1.5)}%` }}
                 />
               </div>
@@ -241,7 +241,7 @@ function BarList({
         <button
           type="button"
           onClick={() => setExpanded((e) => !e)}
-          className="mt-3 text-[12px] text-sage-deep hover:underline"
+          className="tu-press mt-3 text-[12px] text-sage-deep hover:underline"
         >
           {expanded ? "Show less" : `Show all ${rows.length}`}
         </button>
@@ -331,9 +331,9 @@ function TrendChart({ daily }: { daily: AnalyticsReport["daily"] }) {
               </text>
             ) : null,
           )}
-          {geometry.area && <path d={geometry.area} fill="var(--color-chart)" opacity={0.1} />}
+          {geometry.area && <path d={geometry.area} fill="var(--color-chart)" opacity={0.1} className="tu-fade" />}
           {daily.length > 1 && (
-            <path d={geometry.line} fill="none" stroke="var(--color-chart)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+            <path d={geometry.line} pathLength={1} className="tu-line-draw" fill="none" stroke="var(--color-chart)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
           )}
           {daily.length === 1 && (
             <circle cx={geometry.x(0)} cy={geometry.y(daily[0].visitors)} r={4} fill="var(--color-chart)" stroke="var(--color-surface)" strokeWidth={2} />

@@ -29,7 +29,7 @@ export function OverviewTab() {
   return (
     <div className="space-y-8">
       <SectionHeader title="Overview" />
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="tu-stagger grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatTile label="Total users" value={d.total_users} />
         <StatTile label="New users (7d)" value={d.new_users_7d} />
         <StatTile label="Active subscriptions" value={d.active_subscriptions} />
@@ -50,7 +50,7 @@ export function OverviewTab() {
 
       <div>
         <h3 className="font-display text-[16px] text-ink">Revenue</h3>
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="tu-stagger mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatTile label="All time" value={money(d.revenue_cents_total)} />
           <StatTile label="Last 30 days" value={money(d.revenue_cents_30d)} />
           <StatTile label="Subscriptions (30d)" value={money(d.revenue_cents_subscriptions_30d)} />

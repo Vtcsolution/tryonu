@@ -17,7 +17,7 @@ export function errorText(err: unknown, fallback = "Something went wrong."): str
 
 export function StatTile({ label, value, tone }: { label: string; value: ReactNode; tone?: "warn" }) {
   return (
-    <div className="rounded-[16px] border border-line bg-surface p-4">
+    <div className="tu-lift rounded-[16px] border border-line bg-surface p-4 hover:border-line-strong">
       <p className="text-[11px] uppercase tracking-[0.08em] text-faint">{label}</p>
       <p className={`mt-1 font-display text-[22px] ${tone === "warn" ? "text-[#a4553f]" : "text-ink"}`}>{value}</p>
     </div>
@@ -61,7 +61,7 @@ export function SmallButton({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex h-8 items-center whitespace-nowrap rounded-full border px-3 text-[12px] font-medium transition-colors disabled:opacity-50 ${tones[tone]}`}
+      className={`tu-press inline-flex h-8 items-center whitespace-nowrap rounded-full border px-3 text-[12px] font-medium disabled:opacity-50 ${tones[tone]}`}
     >
       {children}
     </button>

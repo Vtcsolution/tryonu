@@ -54,7 +54,7 @@ export function TryOnsTab() {
                 setStatus(s);
                 setOffset(0);
               }}
-              className={`rounded-full px-3 py-1 text-[12px] ${
+              className={`tu-press rounded-full px-3 py-1 text-[12px] ${
                 status === s ? "bg-ink text-paper" : "border border-line text-ink-soft hover:border-line-strong"
               }`}
             >
