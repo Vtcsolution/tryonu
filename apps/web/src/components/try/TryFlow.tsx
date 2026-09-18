@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { VoiceInputButton } from "@/components/ui/VoiceInputButton";
 import { MIN_PHOTOS, PhotoUploader } from "@/components/upload/PhotoUploader";
-import { ApiError, affiliateGoUrl, resolveMediaUrl } from "@/lib/api/client";
+import { ApiError, affiliateGoUrl, resolveMediaUrl, thumbnailUrl } from "@/lib/api/client";
 import {
   liveSearch as liveSearchApi,
   outfits as outfitsApi,
@@ -21,6 +21,7 @@ import type {
   LiveProduct,
   Outfit,
   OutfitItem,
+  OutfitSlot,
   PhotoKind,
   Product,
   StylistResponse,
@@ -76,6 +77,10 @@ export function TryFlow() {
   const [customItem, setCustomItem] = useState<WardrobeItem | null>(null);
   const [prompt, setPrompt] = useState("");
   const [lastStylistReply, setLastStylistReply] = useState<StylistResponse | null>(null);
+  // after "Try on" swaps an alternative in: which item to highlight, and what to restore on Undo
+  const [swappedInId, setSwappedInId] = useState<string | null>(null);
+  const [beforeSwap, setBeforeSwap] = useState<{ product: Product | null; outfit: Outfit | null; reply: StylistResponse | null } | null>(null);
+  const pickRef = useRef<HTMLDivElement>(null);
   const [jobIds, setJobIds] = useState<string[]>([]);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [multiAngle, setMultiAngle] = useState(false);
@@ -146,20 +151,80 @@ export function TryFlow() {
     },
   });
 
-  // "Shop" on an alternative (a real result the AI saw but didn't pick) —
-  // persists it the same way selectLive does, then opens the real,
-  // tracked affiliate link. Doesn't change the current try-on selection.
-  const shopAlternative = useMutation({
-    mutationFn: (item: LiveProduct) =>
-      productsApi.selectLive({
-        query: item.search_term ?? item.name,
-        retailer_slug: item.retailer_slug,
-        retailer_product_id: item.retailer_product_id,
-      }),
-    onSuccess: (p) => {
-      window.open(affiliateGoUrl(p.id, "stylist"), "_blank", "noopener,noreferrer");
+  const saveLive = (item: LiveProduct) =>
+    productsApi.selectLive({
+      query: item.search_term ?? item.name,
+      retailer_slug: item.retailer_slug,
+      retailer_product_id: item.retailer_product_id,
+    });
+
+  // "Buy" on an alternative: persists it, then opens the tracked store link.
+  // Doesn't change the current try-on selection.
+  const shopAlternative = useMutation({ mutationFn: saveLive });
+  const buyAlternative = (item: LiveProduct) => {
+    // opened synchronously so popup blockers allow it, then pointed at the link
+    const tab = window.open("", "_blank");
+    shopAlternative.mutate(item, {
+      onSuccess: (p) => {
+        const url = affiliateGoUrl(p.id, "stylist");
+        if (tab) {
+          tab.opener = null;
+          tab.location.href = url;
+        } else {
+          window.location.href = url;
+        }
+      },
+      onError: () => tab?.close(),
+    });
+  };
+
+  // "Try on" on an alternative: swaps it in for the item it's an
+  // alternative to — a new outfit with the same slots when an outfit is
+  // selected (try-ons render a saved outfit), or the single pick otherwise.
+  const applyAlternative = useMutation({
+    mutationFn: async ({ alt, replaceId }: { alt: LiveProduct; replaceId: string }) => {
+      const picked = await saveLive(alt);
+      if (!outfit) return { picked, newOutfit: null };
+      const newOutfit = await outfitsApi.create({
+        name: outfit.name ?? undefined,
+        occasion: outfit.occasion ?? undefined,
+        items: outfit.items.map((it) => ({
+          product_id: it.product.id === replaceId ? picked.id : it.product.id,
+          slot: it.slot as OutfitSlot,
+        })),
+      });
+      return { picked, newOutfit };
+    },
+    onSuccess: ({ picked, newOutfit }, { alt, replaceId }) => {
+      setBeforeSwap({ product, outfit, reply: lastStylistReply });
+      // the other options stay available for the swapped-in item, minus the one just chosen
+      setLastStylistReply((prev) => {
+        if (!prev) return prev;
+        const { [replaceId]: options = [], ...rest } = prev.alternatives;
+        return {
+          ...prev,
+          products: prev.products.map((p) => (p.id === replaceId ? picked : p)),
+          alternatives: {
+            ...rest,
+            [picked.id]: options.filter((o) => o.retailer_product_id !== alt.retailer_product_id),
+          },
+        };
+      });
+      if (newOutfit) setOutfit(newOutfit);
+      else setProduct(picked);
+      setSwappedInId(picked.id);
+      pickRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     },
   });
+
+  const undoSwap = () => {
+    if (!beforeSwap) return;
+    setProduct(beforeSwap.product);
+    setOutfit(beforeSwap.outfit);
+    setLastStylistReply(beforeSwap.reply);
+    setBeforeSwap(null);
+    setSwappedInId(null);
+  };
 
   // Deep-linked from the AI stylist or product search (?product=<id>) — pin
   // it into the picker's selection once we reach step 1, without changing
@@ -514,29 +579,42 @@ export function TryFlow() {
           )}
 
           {(outfit || (product && lastStylistReply?.products.length === 1 && lastStylistReply.products[0].id === product.id)) && (
-            <div className="mt-4 animate-[tu-in-scale_0.35s_ease] rounded-[20px] border border-sage bg-sage-tint/30 p-4">
+            <div ref={pickRef} className="mt-4 scroll-mt-24 animate-[tu-in-scale_0.35s_ease] rounded-[20px] border border-sage bg-sage-tint/30 p-4">
               <div className="flex items-center justify-between">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-sage-deep">
                   {outfit ? `AI-styled outfit · ${outfit.items.length} items` : "AI-styled pick"}
                 </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOutfit(null);
-                    setProduct(null);
-                    setLastStylistReply(null);
-                  }}
-                  className="text-[12px] text-faint underline-offset-2 hover:text-ink hover:underline"
-                >
-                  Clear
-                </button>
+                <div className="flex items-center gap-3">
+                  {beforeSwap && (
+                    <button
+                      type="button"
+                      onClick={undoSwap}
+                      className="tu-fade text-[12px] text-sage-deep underline-offset-2 hover:underline"
+                    >
+                      ↺ Undo swap
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOutfit(null);
+                      setProduct(null);
+                      setLastStylistReply(null);
+                      setBeforeSwap(null);
+                      setSwappedInId(null);
+                    }}
+                    className="text-[12px] text-faint underline-offset-2 hover:text-ink hover:underline"
+                  >
+                    Clear
+                  </button>
+                </div>
               </div>
 
               {outfit ? (
                 <>
                   <div className="mt-3 grid grid-cols-3 gap-2.5 sm:grid-cols-4">
                     {outfit.items.map((item) => (
-                      <OutfitItemThumb key={item.id} item={item} />
+                      <OutfitItemThumb key={item.id} item={item} highlight={item.product.id === swappedInId} />
                     ))}
                   </div>
                   <p className="mt-3 text-[12px] text-muted">
@@ -553,8 +631,9 @@ export function TryFlow() {
                           key={item.id}
                           label={item.product.name}
                           alternatives={alts}
-                          onShop={(a) => shopAlternative.mutate(a)}
-                          isShopping={shopAlternative.isPending}
+                          onBuy={buyAlternative}
+                          onTryOn={(a) => applyAlternative.mutate({ alt: a, replaceId: item.product.id })}
+                          busyId={applyAlternative.isPending ? applyAlternative.variables?.alt.retailer_product_id : shopAlternative.isPending ? shopAlternative.variables?.retailer_product_id : undefined}
                         />
                       );
                     })}
@@ -583,8 +662,9 @@ export function TryFlow() {
                         <AlternativesRow
                           label={product.name}
                           alternatives={lastStylistReply!.alternatives[product.id]}
-                          onShop={(a) => shopAlternative.mutate(a)}
-                          isShopping={shopAlternative.isPending}
+                          onBuy={buyAlternative}
+                          onTryOn={(a) => applyAlternative.mutate({ alt: a, replaceId: product.id })}
+                          busyId={applyAlternative.isPending ? applyAlternative.variables?.alt.retailer_product_id : shopAlternative.isPending ? shopAlternative.variables?.retailer_product_id : undefined}
                         />
                       </div>
                     )}
@@ -592,6 +672,14 @@ export function TryFlow() {
                 )
               )}
             </div>
+          )}
+
+          {(applyAlternative.isError || shopAlternative.isError) && (
+            <p role="alert" className="mt-3 text-[13px] text-[#a4553f]">
+              {(applyAlternative.error ?? shopAlternative.error) instanceof ApiError
+                ? ((applyAlternative.error ?? shopAlternative.error) as ApiError).detail
+                : "That option isn't available any more — try another one."}
+            </p>
           )}
 
           <div className="mt-8 flex items-center gap-3 text-[12px] text-faint">
@@ -1030,11 +1118,20 @@ function ResultStep({
   );
 }
 
-function OutfitItemThumb({ item }: { item: OutfitItem }) {
+function OutfitItemThumb({ item, highlight = false }: { item: OutfitItem; highlight?: boolean }) {
   const thumb = resolveMediaUrl(item.product.images[0]?.url);
   const rendered = RENDERABLE_SLOTS.has(item.slot);
   return (
-    <div className="overflow-hidden rounded-[14px] border border-line bg-surface">
+    <div
+      className={`relative overflow-hidden rounded-[14px] border bg-surface ${
+        highlight ? "tu-pop border-sage ring-2 ring-sage/40" : "border-line"
+      }`}
+    >
+      {highlight && (
+        <span className="absolute right-1 top-1 z-10 rounded-full bg-sage px-1.5 py-0.5 text-[9px] font-semibold text-white">
+          Swapped in
+        </span>
+      )}
       <div className="relative aspect-square bg-paper-2">
         {thumb && (
           // eslint-disable-next-line @next/next/no-img-element
@@ -1056,39 +1153,65 @@ function OutfitItemThumb({ item }: { item: OutfitItem }) {
 function AlternativesRow({
   label,
   alternatives,
-  onShop,
-  isShopping,
+  onBuy,
+  onTryOn,
+  busyId,
 }: {
   label: string;
   alternatives: LiveProduct[];
-  onShop: (item: LiveProduct) => void;
-  isShopping: boolean;
+  onBuy: (item: LiveProduct) => void;
+  onTryOn: (item: LiveProduct) => void;
+  busyId?: string;
 }) {
+  const busy = busyId !== undefined;
   return (
     <div>
       <p className="truncate text-[11px] text-faint">Other options for &ldquo;{label}&rdquo;</p>
-      <div className="mt-1.5 flex gap-2 overflow-x-auto pb-1">
+      <div className="mt-1.5 flex gap-2.5 overflow-x-auto pb-1.5">
         {alternatives.map((alt) => {
-          const thumb = resolveMediaUrl(alt.images[0]);
+          const thumb = thumbnailUrl(alt.images[0]);
+          const working = busyId === alt.retailer_product_id;
           return (
-            <button
+            <div
               key={`${alt.retailer_slug}:${alt.retailer_product_id}`}
-              type="button"
-              disabled={isShopping}
-              onClick={() => onShop(alt)}
-              title={`${alt.name} — ${(alt.price_cents / 100).toFixed(2)} ${alt.currency.toUpperCase()}`}
-              className="flex w-20 shrink-0 flex-col overflow-hidden rounded-[12px] border border-line bg-surface text-left transition-colors hover:border-sage disabled:opacity-60"
+              className="flex w-[132px] shrink-0 flex-col overflow-hidden rounded-[14px] border border-line bg-surface"
             >
-              <div className="relative aspect-square bg-paper-2">
+              <div className="relative aspect-square bg-paper-2" title={alt.name}>
                 {thumb && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={thumb} alt={alt.name} className="h-full w-full object-cover object-top" />
+                  <img src={thumb} alt={alt.name} loading="lazy" className="h-full w-full object-cover object-top" />
+                )}
+                {working && (
+                  <span className="absolute inset-0 grid place-items-center bg-surface/60">
+                    <span className="h-6 w-6 animate-spin rounded-full border-2 border-line-strong border-t-sage" />
+                  </span>
                 )}
               </div>
-              <p className="px-1 py-1 text-[10px] font-semibold text-ink-soft">
-                {(alt.price_cents / 100).toFixed(0)} {alt.currency.toUpperCase()}
-              </p>
-            </button>
+              <div className="flex flex-1 flex-col p-2">
+                <p className="text-[12px] font-semibold text-ink">
+                  {(alt.price_cents / 100).toFixed(2)} {alt.currency.toUpperCase()}
+                </p>
+                <p className="line-clamp-2 text-[10.5px] leading-snug text-muted">{alt.name}</p>
+                <div className="mt-auto grid grid-cols-2 gap-1.5 pt-2">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => onTryOn(alt)}
+                    className="tu-press h-7 rounded-full bg-sage text-[11px] font-medium text-white hover:bg-sage-deep disabled:opacity-50"
+                  >
+                    Try on
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => onBuy(alt)}
+                    className="tu-press h-7 rounded-full border border-line-strong text-[11px] font-medium text-ink hover:border-ink/40 disabled:opacity-50"
+                  >
+                    Buy
+                  </button>
+                </div>
+              </div>
+            </div>
           );
         })}
       </div>

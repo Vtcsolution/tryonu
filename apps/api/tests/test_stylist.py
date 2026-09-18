@@ -362,3 +362,35 @@ async def test_chat_recommend_outfit_routes_all_use_the_same_real_products_engin
         returned_ids = {p["id"] for p in body["products"]}
         real_ids = set((await db.execute(select(Product.id).where(Product.id.in_(returned_ids)))).scalars().all())
         assert returned_ids == real_ids
+
+
+async def test_stylist_alternatives_never_offer_another_item_already_in_the_outfit(client, monkeypatch):
+    """Two picks from the same search must not list each other as
+    alternatives — swapping one in would put the same product in the outfit
+    twice."""
+    options = [
+        _raw("Budget Jacket", price_cents=3000),
+        _raw("Mid Jacket", price_cents=6000),
+        _raw("Premium Jacket", price_cents=12000),
+    ]
+    _patch_live_search(monkeypatch, _live_results(*options))
+
+    class PicksTwoProvider:
+        name = "picks-two"
+        model = "picks-two-1"
+
+        async def recommend(self, query: StylistQuery, candidates: list[StylistCandidate]) -> StylistRecommendation:
+            return StylistRecommendation(summary="two jackets", chosen_indexes=[0, 1])
+
+    monkeypatch.setattr("app.services.stylist_service.get_stylist_provider", lambda: PicksTwoProvider())
+    await register_and_login(client)
+
+    resp = await client.post("/api/v1/stylist/ask", json={"prompt": "a leather jacket", "max_items": 2})
+    assert resp.status_code == 200
+    body = resp.json()
+    chosen_names = {p["name"] for p in body["products"]}
+    assert chosen_names == {"Budget Jacket", "Mid Jacket"}
+    for p in body["products"]:
+        alt_names = {a["name"] for a in body["alternatives"].get(p["id"], [])}
+        assert alt_names.isdisjoint(chosen_names)
+        assert alt_names == {"Premium Jacket"}

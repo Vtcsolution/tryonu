@@ -187,14 +187,16 @@ async def _fetch_candidates(req: StylistAskRequest, profile: TasteProfile | None
 _MAX_ALTERNATIVES = 8
 
 
-def _alternatives_for(chosen: _Candidate, pool: list[_Candidate]) -> list[RawProduct]:
+def _alternatives_for(chosen: _Candidate, pool: list[_Candidate], picked_ids: set[str]) -> list[RawProduct]:
     """Other real, live-fetched results for the same item type — spanning
     low to high price so "show me other options, cheap and expensive" is
-    real data, not invented. Never includes the chosen item itself."""
+    real data, not invented. Excludes everything already in the pick: two
+    outfit items from the same search would otherwise list each other, and
+    swapping one in would put the same product in the outfit twice."""
     same_term = [
         c.result.raw
         for c in pool
-        if c.term == chosen.term and c.result.raw.retailer_product_id != chosen.result.raw.retailer_product_id
+        if c.term == chosen.term and c.result.raw.retailer_product_id not in picked_ids
     ]
     if not same_term:
         return []
@@ -313,8 +315,9 @@ async def ask_stylist(
     # results already fetched above, never an extra API call, never
     # invented. Keeps the search term alongside them so a client can
     # re-locate and persist one via POST /products/select-live if picked.
+    picked_ids = {c.result.raw.retailer_product_id for c in chosen}
     alternatives_by_product_id = {
-        product.id: (c.term, _alternatives_for(c, candidates)) for product, c in zip(chosen_products, chosen)
+        product.id: (c.term, _alternatives_for(c, candidates, picked_ids)) for product, c in zip(chosen_products, chosen)
     }
 
     outfit: Outfit | None = None
