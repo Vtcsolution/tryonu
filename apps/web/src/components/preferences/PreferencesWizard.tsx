@@ -4,13 +4,63 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/Button";
-import { TagInput } from "@/components/ui/TagInput";
+import { TagInput, type TagSuggestion } from "@/components/ui/TagInput";
 import { ApiError } from "@/lib/api/client";
 import { catalog, preferences as preferencesApi } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
 import type { Gender, TaxonomyNode, UserPreference } from "@/lib/api/types";
 
 const STEPS = ["You", "Categories", "Styles", "Details"] as const;
+
+const CLOTHING_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "3XL"];
+const WOMEN_SHOE_SIZES = ["EU 36", "EU 37", "EU 38", "EU 39", "EU 40", "EU 41"];
+const MEN_SHOE_SIZES = ["EU 40", "EU 41", "EU 42", "EU 43", "EU 44", "EU 45"];
+const KIDS_AGES = ["2–3 yrs", "4–5 yrs", "6–7 yrs", "8–9 yrs", "10–12 yrs", "13–14 yrs"];
+const COLOURS: TagSuggestion[] = [
+  { value: "Black", swatch: "#1c1b17" },
+  { value: "White", swatch: "#ffffff" },
+  { value: "Cream", swatch: "#f3ead7" },
+  { value: "Beige", swatch: "#d9c7a7" },
+  { value: "Maroon", swatch: "#6d1a2a" },
+  { value: "Red", swatch: "#c0392b" },
+  { value: "Pink", swatch: "#e79bb3" },
+  { value: "Peach", swatch: "#f4b89a" },
+  { value: "Mustard", swatch: "#d4a017" },
+  { value: "Green", swatch: "#3f7a4a" },
+  { value: "Mint", swatch: "#a8dcc4" },
+  { value: "Navy", swatch: "#1f2f5a" },
+  { value: "Blue", swatch: "#3b6fd8" },
+  { value: "Purple", swatch: "#6b3fa0" },
+  { value: "Grey", swatch: "#8a8a8a" },
+  { value: "Brown", swatch: "#7a4b2a" },
+  { value: "Gold", swatch: "#c9a13b" },
+  { value: "Silver", swatch: "#c0c0c0" },
+];
+const WOMEN_BRANDS = ["Khaadi", "Gul Ahmed", "Sapphire", "Alkaram", "Bonanza Satrangi", "Limelight", "Maria B", "Sana Safinaz", "Nishat Linen", "Beechtree", "Agha Noor", "Asim Jofa"];
+const MEN_BRANDS = ["J.", "Bonanza Satrangi", "Edenrobe", "Outfitters", "Breakout", "Charcoal", "Diners", "Cambridge"];
+const GLOBAL_BRANDS = ["Zara", "H&M", "Levi's", "Nike", "Adidas", "Mango", "Casio", "Fossil"];
+const BUDGETS: { label: string; min: number | null; max: number | null }[] = [
+  { label: "Under $25", min: null, max: 25 },
+  { label: "$25 – 50", min: 25, max: 50 },
+  { label: "$50 – 100", min: 50, max: 100 },
+  { label: "$100 – 250", min: 100, max: 250 },
+  { label: "$250+", min: 250, max: null },
+];
+
+function sizeSuggestions(picked: Set<string>): string[] {
+  const any = (...prefixes: string[]) => [...picked].some((id) => prefixes.some((p) => id === p || id.startsWith(`${p}.`)));
+  const out: string[] = [];
+  if (any("w.eastern", "w.western", "m.eastern", "m.western")) out.push(...CLOTHING_SIZES);
+  if (any("w.shoes")) out.push(...WOMEN_SHOE_SIZES);
+  if (any("m.shoes")) out.push(...MEN_SHOE_SIZES);
+  if (any("k")) out.push(...KIDS_AGES);
+  return [...new Set(out)];
+}
+
+function brandSuggestions(picked: Set<string>): string[] {
+  const out = [...(picked.has("w") ? WOMEN_BRANDS : []), ...(picked.has("m") ? MEN_BRANDS : []), ...GLOBAL_BRANDS];
+  return [...new Set(out)];
+}
 
 type Index = { nodes: Map<string, TaxonomyNode>; parent: Map<string, string | null> };
 
@@ -235,18 +285,39 @@ export function PreferencesWizard() {
 
         {step === 3 && (
           <>
-            <Title kicker="Step 4 of 4 · optional" title={<>A few <em>details</em></>} hint="Helps us show the right sizes and prices. Skip anything you like." />
-            <div className="tu-stagger mt-7 space-y-6 rounded-[22px] border border-line bg-surface p-6 sm:p-8">
-              <Field label="Sizes">
-                <TagInput values={sizes} onChange={setSizes} placeholder="e.g. M, 32, 7 — press Enter" />
+            <Title kicker="Step 4 of 4 · optional" title={<>A few <em>details</em></>} hint="Tap what fits you — or type your own. Skip anything you like." />
+            <div className="tu-stagger mt-7 space-y-7 rounded-[22px] border border-line bg-surface p-6 sm:p-8">
+              <Field label="Your sizes">
+                <TagInput values={sizes} onChange={setSizes} suggestions={sizeSuggestions(picked)} placeholder="Type another size and press Enter" />
               </Field>
-              <Field label="Favourite colours">
-                <TagInput values={colors} onChange={setColors} placeholder="e.g. black, maroon — press Enter" />
+              <Field label="Colours you love">
+                <TagInput values={colors} onChange={setColors} suggestions={COLOURS} placeholder="Type another colour and press Enter" />
               </Field>
               <Field label="Favourite brands">
-                <TagInput values={brands} onChange={setBrands} placeholder="e.g. Khaadi, Gul Ahmed — press Enter" />
+                <TagInput values={brands} onChange={setBrands} suggestions={brandSuggestions(picked)} placeholder="Type another brand and press Enter" />
               </Field>
               <Field label="Budget per item (USD)">
+                <div className="mb-3 flex flex-wrap gap-1.5">
+                  {BUDGETS.map((b) => {
+                    const on = budgetMin === (b.min?.toString() ?? "") && budgetMax === (b.max?.toString() ?? "");
+                    return (
+                      <button
+                        key={b.label}
+                        type="button"
+                        aria-pressed={on}
+                        onClick={() => {
+                          setBudgetMin(on ? "" : (b.min?.toString() ?? ""));
+                          setBudgetMax(on ? "" : (b.max?.toString() ?? ""));
+                        }}
+                        className={`tu-press rounded-full border px-3 py-1.5 text-[12.5px] ${
+                          on ? "border-sage bg-sage text-white" : "border-line-strong bg-surface text-ink-soft hover:border-sage hover:text-ink"
+                        }`}
+                      >
+                        {b.label}
+                      </button>
+                    );
+                  })}
+                </div>
                 <div className="flex items-center gap-3">
                   <MoneyInput value={budgetMin} onChange={setBudgetMin} placeholder="Min" />
                   <span className="text-faint">–</span>
