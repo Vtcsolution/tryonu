@@ -52,7 +52,6 @@ const MEN_PROMPTS = [
   "Navy suit for men with brown loafers and a watch",
 ];
 
-const RENDERABLE_SLOTS = new Set(["top", "bottom", "dress", "outerwear", "shoes"]);
 
 const STEPS = ["Fitting profile", "Choose product", "Your look"] as const;
 const TERMINAL: TryOnJob["status"][] = ["completed", "failed", "cancelled"];
@@ -682,13 +681,17 @@ export function TryFlow() {
                 <>
                   <div className="mt-3 grid grid-cols-3 gap-2.5 sm:grid-cols-4">
                     {outfit.items.map((item) => (
-                      <OutfitItemThumb key={item.id} item={item} highlight={item.product.id === swappedInId} />
+                      <OutfitItemThumb
+                        key={item.id}
+                        item={item}
+                        rendered={outfit.rendered_item_ids.includes(item.id)}
+                        highlight={item.product.id === swappedInId}
+                      />
                     ))}
                   </div>
                   <p className="mt-3 text-[12px] text-muted">
-                    Clothing and shoes are layered onto your photo; watches, bags, and other
-                    accessories are matched products with their own shop link, shown alongside
-                    the result.
+                    Items marked &ldquo;on photo&rdquo; are drawn onto your photo; items marked
+                    &ldquo;matched&rdquo; are shown alongside the result with their own shop link.
                   </p>
                   <div className="mt-4 space-y-3 border-t border-line/70 pt-3">
                     {outfit.items.map((item) => {
@@ -1186,9 +1189,16 @@ function ResultStep({
   );
 }
 
-function OutfitItemThumb({ item, highlight = false }: { item: OutfitItem; highlight?: boolean }) {
+function OutfitItemThumb({
+  item,
+  rendered,
+  highlight = false,
+}: {
+  item: OutfitItem;
+  rendered: boolean;
+  highlight?: boolean;
+}) {
   const thumb = resolveMediaUrl(item.product.images[0]?.url);
-  const rendered = RENDERABLE_SLOTS.has(item.slot);
   return (
     <div
       className={`relative overflow-hidden rounded-[14px] border bg-surface ${
@@ -1298,7 +1308,7 @@ function OutfitResultStep({
   onTryAnother: () => void;
   onStartOver: () => void;
 }) {
-  const renderedCount = outfit.items.filter((i) => RENDERABLE_SLOTS.has(i.slot)).length;
+  const renderedCount = outfit.rendered_item_ids.length;
   const [activeIndex, setActiveIndex] = useState(0);
   const job = jobs[activeIndex] ?? jobs[0];
   const totalCredits = jobs.reduce((sum, j) => sum + j.credit_cost, 0);
@@ -1327,8 +1337,9 @@ function OutfitResultStep({
             </span>
           </div>
           <p className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
-            {renderedCount} of {outfit.items.length} items applied to the photo — remaining
-            accessories are matched products, not visually composited.
+            {renderedCount === outfit.items.length
+              ? "Every item in this outfit is on the photo."
+              : `${renderedCount} of ${outfit.items.length} items drawn on the photo — the items marked “matched” are shown alongside with their own shop links.`}
           </p>
         </div>
 
@@ -1343,7 +1354,7 @@ function OutfitResultStep({
 
           <div className="mt-4 grid grid-cols-3 gap-2">
             {outfit.items.map((item) => (
-              <OutfitItemThumb key={item.id} item={item} />
+              <OutfitItemThumb key={item.id} item={item} rendered={outfit.rendered_item_ids.includes(item.id)} />
             ))}
           </div>
 

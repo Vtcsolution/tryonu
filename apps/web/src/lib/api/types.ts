@@ -193,6 +193,8 @@ export type Outfit = {
   compatibility_score: number | null;
   compatibility_notes: string[] | null;
   created_at: string;
+  // items the configured try-on model actually draws on the photo; the rest are shown alongside
+  rendered_item_ids: string[];
 };
 
 export type OutfitItemInput = {

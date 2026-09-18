@@ -6,7 +6,7 @@ from __future__ import annotations
 import pytest
 
 from app.models.enums import OutfitSlot
-from app.services.outfit_slots import slot_for
+from app.services.outfit_slots import render_plan, slot_for
 
 
 @pytest.mark.parametrize(
@@ -31,3 +31,42 @@ from app.services.outfit_slots import slot_for
 )
 def test_slot_for_real_titles(title, slot):
     assert slot_for(title) == slot
+
+
+_OUTFIT = [
+    (OutfitSlot.SHOES, "Pakistani Men Peshawari Sandals (Kaptaan Chappal)"),
+    (OutfitSlot.OUTERWEAR, "BLACK New Men Solid Tuxedo Suit Dress Vest Waistcoat"),
+    (OutfitSlot.OTHER, "Pakistani Men's Shalwar Kameez, Indian Kurta Pajama"),
+    (OutfitSlot.ACCESSORY, "Kundan Bangles Set"),
+]
+
+
+def test_tryon_max_draws_outfit_then_waistcoat_then_shoes():
+    assert render_plan(_OUTFIT, "tryon-max") == [
+        (2, OutfitSlot.DRESS),
+        (1, OutfitSlot.OUTERWEAR),
+        (0, OutfitSlot.SHOES),
+    ]
+
+
+def test_standard_model_draws_a_full_outfit_alone():
+    """v1.6 can't layer or draw footwear — a waistcoat sent after the kameez
+    replaced its top with a pasted patch."""
+    assert render_plan(_OUTFIT, "tryon-v1.6") == [(2, OutfitSlot.DRESS)]
+
+
+def test_standard_model_still_combines_separate_top_and_bottom():
+    items = [(OutfitSlot.TOP, "Cotton kurta for men"), (OutfitSlot.BOTTOM, "Levi 501 jeans")]
+    assert render_plan(items, "tryon-v1.6") == [(1, OutfitSlot.BOTTOM), (0, OutfitSlot.TOP)]
+
+
+def test_each_layer_gets_an_explicit_category_or_instruction():
+    from app.workers.tasks.tryon_tasks import _Layer, _tryon_input
+
+    vest = _Layer("https://img.example/vest.jpg", OutfitSlot.OUTERWEAR)
+    v16 = _tryon_input("https://img.example/me.jpg", vest, "tryon-v1.6")
+    assert v16.category == "tops" and v16.prompt == ""
+    mx = _tryon_input("https://img.example/me.jpg", vest, "tryon-max")
+    assert "over the person's current outfit" in mx.prompt
+    kameez = _tryon_input("https://img.example/me.jpg", _Layer("https://img.example/k.jpg", OutfitSlot.DRESS), "tryon-v1.6")
+    assert kameez.category == "one-pieces"

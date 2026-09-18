@@ -201,11 +201,12 @@ async def test_outfit_tryon_only_composites_renderable_slots(client, db, monkeyp
     assert finished["outfit"]["items"][1]["slot"] == "shoes"
 
 
-async def test_outfit_tryon_draws_the_full_outfit_first_then_layers_over_it(client, db, monkeypatch):
-    """Real bug: a kurta pajama saved as "other" was never drawn, so the
-    photo kept its jeans with only the waistcoat on top. It's re-classified
-    at render time and drawn before the waistcoat; the bangle stays a
-    matched product."""
+async def test_outfit_tryon_draws_the_full_outfit_not_a_patch_over_it(client, db, monkeypatch):
+    """Real bugs: a kurta pajama saved as "other" was never drawn (the photo
+    kept its jeans), and once it was, the waistcoat sent after it came out
+    as a pasted patch — the standard model can't layer. Now the kurta is
+    re-classified and drawn as a full outfit, and on a non-layering model
+    the waistcoat and bangle stay matched products."""
     calls: list[str] = []
 
     async def fake_generate(self, payload):  # noqa: ARG001
@@ -234,7 +235,9 @@ async def test_outfit_tryon_draws_the_full_outfit_first_then_layers_over_it(clie
     assert resp.status_code == 201, resp.text
     finished = await _poll_until_terminal(client, resp.json()["id"])
     assert finished["status"] == "completed"
-    assert calls == ["https://img.example/kurta.jpg", "https://img.example/vest.jpg"]
+    assert calls == ["https://img.example/kurta.jpg"]
+    kurta_item = next(i for i in finished["outfit"]["items"] if "Kurta" in i["product"]["name"])
+    assert finished["outfit"]["rendered_item_ids"] == [kurta_item["id"]]
 
 
 def test_renderable_slots_only_adds_shoes_for_tryon_max():

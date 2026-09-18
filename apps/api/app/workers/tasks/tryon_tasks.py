@@ -8,6 +8,7 @@ failed, with automatic credit refund on failure.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -25,24 +26,14 @@ from app.models.outfit import OutfitItem
 from app.models.product import Product
 from app.models.tryon import TryOnJob, TryOnResult
 from app.services import credit_service
-from app.services.outfit_slots import LAYER_ORDER, slot_for
+from app.services.outfit_slots import MAX_PROMPT, V16_CATEGORY, render_plan, renderable_slots, slot_for
 from app.services.storage_service import get_storage, new_key
 
 settings = get_settings()
 MAX_ATTEMPTS = 3
 
-# tryon-v1.6 only composites garments worn on the torso/legs — its
-# "category" field is limited to tops/bottoms/one-pieces, so footwear sent
-# to it produces unreliable output. tryon-max has no such restriction (it
-# accepts any wearable item, footwear included, per FASHN's own docs) — so
-# the extra slots below only widen the render set when that specific model
-# is actually configured, confirmed live against FASHN's API.
-_RENDERABLE_SLOTS = {OutfitSlot.TOP, OutfitSlot.BOTTOM, OutfitSlot.DRESS, OutfitSlot.OUTERWEAR}
-_MAX_MODEL_EXTRA_SLOTS = {OutfitSlot.SHOES}
-
-
 def _renderable_slots(model: str) -> set[OutfitSlot]:
-    return _RENDERABLE_SLOTS | _MAX_MODEL_EXTRA_SLOTS if model == "tryon-max" else _RENDERABLE_SLOTS
+    return renderable_slots(model)
 
 
 def _absolute_url(url: str) -> str:
@@ -51,13 +42,19 @@ def _absolute_url(url: str) -> str:
     return url
 
 
-async def _garment_image_urls(session, job: TryOnJob, renderable_slots: set[OutfitSlot]) -> list[str]:
+@dataclass(frozen=True, slots=True)
+class _Layer:
+    image_url: str
+    slot: OutfitSlot | None  # None: a single item we know nothing about — let the model infer
+
+
+async def _garment_layers(session, job: TryOnJob, model: str) -> list[_Layer]:
     if job.product is not None:
         img = job.product.primary_image_url
-        return [img] if img else []
+        return [_Layer(img, slot_for(job.product.name))] if img else []
 
     if job.wardrobe_item is not None:
-        return [job.wardrobe_item.image_url] if job.wardrobe_item.image_url else []
+        return [_Layer(job.wardrobe_item.image_url, None)] if job.wardrobe_item.image_url else []
 
     if job.outfit_id is not None:
         result = await session.execute(
@@ -66,21 +63,22 @@ async def _garment_image_urls(session, job: TryOnJob, renderable_slots: set[Outf
             .options(selectinload(OutfitItem.product).selectinload(Product.images))
             .order_by(OutfitItem.position)
         )
-        layers: list[tuple[int, int, str]] = []
-        for pos, item in enumerate(result.scalars().all()):
-            if not item.product or not item.product.primary_image_url:
-                continue
-            slot = item.slot
-            if slot == OutfitSlot.OTHER:
-                # saved before the classifier knew this kind of item (e.g. a
-                # kurta pajama) — classify it again from the product itself
-                slot = slot_for(item.product.name)
-            if slot in renderable_slots:
-                layers.append((LAYER_ORDER.get(slot, 9), pos, item.product.primary_image_url))
-        # base outfit first, then a waistcoat/jacket over it, then shoes
-        return [url for _, _, url in sorted(layers)]
+        items = [i for i in result.scalars().all() if i.product and i.product.primary_image_url]
+        plan = render_plan([(i.slot, i.product.name) for i in items], model)
+        return [_Layer(items[idx].product.primary_image_url, slot) for idx, slot in plan]
 
     return []
+
+
+def _tryon_input(model_url: str, layer: _Layer, model: str) -> TryOnInput:
+    garment_url = _absolute_url(layer.image_url)
+    if layer.slot is None:
+        return TryOnInput(model_image_url=model_url, garment_image_url=garment_url)
+    if model == "tryon-max":
+        return TryOnInput(model_image_url=model_url, garment_image_url=garment_url, prompt=MAX_PROMPT.get(layer.slot, ""))
+    return TryOnInput(
+        model_image_url=model_url, garment_image_url=garment_url, category=V16_CATEGORY.get(layer.slot, "auto")
+    )
 
 
 async def run_tryon_job_async(job_id: str) -> None:
@@ -108,8 +106,8 @@ async def run_tryon_job_async(job_id: str) -> None:
         await session.commit()
 
         provider = get_tryon_provider()
-        garment_urls = await _garment_image_urls(session, job, _renderable_slots(provider.model))
-        if not garment_urls:
+        layers = await _garment_layers(session, job, provider.model)
+        if not layers:
             message = (
                 "This outfit has no clothing item FASHN can render (only accessories, "
                 "which aren't visually applied) — nothing to generate an image from"
@@ -128,14 +126,12 @@ async def run_tryon_job_async(job_id: str) -> None:
         try:
             # Multi-item outfits are rendered as a sequential chain: each
             # garment is applied on top of the previous step's result.
-            for garment_url in garment_urls:
-                output = await provider.generate(
-                    TryOnInput(model_image_url=current_model_url, garment_image_url=_absolute_url(garment_url))
-                )
+            for layer in layers:
+                output = await provider.generate(_tryon_input(current_model_url, layer, provider.model))
                 final_bytes = output.image_bytes
                 final_content_type = output.content_type
 
-                if len(garment_urls) > 1:
+                if len(layers) > 1:
                     # stage the intermediate result so the next garment
                     # layers on top of it
                     interim_key = new_key("tryon", "interim", f"{job.id}-{len(final_bytes)}.jpg")

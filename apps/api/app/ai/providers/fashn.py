@@ -76,11 +76,14 @@ class FASHNTryOnProvider(VirtualTryOnProvider):
                 "resolution": "2k",
                 "generation_mode": "quality",
             }
+            if payload.prompt:
+                inputs["prompt"] = payload.prompt
         else:
             inputs = {
                 "model_image": payload.model_image_url,
                 "garment_image": payload.garment_image_url,
                 "category": payload.category,
+                "mode": "quality",
             }
 
         try:

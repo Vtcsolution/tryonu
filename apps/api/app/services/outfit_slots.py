@@ -98,3 +98,59 @@ LAYER_ORDER = {
     OutfitSlot.OUTERWEAR: 3,
     OutfitSlot.SHOES: 4,
 }
+
+
+# --- what the try-on actually draws -------------------------------------
+
+_CLOTHING = {OutfitSlot.TOP, OutfitSlot.BOTTOM, OutfitSlot.DRESS, OutfitSlot.OUTERWEAR}
+
+# tryon-v1.6's "category" (per FASHN's docs: auto/tops/bottoms/one-pieces).
+# "auto" guessed wrong on close-up product shots, so it's always explicit.
+V16_CATEGORY = {
+    OutfitSlot.DRESS: "one-pieces",
+    OutfitSlot.TOP: "tops",
+    OutfitSlot.OUTERWEAR: "tops",
+    OutfitSlot.BOTTOM: "bottoms",
+}
+
+# tryon-max takes free-text instructions — used so a waistcoat goes OVER
+# the kameez and shoes replace only the shoes, instead of the model
+# swapping out whatever it thinks is closest.
+MAX_PROMPT = {
+    OutfitSlot.DRESS: "Dress the person in this complete outfit, replacing their current top and bottom.",
+    OutfitSlot.TOP: "Replace only the person's top with this item; keep everything else unchanged.",
+    OutfitSlot.BOTTOM: "Replace only the person's trousers or bottom with this item; keep everything else unchanged.",
+    OutfitSlot.OUTERWEAR: "Layer this item over the person's current outfit; keep the clothes underneath visible and unchanged.",
+    OutfitSlot.SHOES: "Replace only the person's footwear with these; keep the outfit unchanged.",
+}
+
+
+def renderable_slots(model: str) -> set[OutfitSlot]:
+    # tryon-max draws footwear too (FASHN docs: clothing, shoes, hats, …);
+    # v1.6 is clothing only
+    return _CLOTHING | {OutfitSlot.SHOES} if model == "tryon-max" else set(_CLOTHING)
+
+
+def effective_slot(slot: OutfitSlot, product_name: str) -> OutfitSlot:
+    # "other" is what items the classifier didn't know yet were saved as
+    return slot_for(product_name) if slot == OutfitSlot.OTHER else slot
+
+
+def render_plan(items: list[tuple[OutfitSlot, str]], model: str) -> list[tuple[int, OutfitSlot]]:
+    """(index into `items`, slot) for each item the try-on will draw, in
+    drawing order: the base outfit first, then layers over it, then shoes.
+
+    - one item per slot — a second top would just replace the first
+    - on tryon-v1.6 a full outfit (shalwar kameez, dress) is drawn alone:
+      v1.6 can't layer, so a waistcoat sent after it replaces the kameez's
+      top instead of going over it. tryon-max layers it properly.
+    """
+    allowed = renderable_slots(model)
+    picked: dict[OutfitSlot, int] = {}
+    for i, (slot, name) in enumerate(items):
+        s = effective_slot(slot, name)
+        if s in allowed and s not in picked:
+            picked[s] = i
+    if model != "tryon-max" and OutfitSlot.DRESS in picked:
+        picked = {s: i for s, i in picked.items() if s == OutfitSlot.DRESS}
+    return sorted(((i, s) for s, i in picked.items()), key=lambda p: (LAYER_ORDER.get(p[1], 9), p[0]))

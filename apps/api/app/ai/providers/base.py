@@ -27,6 +27,8 @@ class TryOnInput:
     garment_image_url: str
     # "auto" lets the provider infer top/bottom/full-body from the image.
     category: str = "auto"
+    # free-text instructions (tryon-max only), e.g. "layer this over the outfit"
+    prompt: str = ""
 
 
 @dataclass(frozen=True, slots=True)

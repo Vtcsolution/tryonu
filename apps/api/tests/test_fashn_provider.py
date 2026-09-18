@@ -105,6 +105,41 @@ async def test_fashn_max_submit_uses_product_image_not_garment_image(monkeypatch
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("model", ["tryon-max", "tryon-v1.6"])
+async def test_fashn_sends_layer_instructions_in_each_models_own_fields(monkeypatch, model):
+    """tryon-max gets the free-text prompt (a documented input); v1.6 has no
+    prompt field and gets its explicit category + quality mode instead."""
+    captured = {}
+    transport = _fake_transport(submit_payload_check=captured.update)
+    original_init = httpx.AsyncClient.__init__
+
+    def patched_init(self, *args, **kwargs):
+        kwargs["transport"] = transport
+        original_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(httpx.AsyncClient, "__init__", patched_init)
+    monkeypatch.setattr("app.ai.providers.fashn.asyncio.sleep", lambda *_a, **_kw: _noop())
+
+    provider = FASHNTryOnProvider(api_key="fa-test", base_url="https://api.fashn.ai/v1", model=model)
+    await provider.generate(
+        TryOnInput(
+            model_image_url="https://example.com/model.jpg",
+            garment_image_url="https://example.com/vest.jpg",
+            category="tops",
+            prompt="Layer this item over the outfit",
+        )
+    )
+    inputs = captured["inputs"]
+    if model == "tryon-max":
+        assert inputs["prompt"] == "Layer this item over the outfit"
+        assert "category" not in inputs
+    else:
+        assert inputs["category"] == "tops"
+        assert inputs["mode"] == "quality"
+        assert "prompt" not in inputs
+
+
+@pytest.mark.asyncio
 async def test_fashn_failed_status_raises_provider_error(monkeypatch):
     async def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/run"):
