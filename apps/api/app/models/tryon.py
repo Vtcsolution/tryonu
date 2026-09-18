@@ -77,7 +77,19 @@ class TryOnResult(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         String(36), ForeignKey("tryon_jobs.id", ondelete="CASCADE"), unique=True, nullable=False
     )
     storage_key: Mapped[str] = mapped_column(String(512), nullable=False)
-    image_url: Mapped[str] = mapped_column(String(1024), nullable=False)
+    # the column keeps the URL signed at upload time; reads always get a
+    # freshly signed one (see storage_service.fresh_url)
+    _image_url: Mapped[str] = mapped_column("image_url", String(1024), nullable=False)
+
+    @property
+    def image_url(self) -> str:
+        from app.services.storage_service import fresh_url
+
+        return fresh_url(self.storage_key, self._image_url)  # type: ignore[return-value]
+
+    @image_url.setter
+    def image_url(self, value: str) -> None:
+        self._image_url = value
     width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)
 

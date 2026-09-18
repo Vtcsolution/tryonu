@@ -25,7 +25,19 @@ class UserPhoto(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     kind: Mapped[PhotoKind] = mapped_column(Enum(PhotoKind, native_enum=False, length=16), nullable=False)
 
     storage_key: Mapped[str] = mapped_column(String(512), nullable=False)
-    url: Mapped[str] = mapped_column(String(1024), nullable=False)
+    # the column keeps the URL signed at upload time; reads always get a
+    # freshly signed one (see storage_service.fresh_url)
+    _url: Mapped[str] = mapped_column("url", String(1024), nullable=False)
+
+    @property
+    def url(self) -> str:
+        from app.services.storage_service import fresh_url
+
+        return fresh_url(self.storage_key, self._url)  # type: ignore[return-value]
+
+    @url.setter
+    def url(self, value: str) -> None:
+        self._url = value
     width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)
     content_type: Mapped[str | None] = mapped_column(String(64), nullable=True)

@@ -35,7 +35,19 @@ class WardrobeItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     storage_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    image_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    # the column keeps the URL signed at upload time; reads always get a
+    # freshly signed one (see storage_service.fresh_url)
+    _image_url: Mapped[str | None] = mapped_column("image_url", String(1024), nullable=True)
+
+    @property
+    def image_url(self) -> str | None:
+        from app.services.storage_service import fresh_url
+
+        return fresh_url(self.storage_key, self._image_url)  # type: ignore[return-value]
+
+    @image_url.setter
+    def image_url(self, value: str | None) -> None:
+        self._image_url = value
 
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 

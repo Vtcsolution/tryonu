@@ -448,3 +448,42 @@ async def test_fitting_profile_is_ready_with_just_a_front_photo(client):
     status = (await client.get("/api/v1/photos/status")).json()
     assert status["is_ready"] is True
     assert status["has_back"] is False
+
+
+async def test_photo_links_are_signed_fresh_so_they_work_after_the_upload_link_expires(client, db, monkeypatch):
+    """Real bug: the photo URL signed at upload (15-minute TTL) was stored
+    and reused, so every try-on started more than 15 minutes after uploading
+    failed with FASHN getting 403 on the photo — and photo thumbnails broke
+    too. Reads must always hand out a newly signed link."""
+    import time as time_mod
+
+    from app.services import storage_service
+
+    seen: list[str] = []
+
+    async def fake_generate(self, payload):  # noqa: ARG001
+        seen.append(payload.model_image_url)
+        return TryOnOutput(image_bytes=small_jpeg_bytes(), provider_job_id="fake-ok", latency_ms=1)
+
+    monkeypatch.setattr(MockTryOnProvider, "generate", fake_generate)
+    await register_and_login(client)
+    photo_id = await _upload_front_photo(client)
+    product = await seed_product(db, name="Cotton Shirt")
+
+    # an hour later
+    real_time = time_mod.time
+    # only the media-signing clock — moving the global one would expire the login too
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(storage_service, "time", SimpleNamespace(time=lambda: real_time() + 3600))
+
+    photos = (await client.get("/api/v1/photos/status")).json()["photos"]
+    exp = int(photos[0]["url"].split("exp=")[1].split("&")[0])
+    assert exp > real_time() + 3600  # still valid "now"
+
+    resp = await client.post("/api/v1/tryon", json={"user_photo_id": photo_id, "product_id": product.id})
+    assert resp.status_code == 201, resp.text
+    finished = await _poll_until_terminal(client, resp.json()["id"])
+    assert finished["status"] == "completed"
+    model_exp = int(seen[0].split("exp=")[1].split("&")[0])
+    assert model_exp > real_time() + 3600

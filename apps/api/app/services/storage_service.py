@@ -135,6 +135,14 @@ def get_storage() -> StorageBackend:
     return _backend
 
 
+def fresh_url(storage_key: str | None, stored_url: str | None) -> str | None:
+    """A newly signed URL for a stored file. Signed URLs expire
+    (SIGNED_URL_TTL_SECONDS), so the one saved at upload time is never
+    handed out again — it broke photos, results and try-ons 15 minutes in.
+    No key (e.g. an external image) means the stored URL is the real one."""
+    return get_storage().signed_url(storage_key) if storage_key else stored_url
+
+
 def guess_content_type(filename: str, default: str = "application/octet-stream") -> str:
     return mimetypes.guess_type(filename)[0] or default
 
