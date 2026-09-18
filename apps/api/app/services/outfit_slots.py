@@ -122,6 +122,9 @@ MAX_PROMPT = {
     OutfitSlot.BOTTOM: "Replace only the person's trousers or bottom with this item; keep everything else unchanged.",
     OutfitSlot.OUTERWEAR: "Layer this item over the person's current outfit; keep the clothes underneath visible and unchanged.",
     OutfitSlot.SHOES: "Replace only the person's footwear with these; keep the outfit unchanged.",
+    OutfitSlot.BAG: "Have the person carry this bag naturally, in the hand or over the shoulder; keep the outfit unchanged.",
+    OutfitSlot.WATCH: "Put this watch on the person's wrist; keep everything else unchanged.",
+    OutfitSlot.ACCESSORY: "Add this jewellery or accessory where it is naturally worn; keep everything else unchanged.",
 }
 
 
@@ -135,9 +138,10 @@ def renderable_slots(model: str, whole_outfit: bool = False) -> set[OutfitSlot]:
     if whole_outfit:
         # one image-editing render of the whole look: anything wearable
         return set(_WEARABLE)
-    # tryon-max draws footwear too (FASHN docs: clothing, shoes, hats, …);
-    # v1.6 is clothing only
-    return _CLOTHING | {OutfitSlot.SHOES} if model == "tryon-max" else set(_CLOTHING)
+    # tryon-max takes any wearable item, one per call (FASHN docs: "clothing,
+    # shoes, hats, jewelry, bags"), and only edits that item — the person's
+    # face stays theirs. v1.6 is clothing only.
+    return set(_WEARABLE) if model == "tryon-max" else set(_CLOTHING)
 
 
 def effective_slot(slot: OutfitSlot, product_name: str) -> OutfitSlot:

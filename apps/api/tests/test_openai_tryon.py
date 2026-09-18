@@ -227,3 +227,26 @@ async def test_if_openai_fails_the_look_still_renders_with_the_main_provider(cli
     assert main_calls == ["https://img.example/kameez.jpg"]
     kameez = next(i for i in finished["outfit"]["items"] if i["slot"] == "dress")
     assert finished["outfit"]["rendered_item_ids"] == [kameez["id"]]
+
+
+def test_full_looks_stay_on_fashn_when_tryon_max_can_draw_them(monkeypatch):
+    """OpenAI redraws the whole photo and can change the face; FASHN
+    tryon-max only edits each item. When it's configured it draws shoes,
+    bags and jewellery itself, so the look is never handed to OpenAI."""
+    from app.ai.providers.fashn import FASHNTryOnProvider
+    from app.ai.providers.registry import plan_outfit_render
+
+    main = FASHNTryOnProvider(api_key="fa-test", base_url="https://api.fashn.ai/v1", model="tryon-max")
+    full = OpenAIImageTryOnProvider(api_key="sk-test", model="gpt-image-1")
+    monkeypatch.setattr("app.ai.providers.registry.get_tryon_provider", lambda: main)
+    monkeypatch.setattr("app.ai.providers.registry.get_full_look_provider", lambda: full)
+
+    provider, plan = plan_outfit_render(
+        [
+            (OutfitSlot.DRESS, "Men's Cotton Kurta Pajama Set"),
+            (OutfitSlot.SHOES, "Men's Crossflex Dress Sneakers Wingtip"),
+            (OutfitSlot.BAG, "Genuine Brown Leather duffle travel bag"),
+        ]
+    )
+    assert provider is main
+    assert [s for _, s in plan] == [OutfitSlot.DRESS, OutfitSlot.SHOES, OutfitSlot.BAG]

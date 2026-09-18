@@ -41,11 +41,12 @@ _OUTFIT = [
 ]
 
 
-def test_tryon_max_draws_outfit_then_waistcoat_then_shoes():
+def test_tryon_max_draws_outfit_then_waistcoat_then_shoes_then_jewellery():
     assert render_plan(_OUTFIT, "tryon-max") == [
         (2, OutfitSlot.DRESS),
         (1, OutfitSlot.OUTERWEAR),
         (0, OutfitSlot.SHOES),
+        (3, OutfitSlot.ACCESSORY),
     ]
 
 

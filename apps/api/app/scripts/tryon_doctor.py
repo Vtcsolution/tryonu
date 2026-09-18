@@ -4,6 +4,8 @@ switch it, without the admin panel.
     python -m app.scripts.tryon_doctor              # report only
     python -m app.scripts.tryon_doctor --use openai # switch to OpenAI image editing
     python -m app.scripts.tryon_doctor --use fashn  # switch back to FASHN
+    python -m app.scripts.tryon_doctor --fashn-model tryon-max  # FASHN's model that
+        # also draws shoes, bags and jewellery while keeping the person's face
 
 Switching writes the same encrypted admin setting the Settings page does;
 running servers pick it up within ~15 seconds. Never prints secrets.
@@ -29,23 +31,21 @@ def _yes(value: object) -> str:
     return "set" if value else "NOT SET"
 
 
-async def _set_provider(value: str) -> None:
-    validate_value("VIRTUAL_TRYON_PROVIDER", value)
+async def _set(key: str, value: str) -> None:
+    validate_value(key, value)
     current, _ = await load_overrides()
-    effective = build_settings(current | {"VIRTUAL_TRYON_PROVIDER": value})
-    if effective.VIRTUAL_TRYON_PROVIDER != value:
-        key = "OPENAI_API_KEY" if value == "openai" else "FASHN_API_KEY"
-        raise SettingsValidationError(f"{key} is not set, so '{value}' would fall back to mock. Add the key first.")
+    effective = build_settings(current | {key: value})
+    if key == "VIRTUAL_TRYON_PROVIDER" and effective.VIRTUAL_TRYON_PROVIDER != value:
+        needed = "OPENAI_API_KEY" if value == "openai" else "FASHN_API_KEY"
+        raise SettingsValidationError(f"{needed} is not set, so '{value}' would fall back to mock. Add the key first.")
     async with AsyncSessionLocal() as session:
-        row = (
-            await session.execute(select(AppSetting).where(AppSetting.key == "VIRTUAL_TRYON_PROVIDER"))
-        ).scalar_one_or_none()
+        row = (await session.execute(select(AppSetting).where(AppSetting.key == key))).scalar_one_or_none()
         if row is None:
-            session.add(AppSetting(key="VIRTUAL_TRYON_PROVIDER", value_encrypted=encrypt(value)))
+            session.add(AppSetting(key=key, value_encrypted=encrypt(value)))
         else:
             row.value_encrypted = encrypt(value)
         await session.commit()
-    print(f"-> Try-on provider set to '{value}'. Running servers switch within ~15 seconds.\n")
+    print(f"-> {key} set to '{value}'. Running servers switch within ~15 seconds.\n")
 
 
 async def _openai_image_access(s: Settings) -> str:
@@ -69,14 +69,17 @@ async def _openai_image_access(s: Settings) -> str:
 async def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--use", choices=["openai", "fashn", "mock"])
+    parser.add_argument("--fashn-model", choices=["tryon-max", "tryon-v1.6"])
     args = parser.parse_args()
 
-    if args.use:
-        try:
-            await _set_provider(args.use)
-        except SettingsValidationError as exc:
-            print(f"Not changed: {exc}")
-            return 1
+    try:
+        if args.use:
+            await _set("VIRTUAL_TRYON_PROVIDER", args.use)
+        if args.fashn_model:
+            await _set("FASHN_MODEL", args.fashn_model)
+    except SettingsValidationError as exc:
+        print(f"Not changed: {exc}")
+        return 1
 
     env_only = Settings()
     overrides, _ = await load_overrides()
@@ -89,8 +92,13 @@ async def main() -> int:
     if overrides.get("VIRTUAL_TRYON_PROVIDER") == "openai" and effective.VIRTUAL_TRYON_PROVIDER != "openai":
         print("  !! 'openai' is chosen but no OpenAI API key is set, so it falls back to mock")
     if effective.VIRTUAL_TRYON_PROVIDER == "fashn":
-        auto = effective.TRYON_OPENAI_FOR_FULL_LOOKS and effective.OPENAI_API_KEY
-        print(f"  Shoes/bags/jewellery looks : {'drawn by OpenAI (auto)' if auto else 'FASHN only — not drawn'}")
+        if effective.FASHN_MODEL == "tryon-max":
+            looks = "drawn by FASHN tryon-max (keeps the person's face)"
+        elif effective.TRYON_OPENAI_FOR_FULL_LOOKS and effective.OPENAI_API_KEY:
+            looks = "drawn by OpenAI (auto) — may change the face; set FASHN model to tryon-max to keep it"
+        else:
+            looks = "not drawn (tryon-v1.6 is clothing only)"
+        print(f"  Shoes/bags/jewellery looks : {looks}")
     print(f"  FASHN model                : {effective.FASHN_MODEL}  (key {_yes(effective.FASHN_API_KEY)})")
     print(f"  OpenAI image model         : {effective.OPENAI_IMAGE_MODEL}  (key {_yes(effective.OPENAI_API_KEY)})")
     if effective.OPENAI_API_KEY:

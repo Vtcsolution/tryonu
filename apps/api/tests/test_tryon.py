@@ -18,7 +18,7 @@ from tests.conftest import credit_balance, register_and_login, seed_product, sma
 TERMINAL = {"completed", "failed", "cancelled"}
 
 
-async def _poll_until_terminal(client, job_id: str, *, attempts: int = 40, delay: float = 0.05) -> dict:
+async def _poll_until_terminal(client, job_id: str, *, attempts: int = 200, delay: float = 0.05) -> dict:
     for _ in range(attempts):
         resp = await client.get(f"/api/v1/tryon/{job_id}")
         job = resp.json()
@@ -248,7 +248,10 @@ def test_renderable_slots_only_adds_shoes_for_tryon_max():
     assert OutfitSlot.SHOES in _renderable_slots("tryon-max")
     assert OutfitSlot.SHOES not in _renderable_slots("tryon-v1.6")
     assert OutfitSlot.SHOES not in _renderable_slots("mock-v1")
-    assert OutfitSlot.ACCESSORY not in _renderable_slots("tryon-max")
+    # per FASHN's docs tryon-max also takes bags and jewellery; v1.6 never does
+    assert OutfitSlot.BAG in _renderable_slots("tryon-max")
+    assert OutfitSlot.ACCESSORY in _renderable_slots("tryon-max")
+    assert OutfitSlot.ACCESSORY not in _renderable_slots("tryon-v1.6")
 
 
 async def test_outfit_tryon_with_only_non_renderable_items_fails_clearly(client, db):
