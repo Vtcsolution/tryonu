@@ -240,6 +240,8 @@ export type SavedLook = {
 
 export type UserPreference = {
   gender: Gender | null;
+  // ids from the onboarding category tree (see catalog.taxonomy())
+  preferred_categories: string[] | null;
   preferred_sizes: string[] | null;
   preferred_colors: string[] | null;
   preferred_styles: string[] | null;
@@ -475,6 +477,21 @@ export type AnalyticsReport = {
   operating_systems: AnalyticsBreakdown[];
   referrers: AnalyticsBreakdown[];
   pages: { path: string; views: number; visitors: number; avg_duration_ms: number | null }[];
+};
+
+export type TaxonomyNode = {
+  id: string;
+  label: string;
+  icon: string;
+  children: TaxonomyNode[];
+};
+
+export type ForYouSection = { id: string; label: string; parent_label: string | null };
+
+export type ForYouFeed = {
+  sections: ForYouSection[];
+  active: string | null;
+  items: (LiveProduct & { category_id: string })[];
 };
 
 export type ProductSearchParams = {

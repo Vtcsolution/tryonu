@@ -80,6 +80,15 @@ async def _hidden_product_keys(results: list[LiveSearchResult]) -> set[tuple[str
         return {(slug, pid) for slug, pid in rows.all()}
 
 
+async def apply_admin_filters(results: list[LiveSearchResult]) -> list[LiveSearchResult]:
+    """Re-applies retailer disables and product hides to results fetched
+    earlier (e.g. cached), so those admin controls stay immediate."""
+    disabled = await _disabled_retailer_slugs()
+    results = [r for r in results if r.provider.slug not in disabled]
+    hidden = await _hidden_product_keys(results)
+    return [r for r in results if (r.provider.slug, r.raw.retailer_product_id) not in hidden]
+
+
 async def live_search(query: str, *, limit: int = 24) -> list[LiveSearchResult]:
     """Fan out one query to every retailer that supports live search,
     skipping (not failing on) an unconfigured or currently-broken one —

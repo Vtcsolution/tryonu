@@ -101,6 +101,14 @@ export function resolveMediaUrl(url: string | null | undefined): string {
   return url.startsWith("/") ? `${API_BASE_URL}${url}` : url;
 }
 
+/** Smaller variant for grid thumbnails. Product images are stored at the
+ * largest size (used as the try-on garment input); eBay serves the same
+ * photo at fixed sizes, and 500px is ~9x lighter than 1600px. */
+export function thumbnailUrl(url: string | null | undefined): string {
+  const resolved = resolveMediaUrl(url);
+  return resolved.replace(/(i\.ebayimg\.com\/.*\/s-l)\d+(\.\w+)$/, "$1500$2");
+}
+
 export function affiliateGoUrl(productId: string, source?: string): string {
   const q = source ? `?source=${encodeURIComponent(source)}` : "";
   return `${API_BASE_URL}/api/v1/affiliate/go/${productId}${q}`;

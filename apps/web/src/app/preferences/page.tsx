@@ -1,18 +1,18 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { SiteChrome } from "@/components/layout/SiteChrome";
-import { PreferencesForm } from "@/components/preferences/PreferencesForm";
+import { PreferencesWizard } from "@/components/preferences/PreferencesWizard";
 
 export const metadata: Metadata = {
   title: "Fashion preferences",
-  description: "Set your styles, colors, brands, sizes, and budget to personalize your TryOnU recommendations.",
+  description: "Pick the categories and styles you love so TryOnU can show you matching products.",
 };
 
 export default function PreferencesPage() {
   return (
     <SiteChrome>
       <Suspense>
-        <PreferencesForm />
+        <PreferencesWizard />
       </Suspense>
     </SiteChrome>
   );

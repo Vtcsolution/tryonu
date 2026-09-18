@@ -57,6 +57,7 @@ class UpdateProfileRequest(BaseModel):
 
 class UserPreferenceOut(ORMModel):
     gender: Gender | None
+    preferred_categories: list[str] | None
     preferred_sizes: list[str] | None
     preferred_colors: list[str] | None
     preferred_styles: list[str] | None
@@ -68,6 +69,7 @@ class UserPreferenceOut(ORMModel):
 
 class UserPreferenceUpdate(BaseModel):
     gender: Gender | None = None
+    preferred_categories: list[str] | None = Field(default=None, max_length=200)
     preferred_sizes: list[str] | None = None
     preferred_colors: list[str] | None = None
     preferred_styles: list[str] | None = None

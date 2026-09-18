@@ -75,12 +75,13 @@ export function AccountMenu() {
             </button>
           )}
           {[
+            { href: "/for-you", label: "For you" },
             { href: "/try", label: "Try-on studio" },
             { href: "/stylist", label: "AI Stylist" },
             { href: "/outfits", label: "Outfit builder" },
             { href: "/wardrobe", label: "My wardrobe" },
             { href: "/saved", label: "Saved looks" },
-            { href: "/preferences", label: "Preferences" },
+            { href: "/preferences", label: "My style picks" },
             { href: "/credits", label: "Buy credits" },
             ...(user.is_admin ? [{ href: "/admin", label: "Admin dashboard" }] : []),
           ].map((item) => (

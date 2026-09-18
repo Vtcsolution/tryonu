@@ -48,7 +48,7 @@ export function SignUpForm() {
         subtitle={`Your 100 free credits are ready to use. We also sent a verification link to ${email} — verify when you get a chance.`}
       >
         <div className="space-y-3">
-          <Button href={`/preferences?next=${encodeURIComponent(next)}`} size="md" className="w-full">
+          <Button href={`/preferences?next=${encodeURIComponent(params.get("next") || "/for-you")}`} size="md" className="w-full">
             Continue to TryOnU <span aria-hidden="true">→</span>
           </Button>
           <Button

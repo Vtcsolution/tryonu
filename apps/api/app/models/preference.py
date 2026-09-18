@@ -29,6 +29,8 @@ class UserPreference(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     preferred_styles: Mapped[list | None] = mapped_column(JSON, nullable=True)
     preferred_brands: Mapped[list | None] = mapped_column(JSON, nullable=True)
     favorite_retailers: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # ids from app/core/taxonomy.py (audiences, categories, styles) picked in onboarding
+    preferred_categories: Mapped[list | None] = mapped_column(JSON, nullable=True)
     budget_min_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
     budget_max_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
 

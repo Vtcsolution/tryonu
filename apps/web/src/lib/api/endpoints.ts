@@ -20,6 +20,7 @@ import type {
   CreditPackage,
   CreditTransaction,
   FittingProfileStatus,
+  ForYouFeed,
   LiveProduct,
   Outfit,
   OutfitItemInput,
@@ -33,6 +34,7 @@ import type {
   SubscribeResponse,
   SubscriptionPlanId,
   SubscriptionPlanOut,
+  TaxonomyNode,
   TryOnJob,
   User,
   UserPhoto,
@@ -261,6 +263,18 @@ export const preferences = {
   get: () => apiFetch<UserPreference>("/api/v1/users/me/preferences"),
   update: (input: Partial<UserPreference>) =>
     apiFetch<UserPreference>("/api/v1/users/me/preferences", { method: "PUT", body: input }),
+};
+
+/* ---------------------------- catalog & feed ----------------------------- */
+
+export const catalog = {
+  taxonomy: () => apiFetch<{ audiences: TaxonomyNode[] }>("/api/v1/catalog/taxonomy", { cache: "force-cache" }),
+};
+
+export const feed = {
+  // Live retailer results for the categories picked in onboarding;
+  // `node` narrows to one of them, omitted = a mix of all.
+  forYou: (node?: string) => apiFetch<ForYouFeed>(`/api/v1/feed/for-you${qs({ node })}`),
 };
 
 /* --------------------------------- outfits --------------------------------- */

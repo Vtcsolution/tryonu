@@ -50,7 +50,7 @@ export function VerifyEmailPanel() {
         }
         subtitle="Your account is fully set up."
       >
-        <Button href="/preferences?next=%2Ftry" size="md" className="w-full">
+        <Button href="/preferences?next=%2Ffor-you" size="md" className="w-full">
           Start your first try-on <span aria-hidden="true">→</span>
         </Button>
       </AuthCard>

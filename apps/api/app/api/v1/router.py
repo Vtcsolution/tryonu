@@ -11,6 +11,7 @@ from app.api.v1.endpoints import (
     analytics,
     auth,
     credits,
+    feed,
     outfits,
     photos,
     products,
@@ -31,6 +32,8 @@ api_router.include_router(credits.router)
 api_router.include_router(subscriptions.router)
 api_router.include_router(wardrobe.router)
 api_router.include_router(products.router)
+api_router.include_router(feed.catalog_router)
+api_router.include_router(feed.feed_router)
 api_router.include_router(search.router)
 api_router.include_router(tryon.router)
 api_router.include_router(outfits.router)

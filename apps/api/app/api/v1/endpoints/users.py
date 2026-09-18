@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy.orm import selectinload
 
 from app.core.deps import CurrentUser, DbSession
+from app.core.taxonomy import normalize_selection
 from app.models.outfit import SavedLook
 from app.models.preference import UserPreference
 from app.models.product import Product
@@ -48,7 +49,11 @@ async def update_preferences(payload: UserPreferenceUpdate, user: CurrentUser, d
         pref = UserPreference(user_id=user.id)
         db.add(pref)
 
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    changes = payload.model_dump(exclude_unset=True)
+    if changes.get("preferred_categories") is not None:
+        # unknown ids (e.g. from an older client) are dropped rather than stored
+        changes["preferred_categories"] = normalize_selection(changes["preferred_categories"])
+    for field, value in changes.items():
         setattr(pref, field, value)
 
     await db.commit()
