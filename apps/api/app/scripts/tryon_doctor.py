@@ -93,12 +93,12 @@ async def main() -> int:
         print("  !! 'openai' is chosen but no OpenAI API key is set, so it falls back to mock")
     if effective.VIRTUAL_TRYON_PROVIDER == "fashn":
         if effective.FASHN_MODEL == "tryon-max":
-            looks = "drawn by FASHN tryon-max (keeps the person's face)"
+            looks = "every item drawn by FASHN tryon-max (keeps the person's face)"
         elif effective.TRYON_OPENAI_FOR_FULL_LOOKS and effective.OPENAI_API_KEY:
-            looks = "drawn by OpenAI (auto) — may change the face; set FASHN model to tryon-max to keep it"
+            looks = "OpenAI (auto) — may change the face; set FASHN model to tryon-max to keep it"
         else:
             looks = "not drawn (tryon-v1.6 is clothing only)"
-        print(f"  Shoes/bags/jewellery looks : {looks}")
+        print(f"  Non-clothing items         : {looks}")
     print(f"  FASHN model                : {effective.FASHN_MODEL}  (key {_yes(effective.FASHN_API_KEY)})")
     print(f"  OpenAI image model         : {effective.OPENAI_IMAGE_MODEL}  (key {_yes(effective.OPENAI_API_KEY)})")
     if effective.OPENAI_API_KEY:

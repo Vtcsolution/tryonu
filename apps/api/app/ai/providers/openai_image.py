@@ -33,6 +33,7 @@ _HOW = {
     "bag": "carried naturally, in the hand or over the shoulder",
     "watch": "worn on the wrist",
     "accessory": "worn where it naturally goes (bangles on the wrists, earrings on the ears, necklace on the neck)",
+    "other": "worn or carried where it naturally goes",
 }
 
 

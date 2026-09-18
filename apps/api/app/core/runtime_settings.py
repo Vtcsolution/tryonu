@@ -49,14 +49,16 @@ SPECS: tuple[SettingSpec, ...] = (
                 "“openai” dresses the photo in the whole outfit at once (shoes, bags and jewellery included) using "
                 "the OpenAI API key; “fashn” renders clothing one piece at a time; “mock” returns a placeholder. "
                 "Falls back to mock if the chosen provider has no API key."),
-    SettingSpec("TRYON_OPENAI_FOR_FULL_LOOKS", "Use OpenAI for shoes, bags & jewellery", "ai_tryon", "bool",
-                help="With the FASHN provider, outfits that include shoes, bags or jewellery are drawn by OpenAI "
-                "in one pass (FASHN can't draw them). Falls back to FASHN if OpenAI fails. Needs the OpenAI API key."),
+    SettingSpec("TRYON_OPENAI_FOR_FULL_LOOKS", "Use OpenAI for items tryon-v1.6 can't draw", "ai_tryon", "bool",
+                help="With FASHN tryon-v1.6 (clothing only), outfits that also include shoes, bags, jewellery, hats "
+                "or any other accessory are drawn by OpenAI in one pass. OpenAI can change the face; FASHN tryon-max "
+                "draws every item itself and keeps it. Falls back to FASHN if OpenAI fails."),
     SettingSpec("OPENAI_IMAGE_MODEL", "OpenAI try-on image model", "ai_tryon", "text",
                 help="Used when the try-on provider is “openai”, e.g. gpt-image-1."),
     SettingSpec("FASHN_API_KEY", "FASHN API key", "ai_tryon", "secret"),
     SettingSpec("FASHN_MODEL", "FASHN model", "ai_tryon", "choice", ("tryon-max", "tryon-v1.6"),
-                "tryon-max is higher quality and can render shoes; tryon-v1.6 is clothing only."),
+                "tryon-max draws anything wearable — clothing, shoes, bags, jewellery, hats, accessories — and "
+                "keeps the person's face; tryon-v1.6 is clothing only."),
     # --- AI stylist ---
     SettingSpec("LLM_PROVIDER", "Stylist provider", "ai_stylist", "choice", ("openai", "mock")),
     SettingSpec("OPENAI_API_KEY", "OpenAI API key", "ai_stylist", "secret"),

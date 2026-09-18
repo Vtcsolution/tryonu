@@ -27,6 +27,10 @@ from app.services.outfit_slots import render_plan, slot_for
         ("Levi 501 jeans", OutfitSlot.BOTTOM),
         ("Leather Bomber Jacket", OutfitSlot.OUTERWEAR),
         ("Something unnamed", OutfitSlot.OTHER),
+        ("Black Wool Fedora Hat", OutfitSlot.ACCESSORY),
+        ("Aviator Sunglasses UV400", OutfitSlot.ACCESSORY),
+        ("Rajasthani Pagri Turban for Wedding", OutfitSlot.ACCESSORY),
+        ("Leather Driving Gloves", OutfitSlot.ACCESSORY),
     ],
 )
 def test_slot_for_real_titles(title, slot):
@@ -83,3 +87,19 @@ def test_whole_outfit_render_includes_shoes_bag_and_every_piece_of_jewellery():
         (4, OutfitSlot.ACCESSORY),
         (5, OutfitSlot.BAG),
     ]
+
+
+def test_any_wearable_item_is_drawn_not_just_shoes_bags_and_jewellery():
+    """An item the classifier has no word for is still drawn by models that
+    take any wearable — never silently left off the photo."""
+    items = [
+        (OutfitSlot.DRESS, "Cotton Shalwar Kameez"),
+        (OutfitSlot.OTHER, "Handmade Sindhi Ajrak Topi"),
+        (OutfitSlot.OTHER, "Vintage Pocket Square Set"),
+        (OutfitSlot.ACCESSORY, "Aviator Sunglasses"),
+    ]
+    for model, whole in (("tryon-max", False), ("gpt-image-1", True)):
+        drawn = [i for i, _ in render_plan(items, model, whole)]
+        assert sorted(drawn) == [0, 1, 2, 3], model
+    # the clothing-only model still draws just the clothing
+    assert [i for i, _ in render_plan(items, "tryon-v1.6")] == [0]

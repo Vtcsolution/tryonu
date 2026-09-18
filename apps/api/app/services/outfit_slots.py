@@ -19,8 +19,10 @@ _SLOT_WORDS: list[tuple[OutfitSlot, tuple[str, ...]]] = [
     (OutfitSlot.ACCESSORY, (
         "earring", "earrings", "jhumka", "jhumkas", "chandbali", "bangle", "bangles", "bracelet", "bracelets",
         "necklace", "necklaces", "choker", "pendant", "ring", "rings", "tikka", "anklet", "anklets", "payal",
-        "nose pin", "jewelry", "jewellery", "cufflinks", "sunglasses", "belt", "belts", "cap", "hat", "hats",
-        "scarf", "scarves", "hijab", "tie", "wallet",
+        "nose pin", "jewelry", "jewellery", "cufflinks", "brooch", "sunglasses", "glasses", "eyeglasses",
+        "spectacles", "belt", "belts", "cap", "caps", "hat", "hats", "beanie", "beret", "fedora", "turban",
+        "pagri", "topi", "headband", "hairband", "hair clip", "bandana", "scarf", "scarves", "stole", "muffler",
+        "hijab", "niqab", "tie", "necktie", "bow tie", "gloves", "mittens", "socks", "stockings", "wallet",
     )),
     (OutfitSlot.WATCH, ("watch", "watches", "smartwatch")),
     (OutfitSlot.BAG, ("bag", "bags", "handbag", "handbags", "clutch", "purse", "tote", "backpack", "duffle")),
@@ -125,13 +127,18 @@ MAX_PROMPT = {
     OutfitSlot.BAG: "Have the person carry this bag naturally, in the hand or over the shoulder; keep the outfit unchanged.",
     OutfitSlot.WATCH: "Put this watch on the person's wrist; keep everything else unchanged.",
     OutfitSlot.ACCESSORY: "Add this jewellery or accessory where it is naturally worn; keep everything else unchanged.",
+    OutfitSlot.OTHER: "Put this item on the person where it is naturally worn or carried; keep everything else unchanged.",
 }
 
 
 # providers that dress the person in the whole look in one render
 WHOLE_OUTFIT_PROVIDERS = {"openai"}
 
-_WEARABLE = _CLOTHING | {OutfitSlot.SHOES, OutfitSlot.BAG, OutfitSlot.WATCH, OutfitSlot.ACCESSORY}
+# anything a person can wear or carry — "other" included: an item the
+# classifier has no word for (a costume piece, a new kind of accessory) is
+# still drawn wherever it naturally goes, never silently left off
+_WEARABLE = _CLOTHING | {OutfitSlot.SHOES, OutfitSlot.BAG, OutfitSlot.WATCH, OutfitSlot.ACCESSORY, OutfitSlot.OTHER}
+_STACKABLE = {OutfitSlot.ACCESSORY, OutfitSlot.OTHER}  # several at once is normal (bangles AND earrings)
 
 
 def renderable_slots(model: str, whole_outfit: bool = False) -> set[OutfitSlot]:
@@ -168,7 +175,7 @@ def render_plan(
         s = effective_slot(slot, name)
         if s not in allowed:
             continue
-        if s != OutfitSlot.ACCESSORY and any(ps == s for _, ps in picked):
+        if s not in _STACKABLE and any(ps == s for _, ps in picked):
             continue
         picked.append((i, s))
     slots = {s for _, s in picked}
