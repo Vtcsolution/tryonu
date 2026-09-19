@@ -18,7 +18,7 @@ from tests.conftest import credit_balance, register_and_login, seed_product, sma
 TERMINAL = {"completed", "failed", "cancelled"}
 
 
-async def _poll_until_terminal(client, job_id: str, *, attempts: int = 200, delay: float = 0.05) -> dict:
+async def _poll_until_terminal(client, job_id: str, *, attempts: int = 300, delay: float = 0.1) -> dict:
     for _ in range(attempts):
         resp = await client.get(f"/api/v1/tryon/{job_id}")
         job = resp.json()

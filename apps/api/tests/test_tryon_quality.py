@@ -199,10 +199,23 @@ async def test_a_refused_look_fails_the_job_and_refunds(client, db, monkeypatch,
     product = await seed_product(db, name="Bulova Blue Dial Watch")
     resp = await client.post("/api/v1/tryon", json={"user_photo_id": photo_id, "product_id": product.id})
     assert resp.status_code == 201, resp.text
-    # poll like the frontend does (not every 50ms): hammering the SQLite test
-    # database from the same event loop kept serving a stale snapshot while
-    # the worker had already committed the failure
-    finished = await _poll_until_terminal(client, resp.json()["id"], attempts=240, delay=0.25)
+    # wait on a fresh session: under load, polling the API against the SQLite
+    # test database kept returning a stale "processing" snapshot while the
+    # worker had already committed the failure (verified by reading the row)
+    import asyncio
+
+    from sqlalchemy import text
+
+    from app.db.session import AsyncSessionLocal
+
+    job_id = resp.json()["id"]
+    for _ in range(600):
+        async with AsyncSessionLocal() as fresh:
+            status = (await fresh.execute(text("select status from tryon_jobs where id = :i"), {"i": job_id})).scalar()
+        if status in ("FAILED", "COMPLETED", "failed", "completed"):
+            break
+        await asyncio.sleep(0.1)
+    finished = await _poll_until_terminal(client, job_id, attempts=240, delay=0.25)
 
     assert finished["status"] == "failed"
     assert "couldn't draw" in finished["error_message"] and "wrong strap colour" in finished["error_message"]

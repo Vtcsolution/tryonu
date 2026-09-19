@@ -213,7 +213,12 @@ def _strong_cores(diff: np.ndarray, blocked: np.ndarray, high: float) -> tuple[i
 
 
 def _mask_from(
-    core: np.ndarray, weak_labels: np.ndarray, blocked: np.ndarray, reach_share: float = 0.03
+    core: np.ndarray,
+    weak_labels: np.ndarray,
+    blocked: np.ndarray,
+    reach_share: float = 0.03,
+    diff: np.ndarray | None = None,
+    high: float = 32.0,
 ) -> np.ndarray:
     """What to take: the chosen strong blobs (holes filled — a watch face
     that matches the old skin tone), plus faint changes touching them — the
@@ -230,6 +235,25 @@ def _mask_from(
     reach = reach_share * max(h, w)
     distance = cv2.distanceTransform((1 - core).astype(np.uint8), cv2.DIST_L2, 5)
     fade = np.clip(1.0 - (distance - 0.35 * reach) / (0.65 * reach), 0.0, 1.0).astype(np.float32)
+    if diff is not None:
+        # Never half-blend two things that disagree strongly: a hand the
+        # model moved by a few pixels, blended at 50%, shows as a ghost hand
+        # beside the real one (seen live with gpt-image-2 under a watch).
+        # Strongly-different pixels connected to the product are taken
+        # whole, out to a hand's length; the fade only crosses pixels where
+        # the two images nearly agree, where blending is invisible.
+        hard_reach = max(reach, 0.08 * max(h, w))
+        hard = (taken.astype(bool) & (diff > high) & (distance < hard_reach)).astype(np.uint8)
+        hard = cv2.morphologyEx(hard, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)))
+        # ...and grow along any strongly-different pixels touching it, thin
+        # ones included: the old hand's 2px outline beside the moved hand was
+        # dropped as a "sliver" and stayed visible as a skin-coloured line
+        differs = ((diff > 24) & ~blocked).astype(np.uint8)
+        grow_kernel = np.ones((5, 5), np.uint8)
+        for _ in range(max(4, int(0.012 * max(h, w) / 2))):
+            hard = cv2.dilate(hard, grow_kernel) & differs | hard
+        fade = np.maximum(fade, _fill_holes(hard).astype(np.float32))
+        taken = taken | hard
 
     solid = cv2.dilate(_fill_holes(taken), np.ones((5, 5), np.uint8)).astype(np.float32)
     solid[blocked] = 0
@@ -266,7 +290,7 @@ def change_mask(
         x0, y0, x1, y1 = r.pixels(w, h, 0.15)
         inside[y0:y1, x0:x1] = True
     chosen = np.unique(cores[inside & (cores > 0)])
-    return _mask_from(np.isin(cores, chosen) & (cores > 0), weak, blocked)
+    return _mask_from(np.isin(cores, chosen) & (cores > 0), weak, blocked, diff=diff, high=high)
 
 
 def composite(base: np.ndarray, render: np.ndarray, mask: np.ndarray) -> np.ndarray:
@@ -345,7 +369,7 @@ class Changes:
     def merge(self, numbers: list[int], reach_share: float = 0.03) -> Merge:
         chosen = [self._label_of[n] for n in numbers if n in self._label_of]
         core = np.isin(self.cores, chosen) & (self.cores > 0) if chosen else np.zeros(self.cores.shape, bool)
-        mask = _mask_from(core, self.weak, self.blocked, reach_share)
+        mask = _mask_from(core, self.weak, self.blocked, reach_share, self.diff)
         # colour-fit the pasted pixels on everything EXCEPT the product (and
         # a margin): a big black shirt in the fit dragged it grey-green
         h, w = mask.shape
