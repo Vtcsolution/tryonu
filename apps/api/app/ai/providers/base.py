@@ -29,6 +29,8 @@ class TryOnInput:
     category: str = "auto"
     # free-text instructions (tryon-max only), e.g. "layer this over the outfit"
     prompt: str = ""
+    # fixed for reproducibility; a different seed gives a genuinely different render
+    seed: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

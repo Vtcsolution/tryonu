@@ -17,7 +17,7 @@ import time
 import httpx
 from tenacity import (
     retry,
-    retry_if_exception_type,
+    retry_if_exception,
     stop_after_attempt,
     wait_exponential,
 )
@@ -39,9 +39,11 @@ class FASHNTryOnProvider(VirtualTryOnProvider):
         self._base_url = base_url.rstrip("/")
 
     @retry(
-        retry=retry_if_exception_type(TryOnProviderError),
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=1, max=8),
+        # only what can succeed on a second try — never "out of credits" or a
+        # rejected request, which used to be retried pointlessly
+        retry=retry_if_exception(lambda e: isinstance(e, TryOnProviderError) and e.retryable),
+        stop=stop_after_attempt(4),
+        wait=wait_exponential(multiplier=2, min=2, max=30),
         reraise=True,
     )
     async def generate(self, payload: TryOnInput) -> TryOnOutput:
@@ -78,6 +80,8 @@ class FASHNTryOnProvider(VirtualTryOnProvider):
             }
             if payload.prompt:
                 inputs["prompt"] = payload.prompt
+            if payload.seed is not None:
+                inputs["seed"] = payload.seed
         else:
             inputs = {
                 "model_image": payload.model_image_url,
@@ -85,6 +89,8 @@ class FASHNTryOnProvider(VirtualTryOnProvider):
                 "category": payload.category,
                 "mode": "quality",
             }
+            if payload.seed is not None:
+                inputs["seed"] = payload.seed
 
         try:
             resp = await client.post(
@@ -98,6 +104,12 @@ class FASHNTryOnProvider(VirtualTryOnProvider):
         if resp.status_code >= 500:
             raise TryOnProviderError(f"FASHN server error {resp.status_code}", retryable=True)
         if resp.status_code == 429:
+            # FASHN answers 429 for an empty balance too — that one won't
+            # fix itself, and "rate limited" hid it from the admin
+            if "OutOfCredits" in resp.text:
+                raise TryOnProviderError(
+                    "The FASHN account is out of credits — top up at app.fashn.ai to resume try-ons"
+                )
             raise TryOnProviderError("FASHN rate limited", retryable=True)
         if resp.status_code >= 400:
             raise TryOnProviderError(f"FASHN rejected request: {resp.status_code} {resp.text}")

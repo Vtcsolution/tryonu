@@ -1,0 +1,210 @@
+"""The try-on quality pipeline: keep the person, take only the product,
+inspect, retry or refuse. Offline — renders, vision and downloads are faked;
+the merge itself runs for real on synthetic images."""
+
+from __future__ import annotations
+
+import cv2
+import numpy as np
+import pytest
+
+from app.models.enums import OutfitSlot
+from app.services.tryon_quality import pipeline
+from app.services.tryon_quality.compose import Region, encode_jpeg, merge_product
+from app.services.tryon_quality.judge import Verdict
+
+H, W = 600, 400
+ITEM = (250, 300, 330, 360)  # y0, x0, y1, x1 of the "watch" in the base image
+FACE = (40, 150, 140, 250)
+
+
+def _person() -> np.ndarray:
+    """Photo-like: full tonal range, smooth areas and edges."""
+    rng = np.random.default_rng(7)
+    texture = cv2.GaussianBlur(rng.integers(0, 255, (H, W, 3), dtype=np.uint8), (0, 0), 3).astype(np.float32)
+    texture = (texture - texture.mean()) * 4
+    ramp = np.linspace(40, 215, W, dtype=np.float32)[None, :, None] + np.linspace(-20, 20, H, dtype=np.float32)[:, None, None]
+    img = np.clip(ramp + texture, 0, 255).astype(np.uint8)
+    cv2.rectangle(img, (60, 180), (340, 560), (90, 110, 150), -1)  # a body
+    cv2.circle(img, (200, 90), 55, (120, 150, 190), -1)  # a head
+    return img
+
+
+def _render(base: np.ndarray, *, item: bool = True, colour=(200, 60, 20)) -> np.ndarray:
+    """What FASHN hands back: bigger, globally re-toned, the face subtly
+    redrawn — and (usually) the product added."""
+    out = base.astype(np.float32) * 1.08 + 6  # global colour/contrast drift
+    y0, x0, y1, x1 = FACE
+    out[y0:y1, x0:x1] += np.random.default_rng(3).normal(0, 6, (y1 - y0, x1 - x0, 3))  # face drift
+    if item:
+        y0, x0, y1, x1 = ITEM
+        out[y0:y1, x0:x1] = colour  # the product
+    out = np.clip(out, 0, 255).astype(np.uint8)
+    return cv2.resize(out, (int(W * 1.6), int(H * 1.6)), interpolation=cv2.INTER_CUBIC)
+
+
+def _item_region() -> Region:
+    y0, x0, y1, x1 = ITEM
+    return Region(x0 / W, y0 / H, x1 / W, y1 / H)
+
+
+def test_merge_takes_the_product_and_keeps_everything_else():
+    base = _person()
+    merged = merge_product(base, _render(base), _item_region())
+
+    y0, x0, y1, x1 = ITEM
+    product = merged.image[y0 + 8 : y1 - 8, x0 + 8 : x1 - 8].astype(int)
+    assert np.abs(product - (200, 60, 20)).mean() < 25  # the product is there
+
+    keep = np.ones((H, W), bool)
+    keep[y0 - 20 : y1 + 20, x0 - 20 : x1 + 20] = False
+    # the face and everything else: the person's own pixels, not the render's
+    assert np.abs(merged.image[keep].astype(int) - base[keep]).mean() < 1.0
+    fy0, fx0, fy1, fx1 = FACE
+    assert np.array_equal(merged.image[fy0:fy1, fx0:fx1], base[fy0:fy1, fx0:fx1])
+
+
+def test_merge_never_takes_a_protected_face():
+    base = _person()
+    render = _render(base)
+    fy0, fx0, fy1, fx1 = FACE
+    # even if the product region were over the face
+    merged = merge_product(base, render, Region(0, 0, 1, 1), protect=[(fx0, fy0, fx1, fy1)])
+    assert np.array_equal(merged.image[fy0:fy1, fx0:fx1], base[fy0:fy1, fx0:fx1])
+
+
+@pytest.fixture
+def fake_vision(monkeypatch):
+    """No network: product download, description and location are faked;
+    the test sets the inspector's verdicts."""
+    verdicts: list[Verdict] = []
+
+    async def download(url):  # noqa: ARG001
+        return np.full((200, 200, 3), (200, 60, 20), np.uint8)
+
+    async def describe(image, url, name):  # noqa: ARG001
+        return f"{name} (described)"
+
+    async def choose(marked, product, description, numbers):  # noqa: ARG001
+        return numbers  # every changed area is the product in these synthetic renders
+
+    async def judge(product, before, after, region, description):  # noqa: ARG001
+        return verdicts.pop(0)
+
+    monkeypatch.setattr(pipeline, "_download", download)
+    monkeypatch.setattr(pipeline, "describe_product", describe)
+    monkeypatch.setattr(pipeline, "choose", choose)
+    monkeypatch.setattr(pipeline, "judge", judge)
+    return verdicts
+
+
+def _renderer(calls: list[tuple[str, int]], *, draws: bool = True):
+    async def render(base_jpeg: bytes, item, fix: str, seed: int) -> bytes:  # noqa: ARG001
+        calls.append((fix, seed))
+        base = cv2.imdecode(np.frombuffer(base_jpeg, np.uint8), cv2.IMREAD_COLOR)
+        return encode_jpeg(_render(base, item=draws), 97)
+
+    return render
+
+
+GOOD = Verdict(9, 9, 8)
+BAD = Verdict(4, 5, 6, ["wrong strap colour"], "make the bracelet silver steel like the reference")
+ITEMS = [pipeline.LookItem("https://img.example/watch.jpg", OutfitSlot.WATCH, "Bulova Blue Dial Watch")]
+
+
+async def test_a_good_render_is_accepted_first_time(fake_vision):
+    fake_vision.append(GOOD)
+    calls: list = []
+    image, reports = await pipeline.render_look(encode_jpeg(_person(), 97), ITEMS, _renderer(calls), retries=1)
+    assert len(calls) == 1 and reports[0].attempts == 1
+    assert image[:2] == b"\xff\xd8"
+
+
+async def test_a_failed_inspection_is_retried_with_the_fix_and_a_new_seed(fake_vision):
+    fake_vision.extend([BAD, GOOD])
+    calls: list = []
+    _, reports = await pipeline.render_look(encode_jpeg(_person(), 97), ITEMS, _renderer(calls), retries=1)
+    assert len(calls) == 2
+    assert calls[0][0] == "" and calls[1][0] == BAD.fix  # the inspector's correction goes to the model
+    assert calls[0][1] != calls[1][1]  # a genuinely different render
+    assert reports[0].verdict == GOOD
+
+
+async def test_a_look_that_never_passes_is_refused_not_returned(fake_vision):
+    fake_vision.extend([BAD, BAD])
+    with pytest.raises(pipeline.QualityFailure) as exc:
+        await pipeline.render_look(encode_jpeg(_person(), 97), ITEMS, _renderer([]), retries=1)
+    assert exc.value.item == "Bulova Blue Dial Watch"
+    assert "wrong strap colour" in exc.value.issues
+
+
+async def test_a_render_without_the_product_fails_without_asking_the_inspector(fake_vision):
+    calls: list = []
+    with pytest.raises(pipeline.QualityFailure) as exc:
+        await pipeline.render_look(
+            encode_jpeg(_person(), 97), ITEMS, _renderer(calls, draws=False), retries=1
+        )
+    assert "not drawn" in exc.value.issues[0]
+    assert len(calls) == 2 and not fake_vision  # judge never consulted
+
+
+async def test_the_second_item_is_drawn_on_the_merged_image_not_the_raw_render(fake_vision):
+    """Chaining raw renders compounds the model's redraw of the face; the
+    pipeline feeds its merged result forward instead."""
+    fake_vision.extend([GOOD, GOOD])
+    person = _person()
+    seen_bases: list[np.ndarray] = []
+
+    async def render(base_jpeg, item, fix, seed):  # noqa: ARG001
+        base = cv2.imdecode(np.frombuffer(base_jpeg, np.uint8), cv2.IMREAD_COLOR)
+        seen_bases.append(base)
+        colour = (200, 60, 20) if len(seen_bases) == 1 else (30, 180, 60)  # a second, different item
+        return encode_jpeg(_render(base, colour=colour), 97)
+
+    items = ITEMS * 2
+    await pipeline.render_look(encode_jpeg(person, 97), items, render, retries=0)
+    # the pipeline works at 2048px; map the face box onto that
+    scale = seen_bases[0].shape[0] / H
+    fy0, fx0, fy1, fx1 = (int(v * scale) for v in FACE)
+    # the face the second render starts from is still the original one the
+    # first render got — not the first render's redrawn face (up to JPEG)
+    first, second = seen_bases[0][fy0:fy1, fx0:fx1].astype(int), seen_bases[1][fy0:fy1, fx0:fx1].astype(int)
+    assert np.abs(second - first).mean() < 3
+
+
+async def test_a_refused_look_fails_the_job_and_refunds(client, db, monkeypatch, fake_vision):
+    """End to end through the worker with a real (non-mock) provider class:
+    a render that never passes inspection is not returned as a success."""
+    from app.ai.providers.base import TryOnOutput
+    from app.ai.providers.fashn import FASHNTryOnProvider
+    from tests.conftest import credit_balance, register_and_login, seed_product
+    from tests.test_tryon import _poll_until_terminal, _upload_front_photo
+
+    provider = FASHNTryOnProvider(api_key="fa-test", base_url="https://api.fashn.ai/v1", model="tryon-max")
+
+    async def fake_generate(self, payload):  # noqa: ARG001
+        base = _person()
+        return TryOnOutput(image_bytes=encode_jpeg(_render(base), 95))
+
+    monkeypatch.setattr(FASHNTryOnProvider, "generate", fake_generate)
+    monkeypatch.setattr("app.workers.tasks.tryon_tasks.get_tryon_provider", lambda: provider)
+    monkeypatch.setattr("app.ai.providers.registry.get_tryon_provider", lambda: provider)
+    fake_vision.extend([BAD, BAD])
+
+    await register_and_login(client)
+    photo_id = await _upload_front_photo(client)
+    user_id = (await client.get("/api/v1/auth/me")).json()["id"]
+    before = await credit_balance(db, user_id)
+    await db.rollback()  # release SQLite's read lock so the worker can write the job's outcome
+    product = await seed_product(db, name="Bulova Blue Dial Watch")
+    resp = await client.post("/api/v1/tryon", json={"user_photo_id": photo_id, "product_id": product.id})
+    assert resp.status_code == 201, resp.text
+    # poll like the frontend does (not every 50ms): hammering the SQLite test
+    # database from the same event loop kept serving a stale snapshot while
+    # the worker had already committed the failure
+    finished = await _poll_until_terminal(client, resp.json()["id"], attempts=240, delay=0.25)
+
+    assert finished["status"] == "failed"
+    assert "couldn't draw" in finished["error_message"] and "wrong strap colour" in finished["error_message"]
+    db.expire_all()
+    assert await credit_balance(db, user_id) == before  # refunded

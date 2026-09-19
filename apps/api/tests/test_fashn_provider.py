@@ -164,3 +164,52 @@ async def test_fashn_failed_status_raises_provider_error(monkeypatch):
 
 async def _noop(*_a, **_kw):
     return None
+
+
+@pytest.mark.asyncio
+async def test_out_of_credits_is_reported_as_such_and_not_retried(monkeypatch):
+    """Real incident: FASHN answers 429 {"error":"OutOfCredits"} for an empty
+    balance. It was reported as "rate limited" and retried — every try-on
+    on the site failed with a misleading message."""
+    calls = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        return httpx.Response(
+            429, json={"error": "OutOfCredits", "message": "You are out of credits. Please visit your account."}
+        )
+
+    transport = httpx.MockTransport(handler)
+    original_init = httpx.AsyncClient.__init__
+
+    def patched_init(self, *args, **kwargs):
+        kwargs["transport"] = transport
+        original_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(httpx.AsyncClient, "__init__", patched_init)
+    provider = FASHNTryOnProvider(api_key="fa-test", base_url="https://api.fashn.ai/v1", model="tryon-max")
+    with pytest.raises(TryOnProviderError) as exc:
+        await provider.generate(TryOnInput(model_image_url="https://e.x/m.jpg", garment_image_url="https://e.x/g.jpg"))
+    assert "out of credits" in str(exc.value)
+    assert not exc.value.retryable
+    assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("model", ["tryon-max", "tryon-v1.6"])
+async def test_a_seed_is_sent_so_a_retry_is_a_different_render(monkeypatch, model):
+    captured = {}
+    transport = _fake_transport(submit_payload_check=captured.update)
+    original_init = httpx.AsyncClient.__init__
+
+    def patched_init(self, *args, **kwargs):
+        kwargs["transport"] = transport
+        original_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(httpx.AsyncClient, "__init__", patched_init)
+    monkeypatch.setattr("app.ai.providers.fashn.asyncio.sleep", lambda *_a, **_kw: _noop())
+    provider = FASHNTryOnProvider(api_key="fa-test", base_url="https://api.fashn.ai/v1", model=model)
+    await provider.generate(
+        TryOnInput(model_image_url="https://e.x/m.jpg", garment_image_url="https://e.x/g.jpg", seed=8003)
+    )
+    assert captured["inputs"]["seed"] == 8003

@@ -8,7 +8,8 @@ failed, with automatic credit refund on failure.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+import base64
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -36,6 +37,7 @@ from app.services.outfit_slots import (
     worn_on_head,
 )
 from app.services.storage_service import get_storage, new_key
+from app.services.tryon_quality.pipeline import LookItem, QualityFailure, keep_person, render_look
 
 settings = get_settings()
 MAX_ATTEMPTS = 3
@@ -79,6 +81,50 @@ async def _garment_layers(session, job: TryOnJob, model: str, whole_outfit: bool
         return [_Layer(items[idx].product.primary_image_url, slot, items[idx].product.name) for idx, slot in plan]
 
     return []
+
+
+def _quality_pipeline_on(provider) -> bool:  # noqa: ANN001
+    # the mock provider returns a stamped placeholder, not a render of the
+    # photo — there's nothing to merge or inspect
+    return settings.TRYON_QUALITY_PIPELINE and provider.name != "mock"
+
+
+def _data_uri(jpeg: bytes) -> str:
+    return "data:image/jpeg;base64," + base64.b64encode(jpeg).decode()
+
+
+def _look_item(layer: _Layer) -> LookItem:
+    return LookItem(_absolute_url(layer.image_url), layer.slot or slot_for(layer.name), layer.name)
+
+
+def _pipeline_renderer(provider):  # noqa: ANN001, ANN202
+    """How the quality pipeline asks the provider for one item: on the
+    pipeline's current image (not the previous raw render), with the
+    inspector's correction appended to tryon-max's instruction, and a new
+    seed per attempt."""
+
+    async def render(base_jpeg: bytes, item: LookItem, fix: str, seed: int) -> bytes:
+        payload = _tryon_input(_data_uri(base_jpeg), _Layer(item.image_url, item.slot, item.name), provider.model)
+        if provider.model == "tryon-max" and fix:
+            payload = replace(payload, prompt=f"{payload.prompt} {fix}".strip())
+        output = await provider.generate(replace(payload, seed=seed))
+        return output.image_bytes
+
+    return render
+
+
+async def _keep_person_if_on(job: TryOnJob, image: bytes, content_type: str, layers: list[_Layer]) -> tuple[bytes, str, bool]:
+    """A whole-look render with the person's own pixels kept outside the
+    products. (image, content type, whether the person was kept)."""
+    if not settings.TRYON_QUALITY_PIPELINE:
+        return image, content_type, False
+    try:
+        person = await asyncio.to_thread(get_storage().read, job.user_photo.storage_key)
+        kept = await keep_person(person, image, [_look_item(layer) for layer in layers])
+    except Exception as exc:  # noqa: BLE001 — never lose the render over this
+        logger.warning("tryon_keep_person_failed", job_id=job.id, error=str(exc)[:300])
+        return image, content_type, False
+    return kept, "image/jpeg", True
 
 
 def _outfit_pieces(layers: list[_Layer]) -> list[OutfitPiece]:
@@ -153,9 +199,10 @@ async def run_tryon_job_async(job_id: str) -> None:
                     )
                     await session.commit()
                 else:
+                    image, ctype, kept = await _keep_person_if_on(job, output.image_bytes, output.content_type, full_layers)
                     await _complete_job(
-                        session, job, output.image_bytes, output.content_type, full.name, full.model,
-                        drawn=[layer.name for layer in full_layers],
+                        session, job, image, ctype, full.name, full.model,
+                        drawn=[layer.name for layer in full_layers], face_kept=kept,
                     )
                     return
 
@@ -179,9 +226,39 @@ async def run_tryon_job_async(job_id: str) -> None:
             if provider.whole_outfit:
                 # one render with every item at once (shoes, bags, jewellery too)
                 output = await provider.generate_outfit(model_url, _outfit_pieces(layers))
+                image, ctype, kept = await _keep_person_if_on(job, output.image_bytes, output.content_type, layers)
                 await _complete_job(
-                    session, job, output.image_bytes, output.content_type, provider.name, provider.model,
-                    drawn=[layer.name for layer in layers],
+                    session, job, image, ctype, provider.name, provider.model,
+                    drawn=[layer.name for layer in layers], face_kept=kept,
+                )
+                return
+
+            if _quality_pipeline_on(provider):
+                # render -> keep only the product -> inspect -> retry/refuse
+                # (app/services/tryon_quality/pipeline.py)
+                person = await asyncio.to_thread(get_storage().read, job.user_photo.storage_key)
+                try:
+                    image, _ = await render_look(
+                        person,
+                        [_look_item(layer) for layer in layers],
+                        _pipeline_renderer(provider),
+                        retries=settings.TRYON_QUALITY_RETRIES,
+                        min_product=settings.TRYON_QUALITY_MIN_PRODUCT,
+                        min_other=settings.TRYON_QUALITY_MIN_FIT,
+                    )
+                except QualityFailure as exc:
+                    await _fail_job(
+                        session,
+                        job,
+                        f"We couldn't draw “{exc.item[:80]}” accurately enough, so no result was returned "
+                        f"and your credits were refunded. Problem found: {'; '.join(exc.issues[:2]) or 'poor match'}. "
+                        "Try another product photo, or a clearer full-body photo.",
+                        refund=True,
+                    )
+                    return
+                await _complete_job(
+                    session, job, image, "image/jpeg", provider.name, provider.model,
+                    drawn=[layer.name for layer in layers], face_kept=True,
                 )
                 return
 
@@ -257,8 +334,10 @@ async def _complete_job(  # noqa: ANN001
     provider_model: str,
     *,
     drawn: list[str] = (),  # type: ignore[assignment]
+    face_kept: bool = False,
 ) -> None:
-    image_bytes, content_type = await _with_original_face(job, image_bytes, content_type, list(drawn))
+    if not face_kept:  # the quality pipeline already kept the person's own face
+        image_bytes, content_type = await _with_original_face(job, image_bytes, content_type, list(drawn))
     ext = "jpg" if content_type == "image/jpeg" else content_type.split("/")[-1]
     key = new_key("tryon", "results", job.user_id, f"{job.id}.{ext}")
     storage = get_storage()

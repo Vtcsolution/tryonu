@@ -112,13 +112,21 @@ class Settings(BaseSettings):
     OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
     # try-on via OpenAI image editing (VIRTUAL_TRYON_PROVIDER=openai)
     OPENAI_IMAGE_MODEL: str = "gpt-image-1"
+    # looks at images (product analysis, locating the worn item, quality checks) — never draws
+    OPENAI_VISION_MODEL: str = "gpt-5.4-mini"
     # with the FASHN provider: render outfits that include shoes, bags or
     # jewellery with OpenAI instead (FASHN can't draw those), falling back
     # to FASHN if OpenAI fails. Needs OPENAI_API_KEY.
-    TRYON_OPENAI_FOR_FULL_LOOKS: bool = True
+    TRYON_OPENAI_FOR_FULL_LOOKS: bool = False  # FASHN tryon-max draws every wearable itself
     # put the person's own face back on every try-on result (see
     # app/services/face_restore.py) — models redraw faces and they drift
     TRYON_KEEP_ORIGINAL_FACE: bool = True
+    # the quality pipeline (app/services/tryon_quality): keep the person's own
+    # pixels outside the product, grade every item, retry or refuse bad renders
+    TRYON_QUALITY_PIPELINE: bool = True
+    TRYON_QUALITY_RETRIES: int = 1  # extra renders per item when a render fails inspection
+    TRYON_QUALITY_MIN_PRODUCT: int = 7  # 0-10: exact product (colour, pattern, logo, hardware)
+    TRYON_QUALITY_MIN_FIT: int = 6  # 0-10: worn correctly, and realism
     EMBEDDING_DIM: int = 1536
 
     # --- retailer / affiliate credentials (each optional; the adapter
