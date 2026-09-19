@@ -39,7 +39,8 @@ _HOW = {
 
 def build_prompt(pieces: list[OutfitPiece]) -> str:
     lines = [
-        "Image 1 is a photo of a real person. Edit it so the same person is wearing the products below.",
+        "Image 1 is a photo of a real person — possibly a close-up of part of the body, such as a wrist. "
+        "Edit it so the same person is wearing the products below.",
         "",
         "Products (each later image is one product photo):",
     ]

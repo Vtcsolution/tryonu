@@ -250,6 +250,9 @@ async def run_tryon_job_async(job_id: str) -> None:
                         retries=settings.TRYON_QUALITY_RETRIES,
                         min_product=settings.TRYON_QUALITY_MIN_PRODUCT,
                         min_other=settings.TRYON_QUALITY_MIN_FIT,
+                        # OpenAI edits any photo, so a failed watch/jewellery
+                        # item is retried as a close-up; FASHN needs a person
+                        zoom_small=provider.whole_outfit,
                     )
                 except QualityFailure as exc:
                     await _fail_job(

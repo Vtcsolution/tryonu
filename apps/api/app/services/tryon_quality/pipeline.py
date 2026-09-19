@@ -139,7 +139,10 @@ async def render_look(
     retries: int = 1,
     min_product: float = 7.0,
     min_other: float = 6.0,
+    zoom_small: bool = False,
 ) -> tuple[bytes, list[ItemReport]]:
+    """zoom_small: retry a failed small item (watch, jewellery) as a close-up
+    — for models that can edit any photo, not only a full-body one."""
     base = _cap(decode(person))
     face = detect_face(base)
     reports: list[ItemReport] = []
@@ -152,14 +155,23 @@ async def render_look(
 
         best: tuple[float, np.ndarray, Verdict, float] | None = None
         fix = ""
+        last_region: Region | None = None
         for attempt in range(retries + 1):
             report.attempts = attempt + 1
-            raw = decode(await render(encode_jpeg(base, 95), item, fix, 42 + attempt * 7919))
-            changes = find_changes(base, raw, _protect(face, item))
-            merged, region = await _take_product(changes, product, description, item)
+            seed = 42 + attempt * 7919
+            if zoom_small and attempt > 0 and item.slot in _SMALL and last_region is not None:
+                merged, region = await _render_close_up(
+                    base, last_region, item, fix, seed, render, product, description, _protect(face, item)
+                )
+            else:
+                raw = decode(await render(encode_jpeg(base, 95), item, fix, seed))
+                changes = find_changes(base, raw, _protect(face, item))
+                merged, region = await _take_product(changes, product, description, item)
+            if merged is not None:
+                last_region = region
 
             if merged is None or merged.changed_share < 0.0005:
-                merged = merged or changes.merge([])
+                merged = Merge(base, 0.0, 0.0, np.zeros(base.shape[:2], np.float32))
                 verdict = Verdict(0, 0, 0, ["the product was not drawn on the photo"])
             else:
                 try:
@@ -187,6 +199,53 @@ async def render_look(
         base = image
 
     return encode_jpeg(base, 97), reports
+
+
+async def _render_close_up(
+    base: np.ndarray,
+    around: Region,
+    item: LookItem,
+    fix: str,
+    seed: int,
+    render: RenderFn,
+    product: np.ndarray,
+    description: str,
+    protect: list[tuple[int, int, int, int]],
+) -> tuple[Merge | None, Region]:
+    """Render a small item on a close-up of where it goes, then put it back.
+
+    A watch in a full-body photo is ~40px wide: the image model can't draw a
+    bezel or dial accurately at that size (live: a red-and-blue GMT bezel
+    came out wrong twice and the try-on was refused). On a close-up of the
+    wrist it's many times larger. The close-up result is merged into the
+    close-up of the photo the same way as any render — only the product and
+    what it moved are taken — and pasted back in place."""
+    h, w = base.shape[:2]
+    bw, bh = (around.x1 - around.x0) * w, (around.y1 - around.y0) * h
+    side = max(4 * max(bw, bh), 0.25 * min(h, w))
+    cx, cy = (around.x0 + around.x1) / 2 * w, (around.y0 + around.y1) / 2 * h
+    x0, y0 = int(max(0, cx - side / 2)), int(max(0, cy - side / 2))
+    x1, y1 = int(min(w, cx + side / 2)), int(min(h, cy + side / 2))
+    crop = base[y0:y1, x0:x1]
+    ch, cw = crop.shape[:2]
+    up = 1024 / max(ch, cw)
+    crop_up = cv2.resize(crop, (round(cw * up), round(ch * up)), interpolation=cv2.INTER_LANCZOS4) if up > 1 else crop
+
+    raw = decode(await render(encode_jpeg(crop_up, 95), item, fix, seed))
+    raw = cv2.resize(raw, (cw, ch), interpolation=cv2.INTER_AREA)
+    local_protect = [(px0 - x0, py0 - y0, px1 - x0, py1 - y0) for px0, py0, px1, py1 in protect]
+    changes = find_changes(crop, raw, local_protect)
+    merged, region = await _take_product(changes, product, description, item)
+    if merged is None:
+        return None, around
+    full = base.copy()
+    full[y0:y1, x0:x1] = merged.image
+    mask = np.zeros((h, w), np.float32)
+    mask[y0:y1, x0:x1] = merged.mask
+    back = Region(
+        (x0 + region.x0 * cw) / w, (y0 + region.y0 * ch) / h, (x0 + region.x1 * cw) / w, (y0 + region.y1 * ch) / h
+    )
+    return Merge(full, merged.alignment, float(mask.mean()), mask), back
 
 
 async def _take_product(

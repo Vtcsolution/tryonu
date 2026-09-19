@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+import cv2
 import numpy as np
 
 from app.services.tryon_quality.compose import Region
@@ -60,7 +61,14 @@ class Verdict:
 def _crop(img: np.ndarray, region: Region, pad: float = 0.6) -> np.ndarray:
     h, w = img.shape[:2]
     x0, y0, x1, y1 = region.pixels(w, h, pad)
-    return img[y0:y1, x0:x1]
+    crop = img[y0:y1, x0:x1]
+    # a watch crop from a full-body photo is ~100px; shown that small the
+    # inspector only ever answered "too small to verify" — enlarge it
+    ch, cw = crop.shape[:2]
+    if 0 < max(ch, cw) < 640:
+        scale = 640 / max(ch, cw)
+        crop = cv2.resize(crop, (round(cw * scale), round(ch * scale)), interpolation=cv2.INTER_CUBIC)
+    return crop
 
 
 def _num(value: object) -> float:

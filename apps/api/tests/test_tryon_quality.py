@@ -221,3 +221,32 @@ async def test_a_refused_look_fails_the_job_and_refunds(client, db, monkeypatch,
     assert "couldn't draw" in finished["error_message"] and "wrong strap colour" in finished["error_message"]
     db.expire_all()
     assert await credit_balance(db, user_id) == before  # refunded
+
+
+async def test_a_failed_small_item_is_retried_as_a_close_up_of_where_it_goes(fake_vision):
+    """Live: a GMT watch's red-and-blue bezel came out wrong twice at full-body
+    scale (~40px wide) and the try-on was refused. The retry renders a
+    close-up of the wrist instead, where the watch is many times larger."""
+    fake_vision.extend([BAD, GOOD])
+    sizes: list[tuple[int, int]] = []
+
+    async def render(base_jpeg, item, fix, seed):  # noqa: ARG001
+        base = cv2.imdecode(np.frombuffer(base_jpeg, np.uint8), cv2.IMREAD_COLOR)
+        sizes.append(base.shape[:2])
+        out = base.astype(np.float32) * 1.05
+        y0, x0, y1, x1 = (int(v * base.shape[0] / H) if i % 2 == 0 else int(v * base.shape[1] / W)
+                          for i, v in enumerate(ITEM))
+        if len(sizes) == 1:
+            out[y0:y1, x0:x1] = (200, 60, 20)
+        else:  # the close-up: paint the middle, where the item is
+            ch, cw = base.shape[:2]
+            out[ch // 3 : 2 * ch // 3, cw // 3 : 2 * cw // 3] = (200, 60, 20)
+        return encode_jpeg(np.clip(out, 0, 255).astype(np.uint8), 97)
+
+    _, reports = await pipeline.render_look(
+        encode_jpeg(_person(), 97), ITEMS, render, retries=1, zoom_small=True
+    )
+    assert reports[0].attempts == 2
+    full, close_up = sizes
+    assert full[0] > close_up[0] or full[1] > close_up[1] or close_up != full  # a different, zoomed input
+    assert max(close_up) >= 1000  # enlarged for the model
