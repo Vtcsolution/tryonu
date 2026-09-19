@@ -40,6 +40,7 @@ class OutfitPiece:
     image_url: str
     slot: str  # OutfitSlot value: dress, top, shoes, bag, accessory, ...
     name: str
+    note: str = ""  # a correction from the quality inspector, for a retry
 
 
 @dataclass(frozen=True, slots=True)

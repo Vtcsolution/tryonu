@@ -104,6 +104,11 @@ def _pipeline_renderer(provider):  # noqa: ANN001, ANN202
     seed per attempt."""
 
     async def render(base_jpeg: bytes, item: LookItem, fix: str, seed: int) -> bytes:
+        if provider.whole_outfit:
+            # OpenAI image editing: one product per call, on the pipeline's
+            # current image; no seed parameter — each call differs anyway
+            piece = OutfitPiece(item.image_url, item.slot.value, item.name, note=fix)
+            return (await provider.generate_outfit(_data_uri(base_jpeg), [piece])).image_bytes
         payload = _tryon_input(_data_uri(base_jpeg), _Layer(item.image_url, item.slot, item.name), provider.model)
         if provider.model == "tryon-max" and fix:
             payload = replace(payload, prompt=f"{payload.prompt} {fix}".strip())
@@ -223,7 +228,7 @@ async def run_tryon_job_async(job_id: str) -> None:
         final_content_type = "image/jpeg"
 
         try:
-            if provider.whole_outfit:
+            if provider.whole_outfit and not _quality_pipeline_on(provider):
                 # one render with every item at once (shoes, bags, jewellery too)
                 output = await provider.generate_outfit(model_url, _outfit_pieces(layers))
                 image, ctype, kept = await _keep_person_if_on(job, output.image_bytes, output.content_type, layers)

@@ -65,6 +65,9 @@ _DEFAULT_REGION = {
     OutfitSlot.BOTTOM: Region(0.1, 0.45, 0.9, 1.0),
     OutfitSlot.SHOES: Region(0.1, 0.8, 0.9, 1.0),
 }
+# worn items that are small in a full-body photo: refined to their own
+# pixels instead of taking a whole redrawn arm or torso around them
+_SMALL = {OutfitSlot.WATCH, OutfitSlot.ACCESSORY, OutfitSlot.OTHER}
 _EYEWEAR = re.compile(r"\b(sunglasses|glasses|eyeglasses|spectacles|goggles)\b")
 
 
@@ -203,11 +206,22 @@ async def _take_product(
         picked = [c.number for c in changes.candidates if _overlaps(c.region, area)] or numbers
     if not picked:
         return None, _DEFAULT_REGION.get(item.slot, Region(0, 0, 1, 1))
+    reach = 0.03
+    if item.slot in _SMALL and changes.share_of(picked) > 0.006:
+        finer = changes.refine(picked)
+        numbers = [c.number for c in finer.candidates]
+        if numbers:
+            try:
+                again = await choose(draw_candidates(finer.render, finer.candidates), product, description, numbers)
+            except VisionError:
+                again = None
+            if again:
+                changes, picked, reach = finer, again, 0.015
     boxes = [c.region for c in changes.candidates if c.number in picked]
     region = Region(
         min(b.x0 for b in boxes), min(b.y0 for b in boxes), max(b.x1 for b in boxes), max(b.y1 for b in boxes)
     )
-    return changes.merge(picked), region
+    return changes.merge(picked, reach), region
 
 
 def _overlaps(a: Region, b: Region) -> bool:

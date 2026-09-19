@@ -45,6 +45,8 @@ def build_prompt(pieces: list[OutfitPiece]) -> str:
     ]
     for n, piece in enumerate(pieces, start=2):
         lines.append(f"- Image {n}: {piece.name} — {_HOW.get(piece.slot, 'worn where it naturally goes')}.")
+        if piece.note:
+            lines.append(f"  Correction from the previous attempt: {piece.note}")
     lines += [
         "",
         "Rules:",
@@ -140,6 +142,11 @@ def _slot_from_category(category: str) -> str:
 
 
 async def _download(client: httpx.AsyncClient, url: str, what: str) -> tuple[bytes, str]:
+    if url.startswith("data:"):
+        # the quality pipeline hands over its current image in memory
+        header, _, payload = url.partition(",")
+        ctype = header[5:].split(";")[0] or "image/jpeg"
+        return base64.b64decode(payload), ctype if ctype in ("image/jpeg", "image/png", "image/webp") else "image/jpeg"
     try:
         resp = await client.get(url)
     except httpx.RequestError as exc:

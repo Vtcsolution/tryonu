@@ -4,6 +4,7 @@ switch it, without the admin panel.
     python -m app.scripts.tryon_doctor              # report only
     python -m app.scripts.tryon_doctor --use openai # switch to OpenAI image editing
     python -m app.scripts.tryon_doctor --use fashn  # switch back to FASHN
+    python -m app.scripts.tryon_doctor --use openai --openai-model gpt-image-1.5
     python -m app.scripts.tryon_doctor --fashn-model tryon-max  # FASHN's model that
         # also draws shoes, bags and jewellery while keeping the person's face
 
@@ -70,6 +71,7 @@ async def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--use", choices=["openai", "fashn", "mock"])
     parser.add_argument("--fashn-model", choices=["tryon-max", "tryon-v1.6"])
+    parser.add_argument("--openai-model", help="OpenAI image model for try-ons, e.g. gpt-image-1.5")
     args = parser.parse_args()
 
     try:
@@ -77,6 +79,8 @@ async def main() -> int:
             await _set("VIRTUAL_TRYON_PROVIDER", args.use)
         if args.fashn_model:
             await _set("FASHN_MODEL", args.fashn_model)
+        if args.openai_model:
+            await _set("OPENAI_IMAGE_MODEL", args.openai_model)
     except SettingsValidationError as exc:
         print(f"Not changed: {exc}")
         return 1

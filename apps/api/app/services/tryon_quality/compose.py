@@ -212,7 +212,9 @@ def _strong_cores(diff: np.ndarray, blocked: np.ndarray, high: float) -> tuple[i
     return n, labels, stats
 
 
-def _mask_from(core: np.ndarray, weak_labels: np.ndarray, blocked: np.ndarray) -> np.ndarray:
+def _mask_from(
+    core: np.ndarray, weak_labels: np.ndarray, blocked: np.ndarray, reach_share: float = 0.03
+) -> np.ndarray:
     """What to take: the chosen strong blobs (holes filled — a watch face
     that matches the old skin tone), plus faint changes touching them — the
     body part moved to wear the product, the edge of a new hem — but only
@@ -225,7 +227,7 @@ def _mask_from(core: np.ndarray, weak_labels: np.ndarray, blocked: np.ndarray) -
     touching = np.unique(weak_labels[core.astype(bool) & (weak_labels > 0)])
     taken = (np.isin(weak_labels, touching) | core.astype(bool)).astype(np.uint8)
 
-    reach = 0.03 * max(h, w)
+    reach = reach_share * max(h, w)
     distance = cv2.distanceTransform((1 - core).astype(np.uint8), cv2.DIST_L2, 5)
     fade = np.clip(1.0 - (distance - 0.35 * reach) / (0.65 * reach), 0.0, 1.0).astype(np.float32)
 
@@ -321,13 +323,29 @@ class Changes:
     cores: np.ndarray  # strong-change blob labels
     weak: np.ndarray  # faint-change area labels
     blocked: np.ndarray
+    diff: np.ndarray
     candidates: list[Candidate]
     _label_of: dict[int, int]
 
-    def merge(self, numbers: list[int]) -> Merge:
+    def share_of(self, numbers: list[int]) -> float:
+        return sum(c.share for c in self.candidates if c.number in numbers)
+
+    def refine(self, numbers: list[int], high: float = 60.0) -> "Changes":
+        """Split the chosen areas again at a higher strength. An image model
+        that redraws a lot (OpenAI re-renders the T-shirt hem and hands) can
+        fold a watch into one big changed area with them; at a higher
+        threshold the steel-and-blue watch stands apart from redrawn fabric."""
+        chosen = [self._label_of[n] for n in numbers if n in self._label_of]
+        inside = np.isin(self.cores, chosen) & (self.cores > 0)
+        inside = cv2.dilate(inside.astype(np.uint8), np.ones((15, 15), np.uint8)).astype(bool)
+        n, cores, stats = _strong_cores(np.where(inside, self.diff, 0), self.blocked, high)
+        candidates, label_of = _numbered(cores, stats, n)
+        return Changes(self.base, self.aligned, self.render, cores, self.weak, self.blocked, self.diff, candidates, label_of)
+
+    def merge(self, numbers: list[int], reach_share: float = 0.03) -> Merge:
         chosen = [self._label_of[n] for n in numbers if n in self._label_of]
         core = np.isin(self.cores, chosen) & (self.cores > 0) if chosen else np.zeros(self.cores.shape, bool)
-        mask = _mask_from(core, self.weak, self.blocked)
+        mask = _mask_from(core, self.weak, self.blocked, reach_share)
         # colour-fit the pasted pixels on everything EXCEPT the product (and
         # a margin): a big black shirt in the fit dragged it grey-green
         h, w = mask.shape
@@ -360,20 +378,28 @@ def find_changes(
     blocked = _blocked((h, w), protect)
     _, weak = _changed_areas(diff, blocked, low)
     n, cores, stats = _strong_cores(diff, blocked, high)
+    candidates, label_of = _numbered(cores, stats, n, max_candidates)
+    return Changes(base, aligned, corrected, cores, weak, blocked, diff, candidates, label_of)
 
+
+def _numbered(
+    cores: np.ndarray, stats: np.ndarray, n: int, max_candidates: int = 12
+) -> tuple[list[Candidate], dict[int, int]]:
+    """Number the blobs, biggest first, with their exact boxes."""
+    h, w = cores.shape
+    present = set(np.unique(cores).tolist()) - {0}
     found = []
     for label in range(1, n):
-        area = int(stats[label, cv2.CC_STAT_AREA])
-        if not (cores == label).any():
+        if label not in present:
             continue  # dropped as a speck
         x, y, bw, bh = (int(v) for v in stats[label, :4])
-        found.append((area, label, Region(x / w, y / h, (x + bw) / w, (y + bh) / h)))
+        found.append((int(stats[label, cv2.CC_STAT_AREA]), label, Region(x / w, y / h, (x + bw) / w, (y + bh) / h)))
     found.sort(key=lambda f: -f[0])
     candidates, label_of = [], {}
     for number, (area, label, region) in enumerate(found[:max_candidates], start=1):
         candidates.append(Candidate(number, region, area / (h * w)))
         label_of[number] = label
-    return Changes(base, aligned, corrected, cores, weak, blocked, candidates, label_of)
+    return candidates, label_of
 
 
 def draw_candidates(render: np.ndarray, candidates: list[Candidate], max_side: int = 1400) -> np.ndarray:
@@ -384,12 +410,26 @@ def draw_candidates(render: np.ndarray, candidates: list[Candidate], max_side: i
     img = cv2.resize(render, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA) if scale < 1 else render.copy()
     ih, iw = img.shape[:2]
     thickness = max(2, iw // 400)
-    for c in candidates:
-        x0, y0, x1, y1 = c.region.pixels(iw, ih)
+    size = 0.6 + iw / 1800
+    boxes = [(c, c.region.pixels(iw, ih)) for c in candidates]
+    for _, (x0, y0, x1, y1) in boxes:
         cv2.rectangle(img, (x0, y0), (x1, y1), (0, 0, 255), thickness)
+    # labels last, each placed where it doesn't cover another label — two
+    # boxes sharing a corner once hid "1" under "11" and the wrong box won
+    placed: list[tuple[int, int, int, int]] = []
+    for c, (x0, y0, x1, y1) in boxes:
         label = str(c.number)
-        size = 0.6 + iw / 1800
         (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, size, thickness)
-        cv2.rectangle(img, (x0, max(0, y0 - th - 8)), (x0 + tw + 8, max(th + 8, y0)), (0, 0, 255), -1)
-        cv2.putText(img, label, (x0 + 4, max(th + 4, y0 - 4)), cv2.FONT_HERSHEY_SIMPLEX, size, (255, 255, 255), thickness)
+        lw, lh = tw + 8, th + 8
+        spots = [(x0, y0 - lh), (x0, y0), (x1 - lw, y0 - lh), (x1 - lw, y0), (x0, y1 - lh), (x1 - lw, y1 - lh), (x0, y1)]
+        spot = spots[0]
+        for sx, sy in spots:
+            sx, sy = max(0, min(iw - lw, sx)), max(0, min(ih - lh, sy))
+            if all(sx + lw <= px or px + pw <= sx or sy + lh <= py or py + ph <= sy for px, py, pw, ph in placed):
+                spot = (sx, sy)
+                break
+        sx, sy = max(0, min(iw - lw, spot[0])), max(0, min(ih - lh, spot[1]))
+        placed.append((sx, sy, lw, lh))
+        cv2.rectangle(img, (sx, sy), (sx + lw, sy + lh), (0, 0, 255), -1)
+        cv2.putText(img, label, (sx + 4, sy + th + 4), cv2.FONT_HERSHEY_SIMPLEX, size, (255, 255, 255), thickness)
     return img

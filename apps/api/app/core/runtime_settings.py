@@ -68,7 +68,7 @@ SPECS: tuple[SettingSpec, ...] = (
                 "result — AI models redraw faces and they drift. Skipped automatically when the face can't be "
                 "matched safely."),
     SettingSpec("OPENAI_IMAGE_MODEL", "OpenAI try-on image model", "ai_tryon", "text",
-                help="Used when the try-on provider is “openai”, e.g. gpt-image-1."),
+                help="Used when the try-on provider is “openai”, e.g. gpt-image-2."),
     SettingSpec("FASHN_API_KEY", "FASHN API key", "ai_tryon", "secret"),
     SettingSpec("FASHN_MODEL", "FASHN model", "ai_tryon", "choice", ("tryon-max", "tryon-v1.6"),
                 "tryon-max draws anything wearable — clothing, shoes, bags, jewellery, hats, accessories — and "

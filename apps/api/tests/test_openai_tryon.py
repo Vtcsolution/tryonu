@@ -84,9 +84,10 @@ async def test_retries_without_input_fidelity_for_models_that_reject_it(monkeypa
 
 
 async def test_whole_outfit_provider_gets_every_item_in_one_call(client, db, monkeypatch):
-    """The screenshot's outfit: kameez, oxford shoes, duffle bag. FASHN v1.6
-    could only draw the kameez; a whole-outfit provider gets all three, in
-    one call, and the outfit says all three are on the photo."""
+    """With the quality pipeline off: the screenshot's outfit (kameez, oxford
+    shoes, duffle bag) goes to a whole-outfit provider in one call, and the
+    outfit says all three are on the photo."""
+    monkeypatch.setattr("app.workers.tasks.tryon_tasks.settings.TRYON_QUALITY_PIPELINE", False)
     calls: list[list[OutfitPiece]] = []
 
     async def fake_generate_outfit(self, model_image_url, pieces):  # noqa: ARG001
@@ -250,3 +251,39 @@ def test_full_looks_stay_on_fashn_when_tryon_max_can_draw_them(monkeypatch):
     )
     assert provider is main
     assert [s for _, s in plan] == [OutfitSlot.DRESS, OutfitSlot.SHOES, OutfitSlot.BAG]
+
+
+
+async def test_with_the_quality_pipeline_openai_renders_item_by_item_on_the_current_image(monkeypatch):
+    """OpenAI redraws the whole photo too, so it goes through the same
+    pipeline as FASHN: one product per call, on the pipeline's current image
+    (handed over in memory), with the inspector's correction on a retry."""
+    from app.workers.tasks.tryon_tasks import _pipeline_renderer
+    from app.services.tryon_quality.pipeline import LookItem
+
+    seen: list[tuple[str, list[OutfitPiece]]] = []
+
+    async def fake_generate_outfit(self, model_image_url, pieces):  # noqa: ARG001
+        seen.append((model_image_url, pieces))
+        return TryOnOutput(image_bytes=b"render")
+
+    monkeypatch.setattr(OpenAIImageTryOnProvider, "generate_outfit", fake_generate_outfit)
+    render = _pipeline_renderer(OpenAIImageTryOnProvider(api_key="sk-test", model="gpt-image-1"))
+    item = LookItem("https://i.ebayimg.com/watch.jpg", OutfitSlot.WATCH, "Bulova Blue Dial Watch")
+
+    assert await render(b"current-image", item, "make the bracelet silver steel", 42) == b"render"
+    url, pieces = seen[0]
+    assert url.startswith("data:image/jpeg;base64,")
+    assert [(p.name, p.slot, p.note) for p in pieces] == [("Bulova Blue Dial Watch", "watch", "make the bracelet silver steel")]
+
+
+@pytest.mark.asyncio
+async def test_the_correction_reaches_the_openai_prompt(monkeypatch):
+    edits: list[httpx.Request] = []
+    _patch_transport(monkeypatch, _image_handler(edits))
+    provider = OpenAIImageTryOnProvider(api_key="sk-test", model="gpt-image-1")
+    await provider.generate_outfit(
+        "data:image/jpeg;base64," + base64.b64encode(small_jpeg_bytes()).decode(),
+        [OutfitPiece("https://i.ebayimg.com/w.jpg", "watch", "Bulova Watch", note="wrap it around the wrist")],
+    )
+    assert b"Correction from the previous attempt: wrap it around the wrist" in edits[0].content
