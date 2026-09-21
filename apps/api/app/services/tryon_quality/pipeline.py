@@ -88,6 +88,15 @@ _BODY_PART_FOR = (
 )
 
 
+def _min_product_for(item: LookItem, min_product: float) -> float:
+    """A little more forgiving for something a few dozen pixels across: its
+    fine ornament (filigree, beading, tiny stones) cannot survive at that
+    size, and refusing the try-on over it helps nobody. Wrong colour, wrong
+    shape, wrong place or missing still fails, and anything bigger than a
+    watch is held to the full bar."""
+    return max(5.0, min_product - 1) if item.slot in _SMALL else min_product
+
+
 def _body_part_of(item: LookItem) -> str | None:
     name = item.name.lower()
     for pattern, part in _BODY_PART_FOR:
@@ -312,9 +321,11 @@ async def _render_one(
     fix = ""
     last_region: Region | None = None
     part = _body_part_of(item) if zoom_small and item.slot in _SMALL else None
+    region_is_body_part = False
     if part is not None:
         try:
             last_region = await find_body_part(base, part)
+            region_is_body_part = last_region is not None
         except VisionError as exc:
             logger.warning("tryon_body_part_unknown", item=item.name[:80], error=str(exc)[:200])
     for attempt in range(retries + 1):
@@ -322,7 +333,8 @@ async def _render_one(
         seed = 42 + attempt * 7919
         if zoom_small and item.slot in _SMALL and last_region is not None:
             merged, region = await _render_close_up(
-                base, last_region, item, fix, seed, render, product, description, _protect(face, item)
+                base, last_region, item, fix, seed, render, product, description, _protect(face, item),
+                zoom=1.25 if region_is_body_part else 4.0,
             )
         else:
             raw = decode(await render(encode_jpeg(base, 95), item, fix, seed))
@@ -334,8 +346,13 @@ async def _render_one(
             merged, region = await _take_product(changes, product, description, item)
         if merged is not None:
             last_region = region
+            region_is_body_part = False  # from here on it's the item's own box
 
-        if merged is None or merged.changed_share < 0.0005:
+        # "not drawn" must be judged against the item's own size: a pair of
+        # stud earrings covers ~0.02% of a photo, and a flat 0.05% floor
+        # called them missing even when the model had drawn them properly
+        drawn_floor = 0.00002 if item.slot in _SMALL else 0.0005
+        if merged is None or merged.changed_share < drawn_floor:
             merged = Merge(base, 0.0, 0.0, np.zeros(base.shape[:2], np.float32))
             verdict = Verdict(0, 0, 0, ["the product was not drawn on the photo"])
         else:
@@ -351,7 +368,7 @@ async def _render_one(
         )
         if best is None or verdict.score > best[0]:
             best = (verdict.score, merged.image, verdict, merged.changed_share)
-        if verdict.passes(min_product, min_other):
+        if verdict.passes(_min_product_for(item, min_product), min_other):
             break
         fix = verdict.fix
 
@@ -359,7 +376,7 @@ async def _render_one(
     _, image, verdict, taken = best
     report.verdict, report.taken_share = verdict, taken
     logger.info("tryon_item_quality", item=item.name[:80], history=report.history)
-    if not verdict.passes(min_product, min_other):
+    if not verdict.passes(_min_product_for(item, min_product), min_other):
         raise QualityFailure(item.name, verdict.issues)
     return image
 
@@ -374,6 +391,7 @@ async def _render_close_up(
     product: np.ndarray,
     description: str,
     protect: list[tuple[int, int, int, int]],
+    zoom: float = 4.0,
 ) -> tuple[Merge | None, Region]:
     """Render a small item on a close-up of where it goes, then put it back.
 
@@ -385,7 +403,11 @@ async def _render_close_up(
     what it moved are taken — and pasted back in place."""
     h, w = base.shape[:2]
     bw, bh = (around.x1 - around.x0) * w, (around.y1 - around.y0) * h
-    side = max(4 * max(bw, bh), 0.25 * min(h, w))
+    # `zoom` is how much context to keep around the box: 4x a watch-sized
+    # item box, but only a little around a body-part box (a head), which is
+    # already big — 4x of that covered the whole photo, so a stud earring
+    # stayed ~8px wide and the model never drew it.
+    side = max(zoom * max(bw, bh), 0.12 * min(h, w))
     cx, cy = (around.x0 + around.x1) / 2 * w, (around.y0 + around.y1) / 2 * h
     x0, y0 = int(max(0, cx - side / 2)), int(max(0, cy - side / 2))
     x1, y1 = int(min(w, cx + side / 2)), int(min(h, cy + side / 2))

@@ -315,7 +315,7 @@ async def test_small_items_are_judged_at_the_size_they_are_actually_seen(monkeyp
     await judge_module.judge(product, person, person, _item_region(), "a shirt", small_item=False)
 
     assert "cannot see those either" in asked[0]
-    assert "colours, shape or placement are wrong" in asked[0]
+    assert "silhouette/shape or the placement are wrong" in asked[0]  # still fails a wrong product
     assert "cannot see those either" not in asked[1]  # a shirt is judged in full
 
 
@@ -332,3 +332,13 @@ def test_tiny_items_know_which_body_part_they_go_on():
     assert "ears" in part_of(ears)
     assert "neck" in part_of(neck)
     assert part_of(shirt) is None  # a shirt is rendered on the whole photo
+
+
+def test_a_tiny_item_is_held_to_a_slightly_lower_product_bar():
+    """Filigree on a jhumka earring cannot survive at 30px; refusing the
+    whole try-on over it helps nobody. Bigger items keep the full bar."""
+    earring = pipeline.LookItem("u", OutfitSlot.ACCESSORY, "Jhumka Earrings")
+    shirt = pipeline.LookItem("u", OutfitSlot.TOP, "Cotton Shirt")
+    assert pipeline._min_product_for(earring, 7.0) == 6.0
+    assert pipeline._min_product_for(shirt, 7.0) == 7.0
+    assert pipeline._min_product_for(earring, 5.0) == 5.0  # never below the floor
