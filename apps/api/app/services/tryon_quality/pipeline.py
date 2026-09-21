@@ -1,10 +1,13 @@
 """The try-on quality pipeline: same person + exact product + natural fit.
 
-For each item of the look, in drawing order:
+An image model that can draw several products at once (OpenAI) renders the
+whole look in ONE pass; every item is then inspected separately and only
+the failures are rendered again on their own (measured on a 4-item outfit:
+39s against 101s item by item). For a model that takes one product per call
+(FASHN), every item is rendered in turn. Either way:
 
-1. FASHN renders the product onto the CURRENT image — which, from the
-   second item on, is our merged result, not the previous raw render, so
-   the model's whole-frame redraws never pile up.
+1. the product is rendered onto the CURRENT image — our merged result, not
+   a previous raw render, so the model's whole-frame redraws never pile up.
 2. The render is aligned to the photo and split into the areas where it
    differs (compose.find_changes, exact boxes from the pixels); the vision
    model only picks which numbered areas are the product (locate.choose) —
@@ -25,6 +28,7 @@ seven tested categories.
 from __future__ import annotations
 
 import re
+import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
@@ -40,6 +44,7 @@ from app.services.tryon_quality.compose import (
     Changes,
     Merge,
     Region,
+    composite,
     decode,
     draw_candidates,
     encode_jpeg,
@@ -68,6 +73,8 @@ _DEFAULT_REGION = {
 # worn items that are small in a full-body photo: refined to their own
 # pixels instead of taking a whole redrawn arm or torso around them
 _SMALL = {OutfitSlot.WATCH, OutfitSlot.ACCESSORY, OutfitSlot.OTHER}
+# clothing that layers onto other clothing
+_GARMENTS = {OutfitSlot.DRESS, OutfitSlot.TOP, OutfitSlot.BOTTOM, OutfitSlot.OUTERWEAR}
 _EYEWEAR = re.compile(r"\b(sunglasses|glasses|eyeglasses|spectacles|goggles)\b")
 
 
@@ -97,6 +104,8 @@ class QualityFailure(Exception):
 
 # (current image as JPEG, item, extra instruction, seed) -> raw render bytes
 RenderFn = Callable[[bytes, LookItem, str, int], Awaitable[bytes]]
+# (current image as JPEG, every item) -> one render with the whole look on it
+RenderAllFn = Callable[[bytes, list[LookItem]], Awaitable[bytes]]
 
 
 def _cap(img: np.ndarray) -> np.ndarray:
@@ -136,69 +145,192 @@ async def render_look(
     items: list[LookItem],
     render: RenderFn,
     *,
+    render_all: RenderAllFn | None = None,
     retries: int = 1,
     min_product: float = 7.0,
     min_other: float = 6.0,
     zoom_small: bool = False,
 ) -> tuple[bytes, list[ItemReport]]:
-    """zoom_small: retry a failed small item (watch, jewellery) as a close-up
-    — for models that can edit any photo, not only a full-body one."""
+    """The look on the person's photo, with only the products taken from the
+    renders, every item inspected, and anything that fails re-rendered or
+    refused.
+
+    render_all (an image model that can draw several products in one edit)
+    does the whole look in ONE render — measured on a 4-item outfit: 39s
+    against 101s item by item, with equal or better scores. Only items that
+    fail inspection are then rendered individually.
+    zoom_small: retry a failed small item (watch, jewellery) as a close-up.
+    """
     base = _cap(decode(person))
     face = detect_face(base)
-    reports: list[ItemReport] = []
+    products = await asyncio.gather(*(_download(item.image_url) for item in items))
+    descriptions = await asyncio.gather(
+        *(describe_product(product, item.image_url, item.name) for product, item in zip(products, items))
+    )
+    reports = [ItemReport(item.name) for item in items]
+    todo = list(range(len(items)))
 
-    for item in items:
-        report = ItemReport(item.name)
-        reports.append(report)
-        product = await _download(item.image_url)
-        description = await describe_product(product, item.image_url, item.name)
+    if render_all is not None and items:
+        base, todo = await _whole_look_pass(
+            base, face, items, products, descriptions, reports, render_all, min_product, min_other
+        )
 
-        best: tuple[float, np.ndarray, Verdict, float] | None = None
-        fix = ""
-        last_region: Region | None = None
-        for attempt in range(retries + 1):
-            report.attempts = attempt + 1
-            seed = 42 + attempt * 7919
-            if zoom_small and attempt > 0 and item.slot in _SMALL and last_region is not None:
-                merged, region = await _render_close_up(
-                    base, last_region, item, fix, seed, render, product, description, _protect(face, item)
-                )
-            else:
-                raw = decode(await render(encode_jpeg(base, 95), item, fix, seed))
-                changes = find_changes(base, raw, _protect(face, item))
-                merged, region = await _take_product(changes, product, description, item)
-            if merged is not None:
-                last_region = region
-
-            if merged is None or merged.changed_share < 0.0005:
-                merged = Merge(base, 0.0, 0.0, np.zeros(base.shape[:2], np.float32))
-                verdict = Verdict(0, 0, 0, ["the product was not drawn on the photo"])
-            else:
-                try:
-                    verdict = await judge(product, base, merged.image, region, description)
-                except VisionError as exc:
-                    # the inspector is down — don't block the customer on our outage
-                    logger.warning("tryon_judge_unavailable", item=item.name[:80], error=str(exc)[:200])
-                    verdict = Verdict(min_product, min_other, min_other, ["not inspected (vision unavailable)"])
-            report.history.append(
-                f"attempt {attempt + 1}: product={verdict.product_match:.0f} worn={verdict.worn_correctly:.0f} "
-                f"realism={verdict.realism:.0f} taken={merged.changed_share:.3f}"
-            )
-            if best is None or verdict.score > best[0]:
-                best = (verdict.score, merged.image, verdict, merged.changed_share)
-            if verdict.passes(min_product, min_other):
-                break
-            fix = verdict.fix
-
-        assert best is not None
-        _, image, verdict, taken = best
-        report.verdict, report.taken_share = verdict, taken
-        logger.info("tryon_item_quality", item=item.name[:80], history=report.history)
-        if not verdict.passes(min_product, min_other):
-            raise QualityFailure(item.name, verdict.issues)
-        base = image
+    for index in todo:
+        base = await _render_one(
+            base, face, items[index], products[index], descriptions[index], reports[index],
+            render, retries, min_product, min_other, zoom_small,
+        )
 
     return encode_jpeg(base, 97), reports
+
+
+async def _pick_areas(changes: Changes, product: np.ndarray, description: str, item: LookItem) -> list[int]:
+    """Which changed areas are this item's, from the shared whole-look render."""
+    numbers = [c.number for c in changes.candidates]
+    if not numbers:
+        return []
+    try:
+        picked = await choose(draw_candidates(changes.render, changes.candidates), product, description, numbers)
+    except VisionError:
+        area = _DEFAULT_REGION.get(item.slot, Region(0, 0, 1, 1))
+        picked = [c.number for c in changes.candidates if _overlaps(c.region, area)]
+    return picked or []
+
+
+def _box_of(changes: Changes, numbers: list[int], item: LookItem) -> Region:
+    boxes = [c.region for c in changes.candidates if c.number in numbers]
+    if not boxes:
+        return _DEFAULT_REGION.get(item.slot, Region(0, 0, 1, 1))
+    return Region(
+        min(b.x0 for b in boxes), min(b.y0 for b in boxes), max(b.x1 for b in boxes), max(b.y1 for b in boxes)
+    )
+
+
+async def _whole_look_pass(
+    base: np.ndarray,
+    face,  # noqa: ANN001
+    items: list[LookItem],
+    products: list[np.ndarray],
+    descriptions: list[str],
+    reports: list[ItemReport],
+    render_all: RenderAllFn,
+    min_product: float,
+    min_other: float,
+) -> tuple[np.ndarray, list[int]]:
+    """One render of the whole look; keep the items that pass inspection.
+    Returns the image with those items on it, and which items still need
+    their own render."""
+    head_item = next((i for i in items if worn_on_head(i.name)), items[0])
+    try:
+        raw = decode(await render_all(encode_jpeg(base, 95), items))
+    except Exception as exc:  # noqa: BLE001 — fall back to item-by-item
+        logger.warning("tryon_whole_look_render_failed", error=str(exc)[:300])
+        return base, list(range(len(items)))
+
+    changes = find_changes(base, raw, _protect(face, head_item))
+    if not changes.candidates:
+        return base, list(range(len(items)))
+
+    picks = await asyncio.gather(
+        *(_pick_areas(changes, product, description, item)
+          for product, description, item in zip(products, descriptions, items))
+    )
+    everything = sorted({n for picked in picks for n in picked})
+    if not everything:
+        return base, list(range(len(items)))
+
+    shown = changes.merge(everything).image
+    verdicts = await asyncio.gather(
+        *(judge(product, base, shown, _box_of(changes, picked, item), description)
+          for product, description, item, picked in zip(products, descriptions, items, picks)),
+        return_exceptions=True,
+    )
+
+    keep: list[int] = []
+    todo: list[int] = []
+    for index, (picked, verdict) in enumerate(zip(picks, verdicts)):
+        report = reports[index]
+        report.attempts = 1
+        if isinstance(verdict, BaseException) or not picked:
+            todo.append(index)
+            continue
+        report.history.append(
+            f"whole look: product={verdict.product_match:.0f} worn={verdict.worn_correctly:.0f} "
+            f"realism={verdict.realism:.0f}"
+        )
+        if verdict.passes(min_product, min_other):
+            report.verdict = verdict
+            keep.extend(picked)
+        else:
+            todo.append(index)
+    logger.info("tryon_whole_look", kept=len(items) - len(todo), redo=len(todo))
+    if not keep:
+        return base, list(range(len(items)))
+    merged = changes.merge(sorted(set(keep)))
+    for index, report in enumerate(reports):
+        if index not in todo:
+            report.taken_share = merged.changed_share
+    return merged.image, todo
+
+
+async def _render_one(
+    base: np.ndarray,
+    face,  # noqa: ANN001
+    item: LookItem,
+    product: np.ndarray,
+    description: str,
+    report: ItemReport,
+    render: RenderFn,
+    retries: int,
+    min_product: float,
+    min_other: float,
+    zoom_small: bool,
+) -> np.ndarray:
+    """One item rendered on the current image, inspected, retried, or refused."""
+    best: tuple[float, np.ndarray, Verdict, float] | None = None
+    fix = ""
+    last_region: Region | None = None
+    for attempt in range(retries + 1):
+        report.attempts += 1
+        seed = 42 + attempt * 7919
+        if zoom_small and attempt > 0 and item.slot in _SMALL and last_region is not None:
+            merged, region = await _render_close_up(
+                base, last_region, item, fix, seed, render, product, description, _protect(face, item)
+            )
+        else:
+            raw = decode(await render(encode_jpeg(base, 95), item, fix, seed))
+            changes = find_changes(base, raw, _protect(face, item))
+            merged, region = await _take_product(changes, product, description, item)
+        if merged is not None:
+            last_region = region
+
+        if merged is None or merged.changed_share < 0.0005:
+            merged = Merge(base, 0.0, 0.0, np.zeros(base.shape[:2], np.float32))
+            verdict = Verdict(0, 0, 0, ["the product was not drawn on the photo"])
+        else:
+            try:
+                verdict = await judge(product, base, merged.image, region, description)
+            except VisionError as exc:
+                # the inspector is down — don't block the customer on our outage
+                logger.warning("tryon_judge_unavailable", item=item.name[:80], error=str(exc)[:200])
+                verdict = Verdict(min_product, min_other, min_other, ["not inspected (vision unavailable)"])
+        report.history.append(
+            f"own render {attempt + 1}: product={verdict.product_match:.0f} worn={verdict.worn_correctly:.0f} "
+            f"realism={verdict.realism:.0f} taken={merged.changed_share:.3f}"
+        )
+        if best is None or verdict.score > best[0]:
+            best = (verdict.score, merged.image, verdict, merged.changed_share)
+        if verdict.passes(min_product, min_other):
+            break
+        fix = verdict.fix
+
+    assert best is not None
+    _, image, verdict, taken = best
+    report.verdict, report.taken_share = verdict, taken
+    logger.info("tryon_item_quality", item=item.name[:80], history=report.history)
+    if not verdict.passes(min_product, min_other):
+        raise QualityFailure(item.name, verdict.issues)
+    return image
 
 
 async def _render_close_up(

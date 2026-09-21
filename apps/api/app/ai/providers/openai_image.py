@@ -71,8 +71,11 @@ class OpenAIImageTryOnProvider(VirtualTryOnProvider):
     name = "openai"
     whole_outfit = True
 
-    def __init__(self, *, api_key: str, model: str, base_url: str = "https://api.openai.com/v1") -> None:
+    def __init__(
+        self, *, api_key: str, model: str, base_url: str = "https://api.openai.com/v1", quality: str = "high"
+    ) -> None:
         self.model = model
+        self.quality = quality
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
 
@@ -105,7 +108,7 @@ class OpenAIImageTryOnProvider(VirtualTryOnProvider):
                 "model": self.model,
                 "prompt": build_prompt(pieces),
                 "size": "auto",
-                "quality": "high",
+                "quality": self.quality,
                 "output_format": "jpeg",
                 "input_fidelity": "high",  # keep the person's face and the product details
                 "n": "1",

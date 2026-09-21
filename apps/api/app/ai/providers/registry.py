@@ -34,6 +34,7 @@ def get_tryon_provider() -> VirtualTryOnProvider:
         return OpenAIImageTryOnProvider(
             api_key=settings.OPENAI_API_KEY,  # type: ignore[arg-type]
             model=settings.OPENAI_IMAGE_MODEL,
+            quality=settings.OPENAI_IMAGE_QUALITY,
         )
 
     return MockTryOnProvider()
@@ -50,7 +51,9 @@ def get_full_look_provider() -> VirtualTryOnProvider | None:
         return main
     if main.name == "mock" or not settings.TRYON_OPENAI_FOR_FULL_LOOKS or not settings.OPENAI_API_KEY:
         return None
-    return OpenAIImageTryOnProvider(api_key=settings.OPENAI_API_KEY, model=settings.OPENAI_IMAGE_MODEL)
+    return OpenAIImageTryOnProvider(
+        api_key=settings.OPENAI_API_KEY, model=settings.OPENAI_IMAGE_MODEL, quality=settings.OPENAI_IMAGE_QUALITY
+    )
 
 
 def plan_outfit_render(

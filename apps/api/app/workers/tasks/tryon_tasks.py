@@ -118,6 +118,17 @@ def _pipeline_renderer(provider):  # noqa: ANN001, ANN202
     return render
 
 
+def _pipeline_render_all(provider):  # noqa: ANN001, ANN202
+    """One render with every product of the look on it."""
+
+    async def render_all(base_jpeg: bytes, items: list[LookItem]) -> bytes:
+        pieces = [OutfitPiece(image_url=i.image_url, slot=i.slot.value, name=i.name) for i in items]
+        output = await provider.generate_outfit(_data_uri(base_jpeg), pieces)
+        return output.image_bytes
+
+    return render_all
+
+
 async def _keep_person_if_on(job: TryOnJob, image: bytes, content_type: str, layers: list[_Layer]) -> tuple[bytes, str, bool]:
     """A whole-look render with the person's own pixels kept outside the
     products. (image, content type, whether the person was kept)."""
@@ -250,8 +261,12 @@ async def run_tryon_job_async(job_id: str) -> None:
                         retries=settings.TRYON_QUALITY_RETRIES,
                         min_product=settings.TRYON_QUALITY_MIN_PRODUCT,
                         min_other=settings.TRYON_QUALITY_MIN_FIT,
-                        # OpenAI edits any photo, so a failed watch/jewellery
-                        # item is retried as a close-up; FASHN needs a person
+                        # OpenAI draws several products in one edit, so the
+                        # whole look is one render and only failures get their
+                        # own; it also edits any photo, so a failed watch is
+                        # retried as a close-up. FASHN takes one product per
+                        # call and needs a photo of a person.
+                        render_all=_pipeline_render_all(provider) if provider.whole_outfit else None,
                         zoom_small=provider.whole_outfit,
                     )
                 except QualityFailure as exc:

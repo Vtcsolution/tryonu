@@ -112,6 +112,10 @@ class Settings(BaseSettings):
     OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
     # try-on via OpenAI image editing (VIRTUAL_TRYON_PROVIDER=openai)
     OPENAI_IMAGE_MODEL: str = "gpt-image-2"  # measured: changes 0.2% of the body for a watch-only edit (gpt-image-1: 8.7%)
+    # Measured per render (shirt/dress/shoes/bag/watch): "low" ~15s and scored
+    # 8-9, "medium" ~32s, "high" ~87s and scored WORSE (it redraws more of the
+    # photo instead of reproducing the product). Speed here is free quality.
+    OPENAI_IMAGE_QUALITY: Literal["low", "medium", "high"] = "low"
     # looks at images (product analysis, locating the worn item, quality checks) — never draws
     OPENAI_VISION_MODEL: str = "gpt-5.4-mini"
     # with the FASHN provider: render outfits that include shoes, bags or

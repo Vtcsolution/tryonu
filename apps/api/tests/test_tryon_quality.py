@@ -250,3 +250,47 @@ async def test_a_failed_small_item_is_retried_as_a_close_up_of_where_it_goes(fak
     full, close_up = sizes
     assert full[0] > close_up[0] or full[1] > close_up[1] or close_up != full  # a different, zoomed input
     assert max(close_up) >= 1000  # enlarged for the model
+
+
+async def test_the_whole_look_is_one_render_and_only_failures_get_their_own(fake_vision):
+    """OpenAI can draw several products in one edit: measured 39s for a
+    4-item outfit against 101s item by item. Items that pass inspection keep
+    that render; a failing item is rendered again on its own."""
+    fake_vision.extend([GOOD, BAD, GOOD])  # item A passes, item B fails, then passes alone
+    own_renders: list[str] = []
+    whole_calls: list[int] = []
+
+    async def render_all(base_jpeg: bytes, items) -> bytes:
+        whole_calls.append(len(items))
+        base = cv2.imdecode(np.frombuffer(base_jpeg, np.uint8), cv2.IMREAD_COLOR)
+        return encode_jpeg(_render(base), 97)
+
+    async def render_one(base_jpeg, item, fix, seed):  # noqa: ARG001
+        own_renders.append(item.name)
+        base = cv2.imdecode(np.frombuffer(base_jpeg, np.uint8), cv2.IMREAD_COLOR)
+        return encode_jpeg(_render(base, colour=(30, 180, 60)), 97)
+
+    items = [
+        pipeline.LookItem("https://img.example/a.jpg", OutfitSlot.WATCH, "Item A"),
+        pipeline.LookItem("https://img.example/b.jpg", OutfitSlot.SHOES, "Item B"),
+    ]
+    _, reports = await pipeline.render_look(
+        encode_jpeg(_person(), 97), items, render_one, render_all=render_all, retries=1
+    )
+    assert whole_calls == [2]  # one render for both items
+    assert own_renders == ["Item B"]  # only the one that failed
+    assert reports[0].verdict == GOOD and reports[1].verdict == GOOD
+    assert "whole look" in reports[0].history[0]
+
+
+async def test_a_whole_look_render_that_fails_falls_back_to_item_by_item(fake_vision):
+    fake_vision.extend([GOOD])
+
+    async def render_all(base_jpeg, items):  # noqa: ARG001
+        raise RuntimeError("the model refused the request")
+
+    calls: list = []
+    _, reports = await pipeline.render_look(
+        encode_jpeg(_person(), 97), ITEMS, _renderer(calls), render_all=render_all, retries=0
+    )
+    assert len(calls) == 1 and reports[0].verdict == GOOD

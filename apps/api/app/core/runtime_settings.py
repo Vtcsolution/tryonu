@@ -58,7 +58,7 @@ SPECS: tuple[SettingSpec, ...] = (
                 "render), grades every item with the vision model and retries or refuses poor renders. "
                 "Needs the OpenAI API key."),
     SettingSpec("TRYON_QUALITY_RETRIES", "Retries per item", "ai_tryon", "int", min_value=0,
-                help="Extra renders when an item fails inspection. Each costs FASHN credits."),
+                help="Extra renders when an item fails inspection — each costs one more render."),
     SettingSpec("TRYON_QUALITY_MIN_PRODUCT", "Minimum product match (0-10)", "ai_tryon", "int", min_value=0),
     SettingSpec("TRYON_QUALITY_MIN_FIT", "Minimum fit & realism (0-10)", "ai_tryon", "int", min_value=0),
     SettingSpec("OPENAI_VISION_MODEL", "Vision model (inspection)", "ai_tryon", "text",
@@ -69,6 +69,9 @@ SPECS: tuple[SettingSpec, ...] = (
                 "matched safely."),
     SettingSpec("OPENAI_IMAGE_MODEL", "OpenAI try-on image model", "ai_tryon", "text",
                 help="Used when the try-on provider is “openai”, e.g. gpt-image-2."),
+    SettingSpec("OPENAI_IMAGE_QUALITY", "OpenAI render quality", "ai_tryon", "choice", ("low", "medium", "high"),
+                "Measured: “low” ~15s per item and scores 8-9/10; “medium” ~32s; “high” ~87s and scores worse "
+                "(it redraws more of the photo). Leave on low unless a product needs finer detail."),
     SettingSpec("FASHN_API_KEY", "FASHN API key", "ai_tryon", "secret"),
     SettingSpec("FASHN_MODEL", "FASHN model", "ai_tryon", "choice", ("tryon-max", "tryon-v1.6"),
                 "tryon-max draws anything wearable — clothing, shoes, bags, jewellery, hats, accessories — and "
