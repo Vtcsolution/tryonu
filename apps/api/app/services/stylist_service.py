@@ -24,10 +24,12 @@ from app.ai.llm.registry import get_stylist_provider
 from app.models.ai_usage import AIUsage
 from app.models.enums import AIUsageKind, OutfitSlot
 from app.models.outfit import Outfit, OutfitItem
+from app.models.preference import UserPreference
 from app.models.stylist import StylistRequest
 from app.models.wardrobe import WardrobeItem
 from app.retailers.base import RawProduct
 from app.schemas.stylist import StylistAskRequest
+from app.services.gender_filter import keep_for_gender
 from app.services.live_search_service import LiveSearchResult, live_search
 from app.services.outfit_compatibility import score_outfit
 from app.services.outfit_slots import slot_for
@@ -71,26 +73,37 @@ _ITEM_CATEGORY_WORDS = {
     "backpack", "backpacks", "payal", "chappal", "purse", "tote", "romper", "rompers", "set", "sets",
 }
 _TERM_STOPWORDS = {"a", "an", "the", "and", "with", "or", "for", "to", "of", "in", "on", "over", "under"}
-_WOMEN_WORDS = {"women", "women's", "womens", "woman", "woman's", "ladies", "lady", "girls", "girl's", "female"}
-_MEN_WORDS = {"men", "men's", "mens", "man", "man's", "gents", "boys", "boy's", "male"}
+# who the ask is for — said outright, or through who it's being bought for
+_WOMEN_WORDS = {
+    "women", "women's", "womens", "woman", "woman's", "ladies", "lady", "girls", "girl's", "female",
+    "wife", "wife's", "girlfriend", "mum", "mom", "mother", "sister", "daughter", "bride",
+}
+_MEN_WORDS = {
+    "men", "men's", "mens", "man", "man's", "gents", "boys", "boy's", "male",
+    "husband", "husband's", "boyfriend", "dad", "father", "brother", "son", "groom",
+}
 
 
-def _extract_search_terms(prompt: str) -> list[str]:
+def _gender_in_prompt(prompt: str) -> str | None:
+    words = re.findall(r"[a-z']+", prompt.lower())
+    if any(w in _WOMEN_WORDS for w in words):
+        return "women"
+    return "men" if any(w in _MEN_WORDS for w in words) else None
+
+
+def _extract_search_terms(prompt: str, gender: str | None = None) -> list[str]:
     """Finds each recognized item in the prompt, one short query per item,
     in the order they appear, deduplicated:
     - item words written back to back ("shalwar kameez", "khussa shoes")
       stay one item, but a comma splits them ("jacket, jeans")
     - up to two describing words right before it are kept ("leather
       jacket", "white lawn shalwar kameez")
-    - "for women" / "men's" anywhere in the prompt is added to every query,
-      since eBay otherwise mixes in the other gender's listings."""
+    - "for women" / "men's" anywhere in the prompt — or, failing that, the
+      shopper's own saved gender — is added to every query, since eBay
+      otherwise mixes in the other gender's listings."""
     tokens = [(m.group(), m.start(), m.end()) for m in re.finditer(r"[a-z']+", prompt.lower())]
     words = [t[0] for t in tokens]
-    gender = ""
-    if any(w in _WOMEN_WORDS for w in words):
-        gender = "women"
-    elif any(w in _MEN_WORDS for w in words):
-        gender = "men"
+    gender = _gender_in_prompt(prompt) or (gender if gender in ("men", "women") else "")
 
     def joined(a: int, b: int) -> bool:
         # the two tokens are separated by plain spaces only — no comma etc.
@@ -193,7 +206,9 @@ class _Candidate:
     term: str  # the exact query that produced it — used to find alternatives sharing it
 
 
-async def _fetch_candidates(req: StylistAskRequest, profile: TasteProfile | None) -> list[_Candidate]:
+async def _fetch_candidates(
+    req: StylistAskRequest, profile: TasteProfile | None, gender: str | None = None
+) -> list[_Candidate]:
     """Every candidate is fetched fresh from retailer APIs for this exact
     prompt — nothing here is a pre-synced local row. Budget filtering and
     personalized re-ranking both happen over that live pool in Python
@@ -201,7 +216,7 @@ async def _fetch_candidates(req: StylistAskRequest, profile: TasteProfile | None
     WHERE/ORDER BY. Each candidate keeps the term that found it, so
     ask_stylist can offer real alternatives at other price points for
     whichever ones the LLM ends up choosing."""
-    terms = _extract_search_terms(req.prompt)
+    terms = _extract_search_terms(req.prompt, gender)
     if terms:
         # One short search per distinct item mentioned (see
         # _extract_search_terms) — a multi-item outfit prompt otherwise
@@ -212,7 +227,11 @@ async def _fetch_candidates(req: StylistAskRequest, profile: TasteProfile | None
         pool: list[_Candidate] = []
         seen_ids: set[tuple[str, str]] = set()
         for term, results in zip(terms, term_results):
-            for r in results:
+            # Retailers match words, not shoppers: "men leather ankle boots"
+            # still returns women's heels, and those became the alternatives
+            # offered under a man's boots. Filter each term separately, so
+            # one badly-matched item can't leave the shopper without boots.
+            for r in keep_for_gender(results, gender, lambda r: r.raw.name):
                 key = (r.provider.slug, r.raw.retailer_product_id)
                 if key in seen_ids:
                     continue
@@ -221,7 +240,8 @@ async def _fetch_candidates(req: StylistAskRequest, profile: TasteProfile | None
     else:
         # No recognized item word (e.g. a bare brand/style ask) — fall
         # back to the prompt as a single query, same as before.
-        pool = [_Candidate(result=r, term=req.prompt) for r in await live_search(req.prompt, limit=_LIVE_FETCH_POOL_SIZE)]
+        loose = await live_search(req.prompt, limit=_LIVE_FETCH_POOL_SIZE)
+        pool = [_Candidate(result=r, term=req.prompt) for r in keep_for_gender(loose, gender, lambda r: r.raw.name)]
 
     if req.budget_min_cents is not None:
         pool = [c for c in pool if c.result.raw.price_cents >= req.budget_min_cents]
@@ -294,6 +314,15 @@ def _slot_for(raw: RawProduct) -> OutfitSlot:
     return slot_for(raw.name, raw.category_slug)
 
 
+async def _shopper_gender(db: AsyncSession, user_id: str, prompt: str) -> str | None:
+    """Who the look is for: what the prompt says, else the saved preference."""
+    said = _gender_in_prompt(prompt)
+    if said:
+        return said
+    pref = await db.scalar(select(UserPreference).where(UserPreference.user_id == user_id))
+    return pref.gender.value if pref and pref.gender and pref.gender.value in ("men", "women") else None
+
+
 async def ask_stylist(
     db: AsyncSession, *, user_id: str, req: StylistAskRequest
 ) -> tuple[StylistRequest, dict[str, tuple[str, list[RawProduct]]]]:
@@ -304,7 +333,7 @@ async def ask_stylist(
     # An explicit "build around this" anchor takes priority over general
     # taste — the user asked for something specific, not just a good match.
     profile = _wardrobe_anchor_profile(wardrobe_item) if wardrobe_item else await build_taste_profile(db, user_id)
-    candidates = await _fetch_candidates(req, profile)
+    candidates = await _fetch_candidates(req, profile, await _shopper_gender(db, user_id, req.prompt))
     llm_candidates = [
         StylistCandidate(
             index=i,

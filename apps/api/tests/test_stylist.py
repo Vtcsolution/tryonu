@@ -452,3 +452,85 @@ async def test_multi_item_ask_gets_one_of_each_item_even_if_the_model_overpicks_
     assert names == ["Embroidered Shalwar Kameez", "Glass Bangles Set", "Khussa 0"]
     khussa_id = body["products"][2]["id"]
     assert len(body["alternatives"][khussa_id]) == 5
+
+
+async def test_a_mans_alternatives_are_never_womens_products(client, monkeypatch):
+    """Reported live: under "Men's Leather Ankle Boots", the other options
+    were red pumps and "Reaction Women's Boots". eBay matches the words,
+    not the shopper, so the live pool is filtered before the LLM ever
+    sees it — which covers the chosen items and their alternatives."""
+    options = [
+        _raw("Men's Leather Ankle Boots", price_cents=9000),
+        _raw("Reaction Women's Brown Leather Boots", price_cents=7000),
+        _raw("Pleaser Ladies Platform Boots", price_cents=5000),
+        _raw("Leather Chelsea Boots UK 9", price_cents=11000),
+    ]
+    _patch_live_search(monkeypatch, _live_results(*options))
+
+    class PicksFirstProvider:
+        name = "picks-first"
+        model = "picks-first-1"
+
+        async def recommend(self, query: StylistQuery, candidates: list[StylistCandidate]) -> StylistRecommendation:
+            # the pool is already filtered — the model can't pick what it can't see
+            assert not any("Women" in c.name or "Ladies" in c.name for c in candidates)
+            return StylistRecommendation(summary="these", chosen_indexes=[0])
+
+    monkeypatch.setattr("app.services.stylist_service.get_stylist_provider", lambda: PicksFirstProvider())
+    await register_and_login(client)
+    await client.put("/api/v1/users/me/preferences", json={"gender": "men"})
+
+    body = (await client.post("/api/v1/stylist/ask", json={"prompt": "boots", "max_items": 1})).json()
+    chosen = body["products"][0]
+    assert chosen["name"] == "Men's Leather Ankle Boots"
+    assert [a["name"] for a in body["alternatives"][chosen["id"]]] == ["Leather Chelsea Boots UK 9"]
+
+
+async def test_a_woman_is_shown_the_womens_listings(client, monkeypatch):
+    options = [
+        _raw("Men's Leather Ankle Boots", price_cents=9000),
+        _raw("Reaction Women's Brown Leather Boots", price_cents=7000),
+        _raw("Leather Chelsea Boots UK 9", price_cents=11000),
+    ]
+    _patch_live_search(monkeypatch, _live_results(*options))
+
+    class PicksFirstProvider:
+        name = "picks-first"
+        model = "picks-first-1"
+
+        async def recommend(self, query: StylistQuery, candidates: list[StylistCandidate]) -> StylistRecommendation:
+            assert not any("Men's" in c.name for c in candidates)
+            return StylistRecommendation(summary="these", chosen_indexes=[0])
+
+    monkeypatch.setattr("app.services.stylist_service.get_stylist_provider", lambda: PicksFirstProvider())
+    await register_and_login(client)
+    await client.put("/api/v1/users/me/preferences", json={"gender": "women"})
+
+    body = (await client.post("/api/v1/stylist/ask", json={"prompt": "boots", "max_items": 1})).json()
+    names = {p["name"] for p in body["products"]} | {
+        a["name"] for alts in body["alternatives"].values() for a in alts
+    }
+    assert names == {"Reaction Women's Brown Leather Boots", "Leather Chelsea Boots UK 9"}
+
+
+async def test_the_prompt_overrules_the_saved_gender(client, monkeypatch):
+    """A man buying a gift says so in words; that wins over his profile."""
+    options = [_raw("Men's Kurta"), _raw("Women's Kurti")]
+    _patch_live_search(monkeypatch, _live_results(*options))
+
+    seen: list[str] = []
+
+    class PicksFirstProvider:
+        name = "picks-first"
+        model = "picks-first-1"
+
+        async def recommend(self, query: StylistQuery, candidates: list[StylistCandidate]) -> StylistRecommendation:
+            seen.extend(c.name for c in candidates)
+            return StylistRecommendation(summary="these", chosen_indexes=[0])
+
+    monkeypatch.setattr("app.services.stylist_service.get_stylist_provider", lambda: PicksFirstProvider())
+    await register_and_login(client)
+    await client.put("/api/v1/users/me/preferences", json={"gender": "men"})
+
+    await client.post("/api/v1/stylist/ask", json={"prompt": "a kurti for my wife", "max_items": 1})
+    assert seen == ["Women's Kurti"]

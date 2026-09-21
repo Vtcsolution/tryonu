@@ -180,3 +180,43 @@ def test_the_feed_follows_the_shoppers_gender_not_stray_picks():
     assert ids == {"m.eastern.shalwar"}
     # no gender saved: everything he picked
     assert len(feed_nodes(womens)) == 2
+
+
+async def test_a_mens_row_never_fills_up_with_womens_listings(client, monkeypatch):
+    """"men shalwar kameez" on eBay still returns women's suits — the row
+    is for men, so those don't belong in it."""
+    provider = _Provider("shop-gendered")
+    names = [
+        "Men's Shalwar Kameez Cotton",
+        "Women's Ready Made Shalwar Kameez Suit",
+        "Ladies Lawn Suit Stitched",
+        "Shalwar Kameez Unstitched Fabric",
+    ]
+
+    async def fake_live_search(query: str, *, limit: int = 24):
+        return [
+            LiveSearchResult(
+                provider=provider,
+                raw=RawProduct(
+                    retailer_product_id=f"p{i}",
+                    name=name,
+                    price_cents=4000,
+                    product_url=f"https://example.com/p{i}",
+                    images=["https://example.com/i.jpg"],
+                ),
+            )
+            for i, name in enumerate(names)
+        ]
+
+    monkeypatch.setattr("app.services.feed_service.live_search", fake_live_search)
+    await register_and_login(client)
+    await client.put(
+        "/api/v1/users/me/preferences",
+        json={"gender": "men", "preferred_categories": ["m.eastern.shalwar"]},
+    )
+
+    body = (await client.get("/api/v1/feed/for-you")).json()
+    assert [i["name"] for i in body["items"]] == [
+        "Men's Shalwar Kameez Cotton",
+        "Shalwar Kameez Unstitched Fabric",
+    ]

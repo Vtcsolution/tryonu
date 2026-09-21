@@ -8,8 +8,9 @@ import asyncio
 import time
 from dataclasses import dataclass
 
-from app.core.taxonomy import NODES, PARENTS, Node, feed_nodes
+from app.core.taxonomy import AUDIENCE_OF_GENDER, NODES, PARENTS, Node, feed_nodes
 from app.models.preference import UserPreference
+from app.services.gender_filter import keep_for_gender
 from app.services.live_search_service import LiveSearchResult, apply_admin_filters, live_search
 from app.services.personalization_service import TasteProfile, affinity_score
 
@@ -60,9 +61,22 @@ def _in_budget(result: LiveSearchResult, pref: UserPreference | None) -> bool:
     return True
 
 
+def _gender_of_node(node: Node, pref: UserPreference | None) -> str | None:
+    """The audience this row is for: the category's own branch (w./m./k.)
+    wins, since a man may deliberately open "Women · Sarees" as a gift."""
+    audience = node.id.split(".")[0]
+    for gender, letter in AUDIENCE_OF_GENDER.items():
+        if letter == audience:
+            return gender
+    return pref.gender.value if pref and pref.gender else None
+
+
 async def _entries_for(node: Node, pref: UserPreference | None, profile: TasteProfile | None) -> list[FeedEntry]:
     results = await apply_admin_filters(await _search_cached(node.search))
     results = [r for r in results if _in_budget(r, pref)]
+    # retailers match the words, not the shopper: "men leather boots" still
+    # comes back with women's heels
+    results = keep_for_gender(results, _gender_of_node(node, pref), lambda r: r.raw.name)
     if profile is not None and profile.has_signal:
         # affinity_score only reads color/brand/style_tags, which RawProduct has too
         results.sort(key=lambda r: affinity_score(r.raw, profile), reverse=True)  # type: ignore[arg-type]
