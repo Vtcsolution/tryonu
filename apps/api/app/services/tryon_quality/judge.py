@@ -78,11 +78,25 @@ def _num(value: object) -> float:
         return 0.0
 
 
+_SMALL_ITEM_NOTE = (
+    "This product covers only a small part of the photo (a watch is ~40px wide in a full-body shot), so its "
+    "close-up here is an enlargement of very few pixels. Judge what is actually resolvable at that size: "
+    "case/dial/strap COLOURS, shape, proportions and how it is worn. Do NOT mark it down for unreadable text, "
+    "numerals, logos, stitching or engraving — a customer cannot see those either. Mark it down only if the "
+    "colours, shape or placement are wrong, or the item is missing."
+)
+
+
 async def judge(
-    product: np.ndarray, before: np.ndarray, after: np.ndarray, region: Region, description: str
+    product: np.ndarray,
+    before: np.ndarray,
+    after: np.ndarray,
+    region: Region,
+    description: str,
+    small_item: bool = False,
 ) -> Verdict:
     answer = await ask_json(
-        _INSTRUCTIONS,
+        _INSTRUCTIONS + ("\n" + _SMALL_ITEM_NOTE if small_item else ""),
         [
             {"type": "text", "text": f"The product: {description}"},
             {"type": "text", "text": "(1) product reference:"},

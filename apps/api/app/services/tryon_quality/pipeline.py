@@ -241,7 +241,7 @@ async def _whole_look_pass(
 
     shown = changes.merge(everything).image
     verdicts = await asyncio.gather(
-        *(judge(product, base, shown, _box_of(changes, picked, item), description)
+        *(judge(product, base, shown, _box_of(changes, picked, item), description, item.slot in _SMALL)
           for product, description, item, picked in zip(products, descriptions, items, picks)),
         return_exceptions=True,
     )
@@ -309,7 +309,7 @@ async def _render_one(
             verdict = Verdict(0, 0, 0, ["the product was not drawn on the photo"])
         else:
             try:
-                verdict = await judge(product, base, merged.image, region, description)
+                verdict = await judge(product, base, merged.image, region, description, item.slot in _SMALL)
             except VisionError as exc:
                 # the inspector is down — don't block the customer on our outage
                 logger.warning("tryon_judge_unavailable", item=item.name[:80], error=str(exc)[:200])

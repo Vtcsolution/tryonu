@@ -88,7 +88,7 @@ def fake_vision(monkeypatch):
     async def choose(marked, product, description, numbers):  # noqa: ARG001
         return numbers  # every changed area is the product in these synthetic renders
 
-    async def judge(product, before, after, region, description):  # noqa: ARG001
+    async def judge(product, before, after, region, description, small_item=False):  # noqa: ARG001
         return verdicts.pop(0)
 
     monkeypatch.setattr(pipeline, "_download", download)
@@ -294,3 +294,26 @@ async def test_a_whole_look_render_that_fails_falls_back_to_item_by_item(fake_vi
         encode_jpeg(_person(), 97), ITEMS, _renderer(calls), render_all=render_all, retries=0
     )
     assert len(calls) == 1 and reports[0].verdict == GOOD
+
+
+async def test_small_items_are_judged_at_the_size_they_are_actually_seen(monkeypatch):
+    """Live: a Hamilton and a Seiko were refused for dial numerals and
+    stitching that are unresolvable when the watch is ~40px wide — the
+    customer can't see them either. Colour, shape and placement still count."""
+    from app.services.tryon_quality import judge as judge_module
+
+    asked: list[str] = []
+
+    async def fake_ask(instructions, content, **kwargs):  # noqa: ARG001
+        asked.append(instructions)
+        return {"product_match": 8, "worn_correctly": 9, "realism": 8, "issues": [], "fix": ""}
+
+    monkeypatch.setattr(judge_module, "ask_json", fake_ask)
+    product = np.full((100, 100, 3), 40, np.uint8)
+    person = _person()
+    await judge_module.judge(product, person, person, _item_region(), "a watch", small_item=True)
+    await judge_module.judge(product, person, person, _item_region(), "a shirt", small_item=False)
+
+    assert "cannot see those either" in asked[0]
+    assert "colours, shape or placement are wrong" in asked[0]
+    assert "cannot see those either" not in asked[1]  # a shirt is judged in full
