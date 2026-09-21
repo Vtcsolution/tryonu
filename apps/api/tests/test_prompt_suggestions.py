@@ -74,3 +74,25 @@ async def test_suggestions_endpoint_uses_saved_preferences(client):
     assert resp.status_code == 200, resp.text
     prompts = (await client.get("/api/v1/stylist/suggestions")).json()["prompts"]
     assert prompts and prompts[0].startswith("Shalwar kameez for men with peshawari chappal")
+
+
+def test_a_man_is_never_suggested_womens_clothing():
+    """Reported live: "Kurti for men with wallet and heels", "Mint lehenga
+    choli for men". Saved categories can span the whole tree (onboarding
+    lets anyone browse it), so the shopper's own audience decides."""
+    womens = ["w.eastern.kurti", "w.eastern.pishwas", "w.eastern.bridal", "w.shoes.heels",
+              "w.jewellery.earrings", "w.bags.clutch"]
+    prompts = suggest_prompts(_pref(gender=Gender.MEN, preferred_categories=womens))
+
+    assert prompts, "a man with only women's picks still gets suggestions"
+    womens_only = ("kurti", "pishwas", "lehenga", "heels", "clutch", "saree", "anarkali", "gharara")
+    for prompt in prompts:
+        assert all(word not in prompt.lower() for word in womens_only), prompt
+        assert "for men" in prompt
+
+    # his own picks win when he has any
+    mixed = womens + ["m.eastern.shalwar", "m.shoes.peshawari"]
+    assert any("shalwar kameez" in p.lower() for p in suggest_prompts(_pref(gender=Gender.MEN, preferred_categories=mixed)))
+    # and a woman still gets hers
+    hers = suggest_prompts(_pref(gender=Gender.WOMEN, preferred_categories=womens))
+    assert any("kurti" in p.lower() for p in hers) and all("for women" in p for p in hers)

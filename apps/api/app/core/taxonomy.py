@@ -252,18 +252,39 @@ def normalize_selection(ids: list[str]) -> list[str]:
     return [i for i in ids if i in NODES and not (i in seen or seen.add(i))]
 
 
-def feed_nodes(selected: list[str]) -> list[Node]:
+AUDIENCE_OF_GENDER = {"men": "m", "women": "w", "kids": "k"}
+
+
+def audience_categories(gender: str | None) -> list[Node]:
+    """The categories of that audience (Eastern wear, Shoes, …) — what to
+    show someone whose saved picks don't fit their gender."""
+    audience = AUDIENCE_OF_GENDER.get(gender or "")
+    return list(NODES[audience].children) if audience else []
+
+
+def feed_nodes(selected: list[str], gender: str | None = None) -> list[Node]:
     """The most specific choices: a selected node whose own selected
     descendants exist is represented by those descendants instead
     (picking "Bangles" then "Kundan" means kundan bangles, not all bangles).
-    Audience-level picks (Women/Men/Kids) are skipped — too broad to search."""
+    Audience-level picks (Women/Men/Kids) are skipped — too broad to search.
+
+    With a gender, only that audience's picks count: saved categories can
+    span audiences (onboarding lets anyone browse the whole tree), and a
+    man was being offered "Kurti for men with wallet and heels". If none of
+    the picks belong to his audience, that audience's own categories are
+    used instead."""
     chosen = set(normalize_selection(selected))
     has_selected_descendant = {a for i in chosen for a in ancestors(i)}
-    return [
+    nodes = [
         NODES[i]
         for i in normalize_selection(selected)
         if i not in has_selected_descendant and PARENTS.get(i) is not None
     ]
+    audience = AUDIENCE_OF_GENDER.get(gender or "")
+    if audience:
+        matching = [n for n in nodes if n.id.split(".")[0] == audience]
+        return matching or audience_categories(gender)
+    return nodes
 
 
 def to_dict(node: Node) -> dict:

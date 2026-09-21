@@ -39,7 +39,8 @@ async def _search_cached(phrase: str) -> list[LiveSearchResult]:
 
 
 def sections_for(pref: UserPreference | None) -> list[Node]:
-    return feed_nodes((pref.preferred_categories or []) if pref else [])
+    gender = pref.gender.value if pref and pref.gender else None
+    return feed_nodes((pref.preferred_categories or []) if pref else [], gender)
 
 
 def parent_label(node: Node) -> str | None:

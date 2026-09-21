@@ -31,8 +31,11 @@ def _join(items: list[str]) -> str:
 def suggest_prompts(pref: UserPreference | None) -> list[str]:
     if pref is None or not pref.preferred_categories:
         return []
+    # only this shopper's audience: saved picks can span the whole tree, and
+    # a man was being suggested "Kurti for men with wallet and heels"
+    gender = pref.gender.value if pref.gender else None
     picks: list[Node] = []
-    for node in feed_nodes(pref.preferred_categories):
+    for node in feed_nodes(pref.preferred_categories, gender):
         # a broad pick ("Western wear", "Jewellery") alone reads as a vague
         # prompt ("clothing") — suggest its first few concrete items instead
         picks.extend(node.children[:3] if node.id.count(".") == 1 and node.children else [node])

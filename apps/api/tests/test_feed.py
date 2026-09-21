@@ -165,3 +165,18 @@ async def test_admin_hidden_product_stays_hidden_even_from_cache(client, db, mon
 
     again = (await client.get("/api/v1/feed/for-you")).json()  # served from cache
     assert [i["retailer_product_id"] for i in again["items"]] == ["keep"]
+
+
+def test_the_feed_follows_the_shoppers_gender_not_stray_picks():
+    """Same bug as the stylist suggestions: saved categories can span
+    audiences, and a man's feed was built from women's categories."""
+    from app.core.taxonomy import feed_nodes
+
+    womens = ["w.eastern.kurti", "w.shoes.heels"]
+    assert all(n.id.startswith("m.") for n in feed_nodes(womens, "men"))
+    assert all(n.id.startswith("w.") for n in feed_nodes(womens, "women"))
+    # his own picks are kept when he has some
+    ids = {n.id for n in feed_nodes([*womens, "m.eastern.shalwar"], "men")}
+    assert ids == {"m.eastern.shalwar"}
+    # no gender saved: everything he picked
+    assert len(feed_nodes(womens)) == 2
