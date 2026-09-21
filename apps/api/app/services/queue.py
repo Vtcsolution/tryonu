@@ -31,6 +31,9 @@ def _get_rq_queue(name: str):  # noqa: ANN201
     return Queue(name, connection=_redis_conn)
 
 
+_inprocess_tasks: set[asyncio.Task] = set()
+
+
 def enqueue_tryon_job(job_id: str) -> None:
     if settings.REDIS_URL:
         queue = _get_rq_queue("tryon")
@@ -49,6 +52,12 @@ def enqueue_tryon_job(job_id: str) -> None:
 
     logger.info("job_enqueued_inprocess", job_id=job_id)
     task = asyncio.create_task(run_tryon_job_async(job_id))
+    # Keep a reference until it finishes: asyncio only holds a weak one, so an
+    # unreferenced task can be garbage-collected mid-render (and in tests, a
+    # job abandoned when the loop closes could leave its transaction holding
+    # the SQLite database against the next test).
+    _inprocess_tasks.add(task)
+    task.add_done_callback(_inprocess_tasks.discard)
     task.add_done_callback(_log_inprocess_result)
 
 

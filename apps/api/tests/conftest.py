@@ -95,6 +95,23 @@ async def _reset_rate_limits():
     yield
 
 
+@pytest_asyncio.fixture(autouse=True)
+async def _finish_inprocess_jobs():
+    """Let a test's background try-on jobs finish before the next test starts.
+
+    Without this, a job still running when its test's event loop closes could
+    leave its database transaction open, and the next test's jobs would wait
+    on it forever — the cause of try-on tests failing only when run together."""
+    import asyncio
+
+    yield
+    from app.services.queue import _inprocess_tasks
+
+    pending = {t for t in _inprocess_tasks if not t.done()}
+    if pending:
+        await asyncio.wait(pending, timeout=15)
+
+
 @pytest.fixture(autouse=True)
 def _reset_tryon_providers():
     """Provider factories are lru_cached; a test that swaps in a provider
@@ -213,6 +230,11 @@ async def seed_product(
     db.add(ProductImage(product_id=product.id, url=image_url, position=0, is_primary=True))
     await db.commit()
     await db.refresh(product)
+    # refresh() opens a read transaction and leaves it open; on SQLite that
+    # blocks the try-on worker's commits, so jobs the test then waits for sit
+    # at "processing" until it gives up. Close it (attributes stay loaded:
+    # the session is expire_on_commit=False).
+    await db.commit()
     return product
 
 
@@ -223,6 +245,7 @@ async def seed_credit_package(db, *, name: str = "Test Pack", credits: int = 50,
     db.add(package)
     await db.commit()
     await db.refresh(package)
+    await db.commit()  # don't leave a read transaction open — see seed_product
     return package
 
 
