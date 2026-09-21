@@ -8,7 +8,7 @@ recognises, so tapping a suggestion searches for exactly what it says.
 
 from __future__ import annotations
 
-from app.core.taxonomy import Node, feed_nodes
+from app.core.taxonomy import Node, audience_of, feed_nodes
 from app.models.preference import UserPreference
 
 MAX_PROMPTS = 6
@@ -16,7 +16,6 @@ MAX_PROMPTS = 6
 # category segment of a taxonomy id ("w.eastern.shalwar" -> "eastern")
 _MAIN_CATEGORIES = {"eastern", "western", "girls", "boys", "baby"}
 _EXTRA_ORDER = ("shoes", "jewellery", "bags", "watches", "accessories")
-_AUDIENCE_WORD = {"w": "women", "m": "men"}
 _DROP_WORDS = {"women", "men", "womens", "mens", "women's", "men's"}
 
 
@@ -31,11 +30,11 @@ def _join(items: list[str]) -> str:
 def suggest_prompts(pref: UserPreference | None) -> list[str]:
     if pref is None or not pref.preferred_categories:
         return []
-    # only this shopper's audience: saved picks can span the whole tree, and
-    # a man was being suggested "Kurti for men with wallet and heels"
-    gender = pref.gender.value if pref.gender else None
+    # only one audience's picks: saved categories can span the whole tree,
+    # and a man was being suggested "Kurti for men with wallet and heels"
+    audience = audience_of(pref.gender.value if pref.gender else None, pref.preferred_categories)
     picks: list[Node] = []
-    for node in feed_nodes(pref.preferred_categories, gender):
+    for node in feed_nodes(pref.preferred_categories, audience):
         # a broad pick ("Western wear", "Jewellery") alone reads as a vague
         # prompt ("clothing") — suggest its first few concrete items instead
         picks.extend(node.children[:3] if node.id.count(".") == 1 and node.children else [node])
@@ -57,10 +56,8 @@ def suggest_prompts(pref: UserPreference | None) -> list[str]:
             if q:
                 extras.append(q.pop(0))
 
-    audience = pref.gender.value if pref.gender and pref.gender.value in ("women", "men") else None
-    if audience is None:
-        audience = _AUDIENCE_WORD.get(picks[0].id.split(".")[0])  # kids phrases already say girls/boys/baby
-    for_whom = f" for {audience}" if audience else ""
+    # kids phrases already say girls/boys/baby, so they need no "for kids"
+    for_whom = f" for {audience}" if audience in ("women", "men") else ""
 
     colors = [c.strip().lower() for c in (pref.preferred_colors or []) if c and c.strip()]
     styles = [s.strip().lower() for s in (pref.preferred_styles or []) if s and s.strip()]

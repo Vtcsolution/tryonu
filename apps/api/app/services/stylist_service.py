@@ -20,6 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.llm.base import StylistCandidate, StylistQuery
+from app.core.taxonomy import audience_of
 from app.ai.llm.registry import get_stylist_provider
 from app.models.ai_usage import AIUsage
 from app.models.enums import AIUsageKind, OutfitSlot
@@ -315,12 +316,17 @@ def _slot_for(raw: RawProduct) -> OutfitSlot:
 
 
 async def _shopper_gender(db: AsyncSession, user_id: str, prompt: str) -> str | None:
-    """Who the look is for: what the prompt says, else the saved preference."""
+    """Who the look is for: what the prompt says ("a kurti for my wife"),
+    else their saved gender, else the audience they picked most of in
+    onboarding — nothing forces them to state a gender."""
     said = _gender_in_prompt(prompt)
     if said:
         return said
     pref = await db.scalar(select(UserPreference).where(UserPreference.user_id == user_id))
-    return pref.gender.value if pref and pref.gender and pref.gender.value in ("men", "women") else None
+    if pref is None:
+        return None
+    audience = audience_of(pref.gender.value if pref.gender else None, pref.preferred_categories or [])
+    return audience if audience in ("men", "women") else None
 
 
 async def ask_stylist(

@@ -96,3 +96,53 @@ def test_a_man_is_never_suggested_womens_clothing():
     # and a woman still gets hers
     hers = suggest_prompts(_pref(gender=Gender.WOMEN, preferred_categories=womens))
     assert any("kurti" in p.lower() for p in hers) and all("for women" in p for p in hers)
+
+
+def test_with_no_gender_saved_the_prompts_follow_the_picks_he_actually_made():
+    """Reported live: "Kurti for men with wallet and heels". Onboarding
+    doesn't force a gender, and the tree lets anyone tick anything, so one
+    stray women's pick chose the clothes while a men's pick chose the
+    words. Whichever audience he picked most of now decides both."""
+    prompts = suggest_prompts(
+        _pref(
+            gender=None,
+            preferred_categories=[
+                "m.eastern.shalwar", "m.eastern.kurta", "m.shoes.formal", "m.accessories.rings",
+                "m.accessories.wallets", "m.watches.analog",
+                "w.eastern.kurti", "w.eastern.lehenga", "w.shoes.heels", "w.jewellery.earrings",
+            ],
+            preferred_colors=["mint"],
+        )
+    )
+    assert prompts and all("for men" in p for p in prompts)
+    womens = ("kurti", "lehenga", "heels", "earrings", "clutch", "necklace", "pishwas", "for women")
+    assert not [p for p in prompts if any(w in p.lower() for w in womens)]
+
+
+def test_mostly_womens_picks_with_no_gender_saved_read_as_womens_prompts():
+    prompts = suggest_prompts(
+        _pref(
+            gender=None,
+            preferred_categories=["w.eastern.kurti", "w.shoes.heels", "w.jewellery.earrings", "m.watches.analog"],
+        )
+    )
+    assert prompts and all("for women" in p for p in prompts)
+    assert not any("watch" in p for p in prompts)
+
+
+def test_the_saved_gender_still_wins_over_the_picks():
+    prompts = suggest_prompts(
+        _pref(
+            gender=Gender.WOMEN,
+            preferred_categories=[
+                "m.eastern.kurta", "m.shoes.formal", "m.watches.analog", "w.eastern.kurti", "w.shoes.heels",
+            ],
+        )
+    )
+    assert prompts and all("for women" in p for p in prompts)
+    assert not any("kurta" in p or "watch" in p for p in prompts)
+
+
+def test_kids_prompts_say_girls_or_boys_rather_than_for_men():
+    prompts = suggest_prompts(_pref(gender=None, preferred_categories=["k.girls.frocks", "k.shoes.sandals"]))
+    assert prompts and not any(" for men" in p or " for women" in p for p in prompts)

@@ -534,3 +534,30 @@ async def test_the_prompt_overrules_the_saved_gender(client, monkeypatch):
 
     await client.post("/api/v1/stylist/ask", json={"prompt": "a kurti for my wife", "max_items": 1})
     assert seen == ["Women's Kurti"]
+
+
+async def test_a_bare_ask_follows_the_categories_he_picked_when_no_gender_is_saved(client, monkeypatch):
+    """Nothing forces a gender in onboarding, so his picks have to speak
+    for him — otherwise "boots" comes back with women's boots again."""
+    options = [_raw("Men's Chelsea Boots"), _raw("Women's Ankle Boots")]
+    _patch_live_search(monkeypatch, _live_results(*options))
+
+    seen: list[str] = []
+
+    class PicksFirstProvider:
+        name = "picks-first"
+        model = "picks-first-1"
+
+        async def recommend(self, query: StylistQuery, candidates: list[StylistCandidate]) -> StylistRecommendation:
+            seen.extend(c.name for c in candidates)
+            return StylistRecommendation(summary="these", chosen_indexes=[0])
+
+    monkeypatch.setattr("app.services.stylist_service.get_stylist_provider", lambda: PicksFirstProvider())
+    await register_and_login(client)
+    await client.put(
+        "/api/v1/users/me/preferences",
+        json={"preferred_categories": ["m.eastern.kurta", "m.shoes.boots", "w.shoes.heels"]},
+    )
+
+    await client.post("/api/v1/stylist/ask", json={"prompt": "boots", "max_items": 1})
+    assert seen == ["Men's Chelsea Boots"]

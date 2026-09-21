@@ -10,6 +10,7 @@ them — so rename labels freely, but never repurpose an id.
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field
 
 
@@ -253,6 +254,20 @@ def normalize_selection(ids: list[str]) -> list[str]:
 
 
 AUDIENCE_OF_GENDER = {"men": "m", "women": "w", "kids": "k"}
+_GENDER_OF_AUDIENCE = {letter: gender for gender, letter in AUDIENCE_OF_GENDER.items()}
+
+
+def audience_of(gender: str | None, selected: list[str]) -> str | None:
+    """Who someone is shopping for: "men", "women", "kids" or unknown.
+
+    Onboarding doesn't force a gender and the tree lets anyone tick
+    anything, so when there's no gender saved, fall back to the audience
+    they picked most of — otherwise one stray pick spoke for all of
+    them ("Kurti for men with wallet and heels")."""
+    if gender in AUDIENCE_OF_GENDER:
+        return gender
+    counts = Counter(node.id.split(".")[0] for node in feed_nodes(selected or []))
+    return _GENDER_OF_AUDIENCE.get(counts.most_common(1)[0][0]) if counts else None
 
 
 def audience_categories(gender: str | None) -> list[Node]:
