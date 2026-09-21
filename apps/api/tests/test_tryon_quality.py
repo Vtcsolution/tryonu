@@ -317,3 +317,18 @@ async def test_small_items_are_judged_at_the_size_they_are_actually_seen(monkeyp
     assert "cannot see those either" in asked[0]
     assert "colours, shape or placement are wrong" in asked[0]
     assert "cannot see those either" not in asked[1]  # a shirt is judged in full
+
+
+def test_tiny_items_know_which_body_part_they_go_on():
+    """A ring is ~15px across on a full-body photo, so it's rendered on a
+    close-up of the hand — the model often didn't draw it at all otherwise
+    ("the product was not drawn on the photo", a real refusal)."""
+    part_of = pipeline._body_part_of
+    hands = pipeline.LookItem("u", OutfitSlot.ACCESSORY, "US Army Military Ring Stainless Steel Eagle")
+    ears = pipeline.LookItem("u", OutfitSlot.ACCESSORY, "Gold Plated Pearl Jhumka Earrings")
+    neck = pipeline.LookItem("u", OutfitSlot.ACCESSORY, "Silver Pendant Necklace")
+    shirt = pipeline.LookItem("u", OutfitSlot.TOP, "Cotton Shirt")
+    assert "hands" in part_of(hands)
+    assert "ears" in part_of(ears)
+    assert "neck" in part_of(neck)
+    assert part_of(shirt) is None  # a shirt is rendered on the whole photo

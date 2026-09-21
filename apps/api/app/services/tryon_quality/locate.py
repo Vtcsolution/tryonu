@@ -56,6 +56,24 @@ async def locate(render: np.ndarray, product: np.ndarray, description: str) -> R
     return refined or region
 
 
+_BODY_PART = (
+    "You are shown a photo of a person. Reply with JSON only: "
+    '{"found": true|false, "box": [x0, y0, x1, y1]} — the box around the body part named by the user, in 0-1000 '
+    "coordinates of the photo (x left->right, y top->bottom). Be generous: include the whole part and a little "
+    "around it. found is false if that part is not visible in the photo."
+)
+
+
+async def find_body_part(photo: np.ndarray, part: str) -> Region | None:
+    """Where a body part is, so a tiny product (a ring, an earring) can be
+    rendered on a close-up of it instead of on the whole body, where it
+    would be a dozen pixels wide."""
+    answer = await ask_json(
+        _BODY_PART, [{"type": "text", "text": f"The body part: {part}."}, image_part(photo, 1024)]
+    )
+    return _to_region(answer.get("box")) if answer.get("found") else None
+
+
 _CHOOSE = (
     "You are shown a product photo and a try-on photo of a person. Numbered red boxes mark every area where the "
     "try-on photo was changed. Pick the boxes that belong to the product being tried on — include a box when it "

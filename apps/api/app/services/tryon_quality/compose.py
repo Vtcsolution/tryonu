@@ -197,7 +197,9 @@ def _fill_holes(mask: np.ndarray) -> np.ndarray:
     return solid
 
 
-def _strong_cores(diff: np.ndarray, blocked: np.ndarray, high: float) -> tuple[int, np.ndarray, np.ndarray]:
+def _strong_cores(
+    diff: np.ndarray, blocked: np.ndarray, high: float, min_share: float = 0.0003
+) -> tuple[int, np.ndarray, np.ndarray]:
     """Separate blobs of strong change — the product, and separately anything
     else the model changed a lot (re-washed jeans, a patch of re-textured
     carpet). Tiny specks dropped. (count, labels, stats)"""
@@ -206,7 +208,7 @@ def _strong_cores(diff: np.ndarray, blocked: np.ndarray, high: float) -> tuple[i
     strong = cv2.morphologyEx(strong, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
     strong = cv2.morphologyEx(strong, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15)))
     n, labels, stats, _ = cv2.connectedComponentsWithStats(strong, 8)
-    small = stats[:, cv2.CC_STAT_AREA] < max(60, 0.0003 * h * w)
+    small = stats[:, cv2.CC_STAT_AREA] < max(40, min_share * h * w)
     small[0] = True
     labels[small[labels]] = 0
     return n, labels, stats
@@ -386,6 +388,7 @@ def find_changes(
     low: float = 14.0,
     high: float = 32.0,
     max_candidates: int = 12,
+    min_share: float = 0.0003,
 ) -> Changes:
     """Every sizeable blob where the render changed the photo strongly —
     exact boxes from the pixels, which are reliable. Which blobs are the
@@ -401,7 +404,7 @@ def find_changes(
     diff = _lab_diff(base, corrected)
     blocked = _blocked((h, w), protect)
     _, weak = _changed_areas(diff, blocked, low)
-    n, cores, stats = _strong_cores(diff, blocked, high)
+    n, cores, stats = _strong_cores(diff, blocked, high, min_share)
     candidates, label_of = _numbered(cores, stats, n, max_candidates)
     return Changes(base, aligned, corrected, cores, weak, blocked, diff, candidates, label_of)
 

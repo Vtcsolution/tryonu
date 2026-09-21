@@ -51,7 +51,7 @@ from app.services.tryon_quality.compose import (
     find_changes,
 )
 from app.services.tryon_quality.judge import Verdict, judge
-from app.services.tryon_quality.locate import choose
+from app.services.tryon_quality.locate import choose, find_body_part
 from app.services.tryon_quality.product_prep import describe_product
 from app.services.tryon_quality.vision import VisionError
 
@@ -73,6 +73,27 @@ _DEFAULT_REGION = {
 # worn items that are small in a full-body photo: refined to their own
 # pixels instead of taking a whole redrawn arm or torso around them
 _SMALL = {OutfitSlot.WATCH, OutfitSlot.ACCESSORY, OutfitSlot.OTHER}
+# Items that are a dozen pixels wide on a full-body photo: rendered on a
+# close-up of the body part from the first attempt, because at full-body
+# scale the model often doesn't draw them at all ("the product was not drawn
+# on the photo" — a real refusal on a US Army ring).
+_BODY_PART_FOR = (
+    (re.compile(r"\b(ring|rings|bracelet|bangle|bangles|kada|watch|watches|cufflinks)\b"),
+     "the person's hands and wrists"),
+    (re.compile(r"\b(earring|earrings|jhumka|jhumkas|chandbali|studs|hoops|tikka|nose pin|hairband|headband)\b"),
+     "the person's head, ears and hair"),
+    (re.compile(r"\b(necklace|necklaces|choker|pendant|chain|tie|bow tie|scarf)\b"),
+     "the person's neck, shoulders and upper chest"),
+    (re.compile(r"\b(anklet|anklets|payal|socks)\b"), "the person's ankles and feet"),
+)
+
+
+def _body_part_of(item: LookItem) -> str | None:
+    name = item.name.lower()
+    for pattern, part in _BODY_PART_FOR:
+        if pattern.search(name):
+            return part
+    return None
 # clothing that layers onto other clothing
 _GARMENTS = {OutfitSlot.DRESS, OutfitSlot.TOP, OutfitSlot.BOTTOM, OutfitSlot.OUTERWEAR}
 _EYEWEAR = re.compile(r"\b(sunglasses|glasses|eyeglasses|spectacles|goggles)\b")
@@ -290,16 +311,26 @@ async def _render_one(
     best: tuple[float, np.ndarray, Verdict, float] | None = None
     fix = ""
     last_region: Region | None = None
+    part = _body_part_of(item) if zoom_small and item.slot in _SMALL else None
+    if part is not None:
+        try:
+            last_region = await find_body_part(base, part)
+        except VisionError as exc:
+            logger.warning("tryon_body_part_unknown", item=item.name[:80], error=str(exc)[:200])
     for attempt in range(retries + 1):
         report.attempts += 1
         seed = 42 + attempt * 7919
-        if zoom_small and attempt > 0 and item.slot in _SMALL and last_region is not None:
+        if zoom_small and item.slot in _SMALL and last_region is not None:
             merged, region = await _render_close_up(
                 base, last_region, item, fix, seed, render, product, description, _protect(face, item)
             )
         else:
             raw = decode(await render(encode_jpeg(base, 95), item, fix, seed))
-            changes = find_changes(base, raw, _protect(face, item))
+            # a ring is ~15px across on a full-body photo: don't let the
+            # noise filter throw it away with the specks
+            changes = find_changes(
+                base, raw, _protect(face, item), min_share=0.00004 if item.slot in _SMALL else 0.0003
+            )
             merged, region = await _take_product(changes, product, description, item)
         if merged is not None:
             last_region = region
