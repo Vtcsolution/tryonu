@@ -263,7 +263,8 @@ async def test_the_whole_look_is_one_render_and_only_failures_get_their_own(fake
     own_renders: list[str] = []
     whole_calls: list[int] = []
 
-    async def render_all(base_jpeg: bytes, items) -> bytes:
+    async def render_all(base_jpeg: bytes, items, descriptions) -> bytes:
+        assert descriptions and all(descriptions)  # the first pass knows what each product is
         whole_calls.append(len(items))
         base = cv2.imdecode(np.frombuffer(base_jpeg, np.uint8), cv2.IMREAD_COLOR)
         return encode_jpeg(_render(base), 97)
@@ -289,7 +290,7 @@ async def test_the_whole_look_is_one_render_and_only_failures_get_their_own(fake
 async def test_a_whole_look_render_that_fails_falls_back_to_item_by_item(fake_vision):
     fake_vision.extend([GOOD])
 
-    async def render_all(base_jpeg, items):  # noqa: ARG001
+    async def render_all(base_jpeg, items, descriptions):  # noqa: ARG001
         raise RuntimeError("the model refused the request")
 
     calls: list = []
@@ -386,7 +387,7 @@ async def test_an_item_the_whole_look_got_wrong_is_re_rendered_knowing_why(fake_
     invited the same mistake — and its first own attempt is detailed."""
     fake_vision.extend([BAD, GOOD])  # fails in the whole-look pass, passes on its own
 
-    async def render_all(base_jpeg, items):  # noqa: ARG001
+    async def render_all(base_jpeg, items, descriptions):  # noqa: ARG001
         base = cv2.imdecode(np.frombuffer(base_jpeg, np.uint8), cv2.IMREAD_COLOR)
         return encode_jpeg(_render(base), 97)
 

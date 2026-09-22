@@ -249,8 +249,11 @@ def _mask_from(
         hard = cv2.morphologyEx(hard, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)))
         # ...and grow along any strongly-different pixels touching it, thin
         # ones included: the old hand's 2px outline beside the moved hand was
-        # dropped as a "sliver" and stayed visible as a skin-coloured line
-        differs = ((diff > 24) & ~blocked).astype(np.uint8)
+        # dropped as a "sliver" and stayed visible as a skin-coloured line.
+        # Only within a hand's length of the product, though: the growth
+        # follows an edge, and the redrawn outline of an arm let a ring pull
+        # a 300px strip of forearm into the merge (live: a pale smudge).
+        differs = ((diff > 24) & ~blocked & (distance < hard_reach)).astype(np.uint8)
         grow_kernel = np.ones((5, 5), np.uint8)
         for _ in range(max(4, int(0.012 * max(h, w) / 2))):
             hard = cv2.dilate(hard, grow_kernel) & differs | hard

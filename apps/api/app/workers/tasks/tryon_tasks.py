@@ -134,8 +134,11 @@ def _pipeline_renderer(provider):  # noqa: ANN001, ANN202
 def _pipeline_render_all(provider):  # noqa: ANN001, ANN202
     """One render with every product of the look on it."""
 
-    async def render_all(base_jpeg: bytes, items: list[LookItem]) -> bytes:
-        pieces = [OutfitPiece(image_url=i.image_url, slot=i.slot.value, name=i.name) for i in items]
+    async def render_all(base_jpeg: bytes, items: list[LookItem], descriptions: list[str]) -> bytes:
+        pieces = [
+            OutfitPiece(image_url=i.image_url, slot=i.slot.value, name=i.name, description=d)
+            for i, d in zip(items, descriptions)
+        ]
         output = await provider.generate_outfit(_data_uri(base_jpeg), pieces)
         return output.image_bytes
 

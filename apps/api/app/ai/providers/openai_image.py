@@ -59,6 +59,9 @@ def build_prompt(pieces: list[OutfitPiece]) -> str:
         "- Keep the person exactly the same: face, identity, skin tone, hair, beard, body shape, pose and expression.",
         "- Keep the background, camera angle, framing and lighting of image 1 unchanged.",
         "- Reproduce each product faithfully: same colour, fabric, pattern, embroidery and cut as in its photo.",
+        "- Colour is not approximate: yellow gold is not silver, ivory is not pink, navy is not black. Match the"
+        " product photo's exact shade, and keep the metal tone of jewellery and watches (yellow gold, rose gold,"
+        " white gold/silver/steel) exactly as shown.",
         "- Fit every item naturally to the person's body and pose, with realistic folds, drape and shadows.",
         "- Take ONLY the product from each product photo: ignore any model, mannequin, hanger, background,"
         " text, logo overlay or watermark in it.",

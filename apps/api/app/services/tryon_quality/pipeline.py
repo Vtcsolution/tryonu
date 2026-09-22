@@ -148,8 +148,9 @@ class RenderHint:
 
 # (current image as JPEG, item, what to tell the model) -> raw render bytes
 RenderFn = Callable[[bytes, LookItem, RenderHint], Awaitable[bytes]]
-# (current image as JPEG, every item) -> one render with the whole look on it
-RenderAllFn = Callable[[bytes, list[LookItem]], Awaitable[bytes]]
+# (current image as JPEG, every item, what each one is) -> one render with
+# the whole look on it
+RenderAllFn = Callable[[bytes, list[LookItem], list[str]], Awaitable[bytes]]
 
 
 def _cap(img: np.ndarray) -> np.ndarray:
@@ -323,7 +324,7 @@ async def _whole_look_pass(
     ivory") instead of repeating the same mistake."""
     head_item = next((i for i in items if worn_on_head(i.name)), items[0])
     try:
-        raw = decode(await render_all(encode_jpeg(base, 95), items))
+        raw = decode(await render_all(encode_jpeg(base, 95), items, descriptions))
     except Exception as exc:  # noqa: BLE001 — fall back to item-by-item
         logger.warning("tryon_whole_look_render_failed", error=str(exc)[:300])
         return base, _all_of(items)
