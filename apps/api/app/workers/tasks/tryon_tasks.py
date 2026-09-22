@@ -37,7 +37,7 @@ from app.services.outfit_slots import (
     worn_on_head,
 )
 from app.services.storage_service import get_storage, new_key
-from app.services.tryon_quality.pipeline import LookItem, QualityFailure, keep_person, render_look
+from app.services.tryon_quality.pipeline import LookItem, QualityFailure, RenderHint, keep_person, render_look
 
 settings = get_settings()
 MAX_ATTEMPTS = 3
@@ -97,22 +97,35 @@ def _look_item(layer: _Layer) -> LookItem:
     return LookItem(_absolute_url(layer.image_url), layer.slot or slot_for(layer.name), layer.name)
 
 
+def _at_detail(provider):  # noqa: ANN001, ANN202
+    """The same engine at its most detailed setting, for a second attempt at
+    an item the inspector rejected. Everyday renders use the fast setting
+    (measured: 25s against 425s for a four-item outfit), but that is what
+    drew an ivory dress pink with flattened embroidery — worth the extra
+    seconds once, rather than refusing the try-on."""
+    at_quality = getattr(provider, "at_quality", None)
+    return at_quality(settings.OPENAI_IMAGE_QUALITY_RETRY) if callable(at_quality) else provider
+
+
 def _pipeline_renderer(provider):  # noqa: ANN001, ANN202
     """How the quality pipeline asks the provider for one item: on the
-    pipeline's current image (not the previous raw render), with the
-    inspector's correction appended to tryon-max's instruction, and a new
-    seed per attempt."""
+    pipeline's current image (not the previous raw render), with what the
+    product is and the inspector's correction, a new seed per attempt, and
+    the detailed setting once an attempt has failed."""
 
-    async def render(base_jpeg: bytes, item: LookItem, fix: str, seed: int) -> bytes:
-        if provider.whole_outfit:
+    async def render(base_jpeg: bytes, item: LookItem, hint: RenderHint) -> bytes:
+        engine = _at_detail(provider) if hint.detail else provider
+        if engine.whole_outfit:
             # OpenAI image editing: one product per call, on the pipeline's
             # current image; no seed parameter — each call differs anyway
-            piece = OutfitPiece(item.image_url, item.slot.value, item.name, note=fix)
-            return (await provider.generate_outfit(_data_uri(base_jpeg), [piece])).image_bytes
-        payload = _tryon_input(_data_uri(base_jpeg), _Layer(item.image_url, item.slot, item.name), provider.model)
-        if provider.model == "tryon-max" and fix:
-            payload = replace(payload, prompt=f"{payload.prompt} {fix}".strip())
-        output = await provider.generate(replace(payload, seed=seed))
+            piece = OutfitPiece(
+                item.image_url, item.slot.value, item.name, note=hint.fix, description=hint.description
+            )
+            return (await engine.generate_outfit(_data_uri(base_jpeg), [piece])).image_bytes
+        payload = _tryon_input(_data_uri(base_jpeg), _Layer(item.image_url, item.slot, item.name), engine.model)
+        if engine.model == "tryon-max" and hint.fix:
+            payload = replace(payload, prompt=f"{payload.prompt} {hint.fix}".strip())
+        output = await engine.generate(replace(payload, seed=hint.seed))
         return output.image_bytes
 
     return render

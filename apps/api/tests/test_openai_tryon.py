@@ -10,6 +10,7 @@ import httpx
 import pytest
 
 from app.ai.providers.base import OutfitPiece, TryOnOutput
+from app.core.config import get_settings
 from app.ai.providers.openai_image import OpenAIImageTryOnProvider
 from app.models.enums import OutfitSlot
 from app.models.outfit import Outfit, OutfitItem
@@ -259,7 +260,7 @@ async def test_with_the_quality_pipeline_openai_renders_item_by_item_on_the_curr
     pipeline as FASHN: one product per call, on the pipeline's current image
     (handed over in memory), with the inspector's correction on a retry."""
     from app.workers.tasks.tryon_tasks import _pipeline_renderer
-    from app.services.tryon_quality.pipeline import LookItem
+    from app.services.tryon_quality.pipeline import LookItem, RenderHint
 
     seen: list[tuple[str, list[OutfitPiece]]] = []
 
@@ -271,10 +272,13 @@ async def test_with_the_quality_pipeline_openai_renders_item_by_item_on_the_curr
     render = _pipeline_renderer(OpenAIImageTryOnProvider(api_key="sk-test", model="gpt-image-1"))
     item = LookItem("https://i.ebayimg.com/watch.jpg", OutfitSlot.WATCH, "Bulova Blue Dial Watch")
 
-    assert await render(b"current-image", item, "make the bracelet silver steel", 42) == b"render"
+    hint = RenderHint(description="a steel watch, blue dial", fix="make the bracelet silver steel", seed=42)
+    assert await render(b"current-image", item, hint) == b"render"
     url, pieces = seen[0]
     assert url.startswith("data:image/jpeg;base64,")
-    assert [(p.name, p.slot, p.note) for p in pieces] == [("Bulova Blue Dial Watch", "watch", "make the bracelet silver steel")]
+    assert [(p.name, p.slot, p.note, p.description) for p in pieces] == [
+        ("Bulova Blue Dial Watch", "watch", "make the bracelet silver steel", "a steel watch, blue dial")
+    ]
 
 
 @pytest.mark.asyncio
@@ -287,3 +291,36 @@ async def test_the_correction_reaches_the_openai_prompt(monkeypatch):
         [OutfitPiece("https://i.ebayimg.com/w.jpg", "watch", "Bulova Watch", note="wrap it around the wrist")],
     )
     assert b"Correction from the previous attempt: wrap it around the wrist" in edits[0].content
+
+
+@pytest.mark.asyncio
+async def test_the_retry_renders_at_the_detailed_quality(monkeypatch):
+    """Everyday renders use the fast setting; an item the inspector turned
+    down is worth the slower one (an ivory dress came back pink at "low")."""
+    from app.services.tryon_quality.pipeline import LookItem, RenderHint
+    from app.workers.tasks.tryon_tasks import _pipeline_renderer
+
+    qualities: list[str] = []
+
+    async def fake_generate_outfit(self, model_image_url, pieces):  # noqa: ARG001
+        qualities.append(self.quality)
+        return TryOnOutput(image_bytes=b"render")
+
+    monkeypatch.setattr(OpenAIImageTryOnProvider, "generate_outfit", fake_generate_outfit)
+    provider = OpenAIImageTryOnProvider(api_key="sk-test", model="gpt-image-2", quality="low")
+    render = _pipeline_renderer(provider)
+    item = LookItem("https://i.ebayimg.com/dress.jpg", OutfitSlot.DRESS, "Pakistani maxi dress")
+
+    await render(b"img", item, RenderHint(description="ivory maxi dress"))
+    await render(b"img", item, RenderHint(description="ivory maxi dress", fix="it is ivory, not pink", detail=True))
+    assert qualities == ["low", get_settings().OPENAI_IMAGE_QUALITY_RETRY]
+    assert provider.quality == "low"  # the original is left alone
+
+
+def test_the_product_description_reaches_the_prompt():
+    from app.ai.providers.openai_image import build_prompt
+
+    prompt = build_prompt(
+        [OutfitPiece("https://i.ebayimg.com/d.jpg", "dress", "Maxi dress", description="ivory, gold embroidery")]
+    )
+    assert "It is: ivory, gold embroidery" in prompt

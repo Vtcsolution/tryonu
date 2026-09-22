@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 import pytest
 
+from app.core.config import get_settings
 from app.models.enums import OutfitSlot
 from app.services.tryon_quality import pipeline
 from app.services.tryon_quality.compose import Region, encode_jpeg, merge_product
@@ -99,8 +100,8 @@ def fake_vision(monkeypatch):
 
 
 def _renderer(calls: list[tuple[str, int]], *, draws: bool = True):
-    async def render(base_jpeg: bytes, item, fix: str, seed: int) -> bytes:  # noqa: ARG001
-        calls.append((fix, seed))
+    async def render(base_jpeg: bytes, item, hint) -> bytes:
+        calls.append((hint.fix, hint.seed))
         base = cv2.imdecode(np.frombuffer(base_jpeg, np.uint8), cv2.IMREAD_COLOR)
         return encode_jpeg(_render(base, item=draws), 97)
 
@@ -155,7 +156,7 @@ async def test_the_second_item_is_drawn_on_the_merged_image_not_the_raw_render(f
     person = _person()
     seen_bases: list[np.ndarray] = []
 
-    async def render(base_jpeg, item, fix, seed):  # noqa: ARG001
+    async def render(base_jpeg, item, hint):  # noqa: ARG001
         base = cv2.imdecode(np.frombuffer(base_jpeg, np.uint8), cv2.IMREAD_COLOR)
         seen_bases.append(base)
         colour = (200, 60, 20) if len(seen_bases) == 1 else (30, 180, 60)  # a second, different item
@@ -189,7 +190,7 @@ async def test_a_refused_look_fails_the_job_and_refunds(client, db, monkeypatch,
     monkeypatch.setattr(FASHNTryOnProvider, "generate", fake_generate)
     monkeypatch.setattr("app.workers.tasks.tryon_tasks.get_tryon_provider", lambda: provider)
     monkeypatch.setattr("app.ai.providers.registry.get_tryon_provider", lambda: provider)
-    fake_vision.extend([BAD, BAD])
+    fake_vision.extend([BAD] * (get_settings().TRYON_QUALITY_RETRIES + 1))  # every attempt fails
 
     await register_and_login(client)
     photo_id = await _upload_front_photo(client)
@@ -230,7 +231,7 @@ async def test_a_failed_small_item_is_retried_as_a_close_up_of_where_it_goes(fak
     fake_vision.extend([BAD, GOOD])
     sizes: list[tuple[int, int]] = []
 
-    async def render(base_jpeg, item, fix, seed):  # noqa: ARG001
+    async def render(base_jpeg, item, hint):  # noqa: ARG001
         base = cv2.imdecode(np.frombuffer(base_jpeg, np.uint8), cv2.IMREAD_COLOR)
         sizes.append(base.shape[:2])
         out = base.astype(np.float32) * 1.05
@@ -265,7 +266,7 @@ async def test_the_whole_look_is_one_render_and_only_failures_get_their_own(fake
         base = cv2.imdecode(np.frombuffer(base_jpeg, np.uint8), cv2.IMREAD_COLOR)
         return encode_jpeg(_render(base), 97)
 
-    async def render_one(base_jpeg, item, fix, seed):  # noqa: ARG001
+    async def render_one(base_jpeg, item, hint):  # noqa: ARG001
         own_renders.append(item.name)
         base = cv2.imdecode(np.frombuffer(base_jpeg, np.uint8), cv2.IMREAD_COLOR)
         return encode_jpeg(_render(base, colour=(30, 180, 60)), 97)
@@ -342,3 +343,60 @@ def test_a_tiny_item_is_held_to_a_slightly_lower_product_bar():
     assert pipeline._min_product_for(earring, 7.0) == 6.0
     assert pipeline._min_product_for(shirt, 7.0) == 7.0
     assert pipeline._min_product_for(earring, 5.0) == 5.0  # never below the floor
+
+
+async def test_a_rejected_item_is_re_rendered_at_the_detailed_setting(fake_vision):
+    """Live: an ivory Pakistani maxi dress came back pink with its gold
+    embroidery "too faint and sparse", and the try-on was refused. That is
+    what the fast render setting costs; a second attempt is worth the extra
+    seconds rather than refunding the customer."""
+    fake_vision.extend([BAD, GOOD])
+    hints: list = []
+
+    async def render(base_jpeg, item, hint):  # noqa: ARG001
+        hints.append(hint)
+        base = cv2.imdecode(np.frombuffer(base_jpeg, np.uint8), cv2.IMREAD_COLOR)
+        return encode_jpeg(_render(base), 97)
+
+    await pipeline.render_look(encode_jpeg(_person(), 97), ITEMS, render, retries=1)
+    assert [h.detail for h in hints] == [False, True]  # fast first, detailed once it failed
+    assert hints[1].fix == BAD.fix
+
+
+async def test_what_the_product_is_goes_to_the_model_in_words_too(fake_vision):
+    """The product photo alone kept losing colour and fine detail, so the
+    description read off that photo is sent with it."""
+    fake_vision.append(GOOD)
+    hints: list = []
+
+    async def render(base_jpeg, item, hint):  # noqa: ARG001
+        hints.append(hint)
+        base = cv2.imdecode(np.frombuffer(base_jpeg, np.uint8), cv2.IMREAD_COLOR)
+        return encode_jpeg(_render(base), 97)
+
+    await pipeline.render_look(encode_jpeg(_person(), 97), ITEMS, render, retries=0)
+    assert hints[0].description == "Bulova Blue Dial Watch (described)"  # from the product photo
+
+
+async def test_an_item_the_whole_look_got_wrong_is_re_rendered_knowing_why(fake_vision):
+    """The whole-look inspector already said what was wrong ("the dress is
+    pink, it should be ivory"). Starting the item's own render without that
+    invited the same mistake — and its first own attempt is detailed."""
+    fake_vision.extend([BAD, GOOD])  # fails in the whole-look pass, passes on its own
+
+    async def render_all(base_jpeg, items):  # noqa: ARG001
+        base = cv2.imdecode(np.frombuffer(base_jpeg, np.uint8), cv2.IMREAD_COLOR)
+        return encode_jpeg(_render(base), 97)
+
+    hints: list = []
+
+    async def render_one(base_jpeg, item, hint):  # noqa: ARG001
+        hints.append(hint)
+        base = cv2.imdecode(np.frombuffer(base_jpeg, np.uint8), cv2.IMREAD_COLOR)
+        return encode_jpeg(_render(base, colour=(30, 180, 60)), 97)
+
+    await pipeline.render_look(
+        encode_jpeg(_person(), 97), ITEMS, render_one, render_all=render_all, retries=1
+    )
+    assert len(hints) == 1
+    assert hints[0].fix == BAD.fix and hints[0].detail is True

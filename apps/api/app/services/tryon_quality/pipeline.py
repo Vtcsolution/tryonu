@@ -132,8 +132,21 @@ class QualityFailure(Exception):
         super().__init__(f"{item}: {detail}")
 
 
-# (current image as JPEG, item, extra instruction, seed) -> raw render bytes
-RenderFn = Callable[[bytes, LookItem, str, int], Awaitable[bytes]]
+@dataclass(frozen=True, slots=True)
+class RenderHint:
+    """Everything the renderer is told besides the photo and the product
+    image: what the product is (read off its own photo), what the inspector
+    said to fix, a fresh seed, and whether to spend the slower, more
+    detailed setting on it — worth it once an attempt has already failed."""
+
+    description: str = ""
+    fix: str = ""
+    seed: int = 42
+    detail: bool = False
+
+
+# (current image as JPEG, item, what to tell the model) -> raw render bytes
+RenderFn = Callable[[bytes, LookItem, RenderHint], Awaitable[bytes]]
 # (current image as JPEG, every item) -> one render with the whole look on it
 RenderAllFn = Callable[[bytes, list[LookItem]], Awaitable[bytes]]
 
@@ -198,17 +211,17 @@ async def render_look(
         *(describe_product(product, item.image_url, item.name) for product, item in zip(products, items))
     )
     reports = [ItemReport(item.name) for item in items]
-    todo = list(range(len(items)))
+    todo = _all_of(items)
 
     if render_all is not None and items:
         base, todo = await _whole_look_pass(
             base, face, items, products, descriptions, reports, render_all, min_product, min_other
         )
 
-    for index in todo:
+    for index, fix in todo:
         base = await _render_one(
             base, face, items[index], products[index], descriptions[index], reports[index],
-            render, retries, min_product, min_other, zoom_small,
+            render, retries, min_product, min_other, zoom_small, fix,
         )
 
     return encode_jpeg(base, 97), reports
@@ -236,6 +249,11 @@ def _box_of(changes: Changes, numbers: list[int], item: LookItem) -> Region:
     )
 
 
+def _all_of(items: list[LookItem]) -> list[tuple[int, str]]:
+    """Every item, with nothing known about what went wrong."""
+    return [(index, "") for index in range(len(items))]
+
+
 async def _whole_look_pass(
     base: np.ndarray,
     face,  # noqa: ANN001
@@ -246,20 +264,22 @@ async def _whole_look_pass(
     render_all: RenderAllFn,
     min_product: float,
     min_other: float,
-) -> tuple[np.ndarray, list[int]]:
+) -> tuple[np.ndarray, list[tuple[int, str]]]:
     """One render of the whole look; keep the items that pass inspection.
     Returns the image with those items on it, and which items still need
-    their own render."""
+    their own render — each with what the inspector said was wrong with it,
+    so the retry starts out knowing ("the dress is pink, it should be
+    ivory") instead of repeating the same mistake."""
     head_item = next((i for i in items if worn_on_head(i.name)), items[0])
     try:
         raw = decode(await render_all(encode_jpeg(base, 95), items))
     except Exception as exc:  # noqa: BLE001 — fall back to item-by-item
         logger.warning("tryon_whole_look_render_failed", error=str(exc)[:300])
-        return base, list(range(len(items)))
+        return base, _all_of(items)
 
     changes = find_changes(base, raw, _protect(face, head_item))
     if not changes.candidates:
-        return base, list(range(len(items)))
+        return base, _all_of(items)
 
     picks = await asyncio.gather(
         *(_pick_areas(changes, product, description, item)
@@ -267,7 +287,7 @@ async def _whole_look_pass(
     )
     everything = sorted({n for picked in picks for n in picked})
     if not everything:
-        return base, list(range(len(items)))
+        return base, _all_of(items)
 
     shown = changes.merge(everything).image
     verdicts = await asyncio.gather(
@@ -277,12 +297,12 @@ async def _whole_look_pass(
     )
 
     keep: list[int] = []
-    todo: list[int] = []
+    todo: list[tuple[int, str]] = []
     for index, (picked, verdict) in enumerate(zip(picks, verdicts)):
         report = reports[index]
         report.attempts = 1
         if isinstance(verdict, BaseException) or not picked:
-            todo.append(index)
+            todo.append((index, ""))
             continue
         report.history.append(
             f"whole look: product={verdict.product_match:.0f} worn={verdict.worn_correctly:.0f} "
@@ -292,13 +312,16 @@ async def _whole_look_pass(
             report.verdict = verdict
             keep.extend(picked)
         else:
-            todo.append(index)
+            todo.append((index, verdict.fix))
     logger.info("tryon_whole_look", kept=len(items) - len(todo), redo=len(todo))
     if not keep:
-        return base, list(range(len(items)))
+        # nothing survived, but the inspector still said what was wrong with
+        # each item — that goes with them into their own renders
+        return base, todo
     merged = changes.merge(sorted(set(keep)))
+    redone = {index for index, _ in todo}
     for index, report in enumerate(reports):
-        if index not in todo:
+        if index not in redone:
             report.taken_share = merged.changed_share
     return merged.image, todo
 
@@ -315,10 +338,16 @@ async def _render_one(
     min_product: float,
     min_other: float,
     zoom_small: bool,
+    fix: str = "",
 ) -> np.ndarray:
-    """One item rendered on the current image, inspected, retried, or refused."""
+    """One item rendered on the current image, inspected, retried, or refused.
+
+    `fix` is what an earlier attempt (the whole-look render) got wrong about
+    this item. Something that already failed once is rendered at the slower,
+    detailed setting from its first own attempt: the fast setting is what
+    turned an ivory dress pink and flattened its gold embroidery."""
     best: tuple[float, np.ndarray, Verdict, float] | None = None
-    fix = ""
+    already_failed = bool(fix)
     last_region: Region | None = None
     part = _body_part_of(item) if zoom_small and item.slot in _SMALL else None
     region_is_body_part = False
@@ -330,14 +359,19 @@ async def _render_one(
             logger.warning("tryon_body_part_unknown", item=item.name[:80], error=str(exc)[:200])
     for attempt in range(retries + 1):
         report.attempts += 1
-        seed = 42 + attempt * 7919
+        hint = RenderHint(
+            description=description,
+            fix=fix,
+            seed=42 + attempt * 7919,
+            detail=already_failed or attempt > 0,
+        )
         if zoom_small and item.slot in _SMALL and last_region is not None:
             merged, region = await _render_close_up(
-                base, last_region, item, fix, seed, render, product, description, _protect(face, item),
+                base, last_region, item, hint, render, product, description, _protect(face, item),
                 zoom=1.25 if region_is_body_part else 4.0,
             )
         else:
-            raw = decode(await render(encode_jpeg(base, 95), item, fix, seed))
+            raw = decode(await render(encode_jpeg(base, 95), item, hint))
             # a ring is ~15px across on a full-body photo: don't let the
             # noise filter throw it away with the specks
             changes = find_changes(
@@ -363,7 +397,8 @@ async def _render_one(
                 logger.warning("tryon_judge_unavailable", item=item.name[:80], error=str(exc)[:200])
                 verdict = Verdict(min_product, min_other, min_other, ["not inspected (vision unavailable)"])
         report.history.append(
-            f"own render {attempt + 1}: product={verdict.product_match:.0f} worn={verdict.worn_correctly:.0f} "
+            f"own render {attempt + 1}{' (detailed)' if hint.detail else ''}: "
+            f"product={verdict.product_match:.0f} worn={verdict.worn_correctly:.0f} "
             f"realism={verdict.realism:.0f} taken={merged.changed_share:.3f}"
         )
         if best is None or verdict.score > best[0]:
@@ -385,8 +420,7 @@ async def _render_close_up(
     base: np.ndarray,
     around: Region,
     item: LookItem,
-    fix: str,
-    seed: int,
+    hint: RenderHint,
     render: RenderFn,
     product: np.ndarray,
     description: str,
@@ -416,7 +450,7 @@ async def _render_close_up(
     up = 1024 / max(ch, cw)
     crop_up = cv2.resize(crop, (round(cw * up), round(ch * up)), interpolation=cv2.INTER_LANCZOS4) if up > 1 else crop
 
-    raw = decode(await render(encode_jpeg(crop_up, 95), item, fix, seed))
+    raw = decode(await render(encode_jpeg(crop_up, 95), item, hint))
     raw = cv2.resize(raw, (cw, ch), interpolation=cv2.INTER_AREA)
     local_protect = [(px0 - x0, py0 - y0, px1 - x0, py1 - y0) for px0, py0, px1, py1 in protect]
     changes = find_changes(crop, raw, local_protect)

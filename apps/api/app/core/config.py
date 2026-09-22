@@ -116,6 +116,11 @@ class Settings(BaseSettings):
     # 8-9, "medium" ~32s, "high" ~87s and scored WORSE (it redraws more of the
     # photo instead of reproducing the product). Speed here is free quality.
     OPENAI_IMAGE_QUALITY: Literal["low", "medium", "high"] = "low"
+    # What a failed item is re-rendered at. "high" measured WORSE than "low"
+    # overall (it redraws more of the photo), so the step up is "medium":
+    # ~32s, and it holds colour and fine embroidery that "low" loses — an
+    # ivory dress came back pink with its gold work flattened.
+    OPENAI_IMAGE_QUALITY_RETRY: Literal["low", "medium", "high"] = "medium"
     # looks at images (product analysis, locating the worn item, quality checks) — never draws
     OPENAI_VISION_MODEL: str = "gpt-5.4-mini"
     # with the FASHN provider: render outfits that include shoes, bags or
@@ -128,7 +133,10 @@ class Settings(BaseSettings):
     # the quality pipeline (app/services/tryon_quality): keep the person's own
     # pixels outside the product, grade every item, retry or refuse bad renders
     TRYON_QUALITY_PIPELINE: bool = True
-    TRYON_QUALITY_RETRIES: int = 1  # extra renders per item when a render fails inspection
+    # extra renders per item when one fails inspection. 2 means a rejected
+    # item gets its own detailed render and then one more with a new seed
+    # before the try-on is refused — only failures pay for this.
+    TRYON_QUALITY_RETRIES: int = 2
     TRYON_QUALITY_MIN_PRODUCT: int = 7  # 0-10: exact product (colour, pattern, logo, hardware)
     TRYON_QUALITY_MIN_FIT: int = 6  # 0-10: worn correctly, and realism
     EMBEDDING_DIM: int = 1536

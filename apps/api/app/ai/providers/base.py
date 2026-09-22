@@ -41,6 +41,7 @@ class OutfitPiece:
     slot: str  # OutfitSlot value: dress, top, shoes, bag, accessory, ...
     name: str
     note: str = ""  # a correction from the quality inspector, for a retry
+    description: str = ""  # what the product photo shows, read off it beforehand
 
 
 @dataclass(frozen=True, slots=True)

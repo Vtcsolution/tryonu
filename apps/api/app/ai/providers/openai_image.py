@@ -46,6 +46,11 @@ def build_prompt(pieces: list[OutfitPiece]) -> str:
     ]
     for n, piece in enumerate(pieces, start=2):
         lines.append(f"- Image {n}: {piece.name} — {_HOW.get(piece.slot, 'worn where it naturally goes')}.")
+        if piece.description:
+            # spelling the product out in words as well as showing it holds
+            # the details the image alone kept losing: an ivory dress came
+            # back pink, its gold embroidery faint and sparse
+            lines.append(f"  It is: {piece.description}")
         if piece.note:
             lines.append(f"  Correction from the previous attempt: {piece.note}")
     lines += [
@@ -78,6 +83,17 @@ class OpenAIImageTryOnProvider(VirtualTryOnProvider):
         self.quality = quality
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
+
+    def at_quality(self, quality: str) -> "OpenAIImageTryOnProvider":
+        """The same provider rendering at a different quality. Everyday
+        renders use the fast setting; the quality pipeline escalates to this
+        for an item whose first attempt failed inspection, where the extra
+        seconds buy back colour accuracy and fine detail."""
+        if quality == self.quality:
+            return self
+        return OpenAIImageTryOnProvider(
+            api_key=self._api_key, model=self.model, base_url=self._base_url, quality=quality
+        )
 
     async def generate(self, payload: TryOnInput) -> TryOnOutput:
         # a single product is a one-item outfit
