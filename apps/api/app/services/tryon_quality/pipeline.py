@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import re
 import asyncio
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
@@ -193,6 +194,7 @@ async def render_look(
     min_product: float = 7.0,
     min_other: float = 6.0,
     zoom_small: bool = False,
+    budget_seconds: float = 150.0,
 ) -> tuple[bytes, list[ItemReport]]:
     """The look on the person's photo, with only the products taken from the
     renders, every item inspected, and anything that fails re-rendered or
@@ -203,7 +205,9 @@ async def render_look(
     against 101s item by item, with equal or better scores. Only items that
     fail inspection are then rendered individually.
     zoom_small: retry a failed small item (watch, jewellery) as a close-up.
+    budget_seconds: stop spending retries once the look has taken this long.
     """
+    started = time.monotonic()
     base = _cap(decode(person))
     face = detect_face(base)
     products = await asyncio.gather(*(_download(item.image_url) for item in items))
@@ -218,13 +222,60 @@ async def render_look(
             base, face, items, products, descriptions, reports, render_all, min_product, min_other
         )
 
-    for index, fix in todo:
-        base = await _render_one(
-            base, face, items[index], products[index], descriptions[index], reports[index],
-            render, retries, min_product, min_other, zoom_small, fix,
+    if todo:
+        base = await _redo(
+            base, face, items, products, descriptions, reports, todo,
+            render, retries, min_product, min_other, zoom_small,
+            deadline=started + budget_seconds,
         )
 
     return encode_jpeg(base, 97), reports
+
+
+async def _redo(
+    base: np.ndarray,
+    face,  # noqa: ANN001
+    items: list[LookItem],
+    products: list[np.ndarray],
+    descriptions: list[str],
+    reports: list[ItemReport],
+    todo: list[tuple[int, str]],
+    render: RenderFn,
+    retries: int,
+    min_product: float,
+    min_other: float,
+    zoom_small: bool,
+    deadline: float,
+) -> np.ndarray:
+    """The items that still need their own render, together.
+
+    Clothing is chained, because a jacket has to be drawn over the shirt
+    that went on before it. Everything else — shoes, a bag, a watch, a ring
+    — is drawn on the same starting photo at the same time and then laid on
+    top: only each item's own pixels are ever taken, so nothing one render
+    did to the rest of the photo can reach the result. Three items used to
+    mean three renders end to end (141s live for a 3-item outfit)."""
+    layered = [entry for entry in todo if items[entry[0]].slot in _GARMENTS]
+    apart = [entry for entry in todo if items[entry[0]].slot not in _GARMENTS]
+
+    async def one(index: int, fix: str, on: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        return await _render_one(
+            on, face, items[index], products[index], descriptions[index], reports[index],
+            render, retries, min_product, min_other, zoom_small, fix, deadline,
+        )
+
+    async def chain() -> np.ndarray:
+        current = base
+        for index, fix in layered:
+            current, _ = await one(index, fix, current)
+        return current
+
+    clothed, rest = await asyncio.gather(
+        chain(), asyncio.gather(*(one(index, fix, base) for index, fix in apart))
+    )
+    for image, mask in rest:
+        clothed = composite(clothed, image, mask)
+    return clothed
 
 
 async def _pick_areas(changes: Changes, product: np.ndarray, description: str, item: LookItem) -> list[int]:
@@ -339,14 +390,15 @@ async def _render_one(
     min_other: float,
     zoom_small: bool,
     fix: str = "",
-) -> np.ndarray:
+    deadline: float | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
     """One item rendered on the current image, inspected, retried, or refused.
 
     `fix` is what an earlier attempt (the whole-look render) got wrong about
     this item. Something that already failed once is rendered at the slower,
     detailed setting from its first own attempt: the fast setting is what
     turned an ivory dress pink and flattened its gold embroidery."""
-    best: tuple[float, np.ndarray, Verdict, float] | None = None
+    best: tuple[float, Merge, Verdict] | None = None
     already_failed = bool(fix)
     last_region: Region | None = None
     part = _body_part_of(item) if zoom_small and item.slot in _SMALL else None
@@ -402,18 +454,23 @@ async def _render_one(
             f"realism={verdict.realism:.0f} taken={merged.changed_share:.3f}"
         )
         if best is None or verdict.score > best[0]:
-            best = (verdict.score, merged.image, verdict, merged.changed_share)
+            best = (verdict.score, merged, verdict)
         if verdict.passes(_min_product_for(item, min_product), min_other):
             break
         fix = verdict.fix
+        if deadline is not None and time.monotonic() > deadline:
+            # the customer is watching a spinner: stop spending renders and
+            # answer with the best attempt (or refuse) rather than going on
+            report.history.append("out of time for another attempt")
+            break
 
     assert best is not None
-    _, image, verdict, taken = best
-    report.verdict, report.taken_share = verdict, taken
+    _, merge, verdict = best
+    report.verdict, report.taken_share = verdict, merge.changed_share
     logger.info("tryon_item_quality", item=item.name[:80], history=report.history)
     if not verdict.passes(_min_product_for(item, min_product), min_other):
         raise QualityFailure(item.name, verdict.issues)
-    return image
+    return merge.image, merge.mask
 
 
 async def _render_close_up(

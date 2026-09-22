@@ -137,6 +137,10 @@ class Settings(BaseSettings):
     # item gets its own detailed render and then one more with a new seed
     # before the try-on is refused — only failures pay for this.
     TRYON_QUALITY_RETRIES: int = 2
+    # how long the look may spend before it stops buying more attempts: the
+    # customer is watching a spinner, and a 3-item outfit that re-rendered
+    # everything sequentially reached 141s live
+    TRYON_QUALITY_BUDGET_SECONDS: int = 150
     TRYON_QUALITY_MIN_PRODUCT: int = 7  # 0-10: exact product (colour, pattern, logo, hardware)
     TRYON_QUALITY_MIN_FIT: int = 6  # 0-10: worn correctly, and realism
     EMBEDDING_DIM: int = 1536

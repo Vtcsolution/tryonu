@@ -4,6 +4,8 @@ the merge itself runs for real on synthetic images."""
 
 from __future__ import annotations
 
+import asyncio
+
 import cv2
 import numpy as np
 import pytest
@@ -400,3 +402,63 @@ async def test_an_item_the_whole_look_got_wrong_is_re_rendered_knowing_why(fake_
     )
     assert len(hints) == 1
     assert hints[0].fix == BAD.fix and hints[0].detail is True
+
+
+async def test_items_that_dont_layer_are_re_rendered_at_the_same_time(fake_vision):
+    """Live: a 3-item outfit sat on the spinner for 141s because every item
+    that needed its own render waited for the one before it. Shoes, bags and
+    jewellery don't layer onto each other, so they go together."""
+    fake_vision.extend([GOOD, GOOD])
+    both_started = asyncio.Event()
+    started = 0
+
+    async def render(base_jpeg, item, hint):  # noqa: ARG001
+        nonlocal started
+        started += 1
+        if started == 2:
+            both_started.set()
+        await asyncio.wait_for(both_started.wait(), timeout=5)  # deadlocks if they're sequential
+        base = cv2.imdecode(np.frombuffer(base_jpeg, np.uint8), cv2.IMREAD_COLOR)
+        return encode_jpeg(_render(base), 97)
+
+    items = [
+        pipeline.LookItem("https://img.example/shoes.jpg", OutfitSlot.SHOES, "Leather Boots"),
+        pipeline.LookItem("https://img.example/watch.jpg", OutfitSlot.WATCH, "Bulova Watch"),
+    ]
+    _, reports = await pipeline.render_look(encode_jpeg(_person(), 97), items, render, retries=0)
+    assert [r.verdict for r in reports] == [GOOD, GOOD]
+
+
+async def test_clothes_are_still_drawn_one_on_top_of_the_other(fake_vision):
+    """A jacket has to be rendered onto the shirt that went on before it —
+    clothing can't be drawn side by side like a watch and shoes can."""
+    fake_vision.extend([GOOD, GOOD])
+    bases: list[np.ndarray] = []
+
+    async def render(base_jpeg, item, hint):  # noqa: ARG001
+        base = cv2.imdecode(np.frombuffer(base_jpeg, np.uint8), cv2.IMREAD_COLOR)
+        bases.append(base)
+        return encode_jpeg(_render(base, colour=(200, 60, 20) if len(bases) == 1 else (30, 180, 60)), 97)
+
+    items = [
+        pipeline.LookItem("https://img.example/shirt.jpg", OutfitSlot.TOP, "Linen Shirt"),
+        pipeline.LookItem("https://img.example/jacket.jpg", OutfitSlot.OUTERWEAR, "Denim Jacket"),
+    ]
+    await pipeline.render_look(encode_jpeg(_person(), 97), items, render, retries=0)
+    assert len(bases) == 2
+    y0, x0, y1, x1 = ITEM  # where _render paints, in the working image's own pixels
+    # the jacket render starts from the photo with the shirt already on it
+    assert not np.array_equal(bases[0][y0:y1, x0:x1], bases[1][y0:y1, x0:x1])
+
+
+async def test_attempts_stop_once_the_look_has_taken_too_long(fake_vision):
+    """Better a flawed answer (or an honest refusal) than a customer still
+    watching a spinner at five minutes."""
+    fake_vision.extend([BAD, BAD, BAD])
+    calls: list = []
+
+    with pytest.raises(pipeline.QualityFailure):
+        await pipeline.render_look(
+            encode_jpeg(_person(), 97), ITEMS, _renderer(calls), retries=5, budget_seconds=0.0
+        )
+    assert len(calls) == 1  # no second attempt was bought

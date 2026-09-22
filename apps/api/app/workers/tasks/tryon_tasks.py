@@ -281,6 +281,7 @@ async def run_tryon_job_async(job_id: str) -> None:
                         # call and needs a photo of a person.
                         render_all=_pipeline_render_all(provider) if provider.whole_outfit else None,
                         zoom_small=provider.whole_outfit,
+                        budget_seconds=settings.TRYON_QUALITY_BUDGET_SECONDS,
                     )
                 except QualityFailure as exc:
                     await _fail_job(
