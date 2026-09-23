@@ -17,3 +17,14 @@ async def test_a_crash_answers_with_cors_headers_not_a_phantom_cors_error(client
     assert resp.json()["detail"] == "Something went wrong on our side. Please try again."
     assert resp.headers.get("access-control-allow-origin") == "http://testserver"
     assert "something broke deep inside" not in resp.text  # internals stay in the log
+
+
+async def test_health_says_whether_the_database_has_this_code_s_migrations(client):
+    """Deploying code without running its migrations breaks requests in
+    ways that point anywhere but at the migration. /health answers it."""
+    body = (await client.get("/health")).json()
+    assert body["status"] == "ok"
+    schema = body["schema"]
+    assert schema["state"] in ("ok", "behind", "unknown")
+    if schema["state"] == "behind":
+        assert "alembic upgrade head" in schema["fix"]

@@ -13,6 +13,7 @@ from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.core.logging import RequestLoggingMiddleware, configure_logging, logger
 from app.core.runtime_settings import refresh_if_stale
+from app.db.schema_state import schema_status
 from app.services.analytics_service import download_geoip_db, geoip_available
 from app.services.storage_service import is_s3_configured
 
@@ -119,11 +120,15 @@ def create_app() -> FastAPI:
 
     @app.get("/health", tags=["meta"])
     async def health():  # noqa: ANN202
+        # `schema` says whether the database has the migrations this code
+        # needs: deploying without running them makes ordinary requests
+        # fail in ways that look like anything but a pending migration
         return {
             "status": "ok",
             "env": settings.ENV,
             "tryon_provider": settings.VIRTUAL_TRYON_PROVIDER,
             "queue": "redis" if settings.REDIS_URL else "in-process",
+            "schema": await schema_status(),
         }
 
     return app
