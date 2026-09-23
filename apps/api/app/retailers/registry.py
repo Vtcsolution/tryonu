@@ -7,6 +7,7 @@ retailer by adding one adapter class + one line here.
 from __future__ import annotations
 
 from app.core.config import get_settings
+from app.retailers.aliexpress import AliExpressProductProvider
 from app.retailers.amazon import AmazonProductProvider
 from app.retailers.base import ProductProvider
 from app.retailers.cj import CJProductProvider
@@ -63,5 +64,12 @@ def get_all_providers() -> list[ProductProvider]:
             affiliate_token=settings.FLIPKART_AFFILIATE_TOKEN,
         ),
         DarazProductProvider(api_key=settings.DARAZ_API_KEY),
+        AliExpressProductProvider(
+            app_key=settings.ALIEXPRESS_APP_KEY,
+            app_secret=settings.ALIEXPRESS_APP_SECRET,
+            tracking_id=settings.ALIEXPRESS_TRACKING_ID,
+            ship_to_country=settings.ALIEXPRESS_SHIP_TO_COUNTRY,
+            currency=settings.ALIEXPRESS_CURRENCY,
+        ),
         get_rakuten_provider(),
     ]

@@ -157,6 +157,15 @@ class Settings(BaseSettings):
     FLIPKART_AFFILIATE_ID: str | None = None
     FLIPKART_AFFILIATE_TOKEN: str | None = None
     DARAZ_API_KEY: str | None = None
+    # AliExpress affiliate (Open Platform). Needs all three: the app key
+    # and secret from the console, and a tracking id from the affiliate
+    # dashboard — without the tracking id the API returns plain links and
+    # no commission is earned.
+    ALIEXPRESS_APP_KEY: str | None = None
+    ALIEXPRESS_APP_SECRET: str | None = None
+    ALIEXPRESS_TRACKING_ID: str | None = None
+    ALIEXPRESS_SHIP_TO_COUNTRY: str = "PK"  # prices and availability for where the shopper is
+    ALIEXPRESS_CURRENCY: str = "USD"
 
     # Rakuten Advertising — off by default even with credentials present,
     # since this integration hasn't been live-verified yet (see
