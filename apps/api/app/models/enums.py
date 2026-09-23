@@ -94,6 +94,13 @@ class AffiliateSource(StrEnum):
     OUTFIT = "outfit"
     SEARCH = "search"
     STYLIST = "stylist"
+    SAVED = "saved"
+
+
+class SavedProductStatus(StrEnum):
+    SAVED = "saved"
+    FAVORITE = "favorite"
+    PURCHASED = "purchased"
 
 
 class AIUsageKind(StrEnum):

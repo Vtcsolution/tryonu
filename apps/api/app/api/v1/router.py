@@ -15,6 +15,7 @@ from app.api.v1.endpoints import (
     outfits,
     photos,
     products,
+    saved_products,
     search,
     stylist,
     subscriptions,
@@ -38,6 +39,7 @@ api_router.include_router(search.router)
 api_router.include_router(tryon.router)
 api_router.include_router(outfits.router)
 api_router.include_router(stylist.router)
+api_router.include_router(saved_products.router)
 api_router.include_router(affiliate.router)
 api_router.include_router(analytics.router)
 api_router.include_router(analytics.admin_router)

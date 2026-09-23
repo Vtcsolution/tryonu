@@ -15,6 +15,7 @@ from app.models.outfit import Outfit, OutfitItem, SavedLook  # noqa: F401
 from app.models.photo import UserPhoto  # noqa: F401
 from app.models.preference import UserPreference  # noqa: F401
 from app.models.product import Product, ProductImage  # noqa: F401
+from app.models.saved_product import SavedProduct  # noqa: F401
 from app.models.retailer import ProductCategory, Retailer  # noqa: F401
 from app.models.stylist import StylistRequest  # noqa: F401
 from app.models.subscription import Payment, Subscription  # noqa: F401

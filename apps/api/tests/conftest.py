@@ -113,6 +113,18 @@ async def _finish_inprocess_jobs():
 
 
 @pytest.fixture(autouse=True)
+def _reset_live_search_cache():
+    """live_search keeps a short-lived per-query cache (see
+    live_search_service). Two tests that search the same words would
+    otherwise see each other's fake retailers."""
+    from app.services.live_search_service import _cache
+
+    _cache.clear()
+    yield
+    _cache.clear()
+
+
+@pytest.fixture(autouse=True)
 def _reset_tryon_providers():
     """Provider factories are lru_cached; a test that swaps in a provider
     must not leave it cached for the next test (a leaked OpenAI provider

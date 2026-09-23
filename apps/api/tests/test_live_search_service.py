@@ -101,3 +101,87 @@ async def test_find_live_result_returns_none_when_the_item_is_gone(monkeypatch):
 
     found = await find_live_result("jacket", retailer_slug="a", retailer_product_id="does-not-exist")
     assert found is None
+
+
+async def test_every_retailer_is_asked_even_when_the_first_one_fills_the_page(monkeypatch):
+    """The bug this replaced: providers were asked in turn until the limit
+    was full, so whichever came first in the registry answered everything
+    and a newly connected retailer changed nothing a shopper could see."""
+    busy = _FakeProvider("busy", items=[_raw(f"busy{i}", f"Busy Item {i}") for i in range(24)])
+    new = _FakeProvider("new", items=[_raw("new1", "New Retailer Kurta")])
+    monkeypatch.setattr("app.services.live_search_service.get_all_providers", lambda: [busy, new])
+
+    ids = [r.raw.retailer_product_id for r in await live_search("kurta", limit=12)]
+    assert "new1" in ids
+    assert ids[0] == "busy0" and ids[1] == "new1"  # interleaved, not one then the other
+
+
+async def test_retailers_are_asked_at_the_same_time_not_one_after_another(monkeypatch):
+    """Ten searches for a ten-item prompt is slow enough without making
+    the retailers queue behind each other."""
+    import asyncio
+
+    both_in = asyncio.Event()
+    arrived = 0
+
+    class _Slow(_FakeProvider):
+        async def search_live(self, *, query: str, limit: int = 24):
+            nonlocal arrived
+            arrived += 1
+            if arrived == 2:
+                both_in.set()
+            await asyncio.wait_for(both_in.wait(), timeout=5)  # deadlocks if sequential
+            return self._items
+
+    a, b = _Slow("a", items=[_raw("a1")]), _Slow("b", items=[_raw("b1")])
+    monkeypatch.setattr("app.services.live_search_service.get_all_providers", lambda: [a, b])
+    results = await live_search("kurta", limit=10)
+    assert {r.raw.retailer_product_id for r in results} == {"a1", "b1"}
+
+
+async def test_the_same_product_from_two_networks_is_shown_once(monkeypatch):
+    same = "Casio LQ-142E Women Analog Watch"
+    a = _FakeProvider("a", items=[_raw("a1", same)])
+    b = _FakeProvider("b", items=[_raw("b1", "Casio LQ 142E Women Analog Watch!")])  # same thing, same price
+    monkeypatch.setattr("app.services.live_search_service.get_all_providers", lambda: [a, b])
+
+    results = await live_search("casio", limit=10)
+    assert [r.raw.retailer_product_id for r in results] == ["a1"]
+
+
+async def test_two_variants_from_one_retailer_are_both_kept(monkeypatch):
+    """Same title, same price, same shop — that's the red one and the blue
+    one, which is a choice a shopper wants, not a duplicate."""
+    a = _FakeProvider(
+        "a", items=[_raw("red", "Embroidered Lawn Shalwar Kameez"), _raw("blue", "Embroidered Lawn Shalwar Kameez")]
+    )
+    monkeypatch.setattr("app.services.live_search_service.get_all_providers", lambda: [a])
+
+    results = await live_search("shalwar kameez", limit=10)
+    assert [r.raw.retailer_product_id for r in results] == ["red", "blue"]
+
+
+async def test_the_same_listing_twice_from_one_retailer_is_shown_once(monkeypatch):
+    a = _FakeProvider("a", items=[_raw("x", "Kurta"), _raw("x", "Kurta")])
+    monkeypatch.setattr("app.services.live_search_service.get_all_providers", lambda: [a])
+
+    assert len(await live_search("kurta", limit=10)) == 1
+
+
+async def test_a_repeated_search_is_served_from_memory(monkeypatch):
+    """The stylist fires one search per item in a prompt; a ten-item
+    bridal look must not re-hit every retailer for words it just asked."""
+    calls: list[str] = []
+
+    class _Counting(_FakeProvider):
+        async def search_live(self, *, query: str, limit: int = 24):
+            calls.append(query)
+            return self._items
+
+    a = _Counting("a", items=[_raw("a1", "Maang Tikka Gold")])
+    monkeypatch.setattr("app.services.live_search_service.get_all_providers", lambda: [a])
+
+    first = await live_search("maang tikka", limit=10)
+    second = await live_search("maang tikka", limit=10)
+    assert len(calls) == 1
+    assert [r.raw.retailer_product_id for r in first] == [r.raw.retailer_product_id for r in second]
