@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -92,5 +92,12 @@ class TryOnResult(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         self._image_url = value
     width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # What ended up on the photo and where: one entry per item, as
+    # {"name", "product_id", "slot", "drawn", "box": [x0, y0, x1, y1]} with
+    # the box in fractions of the image. Written by the quality pipeline,
+    # which inspects every item anyway; the result view labels each one.
+    # Null for results from before this existed, or from the plain
+    # (non-pipeline) path — the UI falls back to its slot list.
+    placements: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     job: Mapped["TryOnJob"] = relationship(back_populates="result")

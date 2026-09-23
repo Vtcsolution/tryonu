@@ -37,7 +37,14 @@ from app.services.outfit_slots import (
     worn_on_head,
 )
 from app.services.storage_service import get_storage, new_key
-from app.services.tryon_quality.pipeline import LookItem, QualityFailure, RenderHint, keep_person, render_look
+from app.services.tryon_quality.pipeline import (
+    ItemReport,
+    LookItem,
+    QualityFailure,
+    RenderHint,
+    keep_person,
+    render_look,
+)
 
 settings = get_settings()
 MAX_ATTEMPTS = 3
@@ -58,12 +65,13 @@ class _Layer:
     image_url: str
     slot: OutfitSlot | None  # None: a single item we know nothing about — let the model infer
     name: str = "the product"
+    product_id: str | None = None  # so the result view can tie a label to its product card
 
 
 async def _garment_layers(session, job: TryOnJob, model: str, whole_outfit: bool = False) -> list[_Layer]:
     if job.product is not None:
         img = job.product.primary_image_url
-        return [_Layer(img, slot_for(job.product.name), job.product.name)] if img else []
+        return [_Layer(img, slot_for(job.product.name), job.product.name, job.product.id)] if img else []
 
     if job.wardrobe_item is not None:
         item = job.wardrobe_item
@@ -78,7 +86,10 @@ async def _garment_layers(session, job: TryOnJob, model: str, whole_outfit: bool
         )
         items = [i for i in result.scalars().all() if i.product and i.product.primary_image_url]
         plan = render_plan([(i.slot, i.product.name) for i in items], model, whole_outfit)
-        return [_Layer(items[idx].product.primary_image_url, slot, items[idx].product.name) for idx, slot in plan]
+        return [
+            _Layer(items[idx].product.primary_image_url, slot, items[idx].product.name, items[idx].product.id)
+            for idx, slot in plan
+        ]
 
     return []
 
@@ -270,7 +281,7 @@ async def run_tryon_job_async(job_id: str) -> None:
                 # (app/services/tryon_quality/pipeline.py)
                 person = await asyncio.to_thread(get_storage().read, job.user_photo.storage_key)
                 try:
-                    image, _ = await render_look(
+                    image, reports = await render_look(
                         person,
                         [_look_item(layer) for layer in layers],
                         _pipeline_renderer(provider),
@@ -298,6 +309,7 @@ async def run_tryon_job_async(job_id: str) -> None:
                     return
                 await _complete_job(
                     session, job, image, "image/jpeg", provider.name, provider.model,
+                    placements=_placements(layers, reports),
                     drawn=[layer.name for layer in layers], face_kept=True,
                 )
                 return
@@ -365,6 +377,25 @@ async def _with_original_face(
     return restored, "image/jpeg"
 
 
+def _placements(layers: list[_Layer], reports: list[ItemReport]) -> list[dict]:
+    """Where each item ended up, for the result view's labels. An item with
+    no box was inspected but not located — it is still listed, just without
+    a marker to point at."""
+    out: list[dict] = []
+    for layer, report in zip(layers, reports):
+        box = report.box
+        out.append(
+            {
+                "name": layer.name,
+                "product_id": layer.product_id,
+                "slot": (layer.slot or OutfitSlot.TOP).value,
+                "drawn": box is not None,
+                "box": [round(box.x0, 4), round(box.y0, 4), round(box.x1, 4), round(box.y1, 4)] if box else None,
+            }
+        )
+    return out
+
+
 async def _complete_job(  # noqa: ANN001
     session,
     job: TryOnJob,
@@ -375,6 +406,7 @@ async def _complete_job(  # noqa: ANN001
     *,
     drawn: list[str] = (),  # type: ignore[assignment]
     face_kept: bool = False,
+    placements: list[dict] | None = None,
 ) -> None:
     if not face_kept:  # the quality pipeline already kept the person's own face
         image_bytes, content_type = await _with_original_face(job, image_bytes, content_type, list(drawn))
@@ -384,7 +416,7 @@ async def _complete_job(  # noqa: ANN001
     storage.put(key, image_bytes, content_type)
     url = storage.signed_url(key)
 
-    session.add(TryOnResult(job_id=job.id, storage_key=key, image_url=url))
+    session.add(TryOnResult(job_id=job.id, storage_key=key, image_url=url, placements=placements))
     job.status = JobStatus.COMPLETED
     job.completed_at = datetime.now(timezone.utc)
     # the engine that actually drew it — the one recorded at creation can be

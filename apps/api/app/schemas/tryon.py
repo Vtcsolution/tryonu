@@ -31,11 +31,23 @@ class CreateMultiTryOnRequest(BaseModel):
     wardrobe_item_id: str | None = None
 
 
+class ResultPlacement(BaseModel):
+    """One item on the finished photo. `box` is [x0, y0, x1, y1] in
+    fractions of the image, so a client can label it at any size."""
+
+    name: str
+    product_id: str | None = None
+    slot: str | None = None
+    drawn: bool = False
+    box: list[float] | None = None
+
+
 class TryOnResultOut(ORMModel):
     id: str
     image_url: str
     width: int | None
     height: int | None
+    placements: list[ResultPlacement] | None = None
 
 
 class TryOnJobOut(ORMModel):

@@ -56,11 +56,16 @@ from app.services.tryon_quality.locate import choose, find_body_part
 from app.services.tryon_quality.product_prep import describe_product
 from app.services.tryon_quality.vision import VisionError
 
-# Working resolution: FASHN returns ~2.5k renders; assembling at a small
-# phone photo's size threw that detail away (a watch dial became a few
-# unreadable pixels). Work at 2048 on the long side — larger photos are
-# reduced to it, smaller ones enlarged (the person's own pixels, just more
-# of them; nothing is redrawn).
+# Working resolution: a ceiling, never a target. Big photos come down to
+# 2048 on the long side; smaller ones are left exactly as they are.
+#
+# They used to be enlarged to 2048 as well, from when FASHN returned ~2.5k
+# renders and assembling at a phone photo's size threw that detail away.
+# OpenAI's image editing returns the size it was given (1024x1536 for a
+# portrait), so enlarging now adds nothing to interpolate from and only
+# softens: measured on a 1536px photo, the result's sharpness fell from
+# 647 (photo) and 1192 (render) to 218 once assembled at 2048. Customers
+# saw that as a blurry try-on — rightly.
 WORK_SIDE = 2048
 
 # where to look when the vision model can't locate the item
@@ -123,6 +128,9 @@ class ItemReport:
     verdict: Verdict | None = None
     taken_share: float = 0.0
     history: list[str] = field(default_factory=list)
+    # where this item ended up, as fractions of the photo — what the result
+    # view points its label at
+    box: Region | None = None
 
 
 class QualityFailure(Exception):
@@ -154,12 +162,13 @@ RenderAllFn = Callable[[bytes, list[LookItem], list[str]], Awaitable[bytes]]
 
 
 def _cap(img: np.ndarray) -> np.ndarray:
+    """The photo at working size: shrunk if it's bigger than WORK_SIDE,
+    otherwise untouched. Never enlarged — see WORK_SIDE."""
     h, w = img.shape[:2]
     scale = WORK_SIDE / max(h, w)
-    if abs(scale - 1) < 0.02:
+    if scale >= 0.98:
         return img
-    interpolation = cv2.INTER_AREA if scale < 1 else cv2.INTER_LANCZOS4
-    return cv2.resize(img, (round(w * scale), round(h * scale)), interpolation=interpolation)
+    return cv2.resize(img, (round(w * scale), round(h * scale)), interpolation=cv2.INTER_AREA)
 
 
 def _protect(face, item: LookItem) -> list[tuple[int, int, int, int]]:
@@ -362,6 +371,7 @@ async def _whole_look_pass(
         )
         if verdict.passes(min_product, min_other):
             report.verdict = verdict
+            report.box = _box_of(changes, picked, items[index])
             keep.extend(picked)
         else:
             todo.append((index, verdict.fix))
@@ -468,6 +478,7 @@ async def _render_one(
     assert best is not None
     _, merge, verdict = best
     report.verdict, report.taken_share = verdict, merge.changed_share
+    report.box = last_region
     logger.info("tryon_item_quality", item=item.name[:80], history=report.history)
     if not verdict.passes(_min_product_for(item, min_product), min_other):
         raise QualityFailure(item.name, verdict.issues)
