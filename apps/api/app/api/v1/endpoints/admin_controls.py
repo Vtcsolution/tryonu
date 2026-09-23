@@ -271,7 +271,10 @@ def _credential_status(slug: str) -> tuple[bool, bool | None]:
     s = get_settings()
     return {
         "ebay": (bool(s.EBAY_CLIENT_ID and s.EBAY_CLIENT_SECRET), bool(s.EBAY_CAMPAIGN_ID)),
-        "amazon": (bool(s.AMAZON_ACCESS_KEY and s.AMAZON_SECRET_KEY and s.AMAZON_PARTNER_TAG), None),
+        # the two halves are independent: the Associate ID earns commission
+        # on any link we build, while PA-API keys are what let us *find*
+        # products at all — an account can have the first without the second
+        "amazon": (bool(s.AMAZON_ACCESS_KEY and s.AMAZON_SECRET_KEY), bool(s.AMAZON_PARTNER_TAG)),
         "cj": (bool(s.CJ_API_TOKEN and s.CJ_WEBSITE_ID), None),
         "rakuten": (bool(s.RAKUTEN_ENABLED and s.RAKUTEN_CLIENT_ID), None),
         "flipkart": (bool(s.FLIPKART_AFFILIATE_ID and s.FLIPKART_AFFILIATE_TOKEN), None),

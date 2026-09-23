@@ -186,3 +186,73 @@ async def test_a_link_that_already_has_our_tag_is_left_alone():
     assert provider.build_affiliate_url(tagged, tracking_tag="other") == tagged
     plain = "https://www.amazon.com/dp/B07XYZ1234"
     assert provider.build_affiliate_url(plain, tracking_tag="other") == f"{plain}?tag={TAG}"
+
+
+# --- the UK Associates account (tryonu2021-21) --------------------------
+
+
+def _uk(**kw) -> AmazonProductProvider:
+    return _provider(marketplace="www.amazon.co.uk", partner_tag="tryonu2021-21", **kw)
+
+
+def test_the_associate_id_is_only_attached_where_it_earns():
+    """An Associate ID is marketplace-specific: tryonu2021-21 pays on
+    amazon.co.uk and nothing at all on amazon.com. A tag that earns
+    nothing while looking like it does is worse than none."""
+    uk = _uk()
+    assert (
+        uk.build_affiliate_url("https://www.amazon.co.uk/dp/B07XYZ", tracking_tag="ignored")
+        == "https://www.amazon.co.uk/dp/B07XYZ?tag=tryonu2021-21"
+    )
+    for elsewhere in (
+        "https://www.amazon.com/dp/B07XYZ",
+        "https://www.amazon.de/dp/B07XYZ",
+        "https://amzn.to/shortlink",
+    ):
+        assert uk.build_affiliate_url(elsewhere, tracking_tag="ignored") == elsewhere
+
+
+def test_a_link_amazon_already_tagged_for_us_is_left_as_it_is():
+    uk = _uk()
+    tagged = "https://www.amazon.co.uk/dp/B07XYZ?tag=tryonu2021-21&psc=1"
+    assert uk.build_affiliate_url(tagged, tracking_tag="ignored") == tagged
+
+
+def test_the_uk_account_reports_what_it_is_still_waiting_for():
+    """With an Associate ID but no PA-API keys the retailer is READY, not
+    broken — and the panel should say which half is missing."""
+    waiting = _uk(access_key=None, secret_key=None).ready
+    assert "tryonu2021-21" in waiting and "www.amazon.co.uk" in waiting
+    assert "AMAZON_ACCESS_KEY" in waiting and "qualifying sales" in waiting
+
+    assert "No Associate ID" in _provider(partner_tag=None, access_key=None, secret_key=None).ready
+    assert _uk().ready.startswith("Ready:")
+
+
+async def test_the_uk_marketplace_calls_the_uk_endpoint(monkeypatch):
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        seen["body"] = json.loads(request.content.decode())
+        seen["auth"] = request.headers["authorization"]
+        return httpx.Response(200, json={"SearchResult": {"Items": []}})
+
+    _patch_transport(monkeypatch, handler)
+    await _uk().search_live(query="kurta", limit=3)
+    assert seen["url"] == "https://webservices.amazon.co.uk/paapi5/searchitems"
+    assert seen["body"]["Marketplace"] == "www.amazon.co.uk"
+    assert seen["body"]["PartnerTag"] == "tryonu2021-21"
+    assert "/eu-west-1/ProductAdvertisingAPI/" in seen["auth"]
+
+
+async def test_no_amazon_products_are_invented_while_the_keys_are_missing(monkeypatch):
+    """The whole search must simply skip Amazon until it can really ask —
+    never fall back to a placeholder."""
+    from app.services.live_search_service import live_search
+
+    monkeypatch.setattr(
+        "app.services.live_search_service.get_all_providers",
+        lambda: [_uk(access_key=None, secret_key=None)],
+    )
+    assert await live_search("kurta", limit=10) == []

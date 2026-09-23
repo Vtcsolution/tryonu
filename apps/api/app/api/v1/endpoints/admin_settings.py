@@ -283,10 +283,15 @@ async def _test_retailer(slug: str, s: Settings) -> ConnectionTestOut:
     except NotImplementedError:
         return ConnectionTestOut(ok=False, message=f"{provider.display_name} integration isn't built yet — saving keys won't enable search.")
     except RetailerNotConfiguredError as exc:
-        return ConnectionTestOut(ok=False, message=str(exc))
+        # a provider that can explain exactly what it's waiting for says so
+        # itself (Amazon: affiliate tracking ready, API keys still missing)
+        ready = getattr(provider, "ready", None)
+        return ConnectionTestOut(ok=False, message=ready if isinstance(ready, str) else str(exc))
     message = f"Live search works ({len(results)} result for “shirt”)."
     if slug == "ebay" and not s.EBAY_CAMPAIGN_ID:
         message += " Commission is NOT being earned: no Partner Network campaign ID set."
+    if slug == "amazon" and not s.AMAZON_PARTNER_TAG:
+        message += " Commission is NOT being earned: no Associate ID set."
     return ConnectionTestOut(ok=True, message=message)
 
 

@@ -197,12 +197,35 @@ class AmazonProductProvider(ProductProvider):
                 products.append(product)
         return products[:limit]
 
+    @property
+    def ready(self) -> str:
+        """What this retailer is waiting for, in one line — the admin panel
+        and the connection test both show it."""
+        if not self._partner_tag:
+            return "No Associate ID set (AMAZON_PARTNER_TAG)"
+        if not (self._access_key and self._secret_key):
+            return (
+                f"Affiliate tracking ready as {self._partner_tag} on {self._marketplace}, "
+                "but PA-API keys are missing (AMAZON_ACCESS_KEY / AMAZON_SECRET_KEY) — "
+                "Amazon issues them from Associates -> Tools -> Product Advertising API, "
+                "and only to an account with 3 qualifying sales in the last 180 days."
+            )
+        return f"Ready: {self._partner_tag} on {self._marketplace}"
+
     def build_affiliate_url(self, product_url: str, *, tracking_tag: str) -> str:
-        # DetailPageURL already carries our tag; don't add a second one
-        if "tag=" in product_url:
+        """An Associate ID only earns on the marketplace it belongs to: a
+        co.uk tag on an amazon.com link tracks nothing. So the tag goes on
+        links to our own marketplace, and any other Amazon domain is left
+        exactly as it is rather than carrying a tag that pays nothing and
+        looks like it does."""
+        tag = self._partner_tag or tracking_tag
+        if f"//{self._marketplace}/" not in product_url and not product_url.startswith(f"https://{self._marketplace}"):
+            logger.info("amazon_affiliate_tag_skipped", reason="different marketplace", url=product_url[:120])
+            return product_url
+        if f"tag={tag}" in product_url:  # DetailPageURL already carries it
             return product_url
         sep = "&" if "?" in product_url else "?"
-        return f"{product_url}{sep}tag={self._partner_tag or tracking_tag}"
+        return f"{product_url}{sep}tag={tag}"
 
 
 def _first_error(resp: httpx.Response) -> str | None:
