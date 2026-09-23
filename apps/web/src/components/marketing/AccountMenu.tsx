@@ -42,8 +42,11 @@ export function AccountMenu() {
         <span className="grid h-7 w-7 place-items-center rounded-full bg-sage text-[12px] font-semibold text-white">
           {initial}
         </span>
+        {/* The balance, verified or not — the red dot below is what asks
+            for verification, and replacing the number with "Verify email"
+            left shoppers unable to see credits they actually hold. */}
         <span className="hidden font-display text-[13px] text-ink sm:inline">
-          {user.email_verified ? `${user.credits_balance} credits` : "Verify email"}
+          {user.credits_balance} credits
         </span>
         {!user.email_verified && (
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#c0503a]" aria-hidden="true" />
@@ -60,8 +63,12 @@ export function AccountMenu() {
             <p className="truncate text-[13px] font-semibold text-ink">
               {user.full_name || user.email}
             </p>
+            {/* The real balance either way. This used to print "0 credits"
+                for an unverified account, which was simply untrue — the
+                credits are there and nothing stops them being spent, so a
+                shopper with 200 was told they had none. */}
             <p className="text-[12px] text-muted">
-              {user.email_verified ? `${user.credits_balance} credits` : "0 credits — unverified"}
+              {user.credits_balance} credits{user.email_verified ? "" : " · email unverified"}
             </p>
           </div>
           {!user.email_verified && (
