@@ -48,6 +48,7 @@ def get_all_providers() -> list[ProductProvider]:
             access_key=settings.AMAZON_ACCESS_KEY,
             secret_key=settings.AMAZON_SECRET_KEY,
             partner_tag=settings.AMAZON_PARTNER_TAG,
+            marketplace=settings.AMAZON_MARKETPLACE,
         ),
         EbayProductProvider(
             client_id=settings.EBAY_CLIENT_ID,

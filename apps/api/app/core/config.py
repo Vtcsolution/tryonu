@@ -150,6 +150,8 @@ class Settings(BaseSettings):
     AMAZON_ACCESS_KEY: str | None = None
     AMAZON_SECRET_KEY: str | None = None
     AMAZON_PARTNER_TAG: str | None = None
+    # which Amazon the shopper buys from — picks the PA-API host and region
+    AMAZON_MARKETPLACE: str = "www.amazon.com"
     EBAY_CLIENT_ID: str | None = None
     EBAY_CLIENT_SECRET: str | None = None
     EBAY_CAMPAIGN_ID: str | None = None

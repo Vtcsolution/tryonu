@@ -142,7 +142,13 @@ async def test_connection_test_without_key_reports_mock_mode_without_network(cli
     assert resp.json()["ok"] is False
     assert "mock" in resp.json()["message"]
 
+    # Amazon's adapter is written now, so the honest answer is about the
+    # missing keys, not a missing integration
     resp = await client.post("/api/v1/admin/settings/test/amazon")
+    assert resp.json()["ok"] is False
+    assert "AMAZON_ACCESS_KEY" in resp.json()["message"]
+
+    resp = await client.post("/api/v1/admin/settings/test/flipkart")
     assert resp.json()["ok"] is False
     assert "isn't built yet" in resp.json()["message"]
 

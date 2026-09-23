@@ -228,11 +228,13 @@ async def test_disabled_retailer_is_not_searched(client, db, monkeypatch):
 async def test_retailer_list_reports_stub_integrations_honestly(client, db):
     await _login_as_new_admin(client, db)
     rows = {r["slug"]: r for r in (await client.get("/api/v1/admin/retailers")).json()}
-    assert rows["ebay"]["integration_built"] is True
-    # amazon/daraz/flipkart are still unbuilt stubs — the panel must not
-    # present them as working integrations
-    for stub in ("amazon", "daraz", "flipkart"):
-        assert rows[stub]["integration_built"] is False
+    # written against a real API, whether or not we hold the credentials yet
+    for built in ("ebay", "cj", "aliexpress", "amazon"):
+        assert rows[built]["integration_built"] is True, built
+    # daraz/flipkart are still stubs — the panel must not present them as
+    # working integrations
+    for stub in ("daraz", "flipkart"):
+        assert rows[stub]["integration_built"] is False, stub
 
 
 async def test_admin_credit_packages_create_update_and_hide_from_shop(client, db):
