@@ -33,6 +33,17 @@ async def lifespan(app: FastAPI):  # noqa: ANN201
         stylist_provider=settings.LLM_PROVIDER,
         payment_provider=settings.PAYMENT_PROVIDER,
     )
+    # Shout if the database is behind this code. A pending migration shows
+    # up later as a 500 deep inside an ordinary request ("column
+    # tryon_results.placements does not exist" — live, after a deploy where
+    # `alembic` wasn't on PATH so the migration silently never ran), which
+    # is a long way from the cause. Startup is where it's cheap to see.
+    schema = await schema_status()
+    if schema.get("state") == "behind":
+        logger.error("database_schema_behind_code", **schema)
+    elif schema.get("state") == "unknown":
+        logger.warning("database_schema_state_unknown", **schema)
+
     # admin-panel overrides (app_settings table) take precedence over .env
     await refresh_if_stale(force=True)
     if settings.GEOIP_AUTO_DOWNLOAD and not geoip_available():

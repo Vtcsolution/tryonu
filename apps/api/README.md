@@ -122,6 +122,23 @@ Covers: Product Search (catalog ingestion, disabled by default via `RAKUTEN_ENAB
 4. Run `python -m app.scripts.ingest_products` for the real catalog sync.
 5. Expect at least one live-correction pass on exact field names/paths — flag whatever Rakuten's real response actually looks like and it's a fast, contained fix (the normalization logic lives in one place, `RakutenProductProvider._to_raw_product`).
 
+## Deploying: run the migrations with the project's Python
+
+`alembic` is installed in the virtualenv, not system-wide, so a bare
+`alembic upgrade head` on a server gives `Command 'alembic' not found`
+and the deploy silently ships code whose schema doesn't exist yet. Use
+the same interpreter the app runs with:
+
+```bash
+cd /var/www/tryonu/apps/api
+./.venv/bin/python -m alembic upgrade head     # .venv/Scripts/python on Windows
+pm2 restart tryonu-api tryonu-worker
+curl -s https://api.tryonu.app/health          # "schema": {"state": "ok"}
+```
+
+If the schema is behind, `/health` says so and startup logs
+`database_schema_behind_code` with the revision it expected.
+
 ## Supabase: keep the public API shut
 
 Supabase hosts our Postgres, but it also puts a REST API in front of every

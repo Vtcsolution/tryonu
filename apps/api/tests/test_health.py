@@ -28,3 +28,20 @@ async def test_health_says_whether_the_database_has_this_code_s_migrations(clien
     assert schema["state"] in ("ok", "behind", "unknown")
     if schema["state"] == "behind":
         assert "alembic upgrade head" in schema["fix"]
+
+
+async def test_startup_shouts_when_the_database_is_behind_the_code(capsys, monkeypatch):
+    """Live: a deploy ran without its migration (alembic wasn't on PATH),
+    and the first sign was a 500 in a browser an hour later."""
+    import app.main as main
+
+    async def behind():
+        return {"state": "behind", "applied": "old", "expected": "new", "fix": "run: alembic upgrade head"}
+
+    monkeypatch.setattr(main, "schema_status", behind)
+    async with main.lifespan(main.app):
+        pass
+    printed = capsys.readouterr()
+    logged = printed.out + printed.err
+    assert "database_schema_behind_code" in logged
+    assert "alembic upgrade head" in logged  # says what to do, not just that it's wrong
