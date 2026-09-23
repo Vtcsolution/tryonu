@@ -50,6 +50,39 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    @app.middleware("http")
+    async def answer_crashes_through_cors(request: Request, call_next):  # noqa: ANN202
+        """Turn an unhandled error into a 500 the browser can read.
+
+        Registered BEFORE the CORS middleware on purpose: Starlette nests
+        each newly added middleware outside the ones already registered,
+        so registering this first puts it inside CORS, which is where it
+        has to be for the error response to come back with the header.
+
+        This has to be a middleware *inside* the CORS layer, not an
+        exception handler: Starlette runs handlers for unhandled
+        exceptions in ServerErrorMiddleware, which sits outside every
+        user middleware — so its response carries no
+        Access-Control-Allow-Origin and the browser reports "blocked by
+        CORS policy" for what is really a server error. That cost us an
+        afternoon looking at CORS settings while the actual fault was a
+        500 (a database column missing because a migration hadn't been
+        run). Caught here, the response travels back out through the CORS
+        middleware and arrives as the 500 it is.
+
+        The client gets a generic message; the traceback goes to the log
+        with the request id."""
+        try:
+            return await call_next(request)
+        except Exception as exc:  # noqa: BLE001 — deliberately everything
+            logger.exception(
+                "unhandled_error", path=request.url.path, method=request.method, error=str(exc)[:500]
+            )
+            return JSONResponse(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content={"detail": "Something went wrong on our side. Please try again."},
+            )
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
