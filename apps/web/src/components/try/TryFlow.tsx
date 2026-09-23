@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { VoiceInputButton } from "@/components/ui/VoiceInputButton";
+import { ZoomableImage } from "@/components/try/ZoomableImage";
 import { PhotoUploader } from "@/components/upload/PhotoUploader";
 import { ApiError, affiliateGoUrl, resolveMediaUrl, thumbnailUrl } from "@/lib/api/client";
 import {
@@ -1131,19 +1132,17 @@ function ResultStep({
 
       <div className="mt-6 grid gap-6 md:grid-cols-[1.4fr_1fr]">
         <div className="relative aspect-[4/5] overflow-hidden rounded-[26px] border border-line bg-paper-2 shadow-lift md:aspect-auto md:min-h-[460px]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={resolveMediaUrl(job.result!.image_url)}
-            alt={`AI try-on result — ${product.name} — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}
-            className="h-full w-full object-contain"
-          />
-          <div className="absolute inset-x-3 top-3 z-10 flex flex-wrap items-start gap-2">
-            <AngleGallery jobs={jobs} activeIndex={activeIndex} onSelect={setActiveIndex} />
-            <span className="ml-auto rounded-full bg-sage px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm">
-              AI try-on result{jobs.length > 1 ? ` · ${PHOTO_KIND_LABEL[job.user_photo.kind]}` : ""}
-            </span>
-          </div>
-          <p className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
+          <ZoomableImage src={resolveMediaUrl(job.result!.image_url)} alt={`AI try-on result — ${product.name} — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}>
+            <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex flex-wrap items-start gap-2">
+              <div className="pointer-events-auto flex flex-wrap items-start gap-2">
+                <AngleGallery jobs={jobs} activeIndex={activeIndex} onSelect={setActiveIndex} />
+              </div>
+              <span className="ml-auto rounded-full bg-sage px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm">
+                AI try-on result{jobs.length > 1 ? ` · ${PHOTO_KIND_LABEL[job.user_photo.kind]}` : ""}
+              </span>
+            </div>
+          </ZoomableImage>
+          <p className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
             AI-generated visualization — not a guarantee of exact fit, sizing, or color.
           </p>
         </div>
@@ -1324,19 +1323,17 @@ function OutfitResultStep({
 
       <div className="mt-6 grid gap-6 md:grid-cols-[1.4fr_1fr]">
         <div className="relative aspect-[4/5] overflow-hidden rounded-[26px] border border-line bg-paper-2 shadow-lift md:aspect-auto md:min-h-[460px]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={resolveMediaUrl(job.result!.image_url)}
-            alt={`AI try-on result — styled outfit — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}
-            className="h-full w-full object-contain"
-          />
-          <div className="absolute inset-x-3 top-3 z-10 flex flex-wrap items-start gap-2">
-            <AngleGallery jobs={jobs} activeIndex={activeIndex} onSelect={setActiveIndex} />
-            <span className="ml-auto rounded-full bg-sage px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm">
-              AI try-on result{jobs.length > 1 ? ` · ${PHOTO_KIND_LABEL[job.user_photo.kind]}` : ""}
-            </span>
-          </div>
-          <p className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
+          <ZoomableImage src={resolveMediaUrl(job.result!.image_url)} alt={`AI try-on result — styled outfit — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}>
+            <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex flex-wrap items-start gap-2">
+              <div className="pointer-events-auto flex flex-wrap items-start gap-2">
+                <AngleGallery jobs={jobs} activeIndex={activeIndex} onSelect={setActiveIndex} />
+              </div>
+              <span className="ml-auto rounded-full bg-sage px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm">
+                AI try-on result{jobs.length > 1 ? ` · ${PHOTO_KIND_LABEL[job.user_photo.kind]}` : ""}
+              </span>
+            </div>
+          </ZoomableImage>
+          <p className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
             {renderedCount === outfit.items.length
               ? "Every item in this outfit is on the photo."
               : `${renderedCount} of ${outfit.items.length} items drawn on the photo — the items marked “matched” are shown alongside with their own shop links.`}
@@ -1434,19 +1431,17 @@ function WardrobeResultStep({
 
       <div className="mt-6 grid gap-6 md:grid-cols-[1.4fr_1fr]">
         <div className="relative aspect-[4/5] overflow-hidden rounded-[26px] border border-line bg-paper-2 shadow-lift md:aspect-auto md:min-h-[460px]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={resolveMediaUrl(job.result!.image_url)}
-            alt={`AI try-on result — ${item.name} — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}
-            className="h-full w-full object-contain"
-          />
-          <div className="absolute inset-x-3 top-3 z-10 flex flex-wrap items-start gap-2">
-            <AngleGallery jobs={jobs} activeIndex={activeIndex} onSelect={setActiveIndex} />
-            <span className="ml-auto rounded-full bg-sage px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm">
-              AI try-on result{jobs.length > 1 ? ` · ${PHOTO_KIND_LABEL[job.user_photo.kind]}` : ""}
-            </span>
-          </div>
-          <p className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
+          <ZoomableImage src={resolveMediaUrl(job.result!.image_url)} alt={`AI try-on result — ${item.name} — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}>
+            <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex flex-wrap items-start gap-2">
+              <div className="pointer-events-auto flex flex-wrap items-start gap-2">
+                <AngleGallery jobs={jobs} activeIndex={activeIndex} onSelect={setActiveIndex} />
+              </div>
+              <span className="ml-auto rounded-full bg-sage px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm">
+                AI try-on result{jobs.length > 1 ? ` · ${PHOTO_KIND_LABEL[job.user_photo.kind]}` : ""}
+              </span>
+            </div>
+          </ZoomableImage>
+          <p className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
             AI-generated visualization — not a guarantee of exact fit, sizing, or color.
           </p>
         </div>
