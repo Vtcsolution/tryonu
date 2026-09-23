@@ -187,6 +187,10 @@ class Settings(BaseSettings):
     # api.linksynergy.com is Rakuten Advertising's real, working API host
     # (the /token and /v2/advertisers endpoints were verified against it).
     RAKUTEN_API_BASE_URL: str = "https://api.linksynergy.com"
+    # Optional: narrow product search to particular approved advertisers
+    # (comma-separated merchant ids). Empty means "every advertiser we are
+    # joined to", which is the normal setting.
+    RAKUTEN_ADVERTISER_IDS: str = ""
 
     # --- affiliate networks (distinct from retailers — a network like Awin
     # provides the tracking/commission layer across multiple retailers) ---

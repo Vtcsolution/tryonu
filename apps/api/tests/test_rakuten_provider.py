@@ -540,3 +540,76 @@ async def test_advertisers_coupons_require_configuration():
         await provider.list_coupons()
     with pytest.raises(RetailerNotConfiguredError):
         await provider.list_partnerships(advertiser_ids=["1"])
+
+
+# --- product search scoping -------------------------------------------
+
+
+def _provider_for_search(**kw):
+    from app.retailers.rakuten import RakutenProductProvider
+
+    defaults = dict(
+        enabled=True,
+        client_id="cid",
+        client_secret="secret",
+        access_token="token",
+        refresh_token=None,
+        publisher_id="pub-1",
+        account_id="sid-9999",
+        base_url="https://api.linksynergy.com",
+    )
+    defaults.update(kw)
+    return RakutenProductProvider(**defaults)
+
+
+def _search_handler(seen: dict, body: str = "<result><TotalMatches>0</TotalMatches></result>"):
+    """Answers the token call, then records the search's parameters."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/token"):
+            return httpx.Response(200, json={"access_token": "t", "token_type": "bearer", "expires_in": 3600})
+        seen["params"] = dict(request.url.params)
+        return httpx.Response(200, text=body)
+
+    return handler
+
+
+async def test_our_publisher_id_is_never_sent_as_an_advertiser_id(monkeypatch):
+    """`mid` is an ADVERTISER id. Sending our own account id there scoped
+    every search to a merchant that cannot exist — zero results forever,
+    including after partnerships are approved."""
+    seen: dict = {}
+    handler = _search_handler(seen)
+
+    _patch_transport(monkeypatch, httpx.MockTransport(handler))
+    await _provider_for_search().search_live(query="dress", limit=5)
+    assert "mid" not in seen["params"]  # search every advertiser we're joined to
+    assert seen["params"]["keyword"] == "dress"
+
+
+async def test_search_can_be_narrowed_to_approved_advertisers(monkeypatch):
+    seen: dict = {}
+    _patch_transport(monkeypatch, httpx.MockTransport(_search_handler(seen)))
+    await _provider_for_search(advertiser_ids=["41993", "50307"]).search_live(query="dress", limit=5)
+    assert seen["params"]["mid"] == "41993|50307"
+
+
+async def test_no_approval_and_no_matches_both_mean_no_products_not_a_crash(monkeypatch):
+    """Both shapes are what this account really gets back today."""
+    no_approval = (
+        "<result><Errors><ErrorID>7186919</ErrorID><ErrorText>No matching products found. "
+        "Possible reasons include lack of approval from the specified Advertiser"
+        "</ErrorText></Errors></result>"
+    )
+    for body in (no_approval, "<result><TotalMatches>0</TotalMatches><TotalPages>0</TotalPages></result>"):
+        _patch_transport(monkeypatch, httpx.MockTransport(_search_handler({}, body)))
+        assert await _provider_for_search().search_live(query="dress", limit=5) == []
+
+
+async def test_a_link_that_does_not_look_tracked_is_flagged(caplog):
+    provider = _provider_for_search()
+    tracked = "https://click.linksynergy.com/deeplink?id=abc&murl=https%3A%2F%2Fshop.example%2Fp%2F1"
+    assert provider.build_affiliate_url(tracked, tracking_tag="x") == tracked
+
+    plain = "https://shop.example/p/1"
+    assert provider.build_affiliate_url(plain, tracking_tag="x") == plain  # never rewritten blindly

@@ -30,6 +30,7 @@ def get_rakuten_provider() -> RakutenProductProvider:
         refresh_token=settings.RAKUTEN_REFRESH_TOKEN,
         publisher_id=settings.RAKUTEN_PUBLISHER_ID,
         account_id=settings.RAKUTEN_ACCOUNT_ID,
+        advertiser_ids=[a for a in settings.RAKUTEN_ADVERTISER_IDS.split(",") if a.strip()],
         base_url=settings.RAKUTEN_API_BASE_URL,
     )
 

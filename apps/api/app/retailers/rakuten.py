@@ -20,6 +20,20 @@ https://api.linksynergy.com:
     found. Possible reasons include lack of approval from the specified
     Advertiser or no active relationships with any Advertiser.</ErrorText
     ></Errors>` — both mean "zero results", not a hard failure.
+  - RE-VERIFIED LIVE 2026-09-23 against the production credentials:
+    the token still mints, /v2/advertisers still returns real data (100
+    advertisers listed), an unscoped product search answers
+    `<TotalMatches>0</TotalMatches>` and a search scoped to any real
+    advertiser mid still answers "lack of approval". Nothing about the
+    account has changed; the integration itself is working as far as the
+    account allows it to.
+  - FIXED 2026-09-23: product search was sending our own account id (the
+    publisher SID) as `mid`, which is an ADVERTISER id — two different
+    namespaces. Every search was therefore scoped to an advertiser that
+    cannot exist, so Rakuten would have kept returning nothing even after
+    partnerships were approved. `mid` is now sent only from
+    RAKUTEN_ADVERTISER_IDS, and omitted otherwise so Rakuten searches
+    every advertiser we are joined to.
   - **The real, confirmed blocker**: this account has ZERO approved
     advertiser partnerships. Verified by scoping search to real, joined
     fashion-adjacent merchants pulled from the live advertiser list
@@ -108,6 +122,11 @@ _SEARCH_TERMS: list[tuple[str, str]] = [
 ]
 
 
+# what a tracked Rakuten deep link looks like, for the sanity check in
+# build_affiliate_url
+_TRACKED_LINK_MARKS = ("click.linksynergy.com", "linksynergy.com/deeplink", "go.redirectingat", "rakuten.com/deeplink")
+
+
 class RakutenAPIError(Exception):
     """A real (non-transient, or transient-exhausted) error from Rakuten's
     API — always carries enough detail to diagnose without a live account."""
@@ -187,6 +206,7 @@ class RakutenProductProvider(ProductProvider):
         refresh_token: str | None,
         publisher_id: str | None,
         account_id: str | None,
+        advertiser_ids: list[str] | None = None,
         base_url: str,
     ) -> None:
         self._enabled = enabled
@@ -196,6 +216,7 @@ class RakutenProductProvider(ProductProvider):
         self._refresh_token = refresh_token
         self._publisher_id = publisher_id
         self._account_id = account_id
+        self._advertiser_ids = [a.strip() for a in (advertiser_ids or []) if a.strip()]
         self._base_url = base_url.rstrip("/")
 
         self._cached_token: str | None = None
@@ -222,6 +243,7 @@ class RakutenProductProvider(ProductProvider):
             "has_direct_token": bool(self._access_token),
             "has_publisher_id": bool(self._publisher_id),
             "has_account_id": bool(self._account_id),
+            "advertiser_ids": len(self._advertiser_ids),
             "base_url": self._base_url,
         }
 
@@ -421,7 +443,15 @@ class RakutenProductProvider(ProductProvider):
                 "keyword": keyword,
                 "max": min(limit, _PAGE_SIZE),
                 "pagenumber": 1,
-                **({"mid": self._account_id} if self._account_id else {}),
+                # `mid` is an ADVERTISER id. It used to be filled with our
+                # own account id (the publisher SID) — two different
+                # namespaces — which scoped every search to an advertiser
+                # that cannot exist, guaranteeing zero results forever,
+                # including after partnerships are finally approved. With
+                # no mid, Rakuten searches every advertiser we're joined
+                # to, which is what we want; set RAKUTEN_ADVERTISER_IDS to
+                # narrow it to particular approved merchants.
+                **({"mid": "|".join(self._advertiser_ids)} if self._advertiser_ids else {}),
             },
         )
         root = _parse_xml_or_raise(resp, context=f"product search {keyword!r}")
@@ -483,12 +513,21 @@ class RakutenProductProvider(ProductProvider):
         )
 
     def build_affiliate_url(self, product_url: str, *, tracking_tag: str) -> str:  # noqa: ARG002
-        # Rakuten's Product Search results are expected to already return a
-        # tracked deep link (linkurl) for the authenticated publisher
-        # account — same pattern as CJ's linkCode.clickUrl. Unconfirmed at
-        # the item level (see module docstring); this is the one place to
-        # add publisher-id query-param wrapping if a real populated
-        # response shows the link is NOT pre-tracked.
+        """Rakuten's Product Search returns a tracked deep link (`linkurl`)
+        for the authenticated publisher, the same way CJ returns
+        linkCode.clickUrl — so it is passed through untouched.
+
+        Still unconfirmed at the item level (no populated response has ever
+        been seen — see the module docstring), so a link that doesn't look
+        tracked is logged loudly rather than quietly shipped: the first
+        real result will tell us whether wrapping is needed, and a
+        commission silently going nowhere is the expensive failure here."""
+        if product_url and not any(mark in product_url for mark in _TRACKED_LINK_MARKS):
+            logger.warning(
+                "rakuten_link_may_not_be_tracked",
+                url=product_url[:120],
+                note="expected a click.linksynergy.com / goto link; commission may not be credited",
+            )
         return product_url
 
     # ------------------------------------------------------------------
