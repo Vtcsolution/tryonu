@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { VoiceInputButton } from "@/components/ui/VoiceInputButton";
 import { ZoomableImage } from "@/components/try/ZoomableImage";
+import { ResultMarkers, markerNumber } from "@/components/try/ResultMarkers";
 import { PhotoUploader } from "@/components/upload/PhotoUploader";
 import { ApiError, affiliateGoUrl, resolveMediaUrl, thumbnailUrl } from "@/lib/api/client";
 import {
@@ -1132,7 +1133,10 @@ function ResultStep({
 
       <div className="mt-6 grid gap-6 md:grid-cols-[1.4fr_1fr]">
         <div className="relative aspect-[4/5] overflow-hidden rounded-[26px] border border-line bg-paper-2 shadow-lift md:aspect-auto md:min-h-[460px]">
-          <ZoomableImage src={resolveMediaUrl(job.result!.image_url)} alt={`AI try-on result — ${product.name} — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}>
+          <ZoomableImage
+            overlay={<ResultMarkers placements={job.result!.placements} />}
+            src={resolveMediaUrl(job.result!.image_url)}
+            alt={`AI try-on result — ${product.name} — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}>
             <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex flex-wrap items-start gap-2">
               <div className="pointer-events-auto flex flex-wrap items-start gap-2">
                 <AngleGallery jobs={jobs} activeIndex={activeIndex} onSelect={setActiveIndex} />
@@ -1191,10 +1195,12 @@ function ResultStep({
 function OutfitItemThumb({
   item,
   rendered,
+  number,
   highlight = false,
 }: {
   item: OutfitItem;
   rendered: boolean;
+  number?: number | null;
   highlight?: boolean;
 }) {
   const thumb = resolveMediaUrl(item.product.images[0]?.url);
@@ -1219,7 +1225,7 @@ function OutfitItemThumb({
             rendered ? "bg-sage text-white" : "bg-surface/95 text-ink-soft"
           }`}
         >
-          {rendered ? "on photo" : "matched"}
+          {number ? `${number} · on photo` : rendered ? "on photo" : "matched"}
         </span>
       </div>
       <p className="truncate px-1.5 py-1 text-[10.5px] text-ink-soft">{item.product.name}</p>
@@ -1323,7 +1329,10 @@ function OutfitResultStep({
 
       <div className="mt-6 grid gap-6 md:grid-cols-[1.4fr_1fr]">
         <div className="relative aspect-[4/5] overflow-hidden rounded-[26px] border border-line bg-paper-2 shadow-lift md:aspect-auto md:min-h-[460px]">
-          <ZoomableImage src={resolveMediaUrl(job.result!.image_url)} alt={`AI try-on result — styled outfit — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}>
+          <ZoomableImage
+            overlay={<ResultMarkers placements={job.result!.placements} />}
+            src={resolveMediaUrl(job.result!.image_url)}
+            alt={`AI try-on result — styled outfit — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}>
             <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex flex-wrap items-start gap-2">
               <div className="pointer-events-auto flex flex-wrap items-start gap-2">
                 <AngleGallery jobs={jobs} activeIndex={activeIndex} onSelect={setActiveIndex} />
@@ -1351,7 +1360,12 @@ function OutfitResultStep({
 
           <div className="mt-4 grid grid-cols-3 gap-2">
             {outfit.items.map((item) => (
-              <OutfitItemThumb key={item.id} item={item} rendered={outfit.rendered_item_ids.includes(item.id)} />
+              <OutfitItemThumb
+                key={item.id}
+                item={item}
+                rendered={outfit.rendered_item_ids.includes(item.id)}
+                number={markerNumber(job.result?.placements, item.product.id)}
+              />
             ))}
           </div>
 
@@ -1431,7 +1445,10 @@ function WardrobeResultStep({
 
       <div className="mt-6 grid gap-6 md:grid-cols-[1.4fr_1fr]">
         <div className="relative aspect-[4/5] overflow-hidden rounded-[26px] border border-line bg-paper-2 shadow-lift md:aspect-auto md:min-h-[460px]">
-          <ZoomableImage src={resolveMediaUrl(job.result!.image_url)} alt={`AI try-on result — ${item.name} — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}>
+          <ZoomableImage
+            overlay={<ResultMarkers placements={job.result!.placements} />}
+            src={resolveMediaUrl(job.result!.image_url)}
+            alt={`AI try-on result — ${item.name} — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}>
             <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex flex-wrap items-start gap-2">
               <div className="pointer-events-auto flex flex-wrap items-start gap-2">
                 <AngleGallery jobs={jobs} activeIndex={activeIndex} onSelect={setActiveIndex} />

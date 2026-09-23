@@ -463,3 +463,33 @@ async def test_attempts_stop_once_the_look_has_taken_too_long(fake_vision):
             encode_jpeg(_person(), 97), ITEMS, _renderer(calls), retries=5, budget_seconds=0.0
         )
     assert len(calls) == 1  # no second attempt was bought
+
+
+async def test_the_report_says_where_each_item_ended_up(fake_vision):
+    """The result view labels items on the photo, so the pipeline has to
+    hand back the box it put each one in — not just a pass/fail."""
+    fake_vision.append(GOOD)
+    calls: list = []
+    _, reports = await pipeline.render_look(encode_jpeg(_person(), 97), ITEMS, _renderer(calls), retries=0)
+    box = reports[0].box
+    assert box is not None
+    assert 0 <= box.x0 < box.x1 <= 1 and 0 <= box.y0 < box.y1 <= 1
+    # ITEM sits at x 300-360 of 400, y 250-330 of 600 — the box must land there
+    assert 0.7 < box.x0 < 0.8 and 0.85 < box.x1 <= 0.95
+    assert 0.35 < box.y0 < 0.45 and 0.5 < box.y1 < 0.6
+
+
+async def test_an_item_the_whole_look_drew_is_boxed_without_its_own_render(fake_vision):
+    fake_vision.append(GOOD)
+
+    async def render_all(base_jpeg, items, descriptions):  # noqa: ARG001
+        base = cv2.imdecode(np.frombuffer(base_jpeg, np.uint8), cv2.IMREAD_COLOR)
+        return encode_jpeg(_render(base), 97)
+
+    async def render_one(base_jpeg, item, hint):  # pragma: no cover — nothing should fail
+        raise AssertionError("the whole-look render passed; no item needs its own")
+
+    _, reports = await pipeline.render_look(
+        encode_jpeg(_person(), 97), ITEMS, render_one, render_all=render_all, retries=0
+    )
+    assert reports[0].box is not None

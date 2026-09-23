@@ -127,11 +127,22 @@ export type FittingProfileStatus = {
   min_required: number;
 };
 
+/** One item on a finished try-on: where the pipeline actually put it.
+ * `box` is [x0, y0, x1, y1] in fractions of the image. */
+export type ResultPlacement = {
+  name: string;
+  product_id: string | null;
+  slot: string | null;
+  drawn: boolean;
+  box: number[] | null;
+};
+
 export type TryOnResult = {
   id: string;
   image_url: string;
   width: number | null;
   height: number | null;
+  placements: ResultPlacement[] | null;
 };
 
 export type TryOnJob = {
