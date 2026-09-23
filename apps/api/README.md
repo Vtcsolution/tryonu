@@ -122,6 +122,21 @@ Covers: Product Search (catalog ingestion, disabled by default via `RAKUTEN_ENAB
 4. Run `python -m app.scripts.ingest_products` for the real catalog sync.
 5. Expect at least one live-correction pass on exact field names/paths — flag whatever Rakuten's real response actually looks like and it's a fast, contained fix (the normalization logic lives in one place, `RakutenProductProvider._to_raw_product`).
 
+## Supabase: keep the public API shut
+
+Supabase hosts our Postgres, but it also puts a REST API in front of every
+table in `public`, reachable by anyone with the project URL and the anon key.
+Nothing here uses it — the API and worker connect straight to Postgres as
+`postgres` — so it stays closed: RLS on with no policies, and the anon and
+authenticated roles hold no grants. Postgres doesn't apply RLS to a table's
+owner, so the app is unaffected.
+
+`alembic upgrade head` applies it (migration `f1c8e42a7b03`). To do it by
+hand, or to re-check after adding tables, paste
+[scripts/supabase_lockdown.sql](scripts/supabase_lockdown.sql) into the
+Supabase SQL editor — it's idempotent and ends with two queries that should
+both return nothing.
+
 ## Testing without real provider keys
 
 Everything above defaults to its mock — the full user journey (register →
