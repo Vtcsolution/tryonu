@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.llm.base import StylistCandidate, StylistQuery
 from app.core.taxonomy import audience_of
 from app.ai.llm.registry import get_stylist_provider
+from app.core.logging import logger
 from app.models.ai_usage import AIUsage
 from app.models.enums import AIUsageKind, OutfitSlot
 from app.models.outfit import Outfit, OutfitItem
@@ -374,6 +375,16 @@ async def ask_stylist(
         success = False
         error_message = str(exc)[:512]  # AIUsage.error_message is VARCHAR(512)
         recommendation = None
+        # Also log it. This used to be recorded only in the ai_usage row,
+        # so a shopper saw "the stylist is temporarily unavailable" while
+        # the logs said nothing at all — the real cause (the OpenAI
+        # account being out of credit) was invisible from the outside.
+        logger.warning(
+            "stylist_llm_failed",
+            provider=provider.name,
+            model=provider.model,
+            error=error_message,
+        )
     latency_ms = int((time.perf_counter() - start) * 1000)
 
     db.add(

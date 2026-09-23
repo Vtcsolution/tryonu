@@ -561,3 +561,29 @@ async def test_a_bare_ask_follows_the_categories_he_picked_when_no_gender_is_sav
 
     await client.post("/api/v1/stylist/ask", json={"prompt": "boots", "max_items": 1})
     assert seen == ["Men's Chelsea Boots"]
+
+
+async def test_a_failing_stylist_model_is_logged_not_just_swallowed(client, monkeypatch, capsys):
+    """Live: the OpenAI account ran out of credit, shoppers saw "the
+    stylist is temporarily unavailable", and the logs said nothing —
+    the error went only into the ai_usage row."""
+    _patch_live_search(monkeypatch, _live_results("Navy Dress"))
+
+    class BrokeProvider:
+        name = "openai"
+        model = "gpt-5.6-sol"
+
+        async def recommend(self, query, candidates):
+            raise RuntimeError("OpenAI error 429: insufficient_quota / credit_balance_exhausted")
+
+    monkeypatch.setattr("app.services.stylist_service.get_stylist_provider", lambda: BrokeProvider())
+    await register_and_login(client)
+
+    resp = await client.post("/api/v1/stylist/ask", json={"prompt": "a navy dress", "max_items": 1})
+    assert resp.status_code == 200  # the shopper gets a polite answer, not a crash
+    assert "temporarily unavailable" in resp.json()["summary"]
+
+    logged = capsys.readouterr()
+    everything = logged.out + logged.err
+    assert "stylist_llm_failed" in everything
+    assert "insufficient_quota" in everything  # the actual reason is findable
