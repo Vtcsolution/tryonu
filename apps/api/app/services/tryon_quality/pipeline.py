@@ -56,6 +56,7 @@ from app.services.tryon_quality.compose import (
 from app.services.tryon_quality.judge import Verdict, judge
 from app.services.tryon_quality.locate import choose, find_body_part
 from app.services.tryon_quality.product_prep import describe_product
+from app.services.tryon_quality.recolour import match_product_colour
 from app.services.tryon_quality.vision import VisionError
 
 # Working resolution: a ceiling, never a target. Big photos come down to
@@ -382,6 +383,16 @@ async def _whole_look_pass(
         return base, _all_of(items)
 
     shown = changes.merge(everything).image
+    # Each garment's cast is pulled back to its own product photo before
+    # anyone judges it: the model's colour for the same dress moves between
+    # runs (one ivory suit came back yellow, another pink and was refused)
+    # while the drape and embroidery were right both times.
+    garment_masks: dict[int, np.ndarray] = {}
+    for index, item in enumerate(items):
+        if item.slot in _GARMENTS and picks[index]:
+            garment_masks[index] = changes.merge(picks[index]).mask
+            shown = match_product_colour(shown, garment_masks[index], products[index], name=item.name)
+
     verdicts = await asyncio.gather(
         *(judge(product, base, shown, _box_of(changes, picked, item), description, item.slot in _SMALL)
           for product, description, item, picked in zip(products, descriptions, items, picks)),
@@ -413,10 +424,15 @@ async def _whole_look_pass(
         return base, todo
     merged = changes.merge(sorted(set(keep)))
     redone = {index for index, _ in todo}
+    kept_image = merged.image
     for index, report in enumerate(reports):
         if index not in redone:
             report.taken_share = merged.changed_share
-    return merged.image, todo
+            if index in garment_masks:  # the same correction the verdict saw
+                kept_image = match_product_colour(
+                    kept_image, garment_masks[index], products[index], name=items[index].name
+                )
+    return kept_image, todo
 
 
 async def _render_one(
@@ -472,6 +488,13 @@ async def _render_one(
                 base, raw, _protect(face, item), min_share=0.00004 if item.slot in _SMALL else 0.0003
             )
             merged, region = await _take_product(changes, product, description, item)
+        if merged is not None and item.slot in _GARMENTS:
+            merged = Merge(
+                match_product_colour(merged.image, merged.mask, product, name=item.name),
+                merged.alignment,
+                merged.changed_share,
+                merged.mask,
+            )
         if merged is not None:
             last_region = region
             region_is_body_part = False  # from here on it's the item's own box
