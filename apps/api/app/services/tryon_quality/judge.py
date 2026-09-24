@@ -83,8 +83,12 @@ _SMALL_ITEM_NOTE = (
     "close-up here is an enlargement of very few pixels. Judge what is actually resolvable at that size: "
     "case/dial/strap COLOURS, shape, proportions and how it is worn. Do NOT mark it down for unreadable text, "
     "numerals, logos, stitching or engraving — a customer cannot see those either, and fine ornament (filigree, "
-    "beading, tiny stones) is necessarily simplified at this size. Mark it down only if the colours, the overall "
-    "silhouette/shape or the placement are wrong, or the item is missing."
+    "beading, tiny stones) is necessarily simplified at this size. A chain's LINK PATTERN (rope, curb, figaro, "
+    "box, franco), its clasp and any hallmark tag are in the same category: a 2mm chain is one or two pixels "
+    "wide on a body, so a rope chain cannot look twisted there and drawing it as a plain line of the right "
+    "colour and thickness is correct, not wrong. A necklace partly hidden by hair, a collar or a neckline is "
+    "normal and is not a fault. Mark it down only if the colours, the overall silhouette/shape or the placement "
+    "are wrong, or the item is missing."
 )
 
 
