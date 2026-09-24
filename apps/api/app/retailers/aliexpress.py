@@ -80,14 +80,16 @@ class AliExpressProductProvider(ProductProvider):
         missing = [
             name
             for name, value in (
-                ("ALIEXPRESS_APP_KEY", self._app_key),
-                ("ALIEXPRESS_APP_SECRET", self._app_secret),
-                ("ALIEXPRESS_TRACKING_ID", self._tracking_id),
+                ("ALIEXPRESS_APP_KEY (or ALI_EXPRESS_APP_KEY)", self._app_key),
+                ("ALIEXPRESS_APP_SECRET (or ALI_EXPRESS_SECRET_API)", self._app_secret),
+                ("ALIEXPRESS_TRACKING_ID (or ALI_EXPRESS_TRACKING_ID)", self._tracking_id),
             )
             if not value
         ]
         if missing:
-            raise RetailerNotConfiguredError(f"AliExpress affiliate API not set ({' / '.join(missing)})")
+            raise RetailerNotConfiguredError(
+                "AliExpress affiliate API not set — missing " + ", ".join(missing)
+            )
 
     def _sign(self, params: dict[str, str]) -> str:
         """HMAC-SHA256 over every parameter, sorted by name and

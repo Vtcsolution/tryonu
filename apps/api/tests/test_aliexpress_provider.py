@@ -162,3 +162,30 @@ async def test_the_bulk_sync_keeps_going_when_one_term_fails(monkeypatch):
     products = await _provider().fetch_products(limit=12)
     assert len(calls) > 1  # it didn't stop at the failure
     assert products and len({p.retailer_product_id for p in products}) == len(products)
+
+
+def test_the_deployments_own_variable_names_are_accepted(monkeypatch):
+    """The server's .env spells these ALI_EXPRESS_*; both spellings load,
+    so the names there never have to change."""
+    from app.core.config import Settings
+
+    for name in ("ALIEXPRESS_APP_KEY", "ALIEXPRESS_APP_SECRET", "ALIEXPRESS_TRACKING_ID"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("ALI_EXPRESS_APP_KEY", "key-123")
+    monkeypatch.setenv("ALI_EXPRESS_SECRET_API", "secret-456")
+    monkeypatch.setenv("ALI_EXPRESS_TRACKING_ID", "tryonu")
+
+    settings = Settings(_env_file=None)
+    assert settings.ALIEXPRESS_APP_KEY == "key-123"
+    assert settings.ALIEXPRESS_APP_SECRET == "secret-456"
+    assert settings.ALIEXPRESS_TRACKING_ID == "tryonu"
+
+
+async def test_what_is_missing_is_named_in_both_spellings():
+    provider = AliExpressProductProvider(app_key=None, app_secret="s", tracking_id=None)
+    with pytest.raises(RetailerNotConfiguredError) as exc:
+        await provider.search_live(query="kurti", limit=3)
+    message = str(exc.value)
+    assert "ALIEXPRESS_APP_KEY" in message and "ALI_EXPRESS_APP_KEY" in message
+    assert "TRACKING_ID" in message
+    assert "APP_SECRET" not in message  # that one is already set

@@ -167,9 +167,20 @@ class Settings(BaseSettings):
     # and secret from the console, and a tracking id from the affiliate
     # dashboard — without the tracking id the API returns plain links and
     # no commission is earned.
-    ALIEXPRESS_APP_KEY: str | None = None
-    ALIEXPRESS_APP_SECRET: str | None = None
-    ALIEXPRESS_TRACKING_ID: str | None = None
+    # Each also accepts the ALI_EXPRESS_* spelling used in the deployment's
+    # own .env, so the names there don't have to change.
+    ALIEXPRESS_APP_KEY: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("ALIEXPRESS_APP_KEY", "ALI_EXPRESS_APP_KEY", "ALI_EXPRESS_KEY_API"),
+    )
+    ALIEXPRESS_APP_SECRET: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("ALIEXPRESS_APP_SECRET", "ALI_EXPRESS_APP_SECRET", "ALI_EXPRESS_SECRET_API"),
+    )
+    ALIEXPRESS_TRACKING_ID: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("ALIEXPRESS_TRACKING_ID", "ALI_EXPRESS_TRACKING_ID"),
+    )
     ALIEXPRESS_SHIP_TO_COUNTRY: str = "PK"  # prices and availability for where the shopper is
     ALIEXPRESS_CURRENCY: str = "USD"
 
