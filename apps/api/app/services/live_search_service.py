@@ -221,7 +221,30 @@ async def find_live_result(query: str, *, retailer_slug: str, retailer_product_i
     """Re-locates one specific item a user picked from an earlier live
     search — used to re-verify a selection server-side (real current
     price/availability/url) right before persisting it, rather than
-    trusting whatever the client last had cached."""
+    trusting whatever the client last had cached.
+
+    Asks the retailer for that exact listing first. Searching for it
+    again means asking the retailer to rank it back into the first page
+    of results for the same words, which it does not reliably do — a
+    shopper was told "that item is no longer available" about a product
+    sitting on screen in front of them. Only a retailer that can't look
+    items up by id falls back to the search scan."""
+    provider = next((p for p in get_all_providers() if p.slug == retailer_slug), None)
+    if provider is not None:
+        try:
+            raw = await provider.fetch_by_id(retailer_product_id)
+        except (NotImplementedError, RetailerNotConfiguredError):
+            raw = None
+        except Exception as exc:  # noqa: BLE001 — fall back to the search
+            logger.warning("find_live_by_id_failed", retailer=retailer_slug, error=str(exc)[:200])
+            raw = None
+        else:
+            if raw is not None:
+                return LiveSearchResult(provider=provider, raw=raw)
+            # a definite "gone" from the retailer still deserves the
+            # search fallback: some ids only resolve through search
+            logger.info("find_live_by_id_empty", retailer=retailer_slug, product=retailer_product_id[:60])
+
     for result in await live_search(query, limit=48):
         if result.provider.slug == retailer_slug and result.raw.retailer_product_id == retailer_product_id:
             return result

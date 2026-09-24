@@ -185,3 +185,47 @@ async def test_a_repeated_search_is_served_from_memory(monkeypatch):
     second = await live_search("maang tikka", limit=10)
     assert len(calls) == 1
     assert [r.raw.retailer_product_id for r in first] == [r.raw.retailer_product_id for r in second]
+
+
+class _ByIdProvider(_FakeProvider):
+    """A retailer that can look one listing up directly."""
+
+    def __init__(self, slug: str, items: list[RawProduct]):
+        super().__init__(slug, items=items)
+        self.searches = 0
+        self.lookups: list[str] = []
+
+    async def search_live(self, *, query: str, limit: int = 24):
+        self.searches += 1
+        return self._items[:limit]
+
+    async def fetch_by_id(self, retailer_product_id: str):
+        self.lookups.append(retailer_product_id)
+        return next((i for i in self._items if i.retailer_product_id == retailer_product_id), None)
+
+
+async def test_a_click_asks_the_retailer_for_that_exact_listing(monkeypatch):
+    """Live: a shopper clicked "Try on" on a watch sitting on screen and
+    was told it was no longer available, because re-finding it meant
+    asking the retailer to rank it back onto page one for the same words."""
+    a = _ByIdProvider("a", [_raw("a1", "CURREN Women's Analog Dress Watch")])
+    monkeypatch.setattr("app.services.live_search_service.get_all_providers", lambda: [a])
+
+    found = await find_live_result("nothing like it", retailer_slug="a", retailer_product_id="a1")
+    assert found is not None and found.raw.retailer_product_id == "a1"
+    assert a.lookups == ["a1"]
+    assert a.searches == 0  # no search was needed at all
+
+
+async def test_an_id_the_retailer_does_not_know_is_still_not_found(monkeypatch):
+    """Nothing is invented to avoid an empty answer."""
+    a = _ByIdProvider("a", [_raw("a1")])
+    monkeypatch.setattr("app.services.live_search_service.get_all_providers", lambda: [a])
+    assert await find_live_result("anything", retailer_slug="a", retailer_product_id="ghost") is None
+
+
+async def test_a_retailer_without_id_lookup_still_falls_back_to_searching(monkeypatch):
+    plain = _FakeProvider("a", items=[_raw("a1"), _raw("a2")])
+    monkeypatch.setattr("app.services.live_search_service.get_all_providers", lambda: [plain])
+    found = await find_live_result("jacket", retailer_slug="a", retailer_product_id="a2")
+    assert found is not None and found.raw.retailer_product_id == "a2"

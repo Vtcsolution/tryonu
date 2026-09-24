@@ -63,6 +63,17 @@ class ProductProvider(ABC):
         this retailer that way."""
         raise NotImplementedError(f"{self.slug} does not support live search")
 
+    async def fetch_by_id(self, retailer_product_id: str) -> "RawProduct | None":  # noqa: ARG002
+        """One specific product, looked up by the retailer's own id.
+
+        This is how a "Try on" or "Buy" click should re-check an item the
+        shopper is looking at: searching for it again asks the retailer to
+        rank it back into the first page of results, which it may not do
+        even though the listing is right there — the shopper then gets
+        told it's gone. A provider that can't look items up by id says so
+        and the caller falls back to searching."""
+        raise NotImplementedError(f"{self.slug} cannot look a product up by id")
+
     def build_affiliate_url(self, product_url: str, *, tracking_tag: str) -> str:
         """Default: append a generic affiliate/tracking query param. Real
         retailer adapters override this with their program's exact scheme

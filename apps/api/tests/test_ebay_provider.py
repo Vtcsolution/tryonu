@@ -157,3 +157,49 @@ def test_build_affiliate_url_falls_back_to_tracking_tag_without_campaign_id():
     provider = EbayProductProvider(client_id="cid", client_secret="csecret", campaign_id=None)
     url = provider.build_affiliate_url("https://www.ebay.com/itm/1", tracking_tag="tryonu-20")
     assert url == "https://www.ebay.com/itm/1?campid=tryonu-20"
+
+
+async def test_an_item_is_fetched_by_the_id_the_search_returned(monkeypatch):
+    """The Browse item endpoint takes the same itemId the search gives us,
+    so a "Try on" click never depends on the item ranking again."""
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth2/token"):
+            return httpx.Response(200, json={"access_token": "t", "expires_in": 7200})
+        seen["url"] = str(request.url)
+        return httpx.Response(
+            200,
+            json={
+                "itemId": "v1|800707519411|657575532609",
+                "title": "CURREN Women's Analog Dress Watch",
+                "price": {"value": "31.99", "currency": "USD"},
+                "itemWebUrl": "https://www.ebay.com/itm/800707519411",
+                "image": {"imageUrl": "https://i.ebayimg.com/images/g/abc/s-l500.jpg"},
+            },
+        )
+
+    _patch_transport(monkeypatch, httpx.MockTransport(handler))
+    provider = EbayProductProvider(
+        client_id="id", client_secret="secret", campaign_id=None, marketplace_id="EBAY_US"
+    )
+    raw = await provider.fetch_by_id("v1|800707519411|657575532609")
+
+    assert seen["url"].endswith("/buy/browse/v1/item/v1|800707519411|657575532609")
+    assert raw is not None
+    assert raw.name == "CURREN Women's Analog Dress Watch"
+    assert raw.price_cents == 3199  # the price now, not the one on screen
+    assert raw.images and raw.images[0].startswith("https://i.ebayimg.com/")
+
+
+async def test_a_listing_that_really_is_gone_returns_nothing(monkeypatch):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth2/token"):
+            return httpx.Response(200, json={"access_token": "t", "expires_in": 7200})
+        return httpx.Response(404, json={"errors": [{"message": "Item not found"}]})
+
+    _patch_transport(monkeypatch, httpx.MockTransport(handler))
+    provider = EbayProductProvider(
+        client_id="id", client_secret="secret", campaign_id=None, marketplace_id="EBAY_US"
+    )
+    assert await provider.fetch_by_id("v1|000000000000|0") is None

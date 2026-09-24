@@ -26,6 +26,7 @@ from app.retailers.errors import RetailerNotConfiguredError
 
 _TOKEN_URL = "https://api.ebay.com/identity/v1/oauth2/token"
 _SEARCH_URL = "https://api.ebay.com/buy/browse/v1/item_summary/search"
+_ITEM_URL = "https://api.ebay.com/buy/browse/v1/item"  # /{itemId} — the id search already gives us
 _OAUTH_SCOPE = "https://api.ebay.com/oauth/api_scope"
 _PAGE_SIZE = 50
 
@@ -141,6 +142,29 @@ class EbayProductProvider(ProductProvider):
                 "X-EBAY-C-MARKETPLACE-ID": self._marketplace_id,
             }
             return await self._search(client, headers, query, category_slug="search", limit=limit)
+
+    async def fetch_by_id(self, retailer_product_id: str) -> RawProduct | None:
+        """The listing itself, by the id the search returned. A click
+        shouldn't need the retailer to rank the item back onto page one."""
+        if not (self._client_id and self._client_secret):
+            raise RetailerNotConfiguredError(
+                "eBay API credentials not set (EBAY_CLIENT_ID / EBAY_CLIENT_SECRET)"
+            )
+        async with httpx.AsyncClient(timeout=20) as client:
+            token = await self._get_token(client)
+            resp = await client.get(
+                f"{_ITEM_URL}/{retailer_product_id}",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "X-EBAY-C-MARKETPLACE-ID": self._marketplace_id,
+                },
+            )
+        if resp.status_code == 404:
+            return None  # genuinely gone: ended, withdrawn, or never existed
+        if resp.status_code >= 400:
+            raise RuntimeError(f"eBay item lookup failed for {retailer_product_id}: {resp.status_code} {resp.text[:200]}")
+        item = resp.json()
+        return self._to_raw_product(item, "search") if self._is_usable(item) else None
 
     async def _get_token(self, client: httpx.AsyncClient) -> str:
         if self._token and time.monotonic() < self._token_expires_at:
