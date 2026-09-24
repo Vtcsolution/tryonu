@@ -142,7 +142,7 @@ export function LookBoard({
 
   return (
     <div className="w-full">
-    <div ref={board} className="relative flex items-stretch gap-4">
+    <div ref={board} className="relative flex items-center justify-center gap-5">
       {/* the picture's own proportions, so a square card crops a square
           region of it rather than a stretched one */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -155,10 +155,13 @@ export function LookBoard({
       />
       {column(left, "left")}
 
-      <div className="min-w-[260px] flex-1">
+      <div className="w-full min-w-[260px] max-w-[540px] flex-1">
         <div
           ref={frame}
-          className="relative aspect-[4/5] overflow-hidden rounded-[26px] border border-line bg-paper-2 shadow-lift md:aspect-auto md:min-h-[460px]"
+          className="relative overflow-hidden rounded-[26px] border border-line bg-paper-2 shadow-lift"
+          // the frame takes the photo's own shape, so nothing is
+          // letterboxed and a leader line meets the picture's real edge
+          style={{ aspectRatio: natural ? `${natural.w} / ${natural.h}` : "4 / 5" }}
         >
           <ZoomableImage
             src={src}

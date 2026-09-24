@@ -1135,7 +1135,7 @@ function ResultStep({
         </h1>
       </div>
 
-      <div className="mt-6 grid gap-6 md:grid-cols-[1.4fr_1fr] xl:grid-cols-[2.1fr_1fr]">
+      <div className="mt-6 space-y-6">
         <div className="min-w-0">
           <LookBoard
             src={resolveMediaUrl(job.result!.image_url)}
@@ -1333,7 +1333,7 @@ function OutfitResultStep({
         </h1>
       </div>
 
-      <div className="mt-6 grid gap-6 md:grid-cols-[1.4fr_1fr] xl:grid-cols-[2.1fr_1fr]">
+      <div className="mt-6 space-y-6">
         <div className="min-w-0">
           <LookBoard
             src={resolveMediaUrl(job.result!.image_url)}
@@ -1451,7 +1451,7 @@ function WardrobeResultStep({
         </h1>
       </div>
 
-      <div className="mt-6 grid gap-6 md:grid-cols-[1.4fr_1fr] xl:grid-cols-[2.1fr_1fr]">
+      <div className="mt-6 space-y-6">
         <div className="min-w-0">
           <LookBoard
             src={resolveMediaUrl(job.result!.image_url)}
