@@ -152,6 +152,8 @@ export type TryOnJob = {
   provider_model: string;
   credit_cost: number;
   error_message: string | null;
+  /** What the render is doing at this moment, while it runs. */
+  progress: string | null;
   product: Product | null;
   outfit: Outfit | null;
   wardrobe_item: WardrobeItem | null;

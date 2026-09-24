@@ -54,6 +54,9 @@ class TryOnJob(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     credit_cost: Mapped[int] = mapped_column(Integer, nullable=False)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # what the render is doing at this moment ("Inspecting the watch"),
+    # so a minute of waiting reads as work rather than a stuck spinner
+    progress: Mapped[str | None] = mapped_column(String(160), nullable=True)
     attempt: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
     queued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -162,6 +162,17 @@ RenderFn = Callable[[bytes, LookItem, RenderHint], Awaitable[bytes]]
 # (current image as JPEG, every item, what each one is) -> one render with
 # the whole look on it
 RenderAllFn = Callable[[bytes, list[LookItem], list[str]], Awaitable[bytes]]
+# told what the pipeline is doing, for the customer watching the spinner
+ProgressFn = Callable[[str], Awaitable[None]]
+
+
+async def _say(on_progress: "ProgressFn | None", message: str) -> None:
+    if on_progress is None:
+        return
+    try:
+        await on_progress(message)
+    except Exception as exc:  # noqa: BLE001 — never fail a render over a status line
+        logger.warning("tryon_progress_failed", error=str(exc)[:200])
 
 
 def _cap(img: np.ndarray) -> np.ndarray:
@@ -208,6 +219,7 @@ async def render_look(
     min_other: float = 6.0,
     zoom_small: bool = False,
     budget_seconds: float = 150.0,
+    on_progress: ProgressFn | None = None,
 ) -> tuple[bytes, list[ItemReport]]:
     """The look on the person's photo, with only the products taken from the
     renders, every item inspected, and anything that fails re-rendered or
@@ -232,16 +244,21 @@ async def render_look(
     todo = _all_of(items)
 
     if render_all is not None and items:
+        await _say(on_progress, f"Drawing your {'look' if len(items) > 1 else items[0].name[:40]}")
         base, todo = await _whole_look_pass(
-            base, face, items, products, descriptions, reports, render_all, min_product, min_other
+            base, face, items, products, descriptions, reports, render_all, min_product, min_other,
+            on_progress=on_progress,
         )
 
     if todo:
+        names = ", ".join(items[index].name.split()[0] for index, _ in todo[:3])
+        await _say(on_progress, f"Redrawing {names} on its own for a closer match")
         base = await _redo(
             base, face, items, products, descriptions, reports, todo,
             render, retries, min_product, min_other, zoom_small,
             deadline=started + budget_seconds,
         )
+    await _say(on_progress, "Finishing the photo")
 
     # The person's pixels are their photo's own; the product's came from a
     # render at most 1024x1536 and were scaled up to sit on it, so the
@@ -357,6 +374,7 @@ async def _whole_look_pass(
     render_all: RenderAllFn,
     min_product: float,
     min_other: float,
+    on_progress: ProgressFn | None = None,
 ) -> tuple[np.ndarray, list[tuple[int, str]]]:
     """One render of the whole look; keep the items that pass inspection.
     Returns the image with those items on it, and which items still need
@@ -382,6 +400,7 @@ async def _whole_look_pass(
     if not everything:
         return base, _all_of(items)
 
+    await _say(on_progress, "Checking every item against its product photo")
     shown = changes.merge(everything).image
     # Each garment's cast is pulled back to its own product photo before
     # anyone judges it: the model's colour for the same dress moves between
@@ -400,6 +419,7 @@ async def _whole_look_pass(
     )
 
     keep: list[int] = []
+    kept_indexes: list[int] = []
     todo: list[tuple[int, str]] = []
     for index, (picked, verdict) in enumerate(zip(picks, verdicts)):
         report = reports[index]
@@ -413,10 +433,19 @@ async def _whole_look_pass(
         )
         if verdict.passes(min_product, min_other):
             report.verdict = verdict
-            report.box = await _tight_box(changes, picked, items[index], products[index], descriptions[index])
+            kept_indexes.append(index)
             keep.extend(picked)
         else:
             todo.append((index, verdict.fix))
+
+    # Locating each small item precisely costs a vision call, so the kept
+    # items are located together rather than one after another — a customer
+    # is watching a spinner, and these add up over a multi-item look.
+    boxes = await asyncio.gather(
+        *(_tight_box(changes, picks[i], items[i], products[i], descriptions[i]) for i in kept_indexes)
+    )
+    for index, box in zip(kept_indexes, boxes):
+        reports[index].box = box
     logger.info("tryon_whole_look", kept=len(items) - len(todo), redo=len(todo))
     if not keep:
         # nothing survived, but the inspector still said what was wrong with

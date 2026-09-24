@@ -57,6 +57,7 @@ class TryOnJobOut(ORMModel):
     provider_model: str
     credit_cost: int
     error_message: str | None
+    progress: str | None = None
     product: ProductOut | None
     outfit: OutfitOut | None
     wardrobe_item: WardrobeItemOut | None

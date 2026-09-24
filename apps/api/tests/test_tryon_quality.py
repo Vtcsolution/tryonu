@@ -493,3 +493,43 @@ async def test_an_item_the_whole_look_drew_is_boxed_without_its_own_render(fake_
         encode_jpeg(_person(), 97), ITEMS, render_one, render_all=render_all, retries=0
     )
     assert reports[0].box is not None
+
+
+async def test_the_job_is_told_what_the_render_is_doing(fake_vision):
+    """A multi-item look can take a minute of real render time; a silent
+    timer reads as stuck, so each stage says what it is doing."""
+    fake_vision.extend([BAD, GOOD])
+    said: list[str] = []
+
+    async def render_all(base_jpeg, items, descriptions):  # noqa: ARG001
+        base = cv2.imdecode(np.frombuffer(base_jpeg, np.uint8), cv2.IMREAD_COLOR)
+        return encode_jpeg(_render(base), 97)
+
+    async def render_one(base_jpeg, item, hint):  # noqa: ARG001
+        base = cv2.imdecode(np.frombuffer(base_jpeg, np.uint8), cv2.IMREAD_COLOR)
+        return encode_jpeg(_render(base, colour=(30, 180, 60)), 97)
+
+    await pipeline.render_look(
+        encode_jpeg(_person(), 97), ITEMS, render_one, render_all=render_all, retries=1,
+        on_progress=lambda message: _remember(said, message),
+    )
+    assert any("Drawing" in m for m in said)
+    assert any("Checking every item" in m for m in said)
+    assert any("Redrawing" in m for m in said)
+    assert said[-1] == "Finishing the photo"
+
+
+async def _remember(into: list[str], message: str) -> None:
+    into.append(message)
+
+
+async def test_a_broken_progress_callback_never_fails_the_render(fake_vision):
+    fake_vision.append(GOOD)
+
+    async def explode(message: str) -> None:  # noqa: ARG001
+        raise RuntimeError("the status write failed")
+
+    image, _ = await pipeline.render_look(
+        encode_jpeg(_person(), 97), ITEMS, _renderer([]), retries=0, on_progress=explode
+    )
+    assert image[:2] == b"\xff\xd8"  # the customer still gets their photo

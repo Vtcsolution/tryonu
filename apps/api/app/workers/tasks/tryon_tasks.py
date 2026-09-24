@@ -156,6 +156,16 @@ def _pipeline_render_all(provider):  # noqa: ANN001, ANN202
     return render_all
 
 
+def _progress_writer(session, job: TryOnJob):  # noqa: ANN001, ANN202
+    """Writes what the render is doing onto the job the client polls."""
+
+    async def write(message: str) -> None:
+        job.progress = message[:160]
+        await session.commit()
+
+    return write
+
+
 async def _keep_person_if_on(job: TryOnJob, image: bytes, content_type: str, layers: list[_Layer]) -> tuple[bytes, str, bool]:
     """A whole-look render with the person's own pixels kept outside the
     products. (image, content type, whether the person was kept)."""
@@ -296,6 +306,7 @@ async def run_tryon_job_async(job_id: str) -> None:
                         render_all=_pipeline_render_all(provider) if provider.whole_outfit else None,
                         zoom_small=provider.whole_outfit,
                         budget_seconds=settings.TRYON_QUALITY_BUDGET_SECONDS,
+                        on_progress=_progress_writer(session, job),
                     )
                 except QualityFailure as exc:
                     await _fail_job(

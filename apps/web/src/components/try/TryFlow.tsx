@@ -959,7 +959,10 @@ export function TryFlow() {
                 ? "Starting…"
                 : jobIds.length > 1
                   ? jobsData.map((j) => `${PHOTO_KIND_LABEL[j.user_photo.kind]}: ${STAGE_LABEL[j.status]}`).join(" · ")
-                  : STAGE_LABEL[jobsData[0].status]}
+                  : // what the render is actually doing right now, when it
+                    // says so — a minute of waiting should read as work
+                    (jobsData[0].status === "processing" && jobsData[0].progress) ||
+                    STAGE_LABEL[jobsData[0].status]}
             </p>
             <p className="mt-2 text-[13px] text-muted">
               {allTerminal && !anyCompleted
