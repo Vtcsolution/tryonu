@@ -9,6 +9,7 @@ the gateway does, so a change to the signing code can't pass silently.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 
@@ -218,3 +219,69 @@ async def test_an_empty_result_is_no_products_not_an_error(monkeypatch):
     }
     _patch_transport(monkeypatch, lambda request: httpx.Response(200, json=empty))
     assert await _provider().search_live(query="nothing at all", limit=5) == []
+
+
+async def _instant(_seconds: float) -> None:
+    """Stands in for the rate-limit wait, so tests don't pause for it."""
+
+
+def _detail_body(*rows: dict) -> dict:
+    return {
+        "aliexpress_affiliate_productdetail_get_response": {
+            "resp_result": {"resp_code": 200, "result": {"current_record_count": len(rows),
+                                                          "products": {"product": list(rows)}}}
+        }
+    }
+
+
+async def test_one_product_can_be_fetched_by_its_id(monkeypatch):
+    """What a "Try on" click needs. Searching for the item again asks
+    AliExpress to rank it back onto page one for the same words, which it
+    does not reliably do — and the shopper is told a product on their
+    screen is gone."""
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["form"] = dict(httpx.QueryParams(request.content.decode()))
+        return httpx.Response(200, json=_detail_body(_row()))
+
+    _patch_transport(monkeypatch, handler)
+    product = await _provider().fetch_by_id("3256807")
+
+    assert seen["form"]["method"] == "aliexpress.affiliate.productdetail.get"
+    assert seen["form"]["product_ids"] == "3256807"
+    assert product is not None and product.retailer_product_id == "3256807"
+    assert product.product_url == "https://s.click.aliexpress.com/e/_abc123"  # still tracked
+
+
+async def test_an_id_aliexpress_does_not_know_returns_nothing(monkeypatch):
+    empty = {"aliexpress_affiliate_productdetail_get_response": {"resp_result": {"resp_code": 405}}}
+    _patch_transport(monkeypatch, lambda request: httpx.Response(200, json=empty))
+    assert await _provider().fetch_by_id("999999999999999") is None
+
+
+async def test_their_short_rate_limit_is_waited_out_not_failed(monkeypatch):
+    """Live: "ApiCallLimit ... this ban will last 1 seconds". Failing a
+    shopper's search over one second would be silly."""
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append("call")
+        if len(calls) == 1:
+            return httpx.Response(200, json={"error_response": {
+                "code": "ApiCallLimit", "msg": "Api access frequency exceeds the limit. this ban will last 1 seconds"}})
+        return httpx.Response(200, json=_body(_row()))
+
+    _patch_transport(monkeypatch, handler)
+    monkeypatch.setattr(asyncio, "sleep", _instant)
+    found = await _provider().search_live(query="khussa", limit=5)
+    assert len(calls) == 2 and len(found) == 1
+
+
+async def test_a_rate_limit_that_will_not_clear_is_reported(monkeypatch):
+    """One retry, not a loop: a limit that persists is real news."""
+    limited = {"error_response": {"code": "ApiCallLimit", "msg": "Api access frequency exceeds the limit"}}
+    _patch_transport(monkeypatch, lambda request: httpx.Response(200, json=limited))
+    monkeypatch.setattr(asyncio, "sleep", _instant)
+    with pytest.raises(RuntimeError, match="ApiCallLimit"):
+        await _provider().search_live(query="khussa", limit=5)

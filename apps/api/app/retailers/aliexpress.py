@@ -22,6 +22,7 @@ tracking id the API only returns plain product URLs and nothing is earned
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import time
@@ -35,6 +36,9 @@ from app.retailers.errors import RetailerNotConfiguredError
 
 _GATEWAY = "https://api-sg.aliexpress.com/sync"
 _SEARCH_METHOD = "aliexpress.affiliate.product.query"
+_DETAIL_METHOD = "aliexpress.affiliate.productdetail.get"
+_SEARCH_RESPONSE = "aliexpress_affiliate_product_query_response"
+_DETAIL_RESPONSE = "aliexpress_affiliate_productdetail_get_response"
 _PAGE_SIZE = 50  # the API's maximum per page
 
 # what to pull for the bulk catalogue sync, mirroring the eBay adapter:
@@ -99,7 +103,9 @@ class AliExpressProductProvider(ProductProvider):
         signed = hmac.new(self._app_secret.encode(), payload.encode(), hashlib.sha256)  # type: ignore[union-attr]
         return signed.hexdigest().upper()
 
-    async def _call(self, client: httpx.AsyncClient, method: str, business: dict[str, Any]) -> dict:
+    async def _call(
+        self, client: httpx.AsyncClient, method: str, business: dict[str, Any], attempt: int = 0
+    ) -> dict:
         params = {
             "app_key": str(self._app_key),
             "method": method,
@@ -117,6 +123,13 @@ class AliExpressProductProvider(ProductProvider):
         # the gateway reports its own errors with HTTP 200
         if "error_response" in body:
             error = body["error_response"]
+            # Their rate limit is short and self-announced ("this ban will
+            # last 1 seconds"), so waiting it out beats failing a shopper's
+            # search over a second.
+            if str(error.get("code")) == "ApiCallLimit" and attempt == 0:
+                logger.info("aliexpress_rate_limited", method=method)
+                await asyncio.sleep(1.5)
+                return await self._call(client, method, business, attempt=1)
             raise RuntimeError(
                 f"AliExpress {method} rejected: {error.get('code')} {error.get('msg')} "
                 f"{error.get('sub_msg') or ''}".strip()
@@ -147,6 +160,29 @@ class AliExpressProductProvider(ProductProvider):
             )
         return [p for p in (_product(row) for row in _rows(body)) if p is not None][:limit]
 
+    async def fetch_by_id(self, retailer_product_id: str) -> RawProduct | None:
+        """One listing, by its AliExpress product id.
+
+        What a "Try on" or "Buy" click needs: searching for the item again
+        asks AliExpress to rank it back into the first page for the same
+        words, which it does not reliably do — a shopper then gets told a
+        product on their screen is no longer available."""
+        self._require_credentials()
+        async with httpx.AsyncClient(timeout=20) as client:
+            body = await self._call(
+                client,
+                _DETAIL_METHOD,
+                {
+                    "product_ids": retailer_product_id,
+                    "target_currency": self._currency,
+                    "target_language": self._language,
+                    "ship_to_country": self._ship_to,
+                    "tracking_id": self._tracking_id,
+                },
+            )
+        rows = _rows(body, _DETAIL_RESPONSE)
+        return _product(rows[0]) if rows else None
+
     async def fetch_products(self, *, limit: int = 100) -> list[RawProduct]:
         self._require_credentials()
         products: list[RawProduct] = []
@@ -176,15 +212,11 @@ class AliExpressProductProvider(ProductProvider):
         return f"{product_url}{sep}aff_short_key={tracking_tag}"
 
 
-def _rows(body: dict) -> list[dict]:
+def _rows(body: dict, response_key: str = _SEARCH_RESPONSE) -> list[dict]:
     """The products in a response. An empty search comes back as
     resp_code 405 "The result is empty" with no result block at all,
     which is a legitimate no-results answer, not an error."""
-    result = (
-        body.get("aliexpress_affiliate_product_query_response", {})
-        .get("resp_result", {})
-        .get("result", {})
-    )
+    result = body.get(response_key, {}).get("resp_result", {}).get("result", {})
     products = (result.get("products") or {}).get("product")
     if isinstance(products, list):
         return products
