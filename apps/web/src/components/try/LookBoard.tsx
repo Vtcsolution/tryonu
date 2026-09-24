@@ -20,6 +20,10 @@ import type { ResultPlacement } from "@/lib/api/types";
  * scrolling strip under the photo and the lines are dropped. */
 
 const PADDING = 0.9; // context around each item's own box, in its own size
+// A watch is ~3% of a full-body photo. Cropping to just that and blowing
+// it up to a 150px card gives a blur with no landmarks — the wrist around
+// it is what makes it readable, so no crop goes tighter than this.
+const MIN_CROP = 0.16;
 
 type Item = { item: ResultPlacement; number: number; x: number; y: number };
 type Line = { x1: number; y1: number; x2: number; y2: number; bend: number };
@@ -44,6 +48,11 @@ export function LookBoard({
   const [lines, setLines] = useState<Line[]>([]);
   const previous = useRef<Line[]>([]);
   const [zoomed, setZoomed] = useState(false);
+  // Whether there is room for cards in the margins. A breakpoint can't
+  // answer this: the board sits in one column of a grid, so a wide window
+  // does not mean a wide board — and when it wasn't, the columns squeezed
+  // the photo to nothing and spilled over the panel beside it.
+  const [roomy, setRoomy] = useState(false);
 
   const items: Item[] = markerItems(placements).map((item, index) => {
     const [x0, y0, x1, y1] = item.box as number[];
@@ -105,13 +114,16 @@ export function LookBoard({
   useEffect(() => {
     const wrap = board.current;
     if (!wrap || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
+    const observer = new ResizeObserver(() => {
+      setRoomy(wrap.getBoundingClientRect().width >= 760);
+      measure();
+    });
     observer.observe(wrap);
     return () => observer.disconnect();
   }, [measure]);
 
   const column = (list: Item[], side: "left" | "right") => (
-    <div className={`hidden w-[150px] shrink-0 flex-col justify-center gap-2.5 xl:flex ${side === "right" ? "items-start" : "items-end"}`}>
+    <div className={`w-[150px] shrink-0 flex-col justify-center gap-2.5 ${roomy ? "flex" : "hidden"} ${side === "right" ? "items-start" : "items-end"}`}>
       {list.map(({ item, number }) => (
         <Card
           key={number}
@@ -129,6 +141,7 @@ export function LookBoard({
   );
 
   return (
+    <div className="w-full">
     <div ref={board} className="relative flex items-stretch gap-4">
       {/* the picture's own proportions, so a square card crops a square
           region of it rather than a stretched one */}
@@ -142,7 +155,7 @@ export function LookBoard({
       />
       {column(left, "left")}
 
-      <div className="min-w-0 flex-1">
+      <div className="min-w-[260px] flex-1">
         <div
           ref={frame}
           className="relative aspect-[4/5] overflow-hidden rounded-[26px] border border-line bg-paper-2 shadow-lift md:aspect-auto md:min-h-[460px]"
@@ -163,8 +176,8 @@ export function LookBoard({
 
       {/* the leader lines, drawn across the whole board. Hidden while the
           photo is zoomed, since the item is no longer where the line ends */}
-      {!zoomed && lines.length > 0 && (
-        <svg className="pointer-events-none absolute inset-0 hidden h-full w-full xl:block" aria-hidden="true">
+      {roomy && !zoomed && lines.length > 0 && (
+        <svg className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
           {lines.map((line, i) => (
             <polyline
               key={i}
@@ -179,6 +192,10 @@ export function LookBoard({
           ))}
         </svg>
       )}
+    </div>
+    {/* no margins to put cards in — they become a strip under the photo,
+        so the close-ups are never simply missing */}
+    {!roomy && <LookStrip src={src} placements={placements} natural={natural} />}
     </div>
   );
 }
@@ -236,27 +253,20 @@ function Card({
 
 /** Where each item lands on the photo, and every item close up, for the
  * narrow layout that has no margins to put cards in. */
-export function LookStrip({
+function LookStrip({
   src,
   placements,
+  natural,
 }: {
   src: string;
   placements: ResultPlacement[] | null | undefined;
+  natural: { w: number; h: number } | null;
 }) {
-  const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
   const items = markerItems(placements);
   if (items.length === 0) return null;
 
   return (
-    <div className="mt-3 xl:hidden">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={src}
-        alt=""
-        aria-hidden="true"
-        className="hidden"
-        onLoad={(e) => setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
-      />
+    <div className="mt-3">
       <p className="mb-2 text-[11px] uppercase tracking-[0.14em] text-faint">Every item, close up</p>
       <div className="flex gap-2.5 overflow-x-auto pb-1.5">
         {items.map((item, i) => {
@@ -298,8 +308,8 @@ function crop(
   natural: { w: number; h: number } | null,
 ): { size: string; position: string } {
   const aspect = natural ? natural.w / natural.h : 1;
-  const width = Math.max(0.02, (box.x1 - box.x0) * (1 + PADDING));
-  const height = Math.max(0.02, (box.y1 - box.y0) * (1 + PADDING));
+  const width = Math.max(MIN_CROP, (box.x1 - box.x0) * (1 + PADDING));
+  const height = Math.max(MIN_CROP, (box.y1 - box.y0) * (1 + PADDING));
   const side = Math.max(width, height / aspect);
   const w = Math.min(1, side);
   const h = Math.min(1, side * aspect);

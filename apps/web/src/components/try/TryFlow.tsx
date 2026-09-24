@@ -7,7 +7,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { VoiceInputButton } from "@/components/ui/VoiceInputButton";
 import { ZoomableImage } from "@/components/try/ZoomableImage";
-import { LookBoard, LookStrip } from "@/components/try/LookBoard";
+import { LookBoard } from "@/components/try/LookBoard";
 import { markerNumber } from "@/components/try/ResultMarkers";
 import { PhotoUploader } from "@/components/upload/PhotoUploader";
 import { ApiError, affiliateGoUrl, resolveMediaUrl, thumbnailUrl } from "@/lib/api/client";
@@ -1153,7 +1153,6 @@ function ResultStep({
               </span>
             </div>
           </LookBoard>
-          <LookStrip src={resolveMediaUrl(job.result!.image_url)} placements={job.result!.placements} />
         </div>
         <div className="flex flex-col rounded-[26px] border border-line bg-surface p-6">
           <p className="text-[11px] uppercase tracking-[0.14em] text-faint">
@@ -1354,7 +1353,6 @@ function OutfitResultStep({
               </span>
             </div>
           </LookBoard>
-          <LookStrip src={resolveMediaUrl(job.result!.image_url)} placements={job.result!.placements} />
         </div>
         <div className="flex flex-col rounded-[26px] border border-line bg-surface p-6">
           <p className="text-[11px] uppercase tracking-[0.14em] text-faint">
@@ -1471,7 +1469,6 @@ function WardrobeResultStep({
               </span>
             </div>
           </LookBoard>
-          <LookStrip src={resolveMediaUrl(job.result!.image_url)} placements={job.result!.placements} />
         </div>
         <div className="flex flex-col rounded-[26px] border border-line bg-surface p-6">
           <p className="text-[11px] uppercase tracking-[0.14em] text-faint">Your own item</p>

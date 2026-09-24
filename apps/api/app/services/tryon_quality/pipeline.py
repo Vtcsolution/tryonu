@@ -308,6 +308,30 @@ async def _pick_areas(changes: Changes, product: np.ndarray, description: str, i
     return picked or []
 
 
+async def _tight_box(
+    changes: Changes, picked: list[int], item: LookItem, product: np.ndarray, description: str
+) -> Region:
+    """Where this one item ended up, closely enough to point a label at.
+
+    In a whole-look render the changed pixels are one big area — a dress,
+    the arm that moved, the wrist it moved to — and every item picked the
+    same blob, so a watch's "location" was the whole body. Small items are
+    split again at a higher strength and re-chosen, the same refinement
+    their own renders use. The merge is untouched: this only decides where
+    the label points."""
+    if item.slot not in _SMALL or changes.share_of(picked) <= 0.006:
+        return _box_of(changes, picked, item)
+    finer = changes.refine(picked)
+    numbers = [c.number for c in finer.candidates]
+    if not numbers:
+        return _box_of(changes, picked, item)
+    try:
+        again = await choose(draw_candidates(finer.render, finer.candidates), product, description, numbers)
+    except VisionError:
+        return _box_of(changes, picked, item)
+    return _box_of(finer, again, item) if again else _box_of(changes, picked, item)
+
+
 def _box_of(changes: Changes, numbers: list[int], item: LookItem) -> Region:
     boxes = [c.region for c in changes.candidates if c.number in numbers]
     if not boxes:
@@ -378,7 +402,7 @@ async def _whole_look_pass(
         )
         if verdict.passes(min_product, min_other):
             report.verdict = verdict
-            report.box = _box_of(changes, picked, items[index])
+            report.box = await _tight_box(changes, picked, items[index], products[index], descriptions[index])
             keep.extend(picked)
         else:
             todo.append((index, verdict.fix))
