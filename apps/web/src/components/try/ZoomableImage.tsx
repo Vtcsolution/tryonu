@@ -18,6 +18,7 @@ export function ZoomableImage({
   src,
   alt,
   overlay,
+  onScaleChange,
   children,
 }: {
   src: string;
@@ -26,6 +27,9 @@ export function ZoomableImage({
    * (percentages of the picture, not of the frame) — so markers stay on
    * the item they point at through zooming and panning. */
   overlay?: React.ReactNode;
+  /** Told when the zoom changes, so a caller drawing leader lines to the
+   * picture can hide them while it is moving under them. */
+  onScaleChange?: (scale: number) => void;
   children?: React.ReactNode;
 }) {
   const frame = useRef<HTMLDivElement>(null);
@@ -193,6 +197,10 @@ export function ZoomableImage({
 
   // a new result (another angle, another try-on) starts at 1x
   useEffect(reset, [src]);
+
+  useEffect(() => {
+    onScaleChange?.(scale);
+  }, [scale, onScaleChange]);
 
   const control =
     "grid h-9 w-9 place-items-center rounded-full bg-surface/90 text-[17px] leading-none text-ink shadow-sm " +

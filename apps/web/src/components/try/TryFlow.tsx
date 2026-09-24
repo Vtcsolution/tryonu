@@ -7,8 +7,8 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { VoiceInputButton } from "@/components/ui/VoiceInputButton";
 import { ZoomableImage } from "@/components/try/ZoomableImage";
-import { ResultDetails } from "@/components/try/ResultDetails";
-import { ResultMarkers, markerNumber } from "@/components/try/ResultMarkers";
+import { LookBoard, LookStrip } from "@/components/try/LookBoard";
+import { markerNumber } from "@/components/try/ResultMarkers";
 import { PhotoUploader } from "@/components/upload/PhotoUploader";
 import { ApiError, affiliateGoUrl, resolveMediaUrl, thumbnailUrl } from "@/lib/api/client";
 import {
@@ -1132,13 +1132,18 @@ function ResultStep({
         </h1>
       </div>
 
-      <div className="mt-6 grid gap-6 md:grid-cols-[1.4fr_1fr]">
+      <div className="mt-6 grid gap-6 md:grid-cols-[1.4fr_1fr] xl:grid-cols-[2.1fr_1fr]">
         <div className="min-w-0">
-          <div className="relative aspect-[4/5] overflow-hidden rounded-[26px] border border-line bg-paper-2 shadow-lift md:aspect-auto md:min-h-[460px]">
-          <ZoomableImage
-            overlay={<ResultMarkers placements={job.result!.placements} />}
+          <LookBoard
             src={resolveMediaUrl(job.result!.image_url)}
-            alt={`AI try-on result — ${product.name} — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}>
+            alt={`AI try-on result — ${product.name} — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}
+            placements={job.result!.placements}
+            caption={
+              <p className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
+            AI-generated visualization — not a guarantee of exact fit, sizing, or color.
+          </p>
+            }
+          >
             <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex flex-wrap items-start gap-2">
               <div className="pointer-events-auto flex flex-wrap items-start gap-2">
                 <AngleGallery jobs={jobs} activeIndex={activeIndex} onSelect={setActiveIndex} />
@@ -1147,12 +1152,8 @@ function ResultStep({
                 AI try-on result{jobs.length > 1 ? ` · ${PHOTO_KIND_LABEL[job.user_photo.kind]}` : ""}
               </span>
             </div>
-          </ZoomableImage>
-          <p className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
-            AI-generated visualization — not a guarantee of exact fit, sizing, or color.
-          </p>
-          </div>
-          <ResultDetails src={resolveMediaUrl(job.result!.image_url)} placements={job.result!.placements} />
+          </LookBoard>
+          <LookStrip src={resolveMediaUrl(job.result!.image_url)} placements={job.result!.placements} />
         </div>
         <div className="flex flex-col rounded-[26px] border border-line bg-surface p-6">
           <p className="text-[11px] uppercase tracking-[0.14em] text-faint">
@@ -1330,13 +1331,20 @@ function OutfitResultStep({
         </h1>
       </div>
 
-      <div className="mt-6 grid gap-6 md:grid-cols-[1.4fr_1fr]">
+      <div className="mt-6 grid gap-6 md:grid-cols-[1.4fr_1fr] xl:grid-cols-[2.1fr_1fr]">
         <div className="min-w-0">
-          <div className="relative aspect-[4/5] overflow-hidden rounded-[26px] border border-line bg-paper-2 shadow-lift md:aspect-auto md:min-h-[460px]">
-          <ZoomableImage
-            overlay={<ResultMarkers placements={job.result!.placements} />}
+          <LookBoard
             src={resolveMediaUrl(job.result!.image_url)}
-            alt={`AI try-on result — styled outfit — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}>
+            alt={`AI try-on result — styled outfit — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}
+            placements={job.result!.placements}
+            caption={
+              <p className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
+            {renderedCount === outfit.items.length
+              ? "Every item in this outfit is on the photo."
+              : `${renderedCount} of ${outfit.items.length} items drawn on the photo — the items marked “matched” are shown alongside with their own shop links.`}
+          </p>
+            }
+          >
             <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex flex-wrap items-start gap-2">
               <div className="pointer-events-auto flex flex-wrap items-start gap-2">
                 <AngleGallery jobs={jobs} activeIndex={activeIndex} onSelect={setActiveIndex} />
@@ -1345,14 +1353,8 @@ function OutfitResultStep({
                 AI try-on result{jobs.length > 1 ? ` · ${PHOTO_KIND_LABEL[job.user_photo.kind]}` : ""}
               </span>
             </div>
-          </ZoomableImage>
-          <p className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
-            {renderedCount === outfit.items.length
-              ? "Every item in this outfit is on the photo."
-              : `${renderedCount} of ${outfit.items.length} items drawn on the photo — the items marked “matched” are shown alongside with their own shop links.`}
-          </p>
-          </div>
-          <ResultDetails src={resolveMediaUrl(job.result!.image_url)} placements={job.result!.placements} />
+          </LookBoard>
+          <LookStrip src={resolveMediaUrl(job.result!.image_url)} placements={job.result!.placements} />
         </div>
         <div className="flex flex-col rounded-[26px] border border-line bg-surface p-6">
           <p className="text-[11px] uppercase tracking-[0.14em] text-faint">
@@ -1448,13 +1450,18 @@ function WardrobeResultStep({
         </h1>
       </div>
 
-      <div className="mt-6 grid gap-6 md:grid-cols-[1.4fr_1fr]">
+      <div className="mt-6 grid gap-6 md:grid-cols-[1.4fr_1fr] xl:grid-cols-[2.1fr_1fr]">
         <div className="min-w-0">
-          <div className="relative aspect-[4/5] overflow-hidden rounded-[26px] border border-line bg-paper-2 shadow-lift md:aspect-auto md:min-h-[460px]">
-          <ZoomableImage
-            overlay={<ResultMarkers placements={job.result!.placements} />}
+          <LookBoard
             src={resolveMediaUrl(job.result!.image_url)}
-            alt={`AI try-on result — ${item.name} — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}>
+            alt={`AI try-on result — ${item.name} — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}
+            placements={job.result!.placements}
+            caption={
+              <p className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
+            AI-generated visualization — not a guarantee of exact fit, sizing, or color.
+          </p>
+            }
+          >
             <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex flex-wrap items-start gap-2">
               <div className="pointer-events-auto flex flex-wrap items-start gap-2">
                 <AngleGallery jobs={jobs} activeIndex={activeIndex} onSelect={setActiveIndex} />
@@ -1463,12 +1470,8 @@ function WardrobeResultStep({
                 AI try-on result{jobs.length > 1 ? ` · ${PHOTO_KIND_LABEL[job.user_photo.kind]}` : ""}
               </span>
             </div>
-          </ZoomableImage>
-          <p className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
-            AI-generated visualization — not a guarantee of exact fit, sizing, or color.
-          </p>
-          </div>
-          <ResultDetails src={resolveMediaUrl(job.result!.image_url)} placements={job.result!.placements} />
+          </LookBoard>
+          <LookStrip src={resolveMediaUrl(job.result!.image_url)} placements={job.result!.placements} />
         </div>
         <div className="flex flex-col rounded-[26px] border border-line bg-surface p-6">
           <p className="text-[11px] uppercase tracking-[0.14em] text-faint">Your own item</p>
