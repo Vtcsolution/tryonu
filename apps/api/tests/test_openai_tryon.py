@@ -324,3 +324,37 @@ def test_the_product_description_reaches_the_prompt():
         [OutfitPiece("https://i.ebayimg.com/d.jpg", "dress", "Maxi dress", description="ivory, gold embroidery")]
     )
     assert "It is: ivory, gold embroidery" in prompt
+
+
+@pytest.mark.asyncio
+async def test_a_model_that_refuses_input_fidelity_is_only_asked_once(monkeypatch):
+    """Live logs showed every render posting twice: a 400, then a retry
+    that worked. The rejection arrives only after the whole multipart body
+    — the photo and every product image — has gone up, so asking again on
+    each render was uploading everything twice, all day."""
+    from app.ai.providers import openai_image
+
+    openai_image._NO_INPUT_FIDELITY.discard("gpt-image-2")
+    posts: list[bool] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if not request.url.path.endswith("/images/edits"):
+            return httpx.Response(200, content=small_jpeg_bytes())  # the product photo
+        sent = b"input_fidelity" in request.content
+        posts.append(sent)
+        if sent:
+            return httpx.Response(400, json={"error": {"message": "Unknown parameter: 'input_fidelity'."}})
+        return httpx.Response(200, json={"data": [{"b64_json": base64.b64encode(b"img").decode()}]})
+
+    _patch_transport(monkeypatch, handler)
+    provider = OpenAIImageTryOnProvider(api_key="sk-test", model="gpt-image-2")
+    photo = "data:image/jpeg;base64," + base64.b64encode(small_jpeg_bytes()).decode()
+    piece = [OutfitPiece("https://i.ebayimg.com/k.jpg", "dress", "Kameez")]
+
+    await provider.generate_outfit(photo, piece)
+    assert posts == [True, False]  # asked once, then told
+
+    posts.clear()
+    await provider.generate_outfit(photo, piece)
+    await provider.generate_outfit(photo, piece)
+    assert posts == [False, False]  # never asked again — no wasted uploads

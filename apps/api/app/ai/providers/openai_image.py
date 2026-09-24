@@ -18,6 +18,7 @@ import time
 import httpx
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
+from app.core.logging import logger
 from app.ai.providers.base import OutfitPiece, TryOnInput, TryOnOutput, TryOnProviderError, VirtualTryOnProvider
 
 _TIMEOUT_SECONDS = 300.0  # high-quality edits with several reference images take a while
@@ -69,6 +70,12 @@ def build_prompt(pieces: list[OutfitPiece]) -> str:
         "- The result must be a single realistic photograph, not a collage.",
     ]
     return "\n".join(lines)
+
+
+# Models that answered 400 to input_fidelity. Asked once per process, not
+# once per render: the answer cannot change under us, and the cost of
+# asking is a full re-upload of every image in the request.
+_NO_INPUT_FIDELITY: set[str] = set()
 
 
 def _retryable(exc: BaseException) -> bool:
@@ -129,13 +136,21 @@ class OpenAIImageTryOnProvider(VirtualTryOnProvider):
                 "size": "auto",
                 "quality": self.quality,
                 "output_format": "jpeg",
-                "input_fidelity": "high",  # keep the person's face and the product details
                 "n": "1",
             }
+            # input_fidelity keeps the person's face and the product's
+            # detail, but not every model takes it. One that rejects it is
+            # remembered: the rejection arrives only after the whole
+            # multipart body — the photo and every product image — has been
+            # uploaded, so asking again every time was uploading everything
+            # twice for every render, on every job.
+            if self.model not in _NO_INPUT_FIDELITY:
+                data["input_fidelity"] = "high"
             resp = await self._post(client, data, files)
             if resp.status_code == 400 and "input_fidelity" in resp.text:
-                # models that don't take input_fidelity reject it outright
-                data.pop("input_fidelity")
+                logger.info("openai_image_no_input_fidelity", model=self.model)
+                _NO_INPUT_FIDELITY.add(self.model)
+                data.pop("input_fidelity", None)
                 resp = await self._post(client, data, files)
         _raise_for_status(resp)
         try:
