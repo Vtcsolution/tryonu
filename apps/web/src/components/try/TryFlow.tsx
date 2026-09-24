@@ -60,7 +60,7 @@ const STEPS = ["Fitting profile", "Choose product", "Your look"] as const;
 const TERMINAL: TryOnJob["status"][] = ["completed", "failed", "cancelled"];
 
 const STAGE_LABEL: Record<TryOnJob["status"], string> = {
-  queued: "Queued — waiting for a worker",
+  queued: "Queued — your render starts when a worker is free",
   processing: "Processing — rendering the look",
   completed: "Completed",
   failed: "Failed",
@@ -968,7 +968,9 @@ export function TryFlow() {
               {allTerminal && !anyCompleted
                 ? jobsData.find((j) => j.status === "failed")?.error_message ||
                   "The AI provider couldn't complete this render. Your credits were refunded."
-                : `Rendering ${outfit ? `your ${outfit.items.length}-item outfit` : (product?.name ?? customItem?.name ?? "your look")}${jobIds.length > 1 ? ", both angles" : ""} — this runs as a background job, so you could leave and come back.`}
+                : jobsData[0]?.status === "queued"
+                  ? "Another render is using the worker — yours starts as soon as it finishes. This runs in the background, so you can leave and come back."
+                  : `Rendering ${outfit ? `your ${outfit.items.length}-item outfit` : (product?.name ?? customItem?.name ?? "your look")}${jobIds.length > 1 ? ", both angles" : ""} — this runs as a background job, so you could leave and come back.`}
             </p>
 
             {(!allTerminal || anyCompleted) && (

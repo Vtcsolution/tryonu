@@ -34,6 +34,31 @@ def _get_rq_queue(name: str):  # noqa: ANN201
 _inprocess_tasks: set[asyncio.Task] = set()
 
 
+def queue_state() -> dict:
+    """How many renders are waiting, and how many workers are there to
+    take them.
+
+    A job sat "Queued — waiting for a worker" for 76 seconds and looked
+    like a slow render when it had not started at all: one worker takes
+    one job at a time, so a second try-on waits for the first to finish.
+    Nothing outside the box could tell the two apart, so /health says it."""
+    if not settings.REDIS_URL:
+        return {"mode": "in-process", "running": len([t for t in _inprocess_tasks if not t.done()])}
+    try:
+        from rq import Worker
+
+        queue = _get_rq_queue("tryon")
+        workers = Worker.all(queue=queue)
+        return {
+            "mode": "redis",
+            "waiting": queue.count,
+            "workers": len(workers),
+            "busy": len([w for w in workers if w.get_state() == "busy"]),
+        }
+    except Exception as exc:  # noqa: BLE001 — a health check never fails on this
+        return {"mode": "redis", "error": str(exc)[:120]}
+
+
 def enqueue_tryon_job(job_id: str) -> None:
     if settings.REDIS_URL:
         queue = _get_rq_queue("tryon")
