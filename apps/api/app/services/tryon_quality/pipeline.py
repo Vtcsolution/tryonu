@@ -71,6 +71,15 @@ from app.services.tryon_quality.vision import VisionError
 # saw that as a blurry try-on — rightly.
 WORK_SIDE = 2048
 
+# What the image model is *given*. Its time is driven by the size of the
+# photo it edits, not by the size it draws: the same look took 21s from a
+# 1024px photo and 100s from a 2048px one, for the same requested output.
+# So it is handed a small copy and asked for a large render — the product
+# comes back at the model's full detail, and the person's own pixels are
+# never the ones downscaled, because the merge happens on the full-size
+# photo.
+MODEL_SIDE = 1024
+
 # where to look when the vision model can't locate the item
 _DEFAULT_REGION = {
     OutfitSlot.DRESS: Region(0.05, 0.1, 0.95, 1.0),
@@ -173,6 +182,15 @@ async def _say(on_progress: "ProgressFn | None", message: str) -> None:
         await on_progress(message)
     except Exception as exc:  # noqa: BLE001 — never fail a render over a status line
         logger.warning("tryon_progress_failed", error=str(exc)[:200])
+
+
+def _for_model(img: np.ndarray) -> np.ndarray:
+    """The copy sent to the image model: small enough to be quick."""
+    h, w = img.shape[:2]
+    scale = MODEL_SIDE / max(h, w)
+    if scale >= 1:
+        return img
+    return cv2.resize(img, (round(w * scale), round(h * scale)), interpolation=cv2.INTER_AREA)
 
 
 def _cap(img: np.ndarray) -> np.ndarray:
@@ -383,7 +401,7 @@ async def _whole_look_pass(
     ivory") instead of repeating the same mistake."""
     head_item = next((i for i in items if worn_on_head(i.name)), items[0])
     try:
-        raw = decode(await render_all(encode_jpeg(base, 95), items, descriptions))
+        raw = decode(await render_all(encode_jpeg(_for_model(base), 95), items, descriptions))
     except Exception as exc:  # noqa: BLE001 — fall back to item-by-item
         logger.warning("tryon_whole_look_render_failed", error=str(exc)[:300])
         return base, _all_of(items)
@@ -510,7 +528,7 @@ async def _render_one(
                 zoom=1.25 if region_is_body_part else 4.0,
             )
         else:
-            raw = decode(await render(encode_jpeg(base, 95), item, hint))
+            raw = decode(await render(encode_jpeg(_for_model(base), 95), item, hint))
             # a ring is ~15px across on a full-body photo: don't let the
             # noise filter throw it away with the specks
             changes = find_changes(
@@ -602,7 +620,7 @@ async def _render_close_up(
     up = 1024 / max(ch, cw)
     crop_up = cv2.resize(crop, (round(cw * up), round(ch * up)), interpolation=cv2.INTER_LANCZOS4) if up > 1 else crop
 
-    raw = decode(await render(encode_jpeg(crop_up, 95), item, hint))
+    raw = decode(await render(encode_jpeg(_for_model(crop_up), 95), item, hint))
     raw = cv2.resize(raw, (cw, ch), interpolation=cv2.INTER_AREA)
     local_protect = [(px0 - x0, py0 - y0, px1 - x0, py1 - y0) for px0, py0, px1, py1 in protect]
     changes = find_changes(crop, raw, local_protect)

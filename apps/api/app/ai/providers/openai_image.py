@@ -78,6 +78,34 @@ def build_prompt(pieces: list[OutfitPiece]) -> str:
 _NO_INPUT_FIDELITY: set[str] = set()
 
 
+# The largest each shape the API will return. Measured against the live
+# API: a portrait render at 1536x2048 comes back three times as sharp as
+# the 1024x1536 "auto" default, and 2048x3072 measured *worse* — the
+# model draws at this scale and anything beyond is its own enlargement.
+_SIZES = {"portrait": "1536x2048", "landscape": "2048x1536", "square": "2048x2048"}
+
+
+def _best_size(photo: bytes) -> str:
+    """The biggest render that matches the shape of the photo it edits.
+
+    Asking for a portrait render of a landscape photo would have the model
+    re-frame the person; matching the shape keeps the edit an edit."""
+    try:
+        import cv2
+        import numpy as np
+
+        image = cv2.imdecode(np.frombuffer(photo, np.uint8), cv2.IMREAD_COLOR)
+        height, width = image.shape[:2]
+    except Exception:  # noqa: BLE001 — an unreadable photo is the caller's problem
+        return "auto"
+    ratio = width / height
+    if ratio > 1.15:
+        return _SIZES["landscape"]
+    if ratio < 0.87:
+        return _SIZES["portrait"]
+    return _SIZES["square"]
+
+
 def _retryable(exc: BaseException) -> bool:
     return isinstance(exc, TryOnProviderError) and exc.retryable
 
@@ -133,7 +161,7 @@ class OpenAIImageTryOnProvider(VirtualTryOnProvider):
             data = {
                 "model": self.model,
                 "prompt": build_prompt(pieces),
-                "size": "auto",
+                "size": _best_size(person[0]),
                 "quality": self.quality,
                 "output_format": "jpeg",
                 "n": "1",
