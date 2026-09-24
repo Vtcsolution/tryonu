@@ -30,6 +30,7 @@ from app.models.retailer import Retailer
 from app.retailers.base import ProductProvider, RawProduct
 from app.retailers.errors import RetailerNotConfiguredError
 from app.retailers.registry import get_all_providers
+from app.services.relevance import keep_relevant
 from app.schemas.product import LiveProductOut
 
 
@@ -209,6 +210,10 @@ async def live_search(query: str, *, limit: int = 24) -> list[LiveSearchResult]:
     per_provider = await asyncio.gather(*(_ask(provider, query, share) for provider in providers))
 
     results = _deduplicate(_interleave(list(per_provider)))
+    # Retailers match loosely: "khussa shoes" came back from one of them as
+    # men's sneakers. A listing has to contain at least one of the words
+    # that actually pin down the query.
+    results = keep_relevant(results, query, title=lambda r: r.raw.name)
     hidden = await _hidden_product_keys(results)
     if hidden:
         results = [r for r in results if (r.provider.slug, r.raw.retailer_product_id) not in hidden]

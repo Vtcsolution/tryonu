@@ -107,7 +107,9 @@ async def test_every_retailer_is_asked_even_when_the_first_one_fills_the_page(mo
     """The bug this replaced: providers were asked in turn until the limit
     was full, so whichever came first in the registry answered everything
     and a newly connected retailer changed nothing a shopper could see."""
-    busy = _FakeProvider("busy", items=[_raw(f"busy{i}", f"Busy Item {i}") for i in range(24)])
+    # both retailers really do stock what was searched for, so relevance
+    # doesn't come into it — this is about who gets asked
+    busy = _FakeProvider("busy", items=[_raw(f"busy{i}", f"Busy Shop Kurta {i}") for i in range(24)])
     new = _FakeProvider("new", items=[_raw("new1", "New Retailer Kurta")])
     monkeypatch.setattr("app.services.live_search_service.get_all_providers", lambda: [busy, new])
 
@@ -229,3 +231,22 @@ async def test_a_retailer_without_id_lookup_still_falls_back_to_searching(monkey
     monkeypatch.setattr("app.services.live_search_service.get_all_providers", lambda: [plain])
     found = await find_live_result("jacket", retailer_slug="a", retailer_product_id="a2")
     assert found is not None and found.raw.retailer_product_id == "a2"
+
+
+async def test_a_retailers_loose_match_is_not_shown_to_the_shopper(monkeypatch):
+    """Live: AliExpress answered "khussa shoes" with men's sneakers and
+    gladiator sandals — real listings, none of them khussa, shown
+    alongside eBay's actual khussa."""
+    good = _FakeProvider("ebay", items=[
+        _raw("k1", "Pakistani Khussa Jutti Handmade Embroidered"),
+        _raw("k2", "Indian Punjabi Khussa Flat Shoes"),
+        _raw("k3", "Khussai Yellow Peacock Khussa Jutti Flats"),
+    ])
+    loose = _FakeProvider("other", items=[
+        _raw("s1", "Men Shoes Sneakers Breathable Running Shoes"),
+        _raw("s2", "Summer Sandals Women Shoes Gladiator"),
+    ])
+    monkeypatch.setattr("app.services.live_search_service.get_all_providers", lambda: [good, loose])
+
+    names = [r.raw.name for r in await live_search("khussa shoes", limit=10)]
+    assert names and all("khussa" in n.lower() for n in names)
