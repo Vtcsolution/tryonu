@@ -139,7 +139,10 @@ class AliExpressProductProvider(ProductProvider):
                     "target_language": self._language,
                     "ship_to_country": self._ship_to,
                     "tracking_id": self._tracking_id,
-                    "sort": "SALE_PRICE_ASC",
+                    # No `sort`: verified against the live API, sending
+                    # sort=SALE_PRICE_ASC returns resp_code 405 "The result
+                    # is empty" for a query that returns products without
+                    # it. Their relevance order is what we want anyway.
                 },
             )
         return [p for p in (_product(row) for row in _rows(body)) if p is not None][:limit]
@@ -174,6 +177,9 @@ class AliExpressProductProvider(ProductProvider):
 
 
 def _rows(body: dict) -> list[dict]:
+    """The products in a response. An empty search comes back as
+    resp_code 405 "The result is empty" with no result block at all,
+    which is a legitimate no-results answer, not an error."""
     result = (
         body.get("aliexpress_affiliate_product_query_response", {})
         .get("resp_result", {})

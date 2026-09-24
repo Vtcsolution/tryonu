@@ -189,3 +189,32 @@ async def test_what_is_missing_is_named_in_both_spellings():
     assert "ALIEXPRESS_APP_KEY" in message and "ALI_EXPRESS_APP_KEY" in message
     assert "TRACKING_ID" in message
     assert "APP_SECRET" not in message  # that one is already set
+
+
+async def test_no_sort_parameter_is_sent(monkeypatch):
+    """Verified against the live API: sort=SALE_PRICE_ASC comes back as
+    resp_code 405 "The result is empty" for a query that returns products
+    without it. Their own relevance order is what we want anyway."""
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["form"] = dict(httpx.QueryParams(request.content.decode()))
+        return httpx.Response(200, json=_body(_row()))
+
+    _patch_transport(monkeypatch, handler)
+    await _provider().search_live(query="khussa shoes", limit=5)
+    assert "sort" not in seen["form"]
+
+
+async def test_an_empty_result_is_no_products_not_an_error(monkeypatch):
+    """The live shape for "nothing matched": resp_code 405, no result
+    block at all. Raising on that would turn a thin search into an
+    outage."""
+    empty = {
+        "aliexpress_affiliate_product_query_response": {
+            "resp_result": {"resp_code": 405, "resp_msg": "The result is empty"},
+            "request_id": "212a6b7f17902659669484789",
+        }
+    }
+    _patch_transport(monkeypatch, lambda request: httpx.Response(200, json=empty))
+    assert await _provider().search_live(query="nothing at all", limit=5) == []
