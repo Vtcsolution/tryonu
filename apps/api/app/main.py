@@ -15,6 +15,7 @@ from app.core.logging import RequestLoggingMiddleware, configure_logging, logger
 from app.core.runtime_settings import refresh_if_stale
 from app.db.schema_state import schema_status
 from app.services.queue import queue_state
+from app.services.stuck_jobs import sweep_forever
 from app.services.analytics_service import download_geoip_db, geoip_available
 from app.services.storage_service import is_s3_configured
 
@@ -47,10 +48,15 @@ async def lifespan(app: FastAPI):  # noqa: ANN201
 
     # admin-panel overrides (app_settings table) take precedence over .env
     await refresh_if_stale(force=True)
+    # Nothing else ever moves a job that no worker picked up: the customer
+    # watches a spinner and their credits stay reserved. Sweep for those.
+    app.state.stuck_sweeper = asyncio.create_task(sweep_forever())
+
     if settings.GEOIP_AUTO_DOWNLOAD and not geoip_available():
         # visitor countries show as "unknown" until this finishes; never block startup on it
         app.state.geoip_download = asyncio.create_task(download_geoip_db())
     yield
+    app.state.stuck_sweeper.cancel()
     logger.info("shutdown")
 
 

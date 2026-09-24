@@ -35,6 +35,21 @@ def expected_revision() -> str | None:
         return None
 
 
+@lru_cache(maxsize=1)
+def _known_revisions() -> frozenset[str]:
+    """Every revision this checkout's migration scripts know about."""
+    try:
+        from alembic.config import Config
+        from alembic.script import ScriptDirectory
+
+        root = Path(__file__).resolve().parents[2]
+        config = Config(str(root / "alembic.ini"))
+        config.set_main_option("script_location", str(root / "alembic"))
+        return frozenset(script.revision for script in ScriptDirectory.from_config(config).walk_revisions())
+    except Exception:  # noqa: BLE001 — never let a health check fail
+        return frozenset()
+
+
 async def applied_revision() -> str | None:
     async with AsyncSessionLocal() as session:
         result = await session.execute(text("select version_num from alembic_version"))
@@ -55,9 +70,20 @@ async def schema_status() -> dict:
         return {"state": "unknown", "expected": expected, "applied": applied}
     if applied == expected:
         return {"state": "ok", "revision": applied}
+    # Which way round matters. A database the code doesn't recognise means
+    # this process is running older code than the checkout it was deployed
+    # from — almost always a pull without a restart, and it reads as
+    # "behind" unless it is spelled out.
+    if applied not in _known_revisions():
+        return {
+            "state": "ahead",
+            "applied": applied,
+            "expected": expected,
+            "fix": "the database is newer than this process — restart it: pm2 restart tryonu-api tryonu-worker",
+        }
     return {
         "state": "behind",
         "applied": applied,
         "expected": expected,
-        "fix": "run: cd apps/api && alembic upgrade head",
+        "fix": "run: cd apps/api && ./.venv/bin/python -m alembic upgrade head",
     }
