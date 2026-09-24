@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { VoiceInputButton } from "@/components/ui/VoiceInputButton";
 import { ZoomableImage } from "@/components/try/ZoomableImage";
+import { ResultDetails } from "@/components/try/ResultDetails";
 import { ResultMarkers, markerNumber } from "@/components/try/ResultMarkers";
 import { PhotoUploader } from "@/components/upload/PhotoUploader";
 import { ApiError, affiliateGoUrl, resolveMediaUrl, thumbnailUrl } from "@/lib/api/client";
@@ -1132,7 +1133,8 @@ function ResultStep({
       </div>
 
       <div className="mt-6 grid gap-6 md:grid-cols-[1.4fr_1fr]">
-        <div className="relative aspect-[4/5] overflow-hidden rounded-[26px] border border-line bg-paper-2 shadow-lift md:aspect-auto md:min-h-[460px]">
+        <div className="min-w-0">
+          <div className="relative aspect-[4/5] overflow-hidden rounded-[26px] border border-line bg-paper-2 shadow-lift md:aspect-auto md:min-h-[460px]">
           <ZoomableImage
             overlay={<ResultMarkers placements={job.result!.placements} />}
             src={resolveMediaUrl(job.result!.image_url)}
@@ -1149,8 +1151,9 @@ function ResultStep({
           <p className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
             AI-generated visualization — not a guarantee of exact fit, sizing, or color.
           </p>
+          </div>
+          <ResultDetails src={resolveMediaUrl(job.result!.image_url)} placements={job.result!.placements} />
         </div>
-
         <div className="flex flex-col rounded-[26px] border border-line bg-surface p-6">
           <p className="text-[11px] uppercase tracking-[0.14em] text-faint">
             {product.merchant_name ? `${product.retailer.name} · ${product.merchant_name}` : product.retailer.name}
@@ -1328,7 +1331,8 @@ function OutfitResultStep({
       </div>
 
       <div className="mt-6 grid gap-6 md:grid-cols-[1.4fr_1fr]">
-        <div className="relative aspect-[4/5] overflow-hidden rounded-[26px] border border-line bg-paper-2 shadow-lift md:aspect-auto md:min-h-[460px]">
+        <div className="min-w-0">
+          <div className="relative aspect-[4/5] overflow-hidden rounded-[26px] border border-line bg-paper-2 shadow-lift md:aspect-auto md:min-h-[460px]">
           <ZoomableImage
             overlay={<ResultMarkers placements={job.result!.placements} />}
             src={resolveMediaUrl(job.result!.image_url)}
@@ -1347,8 +1351,9 @@ function OutfitResultStep({
               ? "Every item in this outfit is on the photo."
               : `${renderedCount} of ${outfit.items.length} items drawn on the photo — the items marked “matched” are shown alongside with their own shop links.`}
           </p>
+          </div>
+          <ResultDetails src={resolveMediaUrl(job.result!.image_url)} placements={job.result!.placements} />
         </div>
-
         <div className="flex flex-col rounded-[26px] border border-line bg-surface p-6">
           <p className="text-[11px] uppercase tracking-[0.14em] text-faint">
             {outfit.items.length}-item outfit · {(outfit.total_price_cents / 100).toFixed(2)}{" "}
@@ -1444,7 +1449,8 @@ function WardrobeResultStep({
       </div>
 
       <div className="mt-6 grid gap-6 md:grid-cols-[1.4fr_1fr]">
-        <div className="relative aspect-[4/5] overflow-hidden rounded-[26px] border border-line bg-paper-2 shadow-lift md:aspect-auto md:min-h-[460px]">
+        <div className="min-w-0">
+          <div className="relative aspect-[4/5] overflow-hidden rounded-[26px] border border-line bg-paper-2 shadow-lift md:aspect-auto md:min-h-[460px]">
           <ZoomableImage
             overlay={<ResultMarkers placements={job.result!.placements} />}
             src={resolveMediaUrl(job.result!.image_url)}
@@ -1461,8 +1467,9 @@ function WardrobeResultStep({
           <p className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
             AI-generated visualization — not a guarantee of exact fit, sizing, or color.
           </p>
+          </div>
+          <ResultDetails src={resolveMediaUrl(job.result!.image_url)} placements={job.result!.placements} />
         </div>
-
         <div className="flex flex-col rounded-[26px] border border-line bg-surface p-6">
           <p className="text-[11px] uppercase tracking-[0.14em] text-faint">Your own item</p>
           <p className="mt-1 font-display text-[22px] text-ink">{item.name}</p>

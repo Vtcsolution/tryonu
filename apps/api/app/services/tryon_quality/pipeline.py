@@ -50,6 +50,8 @@ from app.services.tryon_quality.compose import (
     draw_candidates,
     encode_jpeg,
     find_changes,
+    product_mask,
+    sharpen_product,
 )
 from app.services.tryon_quality.judge import Verdict, judge
 from app.services.tryon_quality.locate import choose, find_body_part
@@ -219,6 +221,7 @@ async def render_look(
     """
     started = time.monotonic()
     base = _cap(decode(person))
+    photo = base.copy()  # kept to find what the renders supplied, at the end
     face = detect_face(base)
     products = await asyncio.gather(*(_download(item.image_url) for item in items))
     descriptions = await asyncio.gather(
@@ -239,6 +242,10 @@ async def render_look(
             deadline=started + budget_seconds,
         )
 
+    # The person's pixels are their photo's own; the product's came from a
+    # render at most 1024x1536 and were scaled up to sit on it, so the
+    # garment reads softer than the face beside it. Sharpen just that area.
+    base = sharpen_product(base, product_mask(photo, base))
     return encode_jpeg(base, 97), reports
 
 

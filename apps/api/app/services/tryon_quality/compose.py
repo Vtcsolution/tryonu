@@ -303,6 +303,37 @@ def composite(base: np.ndarray, render: np.ndarray, mask: np.ndarray) -> np.ndar
     return (render.astype(np.float32) * m + base.astype(np.float32) * (1 - m)).astype(np.uint8)
 
 
+def product_mask(before: np.ndarray, after: np.ndarray, threshold: float = 16.0) -> np.ndarray:
+    """Which pixels the renders ended up supplying: everywhere the result
+    differs from the photo it started as. The merge only ever takes the
+    product and what moved to wear it, so this is exactly that area —
+    without having to thread every item's mask through the pipeline."""
+    mask = (_lab_diff(before, after) > threshold).astype(np.float32)
+    return np.clip(cv2.GaussianBlur(mask, (0, 0), 2.0), 0, 1)
+
+
+def sharpen_product(image: np.ndarray, mask: np.ndarray, amount: float = 0.55) -> np.ndarray:
+    """Put back the crispness the product loses on the way in.
+
+    The person's own pixels are their photo's, at its own resolution. The
+    product's pixels come from a render that is at most 1024x1536, and
+    they are scaled up to sit on a larger photo — so the garment reads
+    softer than the face beside it, which is what a customer sees as "a
+    blurry try-on". An unsharp mask restricted to the product area
+    narrows that gap.
+
+    Deliberately mild: enough to recover edge definition, not enough to
+    ring. Nothing outside the mask is touched, so the face, hair and
+    background remain untouched photograph."""
+    if amount <= 0 or not mask.any():
+        return image
+    blurred = cv2.GaussianBlur(image, (0, 0), 1.2)
+    sharper = cv2.addWeighted(image.astype(np.float32), 1 + amount, blurred.astype(np.float32), -amount, 0)
+    m = np.clip(mask, 0, 1)[..., None]
+    out = sharper * m + image.astype(np.float32) * (1 - m)
+    return np.clip(out, 0, 255).astype(np.uint8)
+
+
 @dataclass(frozen=True, slots=True)
 class Merge:
     image: np.ndarray
