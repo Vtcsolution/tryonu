@@ -116,6 +116,8 @@ class Settings(BaseSettings):
     #   gemini-3.1-flash-image   37%  13s, and it kept them
     GEMINI_API_KEY: str | None = None
     GEMINI_IMAGE_MODEL: str = "gemini-3.1-flash-image"
+    # 1792x2400 rather than the 896x1200 default — see DEFAULT_IMAGE_SIZE
+    GEMINI_IMAGE_SIZE: Literal["1K", "2K", "4K"] = "2K"
 
     LLM_PROVIDER: Literal["openai", "mock"] = "mock"
     OPENAI_API_KEY: str | None = None

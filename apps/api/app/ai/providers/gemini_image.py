@@ -80,6 +80,17 @@ def _aspect_ratio(photo: bytes) -> str:
     return _RATIOS["square"]
 
 
+# Asked for explicitly, because the default is small. Measured on the
+# same edit, with every result brought down to a common size so the
+# numbers compare:
+#   default  896x1200   detail 428
+#   2K      1792x2400   detail 453   — four times the pixels, and real
+#   4K      3584x4800   detail 259   — sixteen times the pixels, and soft
+# 4K is an enlargement of the same drawing, so it is worse at any size
+# you would actually look at it.
+DEFAULT_IMAGE_SIZE = "2K"
+
+
 def _retryable(exc: BaseException) -> bool:
     return isinstance(exc, TryOnProviderError) and exc.retryable
 
@@ -94,10 +105,12 @@ class GeminiImageTryOnProvider(VirtualTryOnProvider):
         api_key: str,
         model: str,
         base_url: str = "https://generativelanguage.googleapis.com/v1beta",
+        image_size: str = "2K",
     ) -> None:
         self.model = model
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
+        self._image_size = image_size
 
     def at_quality(self, quality: str) -> "GeminiImageTryOnProvider":  # noqa: ARG002
         """Gemini has no quality dial — the same engine answers both the
@@ -150,7 +163,10 @@ class GeminiImageTryOnProvider(VirtualTryOnProvider):
                 "generationConfig": {"responseModalities": ["IMAGE"]},
             }
             if self.model not in _NO_IMAGE_CONFIG:
-                body["generationConfig"]["imageConfig"] = {"aspectRatio": _aspect_ratio(person[0])}
+                config = {"aspectRatio": _aspect_ratio(person[0])}
+                if self._image_size:
+                    config["imageSize"] = self._image_size
+                body["generationConfig"]["imageConfig"] = config
             resp = await self._post(client, body)
             if resp.status_code == 400 and "imageConfig" in resp.text:
                 logger.info("gemini_image_no_image_config", model=self.model)

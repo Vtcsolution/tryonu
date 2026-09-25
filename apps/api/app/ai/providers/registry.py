@@ -42,6 +42,7 @@ def get_tryon_provider() -> VirtualTryOnProvider:
         return GeminiImageTryOnProvider(
             api_key=settings.GEMINI_API_KEY,  # type: ignore[arg-type]
             model=settings.GEMINI_IMAGE_MODEL,
+            image_size=settings.GEMINI_IMAGE_SIZE,
         )
 
     return MockTryOnProvider()
