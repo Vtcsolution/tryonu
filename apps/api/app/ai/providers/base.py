@@ -62,6 +62,16 @@ class VirtualTryOnProvider(ABC):
     #: render (generate_outfit) — every item at once, shoes/bags/jewellery
     #: included — instead of one garment per call chained together.
     whole_outfit: bool = False
+    #: Does this engine give the person back unchanged?
+    #:
+    #: Everything in tryon_quality exists to undo an engine that does
+    #: not: find what changed, decide which of those changes are the
+    #: product, paste only those onto the customer's own pixels. That
+    #: step is where every compositing artifact comes from — a seam
+    #: across a collarbone, hair replaced by a chandelier, a scrap of
+    #: dupatta floating beside a knee. An engine that preserves the
+    #: person needs none of it, and its render is used as it comes back.
+    preserves_person: bool = False
 
     @abstractmethod
     async def generate(self, payload: TryOnInput) -> TryOnOutput:

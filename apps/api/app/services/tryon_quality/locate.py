@@ -64,6 +64,33 @@ _BODY_PART = (
 )
 
 
+_THE_ITEM = (
+    "You are shown a product photo and a photo of a person who is wearing or carrying that product. "
+    "Reply with JSON only: {\"found\": true|false, \"box\": [x0, y0, x1, y1]} — the box around that product "
+    "as it appears on the person, in 0-1000 coordinates of the second photo (x left->right, y top->bottom). "
+    "Tight: the product itself, not the body part it is on. found is false if the product is not on the person."
+)
+
+
+async def find_item(photo: np.ndarray, product: np.ndarray, description: str) -> Region | None:
+    """Where one product ended up on the finished photo.
+
+    For engines whose render is used whole there is no change detection
+    to take boxes from, and a marker still has to point somewhere true.
+    Asking directly is both simpler and better: the old boxes came from
+    whatever pixels differed, which on a whole-look render is every item
+    at once."""
+    answer = await ask_json(
+        _THE_ITEM,
+        [
+            {"type": "text", "text": f"The product: {description}. First image: the product. Second: the person."},
+            image_part(product, 512),
+            image_part(photo, 1024),
+        ],
+    )
+    return _to_region(answer.get("box")) if answer.get("found") else None
+
+
 async def find_body_part(photo: np.ndarray, part: str) -> Region | None:
     """Where a body part is, so a tiny product (a ring, an earring) can be
     rendered on a close-up of it instead of on the whole body, where it

@@ -380,3 +380,14 @@ def test_a_multi_colour_listing_photo_is_told_to_pick_one():
     from app.ai.providers.openai_image import build_prompt
 
     assert "several colours" in build_prompt([OutfitPiece("https://img/b.jpg", "bag", "Tote")])
+
+
+def test_a_set_of_different_pieces_is_not_drawn_as_copies_of_one():
+    """Live: a five-piece stack — a rope chain, a knot cuff, a beaded
+    bangle, a flat cuff and a paperclip chain — came back as plain gold
+    bangles, and on both wrists when the set is one stack."""
+    from app.ai.providers.openai_image import build_prompt
+
+    prompt = build_prompt([OutfitPiece("https://img/b.jpg", "accessory", "Stackable Bangle Set")])
+    assert "one wrist, not both" in prompt
+    assert "several copies of one plain piece" in prompt

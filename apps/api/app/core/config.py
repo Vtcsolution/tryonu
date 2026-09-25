@@ -115,7 +115,10 @@ class Settings(BaseSettings):
     #   gemini-3-pro-image       37%  27s, and it changed her shoes
     #   gemini-3.1-flash-image   37%  13s, and it kept them
     GEMINI_API_KEY: str | None = None
-    GEMINI_IMAGE_MODEL: str = "gemini-3.1-flash-image"
+    # "nano banana Pro". 3.1-flash measured a shade better and twice as
+    # fast on one look; Pro is the default because it is what was asked
+    # for, and the gap is inside the run-to-run spread.
+    GEMINI_IMAGE_MODEL: str = "gemini-3-pro-image"
     # 1792x2400 rather than the 896x1200 default — see DEFAULT_IMAGE_SIZE
     GEMINI_IMAGE_SIZE: Literal["1K", "2K", "4K"] = "2K"
 

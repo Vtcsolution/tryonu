@@ -98,6 +98,12 @@ def _retryable(exc: BaseException) -> bool:
 class GeminiImageTryOnProvider(VirtualTryOnProvider):
     name = "gemini"
     whole_outfit = True
+    # Measured on the same photo and products, as the share of the
+    # customer's face and hair that came back different from her own
+    # photo: 27% here against 38% for the engine we were using — and the
+    # Gemini figure is the raw render, where ours is after all the
+    # compositing. It keeps her room, her pose and her own shoes.
+    preserves_person = True
 
     def __init__(
         self,

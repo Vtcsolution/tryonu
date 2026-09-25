@@ -38,6 +38,7 @@ from app.services.outfit_slots import (
 )
 from app.services.storage_service import get_storage, new_key
 from app.services.tryon_quality.pipeline import (
+    render_whole_look,
     ItemReport,
     LookItem,
     QualityFailure,
@@ -282,6 +283,28 @@ async def run_tryon_job_async(job_id: str) -> None:
                 image, ctype, kept = await _keep_person_if_on(job, output.image_bytes, output.content_type, layers)
                 await _complete_job(
                     session, job, image, ctype, provider.name, provider.model,
+                    drawn=[layer.name for layer in layers], face_kept=kept,
+                )
+                return
+
+            if provider.preserves_person and _quality_pipeline_on(provider):
+                # the render used as it comes back, inspected and
+                # corrected — no change detection, no mask, no merge
+                person = await asyncio.to_thread(get_storage().read, job.user_photo.storage_key)
+                image, reports = await render_whole_look(
+                    person,
+                    [_look_item(layer) for layer in layers],
+                    _pipeline_render_all(provider),
+                    retries=settings.TRYON_QUALITY_RETRIES,
+                    min_product=settings.TRYON_QUALITY_MIN_PRODUCT,
+                    min_other=settings.TRYON_QUALITY_MIN_FIT,
+                    budget_seconds=settings.TRYON_QUALITY_BUDGET_SECONDS,
+                    on_progress=_progress_writer(session, job),
+                )
+                kept_image, ctype, kept = await _keep_person_if_on(job, image, "image/jpeg", layers)
+                await _complete_job(
+                    session, job, kept_image, ctype, provider.name, provider.model,
+                    placements=_placements(layers, reports),
                     drawn=[layer.name for layer in layers], face_kept=kept,
                 )
                 return

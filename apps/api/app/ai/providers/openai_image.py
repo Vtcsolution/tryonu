@@ -90,6 +90,11 @@ def build_prompt(pieces: list[OutfitPiece]) -> str:
         "- Take ONLY the product from each product photo: ignore any model, mannequin, hanger, background,"
         " text, logo overlay or watermark in it.",
         "- Replace the clothing the products replace; leave everything else as it is.",
+        "- Each product appears ONCE, in one place. A bracelet or a watch goes on one wrist, not both; a"
+        " single shoe or earring in a photo is still a pair on the person. Never repeat an item to fill space.",
+        "- A product photo that shows several different pieces together — a stack of five different bracelets,"
+        " a set of bangles — is one product made of those exact pieces. Draw each piece as it is, distinct from"
+        " the others; do not replace the set with several copies of one plain piece.",
         "- The result must be a single realistic photograph, not a collage.",
     ]
     return "\n".join(lines)

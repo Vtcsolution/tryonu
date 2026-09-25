@@ -54,7 +54,7 @@ from app.services.tryon_quality.compose import (
     sharpen_product,
 )
 from app.services.tryon_quality.judge import Verdict, judge
-from app.services.tryon_quality.locate import choose, find_body_part
+from app.services.tryon_quality.locate import choose, find_body_part, find_item
 from app.services.tryon_quality.product_prep import describe_product
 from app.services.tryon_quality.recolour import match_product_colour
 from app.services.tryon_quality.vision import VisionError
@@ -853,3 +853,100 @@ async def keep_person(person: bytes, render_bytes: bytes, items: list[LookItem])
 def _chosen_by(changes: Changes, merged: Merge, candidate) -> bool:  # noqa: ANN001
     x0, y0, x1, y1 = candidate.region.pixels(merged.mask.shape[1], merged.mask.shape[0])
     return bool(merged.mask[y0:y1, x0:x1].max() > 0.5)
+
+
+async def render_whole_look(
+    person: bytes,
+    items: list[LookItem],
+    render_all: RenderAllFn,
+    *,
+    retries: int = 1,
+    min_product: float = 7.0,
+    min_other: float = 6.0,
+    budget_seconds: int = 90,
+    on_progress: ProgressFn | None = None,
+) -> tuple[bytes, list[ItemReport]]:
+    """The render used as it comes back, inspected, and corrected if wrong.
+
+    Everything else in this module exists to undo an engine that does not
+    give the person back: find what changed, decide which of those changes
+    are the product, paste only those onto the customer's own pixels. That
+    step is where seams across a collarbone, hair replaced by a chandelier
+    and a blouse spattered across a wedding hall all came from. Live, on a
+    maroon shalwar kameez, it left the customer in her own yellow dress
+    with a scrap of the dupatta floating beside her knee and somebody
+    else's forearm in the corner.
+
+    An engine that preserves the person needs none of it. The render is
+    the answer; the only questions left are whether each product is
+    really the product, and where it ended up so a label can point at it.
+    Both are asked of the finished image directly.
+    """
+    started = time.monotonic()
+    base = _cap(decode(person))
+    reports = [ItemReport(name=item.name) for item in items]
+
+    await _say(on_progress, "Reading each product photo")
+    products = await asyncio.gather(*(_download(item.image_url) for item in items))
+    descriptions = await asyncio.gather(
+        *(describe_product(p, i.image_url, i.name) for p, i in zip(products, items))
+    )
+
+    whole = Region(0.0, 0.0, 1.0, 1.0)
+    fixes = [""] * len(items)
+    shown = base
+
+    for attempt in range(retries + 1):
+        await _say(on_progress, "Drawing the look" if attempt == 0 else "Correcting what didn't match")
+        notes = [
+            f"{d} {fix}".strip() if fix else d for d, fix in zip(descriptions, fixes)
+        ]
+        raw = decode(await render_all(encode_jpeg(_for_model(base), 95), items, notes))
+        shown = raw
+
+        await _say(on_progress, "Checking every item against its product photo")
+        verdicts = await asyncio.gather(
+            *(
+                judge(product, base, raw, whole, description, item.slot in _SMALL)
+                for product, description, item in zip(products, descriptions, items)
+            ),
+            return_exceptions=True,
+        )
+
+        wrong: list[int] = []
+        for index, verdict in enumerate(verdicts):
+            if isinstance(verdict, BaseException):
+                logger.warning("tryon_whole_judge_failed", item=items[index].name[:60], error=str(verdict)[:160])
+                continue
+            reports[index].attempts = attempt + 1
+            reports[index].verdict = verdict
+            reports[index].history.append(
+                f"attempt {attempt + 1}: product={verdict.product_match:.0f} "
+                f"worn={verdict.worn_correctly:.0f} realism={verdict.realism:.0f}"
+            )
+            if not verdict.passes(_min_product_for(items[index], min_product), min_other):
+                wrong.append(index)
+                fixes[index] = "Correction from the previous attempt: " + "; ".join(verdict.issues[:3])
+
+        logger.info("tryon_whole_render", attempt=attempt + 1, items=len(items), wrong=len(wrong))
+        if not wrong:
+            break
+        if attempt >= retries:
+            for index in wrong:
+                reports[index].history.append("still wrong after the last attempt")
+            break
+        if time.monotonic() - started > budget_seconds:
+            for index in wrong:
+                reports[index].history.append("out of time for another attempt")
+            logger.warning("tryon_whole_out_of_time", wrong=[items[i].name[:40] for i in wrong])
+            break
+
+    await _say(on_progress, "Marking where each item ended up")
+    boxes = await asyncio.gather(
+        *(find_item(shown, product, description) for product, description in zip(products, descriptions)),
+        return_exceptions=True,
+    )
+    for report, box in zip(reports, boxes):
+        report.box = box if isinstance(box, Region) else None
+
+    return encode_jpeg(shown, 97), reports
