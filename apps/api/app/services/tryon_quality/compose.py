@@ -212,6 +212,14 @@ def _line(x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
     return a, ym - a * xm
 
 
+# How far the protected egg reaches, as a multiple of the protected box's
+# own half-width and half-height. Above and to the sides it has to clear
+# the box's corners, which hold the hair; below it stops short of them,
+# because that is the collarbone and a garment has to reach it.
+_AROUND_THE_HEAD = 1.35
+_UNDER_THE_CHIN = 0.85
+
+
 def _blocked(shape: tuple[int, int], protect: list[tuple[int, int, int, int]]) -> np.ndarray:
     """The pixels the merge may never take, as an oval in each protected box.
 
@@ -219,13 +227,25 @@ def _blocked(shape: tuple[int, int], protect: list[tuple[int, int, int, int]]) -
     Pakistani lawn suit: the kameez stopped dead along a straight
     horizontal line across the collarbone, bare skin above it, because the
     box protecting the face reached a fifth of a face-height below the
-    chin and the garment could not be drawn inside it. A face is an oval,
-    and an oval has no straight edge to leave behind."""
+    chin and the garment could not be drawn inside it. A face is not a
+    rectangle, and a rectangle leaves an edge behind.
+
+    But an oval drawn *inside* that box is smaller than the box at every
+    corner, and the corners of this one are where the hair is. Drawn that
+    way it stopped protecting the sides and the top of the head, and the
+    render's own background — a smeared chandelier — was taken over her
+    hair. So the shape is an egg: wide and tall enough above and to the
+    sides to cover everything the rectangle covered, and tighter below,
+    where the collarbone is and where the garment has to be allowed to
+    reach."""
     blocked = np.zeros(shape, np.uint8)
     for px0, py0, px1, py1 in protect:
         cx, cy = (px0 + px1) // 2, (py0 + py1) // 2
         rx, ry = max(1, (px1 - px0) // 2), max(1, (py1 - py0) // 2)
-        cv2.ellipse(blocked, (cx, cy), (rx, ry), 0, 0, 360, 1, -1)
+        wide = max(1, int(rx * _AROUND_THE_HEAD))
+        # 180-360 is the half above the centre (y grows downward), 0-180 below
+        cv2.ellipse(blocked, (cx, cy), (wide, max(1, int(ry * _AROUND_THE_HEAD))), 0, 180, 360, 1, -1)
+        cv2.ellipse(blocked, (cx, cy), (wide, max(1, int(ry * _UNDER_THE_CHIN))), 0, 0, 180, 1, -1)
     return blocked.astype(bool)
 
 
@@ -286,6 +306,7 @@ def _mask_from(
     reach_share: float = 0.03,
     diff: np.ndarray | None = None,
     high: float = 32.0,
+    detail: np.ndarray | None = None,
 ) -> np.ndarray:
     """What to take: the chosen strong blobs (holes filled — a watch face
     that matches the old skin tone), plus faint changes touching them — the
@@ -310,7 +331,13 @@ def _mask_from(
         # whole, out to a hand's length; the fade only crosses pixels where
         # the two images nearly agree, where blending is invisible.
         hard_reach = max(reach, 0.08 * max(h, w))
-        hard = (taken.astype(bool) & (diff > high) & (distance < hard_reach)).astype(np.uint8)
+        # Texture counts as much as colour throughout: white embroidery on
+        # a white T-shirt is the product, and so is the white cotton
+        # between two of its flowers. Tried with texture only in `hard`
+        # and not in the growth below, the kurti arrived as green patches
+        # pasted on with the T-shirt showing between them.
+        strong = diff if detail is None else np.maximum(diff, detail)
+        hard = (taken.astype(bool) & (strong > high) & (distance < hard_reach)).astype(np.uint8)
         hard = cv2.morphologyEx(hard, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)))
         # ...and grow along any strongly-different pixels touching it, thin
         # ones included: the old hand's 2px outline beside the moved hand was
@@ -318,7 +345,7 @@ def _mask_from(
         # Only within a hand's length of the product, though: the growth
         # follows an edge, and the redrawn outline of an arm let a ring pull
         # a 300px strip of forearm into the merge (live: a pale smudge).
-        differs = ((diff > 24) & ~blocked & (distance < hard_reach)).astype(np.uint8)
+        differs = ((strong > 24) & ~blocked & (distance < hard_reach)).astype(np.uint8)
         grow_kernel = np.ones((5, 5), np.uint8)
         for _ in range(max(4, int(0.012 * max(h, w) / 2))):
             hard = cv2.dilate(hard, grow_kernel) & differs | hard
@@ -479,9 +506,7 @@ class Changes:
         # Embroidery the same colour as what it replaced is still the
         # product. Inside an area already chosen as this product, a
         # strong texture change counts as much as a strong colour one.
-        mask = _mask_from(
-            core, self.weak, self.blocked, reach_share, np.maximum(self.diff, self.detail)
-        )
+        mask = _mask_from(core, self.weak, self.blocked, reach_share, self.diff, detail=self.detail)
         # colour-fit the pasted pixels on everything EXCEPT the product (and
         # a margin): a big black shirt in the fit dragged it grey-green
         h, w = mask.shape

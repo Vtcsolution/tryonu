@@ -655,19 +655,25 @@ def test_embroidery_the_colour_of_what_it_replaced_still_counts_as_a_change():
     assert detail_diff(flat, flat).max() < 1.0  # and is silent when nothing changed
 
 
-def test_the_face_is_protected_as_an_oval_not_a_rectangle():
-    """A filled rectangle left its own outline in the result: the kameez
-    stopped along a straight horizontal line across the collarbone."""
+def test_the_head_is_protected_without_leaving_an_edge_on_the_chest():
+    """Two live failures, one on each side of this.
+
+    A filled rectangle left its own outline: the kameez stopped along a
+    straight horizontal line across the collarbone. An oval drawn inside
+    that rectangle then stopped covering its corners — which is where the
+    hair is — and the render's smeared background was taken over her
+    head. It has to cover the corners above and leave the ones below."""
     from app.services.tryon_quality.compose import _blocked
 
     blocked = _blocked((400, 400), [(100, 100, 300, 300)])
-    assert blocked[200, 200]  # the middle of the face is protected
-    assert not blocked[105, 105]  # ...but not the corners of its box
-    assert not blocked[295, 295]
-    # near the bottom of the box only the tip of the oval is protected,
-    # where a filled rectangle would have protected all 200 columns and
-    # left that straight line behind
-    assert blocked[298, :].sum() < 60
+    assert blocked[200, 200]  # the face itself
+    assert blocked[105, 105] and blocked[105, 295]  # the hair, at the top corners
+    assert blocked[150, 102] and blocked[150, 298]  # and down the sides of the head
+
+    assert not blocked[295, 105] and not blocked[295, 295]  # the shoulders are free
+    assert not blocked[298, 200]  # ...and so is the collarbone
+    # nothing straight anywhere along the bottom for an edge to show
+    assert blocked[298, :].sum() == 0
 
 
 def test_a_box_that_is_in_the_right_place_but_far_too_big_is_still_trimmed():
