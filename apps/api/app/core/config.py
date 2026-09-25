@@ -107,11 +107,15 @@ class Settings(BaseSettings):
     FASHN_MODEL: Literal["tryon-v1.6", "tryon-max"] = "tryon-v1.6"
 
     # try-on via Google Gemini image editing, "nano banana"
-    # (VIRTUAL_TRYON_PROVIDER=gemini). Untested against ours so far — the
-    # adapter exists so it can be measured on the same photos, the same
-    # products and the same inspector, rather than argued about.
+    # (VIRTUAL_TRYON_PROVIDER=gemini). Measured on the same photo and the
+    # same three products, as the share of the customer's face and hair
+    # that came back different from her own photo — which is what the
+    # whole compositing pipeline exists to protect:
+    #   gemini-2.5-flash-image   98%  (it returned the catalogue's model)
+    #   gemini-3-pro-image       37%  27s, and it changed her shoes
+    #   gemini-3.1-flash-image   37%  13s, and it kept them
     GEMINI_API_KEY: str | None = None
-    GEMINI_IMAGE_MODEL: str = "gemini-2.5-flash-image"
+    GEMINI_IMAGE_MODEL: str = "gemini-3.1-flash-image"
 
     LLM_PROVIDER: Literal["openai", "mock"] = "mock"
     OPENAI_API_KEY: str | None = None

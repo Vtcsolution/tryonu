@@ -66,8 +66,16 @@ async def test_the_person_and_every_product_go_in_one_call(transport):
     assert len(transport) == 1
     body = transport[0]["json"]
     parts = body["contents"][0]["parts"]
-    assert parts[0]["text"].startswith("Image 1 is a photo of a real person")
+    # the customer is named as the canvas before anything else: without
+    # it this engine edits the product photo and returns a stranger
+    assert parts[0]["text"].startswith("This is a virtual try-on")
+    assert "THE FIRST IMAGE IS THE CUSTOMER" in parts[0]["text"]
+    assert "Image 1 is a photo of a real person" in parts[0]["text"]  # ...then the shared prompt
     assert sum(1 for p in parts if "inlineData" in p) == 3  # the person and both products
+    # and every image is announced, because nothing else says which is which
+    labels = [p["text"] for p in parts[1:] if "text" in p]
+    assert labels[0].startswith("Image 1 — the real person")
+    assert "Pakistani Lawn Suit" in labels[1] and "Leather Tote" in labels[2]
     assert body["generationConfig"]["responseModalities"] == ["IMAGE"]
     assert transport[0]["headers"]["x-goog-api-key"] == "test-key"
 

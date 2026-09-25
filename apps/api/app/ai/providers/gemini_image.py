@@ -45,6 +45,24 @@ _RATIOS = {"portrait": "3:4", "landscape": "4:3", "square": "1:1"}
 _NO_IMAGE_CONFIG: set[str] = set()
 
 
+# Said before anything else, and in these words, because without it this
+# engine treats the *product* photo as the picture to edit. Measured on
+# the same look: with the shared prompt alone, 98% of the customer's face
+# and hair came back different — it had returned a photograph of the
+# model from the eBay listing, standing in her garden. With this, 37%,
+# and the woman in the result is the customer, in her own room.
+_CANVAS = (
+    "This is a virtual try-on for an online shop.\n\n"
+    "THE FIRST IMAGE IS THE CUSTOMER. The output must be that same woman, in that same room, in that "
+    "same pose, with only her clothes and accessories changed. Her face, her hair, her skin, her body, "
+    "the wall behind her and the floor she stands on come out as they went in.\n\n"
+    "THE IMAGES AFTER IT ARE SHOP CATALOGUE PHOTOS. Some show a different model wearing the item, "
+    "somewhere else entirely. Ignore that model and ignore that place completely — take only the garment "
+    "or the object itself. Never return a picture of the catalogue's model, and never return a picture "
+    "taken anywhere but the customer's own room."
+)
+
+
 def _aspect_ratio(photo: bytes) -> str:
     try:
         import cv2
@@ -110,8 +128,20 @@ class GeminiImageTryOnProvider(VirtualTryOnProvider):
         async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS, follow_redirects=True) as client:
             person = await _download(client, model_image_url, "your photo")
             products = [await _download(client, p.image_url, p.name) for p in pieces]
-            parts: list[dict] = [{"text": build_prompt(pieces)}]
-            for content, ctype in [person, *products]:
+            # Each image is announced by the text part before it. The
+            # prompt numbers them — "Image 1 is a photo of a real person",
+            # "Image 2 is one product photo" — and nothing else tells this
+            # API which attachment is which. Unlabelled, it took the
+            # product listing's own model and her garden as the base and
+            # returned a photograph of a stranger.
+            parts: list[dict] = [{"text": _CANVAS + "\n\n" + build_prompt(pieces)}]
+            labelled = [("Image 1 — the real person, to be kept exactly:", person)]
+            labelled += [
+                (f"Image {n} — product photo of: {piece.name[:120]}", product)
+                for n, (piece, product) in enumerate(zip(pieces, products), start=2)
+            ]
+            for label, (content, ctype) in labelled:
+                parts.append({"text": label})
                 parts.append(
                     {"inlineData": {"mimeType": ctype, "data": base64.b64encode(content).decode()}}
                 )
