@@ -38,6 +38,25 @@ _HOW = {
 }
 
 
+# What "the same product" means for each kind of thing — the details a
+# shopper would notice were wrong. Said per product rather than once at
+# the end, because a general "reproduce it faithfully" leaves the model
+# to decide what counts, and it decided a tote's crocodile-embossed base
+# didn't.
+_PRESERVE = {
+    "dress": "colour, print, embroidery, neckline, sleeves, cuffs, borders, hem and the dupatta if there is one",
+    "top": "colour, print, embroidery, neckline, collar, buttons, sleeves and cuffs",
+    "bottom": "colour, print, cut, waistband, pockets and hem",
+    "outerwear": "colour, fabric, lapels, buttons, pockets and length",
+    "shoes": "colour, material, heel height and shape, straps, buckles and sole",
+    "bag": "silhouette, size, colour, material, the number and shape of the handles,"
+    " hardware, and any embossed or printed panel",
+    "watch": "dial colour and markings, hands, numerals, case shape and metal, and strap colour and material",
+    "accessory": "colour, metal tone, stones, and the shape and number of its parts",
+    "other": "colour, material, shape and markings",
+}
+
+
 def build_prompt(pieces: list[OutfitPiece]) -> str:
     lines = [
         "Image 1 is a photo of a real person — possibly a close-up of part of the body, such as a wrist. "
@@ -52,6 +71,7 @@ def build_prompt(pieces: list[OutfitPiece]) -> str:
             # the details the image alone kept losing: an ivory dress came
             # back pink, its gold embroidery faint and sparse
             lines.append(f"  It is: {piece.description}")
+        lines.append(f"  Keep exactly: {_PRESERVE.get(piece.slot, _PRESERVE['other'])}.")
         if piece.note:
             lines.append(f"  Correction from the previous attempt: {piece.note}")
     lines += [
@@ -59,7 +79,10 @@ def build_prompt(pieces: list[OutfitPiece]) -> str:
         "Rules:",
         "- Keep the person exactly the same: face, identity, skin tone, hair, beard, body shape, pose and expression.",
         "- Keep the background, camera angle, framing and lighting of image 1 unchanged.",
-        "- Reproduce each product faithfully: same colour, fabric, pattern, embroidery and cut as in its photo.",
+        "- Reproduce each product faithfully: same colour, fabric, pattern, embroidery and cut as in its photo."
+        " This is a try-on, not an illustration: a product that merely resembles the photo is wrong.",
+        "- A product photo showing the same item in several colours means one of them, not a blend: pick the"
+        " one that matches the product's description and draw that one.",
         "- Colour is not approximate: yellow gold is not silver, ivory is not pink, navy is not black. Match the"
         " product photo's exact shade, and keep the metal tone of jewellery and watches (yellow gold, rose gold,"
         " white gold/silver/steel) exactly as shown.",

@@ -561,9 +561,9 @@ def test_a_marker_cannot_land_somewhere_the_item_could_never_be():
     area = pipeline._plausible_area(earrings, face, shape)
     assert area is not None
     chandelier = pipeline.Region(0.35, 0.02, 0.65, 0.12)  # far above the head
-    assert not pipeline._inside(chandelier, area)
+    assert pipeline._settle(chandelier, area) == area  # nothing of it survives
     on_the_ear = pipeline.Region(0.37, 0.30, 0.42, 0.37)
-    assert pipeline._inside(on_the_ear, area)
+    assert pipeline._settle(on_the_ear, area) == on_the_ear  # left exactly as it is
 
 
 def test_a_necklace_belongs_below_the_face_not_above_it():
@@ -573,8 +573,9 @@ def test_a_necklace_belongs_below_the_face_not_above_it():
     necklace = pipeline.LookItem("https://img/x.jpg", OutfitSlot.ACCESSORY, "14k Gold Rope Chain Necklace")
     area = pipeline._plausible_area(necklace, face, (1536, 1024))
     assert area is not None
-    assert pipeline._inside(pipeline.Region(0.44, 0.22, 0.56, 0.26), area)  # at the collarbone
-    assert not pipeline._inside(pipeline.Region(0.44, 0.03, 0.56, 0.07), area)  # in the ceiling
+    collarbone = pipeline.Region(0.44, 0.22, 0.56, 0.26)
+    assert pipeline._settle(collarbone, area) == collarbone
+    assert pipeline._settle(pipeline.Region(0.44, 0.03, 0.56, 0.07), area) == area  # in the ceiling
 
 
 def test_items_with_no_fixed_place_are_left_alone():
@@ -598,7 +599,6 @@ def test_shoes_cannot_be_recorded_as_the_whole_standing_body():
     assert area is not None
 
     whole_body = pipeline.Region(0.077, 0.042, 0.711, 1.0)
-    assert not pipeline._inside(whole_body, area)
     settled = pipeline._settle(whole_body, area)
     # the render still knew which side of the frame they were on
     assert (settled.x0, settled.x1) == (0.077, 0.711)
@@ -617,7 +617,7 @@ def test_a_shoes_box_that_is_already_at_the_feet_is_left_alone():
     shoes = pipeline.LookItem("https://img/x.jpg", OutfitSlot.SHOES, "Suede Ankle Boots")
     area = pipeline._plausible_area(shoes, Box(x=400, y=380, w=200, h=260), (1536, 1024))
     at_the_feet = pipeline.Region(0.423, 0.931, 0.671, 1.0)
-    assert area is not None and pipeline._inside(at_the_feet, area)
+    assert area is not None and pipeline._settle(at_the_feet, area) == at_the_feet
 
 
 def test_a_dress_is_never_second_guessed():
@@ -626,3 +626,69 @@ def test_a_dress_is_never_second_guessed():
 
     dress = pipeline.LookItem("https://img/x.jpg", OutfitSlot.DRESS, "Pakistani Salwar Kameez 3 PC")
     assert pipeline._plausible_area(dress, Box(x=400, y=380, w=200, h=260), (1536, 1024)) is None
+
+
+def test_embroidery_the_colour_of_what_it_replaced_still_counts_as_a_change():
+    """Live, on a Pakistani lawn suit: the customer wore a plain white
+    T-shirt and the kameez's chest panel is dense white embroidery on
+    pink. White thread on white cotton is almost no colour difference, so
+    the merge kept the T-shirt and the embroidery dissolved into a cream
+    smear. Texture says what colour cannot."""
+    from app.services.tryon_quality.compose import detail_diff
+
+    import cv2
+
+    flat = np.full((160, 160, 3), 232, np.uint8)  # a plain white T-shirt
+    embroidered = flat.copy()
+    for y in range(4, 160, 8):  # raised white thread on white cloth
+        embroidered[y : y + 3, :] = 255
+
+    by_colour = np.linalg.norm(
+        cv2.cvtColor(flat, cv2.COLOR_BGR2LAB).astype(np.float32)
+        - cv2.cvtColor(embroidered, cv2.COLOR_BGR2LAB).astype(np.float32),
+        axis=2,
+    ).mean()
+    by_texture = detail_diff(flat, embroidered)[40:120, 40:120].mean()
+
+    assert by_colour < 14.0  # colour alone never sees it: below "changed"
+    assert by_texture > 14.0  # texture does
+    assert detail_diff(flat, flat).max() < 1.0  # and is silent when nothing changed
+
+
+def test_the_face_is_protected_as_an_oval_not_a_rectangle():
+    """A filled rectangle left its own outline in the result: the kameez
+    stopped along a straight horizontal line across the collarbone."""
+    from app.services.tryon_quality.compose import _blocked
+
+    blocked = _blocked((400, 400), [(100, 100, 300, 300)])
+    assert blocked[200, 200]  # the middle of the face is protected
+    assert not blocked[105, 105]  # ...but not the corners of its box
+    assert not blocked[295, 295]
+    # near the bottom of the box only the tip of the oval is protected,
+    # where a filled rectangle would have protected all 200 columns and
+    # left that straight line behind
+    assert blocked[298, :].sum() < 60
+
+
+def test_a_box_that_is_in_the_right_place_but_far_too_big_is_still_trimmed():
+    """Live: the tote's box was centred on her hands — the right place —
+    and still covered 42% of the photo, because the whole-look render
+    changed the outfit around the bag as well as the bag."""
+    hands = pipeline.Region(0.303, 0.025, 0.848, 0.653)
+    swallowed_the_body = pipeline.Region(0.205, 0.164, 0.712, 1.0)
+    tote = pipeline.LookItem("https://img/x.jpg", OutfitSlot.BAG, "Leather Tote Bag")
+
+    assert pipeline._too_big_to_be(tote, swallowed_the_body)
+    trimmed = pipeline._settle(swallowed_the_body, hands)
+    assert not pipeline._too_big_to_be(tote, trimmed)
+
+
+def test_an_item_with_no_believable_place_stops_claiming_one():
+    """A dot on the middle of someone's chest calling itself a handbag is
+    worse than no dot. The item still appears in the list of what was put
+    on; it just doesn't point anywhere."""
+    tote = pipeline.LookItem("https://img/x.jpg", OutfitSlot.BAG, "Leather Tote Bag")
+    assert pipeline._too_big_to_be(tote, pipeline.Region(0.2, 0.16, 0.71, 1.0))
+    # ...while a dress really is most of a full-body photo
+    dress = pipeline.LookItem("https://img/x.jpg", OutfitSlot.DRESS, "Salwar Kameez")
+    assert not pipeline._too_big_to_be(dress, pipeline.Region(0.0, 0.16, 1.0, 1.0))

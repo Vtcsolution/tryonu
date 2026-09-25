@@ -38,6 +38,8 @@ class ResultPlacement(BaseModel):
     name: str
     product_id: str | None = None
     slot: str | None = None
+    #: the retailer's own product photo, for the card beside the result
+    image_url: str | None = None
     drawn: bool = False
     box: list[float] | None = None
 

@@ -358,3 +358,25 @@ async def test_a_model_that_refuses_input_fidelity_is_only_asked_once(monkeypatc
     await provider.generate_outfit(photo, piece)
     await provider.generate_outfit(photo, piece)
     assert posts == [False, False]  # never asked again — no wasted uploads
+
+
+def test_each_product_carries_its_own_preservation_rules():
+    """Live: a tote with a crocodile-embossed base came back as a plain
+    leather bag. "Reproduce each product faithfully" leaves the model to
+    decide what faithfully means, and what a shopper would notice is
+    different for a bag, a watch and a kameez."""
+    from app.ai.providers.openai_image import build_prompt
+
+    prompt = build_prompt([
+        OutfitPiece("https://img/bag.jpg", "bag", "Leather Tote with Crocodile-Embossed Base"),
+        OutfitPiece("https://img/watch.jpg", "watch", "Small Dial Leather Band Watch"),
+    ])
+    assert "handles" in prompt and "embossed" in prompt  # what makes that tote that tote
+    assert "dial" in prompt and "strap colour" in prompt  # ...and that watch that watch
+
+
+def test_a_multi_colour_listing_photo_is_told_to_pick_one():
+    """That tote's only photo shows the same bag in brown, tan and cream."""
+    from app.ai.providers.openai_image import build_prompt
+
+    assert "several colours" in build_prompt([OutfitPiece("https://img/b.jpg", "bag", "Tote")])

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cardCrop } from "@/components/try/lookCrop";
+import { resolveMediaUrl } from "@/lib/api/client";
 import { shortLabel } from "@/components/try/labels";
 import { markerItems } from "@/components/try/ResultMarkers";
 import { ZoomableImage } from "@/components/try/ZoomableImage";
@@ -15,8 +16,12 @@ import type { ResultPlacement } from "@/lib/api/types";
  * trying to look at. The cards now live in the margins, joined to the
  * item by a thin line, so the photo stays a photo.
  *
- * Every card is a crop of the result itself, so it can only show
- * something the render actually placed — no invented insets.
+ * Each card shows the retailer's own photo of the product — the thing
+ * the shopper is actually buying, shot properly, where a crop of our
+ * render is a picture of our rendering of it and loses a watch face
+ * entirely. The render is what the numbered dot on the photo is for: it
+ * says where that product ended up. A result saved before the product
+ * photo was recorded falls back to the crop.
  *
  * Below the breakpoint the margins disappear, so the cards become a
  * scrolling strip under the photo and the lines are dropped. */
@@ -233,8 +238,6 @@ function Card({
   natural: { w: number; h: number } | null;
   onMount: (node: HTMLElement | null) => void;
 }) {
-  const [x0, y0, x1, y1] = item.box as number[];
-  const tile = cardCrop({ x0, y0, x1, y1 }, natural);
   return (
     <figure
       ref={onMount}
@@ -243,12 +246,7 @@ function Card({
     >
       <div
         className="relative aspect-square overflow-hidden rounded-[10px] bg-paper-2"
-        style={{
-          backgroundImage: `url(${src})`,
-          backgroundSize: tile.size,
-          backgroundPosition: tile.position,
-          backgroundRepeat: "no-repeat",
-        }}
+        style={productTile(item, src, natural)}
       />
       <figcaption className="mt-1 truncate px-0.5 text-[11px] font-medium leading-tight text-ink">
         {number}. {shortLabel(item.name, item.slot)}
@@ -276,18 +274,11 @@ function LookStrip({
       <p className="mb-2 text-[11px] uppercase tracking-[0.14em] text-faint">Every item, close up</p>
       <div className="flex gap-2.5 overflow-x-auto pb-1.5">
         {items.map((item, i) => {
-          const [x0, y0, x1, y1] = item.box as number[];
-          const tile = cardCrop({ x0, y0, x1, y1 }, natural);
           return (
             <figure key={`${item.product_id ?? item.name}-${i}`} className="w-[108px] shrink-0">
               <div
                 className="relative aspect-square overflow-hidden rounded-[12px] border border-line bg-paper-2"
-                style={{
-                  backgroundImage: `url(${src})`,
-                  backgroundSize: tile.size,
-                  backgroundPosition: tile.position,
-                  backgroundRepeat: "no-repeat",
-                }}
+                style={productTile(item, src, natural)}
               >
                 <span className="absolute left-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-sage text-[10px] font-semibold text-white">
                   {i + 1}
@@ -302,4 +293,31 @@ function LookStrip({
       </div>
     </div>
   );
+}
+
+/** The card's picture: the retailer's photo of the product, or — for a
+ * result saved before that was recorded — a close-up of where the render
+ * put it. */
+function productTile(
+  item: ResultPlacement,
+  src: string,
+  natural: { w: number; h: number } | null,
+): React.CSSProperties {
+  const product = resolveMediaUrl(item.image_url);
+  if (product) {
+    return {
+      backgroundImage: `url(${product})`,
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+      backgroundRepeat: "no-repeat",
+    };
+  }
+  const [x0, y0, x1, y1] = item.box as number[];
+  const tile = cardCrop({ x0, y0, x1, y1 }, natural);
+  return {
+    backgroundImage: `url(${src})`,
+    backgroundSize: tile.size,
+    backgroundPosition: tile.position,
+    backgroundRepeat: "no-repeat",
+  };
 }

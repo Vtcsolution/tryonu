@@ -400,6 +400,11 @@ def _placements(layers: list[_Layer], reports: list[ItemReport]) -> list[dict]:
                 "name": layer.name,
                 "product_id": layer.product_id,
                 "slot": (layer.slot or OutfitSlot.TOP).value,
+                # the retailer's own photo of the thing. A card beside the
+                # result shows the product the shopper is buying; a crop of
+                # the render shows our rendering of it, which is a
+                # different claim and a worse picture of a watch face.
+                "image_url": layer.image_url,
                 "drawn": box is not None,
                 "box": [round(box.x0, 4), round(box.y0, 4), round(box.x1, 4), round(box.y1, 4)] if box else None,
             }

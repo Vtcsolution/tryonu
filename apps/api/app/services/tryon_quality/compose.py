@@ -101,6 +101,39 @@ def _lab_diff(a: np.ndarray, b: np.ndarray, blur: float = 1.5) -> np.ndarray:
     return np.linalg.norm(la - lb, axis=2)
 
 
+def detail_diff(a: np.ndarray, b: np.ndarray, window: int = 9) -> np.ndarray:
+    """How differently textured two images are, pixel for pixel.
+
+    Colour alone misses the change that matters most on a lawn suit. Live,
+    on a Pakistani 3-piece: the customer's photo had her in a plain white
+    T-shirt, and the kameez's chest panel is dense white chikankari on
+    pink. White thread against white cotton is almost no colour
+    difference, so those pixels never counted as changed, and the merge
+    kept the T-shirt — the embroidery, the most recognisable thing about
+    the garment, dissolved into a flat cream smear while the pink around
+    it came through fine. Embroidery is detail where flat cotton has none,
+    whatever colour the thread is, and local contrast says so directly.
+
+    Only ever used to decide how much of an area already chosen as the
+    product to take. It is not used to find the areas: tried there, the
+    wall's own grain and the edges of her hair became changes too, the
+    blobs stopped matching the products, and a whole look that had scored
+    8 scored 1.
+    """
+    grey_a = cv2.cvtColor(a, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    grey_b = cv2.cvtColor(b, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    difference = np.abs(_local_contrast(grey_a, window) - _local_contrast(grey_b, window))
+    # smoothed into areas rather than speckle, and scaled to sit on the
+    # same footing as the Lab distance it is compared against
+    return cv2.GaussianBlur(difference, (0, 0), 2.0) * 2.2
+
+
+def _local_contrast(grey: np.ndarray, window: int) -> np.ndarray:
+    mean = cv2.blur(grey, (window, window))
+    mean_sq = cv2.blur(grey * grey, (window, window))
+    return np.sqrt(np.clip(mean_sq - mean * mean, 0, None))
+
+
 def match_colors(render: np.ndarray, base: np.ndarray, keep: np.ndarray) -> np.ndarray:
     """Undo the render's global colour/contrast drift: fit, per channel, the
     straight line mapping render -> base over pixels that should be
@@ -173,10 +206,35 @@ def _line(x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
 
 
 def _blocked(shape: tuple[int, int], protect: list[tuple[int, int, int, int]]) -> np.ndarray:
-    blocked = np.zeros(shape, bool)
+    """The pixels the merge may never take, as an oval in each protected box.
+
+    A filled rectangle left its own outline in the result. Live, on a
+    Pakistani lawn suit: the kameez stopped dead along a straight
+    horizontal line across the collarbone, bare skin above it, because the
+    box protecting the face reached a fifth of a face-height below the
+    chin and the garment could not be drawn inside it. A face is an oval,
+    and an oval has no straight edge to leave behind."""
+    blocked = np.zeros(shape, np.uint8)
     for px0, py0, px1, py1 in protect:
-        blocked[max(0, py0) : py1, max(0, px0) : px1] = True
-    return blocked
+        cx, cy = (px0 + px1) // 2, (py0 + py1) // 2
+        rx, ry = max(1, (px1 - px0) // 2), max(1, (py1 - py0) // 2)
+        cv2.ellipse(blocked, (cx, cy), (rx, ry), 0, 0, 360, 1, -1)
+    return blocked.astype(bool)
+
+
+def _protected_keep(blocked: np.ndarray) -> np.ndarray:
+    """How much of the render each pixel may keep, 0 inside what is
+    protected and 1 well outside it, ramping between.
+
+    The mask used to be cut to zero at the boundary, which is the same
+    hard edge one step later. The ramp is short — a face does not drift —
+    but long enough that nothing shows where it lands."""
+    if not blocked.any():
+        return np.ones(blocked.shape, np.float32)
+    h, w = blocked.shape
+    ramp = max(4.0, 0.012 * max(h, w))
+    outside = cv2.distanceTransform((~blocked).astype(np.uint8), cv2.DIST_L2, 5)
+    return np.clip(outside / ramp, 0.0, 1.0).astype(np.float32)
 
 
 def _changed_areas(diff: np.ndarray, blocked: np.ndarray, low: float) -> tuple[int, np.ndarray]:
@@ -260,11 +318,12 @@ def _mask_from(
         fade = np.maximum(fade, _fill_holes(hard).astype(np.float32))
         taken = taken | hard
 
-    solid = cv2.dilate(_fill_holes(taken), np.ones((5, 5), np.uint8)).astype(np.float32)
-    solid[blocked] = 0
+    keep = _protected_keep(blocked)
+    solid = cv2.dilate(_fill_holes(taken), np.ones((5, 5), np.uint8)).astype(np.float32) * keep
     soft = cv2.GaussianBlur(solid, (0, 0), 2.0) * fade
-    soft[blocked] = 0  # the soft edge must not bleed into a protected face
-    return soft
+    # the protected face stays the person's own, and the merge fades into
+    # it rather than stopping at a line
+    return soft * keep
 
 
 def _fill_holes(mask: np.ndarray) -> np.ndarray:
@@ -384,6 +443,8 @@ class Changes:
     weak: np.ndarray  # faint-change area labels
     blocked: np.ndarray
     diff: np.ndarray
+    #: texture difference, for deciding how much of a chosen area to take
+    detail: np.ndarray
     candidates: list[Candidate]
     _label_of: dict[int, int]
 
@@ -400,12 +461,20 @@ class Changes:
         inside = cv2.dilate(inside.astype(np.uint8), np.ones((15, 15), np.uint8)).astype(bool)
         n, cores, stats = _strong_cores(np.where(inside, self.diff, 0), self.blocked, high)
         candidates, label_of = _numbered(cores, stats, n)
-        return Changes(self.base, self.aligned, self.render, cores, self.weak, self.blocked, self.diff, candidates, label_of)
+        return Changes(
+            self.base, self.aligned, self.render, cores, self.weak, self.blocked,
+            self.diff, self.detail, candidates, label_of,
+        )
 
     def merge(self, numbers: list[int], reach_share: float = 0.03) -> Merge:
         chosen = [self._label_of[n] for n in numbers if n in self._label_of]
         core = np.isin(self.cores, chosen) & (self.cores > 0) if chosen else np.zeros(self.cores.shape, bool)
-        mask = _mask_from(core, self.weak, self.blocked, reach_share, self.diff)
+        # Embroidery the same colour as what it replaced is still the
+        # product. Inside an area already chosen as this product, a
+        # strong texture change counts as much as a strong colour one.
+        mask = _mask_from(
+            core, self.weak, self.blocked, reach_share, np.maximum(self.diff, self.detail)
+        )
         # colour-fit the pasted pixels on everything EXCEPT the product (and
         # a margin): a big black shirt in the fit dragged it grey-green
         h, w = mask.shape
@@ -440,7 +509,10 @@ def find_changes(
     _, weak = _changed_areas(diff, blocked, low)
     n, cores, stats = _strong_cores(diff, blocked, high, min_share)
     candidates, label_of = _numbered(cores, stats, n, max_candidates)
-    return Changes(base, aligned, corrected, cores, weak, blocked, diff, candidates, label_of)
+    return Changes(
+        base, aligned, corrected, cores, weak, blocked, diff,
+        detail_diff(base, corrected), candidates, label_of,
+    )
 
 
 def _numbered(

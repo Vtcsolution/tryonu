@@ -119,12 +119,17 @@ class Settings(BaseSettings):
     # Measured per render (shirt/dress/shoes/bag/watch): "low" ~15s and scored
     # 8-9, "medium" ~32s, "high" ~87s and scored WORSE (it redraws more of the
     # photo instead of reproducing the product). Speed here is free quality.
-    OPENAI_IMAGE_QUALITY: Literal["low", "medium", "high"] = "low"
+    # Measured live on a 3-item look (lawn suit + leather tote + watch),
+    # same photo, same products: "low" rendered the whole look in 17s and
+    # scored product=8; "medium" took 19s and scored 9, holding the
+    # kameez's embroidery and the tote's embossed base. Two seconds is
+    # not the part of a minute worth saving.
+    OPENAI_IMAGE_QUALITY: Literal["low", "medium", "high"] = "medium"
     # What a failed item is re-rendered at. "high" measured WORSE than "low"
     # overall (it redraws more of the photo), so the step up is "medium":
     # ~32s, and it holds colour and fine embroidery that "low" loses — an
     # ivory dress came back pink with its gold work flattened.
-    OPENAI_IMAGE_QUALITY_RETRY: Literal["low", "medium", "high"] = "medium"
+    OPENAI_IMAGE_QUALITY_RETRY: Literal["low", "medium", "high"] = "high"
     # looks at images (product analysis, locating the worn item, quality checks) — never draws
     OPENAI_VISION_MODEL: str = "gpt-5.4-mini"
     # with the FASHN provider: render outfits that include shoes, bags or

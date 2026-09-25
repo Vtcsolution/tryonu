@@ -133,6 +133,9 @@ export type ResultPlacement = {
   name: string;
   product_id: string | null;
   slot: string | null;
+  /** The retailer's own product photo. Absent on results rendered before
+   *  it was recorded, which fall back to a crop of the render. */
+  image_url?: string | null;
   drawn: boolean;
   box: number[] | null;
 };

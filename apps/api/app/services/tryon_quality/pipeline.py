@@ -134,6 +134,10 @@ _EYEWEAR = re.compile(r"\b(sunglasses|glasses|eyeglasses|spectacles|goggles)\b")
 _AROUND_THE_NECK = _BODY_PART_FOR[2][0]  # necklace, choker, pendant, chain, tie, scarf
 _ON_THE_FLOOR = {OutfitSlot.SHOES}  # and anything else a person stands in
 _ON_THE_FLOOR_AREA = Region(0.0, 0.62, 1.0, 1.0)
+# A carried bag has no anatomy of its own, but it is always next to the
+# hand or shoulder carrying it — enough to trim a box that swallowed the
+# whole body down to somewhere a bag could be.
+_PART_FOR_SLOT = {OutfitSlot.BAG: "the person's hands, forearms and shoulders"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -402,10 +406,40 @@ def _settle(box: Region, area: Region) -> Region:
     return area
 
 
-def _inside(box: Region, area: Region) -> bool:
-    """Is the box's middle within the area it ought to be in?"""
-    x, y = (box.x0 + box.x1) / 2, (box.y0 + box.y1) / 2
-    return area.x0 <= x <= area.x1 and area.y0 <= y <= area.y1
+async def _area_for(item: LookItem, face, base: np.ndarray) -> Region | None:  # noqa: ANN001
+    """Where this item can be, asking the photo when geometry can't say.
+
+    A watch is on a wrist, and a wrist is wherever the person's arms
+    happen to be — no fraction of the frame answers that. Live, a watch
+    the render had put correctly on the wrist was recorded at x
+    0.68-0.71, y 0.72-0.83, a strip of dupatta: the whole-look render
+    changed the whole outfit, so the blob the vision model picked out of
+    everything that changed was not the watch. The same body-part lookup
+    the close-up renders already use answers it directly."""
+    area = _plausible_area(item, face, base.shape[:2])
+    if area is not None:
+        return area
+    part = _body_part_of(item) or _PART_FOR_SLOT.get(item.slot)
+    if part is None:
+        return None
+    try:
+        return await find_body_part(base, part)
+    except VisionError:
+        return None
+
+
+def _too_big_to_be(item: LookItem, box: Region) -> bool:
+    """A bag is not a torso, a watch is not a leg.
+
+    When the whole look is rendered at once every item's blob runs into
+    every other item's, and an item can end up recorded across the whole
+    standing body. A marker pointing at the middle of someone's chest and
+    calling it a handbag is worse than no marker: the item still appears
+    in the list of what was put on, it just stops claiming a place on the
+    photo."""
+    if item.slot in _GARMENTS:
+        return False  # a dress really is most of a full-body photo
+    return (box.x1 - box.x0) * (box.y1 - box.y0) > 0.25
 
 
 async def _tight_box(
@@ -533,11 +567,18 @@ async def _whole_look_pass(
     boxes = await asyncio.gather(
         *(_tight_box(changes, picks[i], items[i], products[i], descriptions[i]) for i in kept_indexes)
     )
-    for index, box in zip(kept_indexes, boxes):
+    areas = await asyncio.gather(*(_area_for(items[i], face, base) for i in kept_indexes))
+    for index, box, area in zip(kept_indexes, boxes, areas):
         # ...and refuse a box that can't be where that item goes: a pair of
         # earrings was once labelled onto the chandelier above the bride
-        area = _plausible_area(items[index], face, base.shape[:2])
-        reports[index].box = _settle(box, area) if area is not None and not _inside(box, area) else box
+        # Always trimmed, not only when the box is somewhere impossible.
+        # A box whose middle is in the right place can still be far too
+        # big for the thing it names: the tote's box was centred on her
+        # hands and still covered 42% of the photo, because the
+        # whole-look render changed the outfit around it too.
+        if area is not None:
+            box = _settle(box, area)
+        reports[index].box = None if _too_big_to_be(items[index], box) else box
     logger.info("tryon_whole_look", kept=len(items) - len(todo), redo=len(todo))
     if not keep:
         # nothing survived, but the inspector still said what was wrong with
