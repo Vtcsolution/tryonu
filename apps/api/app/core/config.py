@@ -101,10 +101,17 @@ class Settings(BaseSettings):
     # --- AI providers ---
     # "mock" needs no credentials and simulates a realistic job lifecycle —
     # used automatically whenever the real provider has no API key set.
-    VIRTUAL_TRYON_PROVIDER: Literal["fashn", "openai", "mock"] = "mock"
+    VIRTUAL_TRYON_PROVIDER: Literal["fashn", "openai", "gemini", "mock"] = "mock"
     FASHN_API_KEY: str | None = None
     FASHN_API_BASE_URL: str = "https://api.fashn.ai/v1"
     FASHN_MODEL: Literal["tryon-v1.6", "tryon-max"] = "tryon-v1.6"
+
+    # try-on via Google Gemini image editing, "nano banana"
+    # (VIRTUAL_TRYON_PROVIDER=gemini). Untested against ours so far — the
+    # adapter exists so it can be measured on the same photos, the same
+    # products and the same inspector, rather than argued about.
+    GEMINI_API_KEY: str | None = None
+    GEMINI_IMAGE_MODEL: str = "gemini-2.5-flash-image"
 
     LLM_PROVIDER: Literal["openai", "mock"] = "mock"
     OPENAI_API_KEY: str | None = None
@@ -262,6 +269,8 @@ class Settings(BaseSettings):
         if self.VIRTUAL_TRYON_PROVIDER == "fashn" and not self.FASHN_API_KEY:
             self.VIRTUAL_TRYON_PROVIDER = "mock"
         if self.VIRTUAL_TRYON_PROVIDER == "openai" and not self.OPENAI_API_KEY:
+            self.VIRTUAL_TRYON_PROVIDER = "mock"
+        if self.VIRTUAL_TRYON_PROVIDER == "gemini" and not self.GEMINI_API_KEY:
             self.VIRTUAL_TRYON_PROVIDER = "mock"
         if self.LLM_PROVIDER == "openai" and not self.OPENAI_API_KEY:
             self.LLM_PROVIDER = "mock"

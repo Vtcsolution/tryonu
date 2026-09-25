@@ -13,6 +13,7 @@ from functools import lru_cache
 from app.ai.providers.base import VirtualTryOnProvider
 from app.ai.providers.fashn import FASHNTryOnProvider
 from app.ai.providers.mock import MockTryOnProvider
+from app.ai.providers.gemini_image import GeminiImageTryOnProvider
 from app.ai.providers.openai_image import OpenAIImageTryOnProvider
 from app.core.config import get_settings
 from app.models.enums import OutfitSlot
@@ -35,6 +36,12 @@ def get_tryon_provider() -> VirtualTryOnProvider:
             api_key=settings.OPENAI_API_KEY,  # type: ignore[arg-type]
             model=settings.OPENAI_IMAGE_MODEL,
             quality=settings.OPENAI_IMAGE_QUALITY,
+        )
+
+    if settings.VIRTUAL_TRYON_PROVIDER == "gemini":
+        return GeminiImageTryOnProvider(
+            api_key=settings.GEMINI_API_KEY,  # type: ignore[arg-type]
+            model=settings.GEMINI_IMAGE_MODEL,
         )
 
     return MockTryOnProvider()
