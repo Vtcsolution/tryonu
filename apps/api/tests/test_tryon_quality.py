@@ -544,3 +544,43 @@ async def test_a_broken_progress_callback_never_fails_the_render(fake_vision):
         encode_jpeg(_person(), 97), ITEMS, _renderer([]), retries=0, on_progress=explode
     )
     assert image[:2] == b"\xff\xd8"  # the customer still gets their photo
+
+
+def test_a_marker_cannot_land_somewhere_the_item_could_never_be():
+    """Live: jhumka earrings were labelled onto the chandelier above the
+    bride's head — the render had nudged the ceiling lights and the
+    vision model picked that blob. Earrings are on ears."""
+    from app.services.face_restore import Box
+
+    # the bride stands in the room, her face a quarter of the way down;
+    # the ceiling lights are well above her hair
+    face = Box(x=400, y=380, w=200, h=260)
+    shape = (1536, 1024)
+
+    earrings = pipeline.LookItem("https://img/x.jpg", OutfitSlot.ACCESSORY, "Kundan Pearl Jhumka Earrings")
+    area = pipeline._plausible_area(earrings, face, shape)
+    assert area is not None
+    chandelier = pipeline.Region(0.35, 0.02, 0.65, 0.12)  # far above the head
+    assert not pipeline._inside(chandelier, area)
+    on_the_ear = pipeline.Region(0.37, 0.30, 0.42, 0.37)
+    assert pipeline._inside(on_the_ear, area)
+
+
+def test_a_necklace_belongs_below_the_face_not_above_it():
+    from app.services.face_restore import Box
+
+    face = Box(x=400, y=100, w=200, h=260)
+    necklace = pipeline.LookItem("https://img/x.jpg", OutfitSlot.ACCESSORY, "14k Gold Rope Chain Necklace")
+    area = pipeline._plausible_area(necklace, face, (1536, 1024))
+    assert area is not None
+    assert pipeline._inside(pipeline.Region(0.44, 0.22, 0.56, 0.26), area)  # at the collarbone
+    assert not pipeline._inside(pipeline.Region(0.44, 0.03, 0.56, 0.07), area)  # in the ceiling
+
+
+def test_items_with_no_fixed_place_are_left_alone():
+    """A dress or a bag can be almost anywhere in frame; only things with
+    an anatomical home are second-guessed."""
+    from app.services.face_restore import Box
+
+    dress = pipeline.LookItem("https://img/x.jpg", OutfitSlot.DRESS, "Bridal Red Lehenga Choli")
+    assert pipeline._plausible_area(dress, Box(x=400, y=100, w=200, h=260), (1536, 1024)) is None

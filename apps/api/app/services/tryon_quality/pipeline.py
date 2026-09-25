@@ -124,6 +124,7 @@ def _body_part_of(item: LookItem) -> str | None:
 # clothing that layers onto other clothing
 _GARMENTS = {OutfitSlot.DRESS, OutfitSlot.TOP, OutfitSlot.BOTTOM, OutfitSlot.OUTERWEAR}
 _EYEWEAR = re.compile(r"\b(sunglasses|glasses|eyeglasses|spectacles|goggles)\b")
+_AROUND_THE_NECK = _BODY_PART_FOR[2][0]  # necklace, choker, pendant, chain, tie, scarf
 
 
 @dataclass(frozen=True, slots=True)
@@ -344,6 +345,37 @@ async def _pick_areas(changes: Changes, product: np.ndarray, description: str, i
     return picked or []
 
 
+def _plausible_area(item: LookItem, face, shape: tuple[int, int]) -> Region | None:  # noqa: ANN001
+    """Roughly where an item of this kind can be on a body.
+
+    Live: a pair of jhumka earrings was labelled onto the chandelier
+    above the bride's head — the render had nudged the ceiling lights and
+    the vision model picked that blob. Earrings are on ears, so a box
+    nowhere near the head is wrong however confident anything is about
+    it."""
+    if face is None:
+        return None
+    h, w = shape
+    left, top = face.x / w, face.y / h
+    right, bottom = (face.x + face.w) / w, (face.y + face.h) / h
+    tall, wide = (bottom - top), (right - left)
+    name = item.name.lower()
+
+    near_left, near_right = max(0.0, left - wide), min(1.0, right + wide)
+    if worn_on_head(name):  # earrings, tikka, hairband, glasses
+        # up into the hair, down to just under the jaw
+        return Region(near_left, max(0.0, top - 0.4 * tall), near_right, min(1.0, bottom + 0.6 * tall))
+    if _AROUND_THE_NECK.search(name):  # necklace, choker, pendant, tie, scarf
+        return Region(near_left, top + 0.5 * tall, near_right, min(1.0, bottom + 2.5 * tall))
+    return None
+
+
+def _inside(box: Region, area: Region) -> bool:
+    """Is the box's middle within the area it ought to be in?"""
+    x, y = (box.x0 + box.x1) / 2, (box.y0 + box.y1) / 2
+    return area.x0 <= x <= area.x1 and area.y0 <= y <= area.y1
+
+
 async def _tight_box(
     changes: Changes, picked: list[int], item: LookItem, product: np.ndarray, description: str
 ) -> Region:
@@ -449,7 +481,14 @@ async def _whole_look_pass(
             f"whole look: product={verdict.product_match:.0f} worn={verdict.worn_correctly:.0f} "
             f"realism={verdict.realism:.0f}"
         )
-        if verdict.passes(min_product, min_other):
+        # A near miss is kept as it is. Redrawing one item costs 20-35s of
+        # a shopper's minute, and "product 6 instead of 7" is a detail
+        # they will not see — being wrong about the colour, the shape or
+        # where it sits scores far below this and still gets redrawn.
+        close = verdict.passes(min_product - 1, min_other - 1)
+        if verdict.passes(min_product, min_other) or close:
+            if close and not verdict.passes(min_product, min_other):
+                report.history.append("kept as a near miss rather than spending a redraw")
             report.verdict = verdict
             kept_indexes.append(index)
             keep.extend(picked)
@@ -463,7 +502,10 @@ async def _whole_look_pass(
         *(_tight_box(changes, picks[i], items[i], products[i], descriptions[i]) for i in kept_indexes)
     )
     for index, box in zip(kept_indexes, boxes):
-        reports[index].box = box
+        # ...and refuse a box that can't be where that item goes: a pair of
+        # earrings was once labelled onto the chandelier above the bride
+        area = _plausible_area(items[index], face, base.shape[:2])
+        reports[index].box = area if area is not None and not _inside(box, area) else box
     logger.info("tryon_whole_look", kept=len(items) - len(todo), redo=len(todo))
     if not keep:
         # nothing survived, but the inspector still said what was wrong with

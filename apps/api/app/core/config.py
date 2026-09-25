@@ -146,8 +146,10 @@ class Settings(BaseSettings):
     # customer is watching a spinner, and a 3-item outfit that re-rendered
     # everything sequentially reached 141s live
     # Past this, no further attempt is bought and the best one is
-    # returned as it is — a minute of waiting should end in a photo.
-    TRYON_QUALITY_BUDGET_SECONDS: int = 70
+    # returned as it is. Set below a minute on purpose: a redraw takes
+    # 20-35s, so this is the last moment one can start and still leave
+    # the shopper with a photo inside their minute.
+    TRYON_QUALITY_BUDGET_SECONDS: int = 40
     TRYON_QUALITY_MIN_PRODUCT: int = 7  # 0-10: exact product (colour, pattern, logo, hardware)
     TRYON_QUALITY_MIN_FIT: int = 6  # 0-10: worn correctly, and realism
     EMBEDDING_DIM: int = 1536
