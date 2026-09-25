@@ -136,13 +136,23 @@ def _deduplicate(results: list[LiveSearchResult]) -> list[LiveSearchResult]:
     are both connected to (a merchant's own feed and CJ, AliExpress and
     Daraz) — the shopper gains nothing from seeing it twice.
 
-    Deliberately NOT dropped: two listings with the same title and price
-    from the same retailer. Those are usually variants — the red one and
-    the blue one — and that's a choice, not a duplicate. Titles shorter
-    than three words are too generic to judge by, so they are left alone
-    as well."""
+    Listings from the *same* retailer at the same price whose titles
+    agree up to their last few words are variants — the red one and the
+    blue one — and that's a choice, not a duplicate, so the first two are
+    kept. Not all of them: live, "New 2 Pc Pakistani Print Lawn Kurti
+    Trousers Suit Scalloped Trim" at $29.99 in Magenta, Sage, Black,
+    Navy and Black XL took five of the twelve places on the shelf. The
+    comparison ignores the tail of the title because that is where a
+    colour and a size sit. A shopper who wants the other colours can open
+    the listing.
+
+    Titles shorter than three words are too generic to judge by, so they
+    are left alone."""
+    _VARIANTS_SHOWN = 2
+    _NAME_WORDS = 8  # colour and size live at the end of a listing title
     seen_ids: set[tuple[str, str]] = set()
     elsewhere: dict[tuple[str, int], str] = {}
+    variants: dict[tuple[str, str, int], int] = {}
     kept: list[LiveSearchResult] = []
     for result in results:
         key = (result.provider.slug, result.raw.retailer_product_id)
@@ -150,8 +160,13 @@ def _deduplicate(results: list[LiveSearchResult]) -> list[LiveSearchResult]:
             continue
         title = _normalised_title(result.raw.name)
         same_product = (title, result.raw.price_cents)
-        if len(title.split()) >= 3 and elsewhere.get(same_product, result.provider.slug) != result.provider.slug:
-            continue
+        if len(title.split()) >= 3:
+            if elsewhere.get(same_product, result.provider.slug) != result.provider.slug:
+                continue
+            here = (result.provider.slug, " ".join(title.split()[:_NAME_WORDS]), result.raw.price_cents)
+            if variants.get(here, 0) >= _VARIANTS_SHOWN:
+                continue
+            variants[here] = variants.get(here, 0) + 1
         seen_ids.add(key)
         elsewhere.setdefault(same_product, result.provider.slug)
         kept.append(result)
@@ -210,11 +225,26 @@ async def live_search(query: str, *, limit: int = 24) -> list[LiveSearchResult]:
     share = max(8, min(limit, _MAX_PER_RETAILER))
     per_provider = await asyncio.gather(*(_ask(provider, query, share) for provider in providers))
 
-    results = _deduplicate(_interleave(list(per_provider)))
-    # Retailers match loosely: "khussa shoes" came back from one of them as
-    # men's sneakers. A listing has to contain at least one of the words
-    # that actually pin down the query.
-    results = keep_relevant(results, query, title=lambda r: r.raw.name)
+    # Relevance is judged inside each retailer's own answer, before they
+    # are mixed. Retailers match loosely — "khussa shoes" came back from
+    # one of them as men's sneakers — but they also use different words
+    # for the same thing, and judging the merged list let one retailer's
+    # vocabulary wipe another off the page: a "pakistani lawn suit"
+    # search fetched 48 listings from each of eBay and AliExpress and put
+    # twelve eBay ones on the shelf, because AliExpress sellers write
+    # "Punjabi 3-piece" and never "lawn". Each retailer now keeps its own
+    # best matches and they are mixed afterwards, so the shelf is a mix.
+    # keep_at_least=0: a retailer with nothing relevant contributes
+    # nothing, rather than padding its own noise back in. The promise that
+    # a shopper never gets an empty page belongs to the shelf, and is kept
+    # below.
+    relevant = [
+        keep_relevant(batch, query, title=lambda r: r.raw.name, keep_at_least=0)
+        for batch in per_provider
+    ]
+    results = _deduplicate(_interleave(relevant))
+    if not results:
+        results = _deduplicate(_interleave(list(per_provider)))
     hidden = await _hidden_product_keys(results)
     if hidden:
         results = [r for r in results if (r.provider.slug, r.raw.retailer_product_id) not in hidden]
