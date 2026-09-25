@@ -250,3 +250,63 @@ async def test_a_retailers_loose_match_is_not_shown_to_the_shopper(monkeypatch):
 
     names = [r.raw.name for r in await live_search("khussa shoes", limit=10)]
     assert names and all("khussa" in n.lower() for n in names)
+
+
+async def test_a_pick_is_not_filtered_away_by_the_shelfs_own_tidying(monkeypatch):
+    """Live: "Try on" on a stylist alternative answered "that item is no
+    longer available". The item was found, then dropped — the lookup went
+    through the shopper-facing shelf, which drops listings that don't
+    share the query's distinctive words, and an alternative is by
+    definition a different product from the one it is an alternative to."""
+    plain = _FakeProvider(
+        "a", items=[_raw("a1", "Michael Kors Ava Stiletto Heels"), _raw("a2", "SIEZVOL Japanese Bow Flats")]
+    )
+    monkeypatch.setattr("app.services.live_search_service.get_all_providers", lambda: [plain])
+
+    found = await find_live_result(
+        "Michael Kors Ava Stiletto Heels", retailer_slug="a", retailer_product_id="a2"
+    )
+    assert found is not None and found.raw.retailer_product_id == "a2"
+
+
+async def test_a_long_title_that_finds_nothing_is_tried_shorter(monkeypatch):
+    """Verified live: AliExpress answers "Fabulicious Women's Black Patent
+    Platform Heels" with nothing at all, and "black patent platform heels"
+    with products. A shopper clicks an alternative with its own full title
+    as the query, so the long one is what we get."""
+
+    class _FussyAboutLongQueries(_FakeProvider):
+        def __init__(self):
+            super().__init__("a", items=[_raw("a1", "Black Patent Platform Heels")])
+            self.asked: list[str] = []
+
+        async def search_live(self, *, query: str, limit: int = 24):
+            self.asked.append(query)
+            return self._items if len(query.split()) <= 5 else []
+
+    fussy = _FussyAboutLongQueries()
+    monkeypatch.setattr("app.services.live_search_service.get_all_providers", lambda: [fussy])
+
+    found = await find_live_result(
+        "Fabulicious Women's Black Patent Platform Ankle Strap Heels Size 8",
+        retailer_slug="a",
+        retailer_product_id="a1",
+    )
+    assert found is not None
+    assert len(fussy.asked) == 2 and len(fussy.asked[1].split()) == 5
+
+
+async def test_a_short_query_is_only_asked_once(monkeypatch):
+    class _Counting(_FakeProvider):
+        def __init__(self):
+            super().__init__("a", items=[_raw("a1")])
+            self.asked: list[str] = []
+
+        async def search_live(self, *, query: str, limit: int = 24):
+            self.asked.append(query)
+            return []
+
+    counting = _Counting()
+    monkeypatch.setattr("app.services.live_search_service.get_all_providers", lambda: [counting])
+    assert await find_live_result("blue denim jacket", retailer_slug="a", retailer_product_id="a1") is None
+    assert counting.asked == ["blue denim jacket"]

@@ -48,6 +48,7 @@ class LiveSearchResult:
 _MAX_PER_RETAILER = 48
 _CACHE_TTL_SECONDS = 180
 _CACHE_MAX_ENTRIES = 400
+_SHORT_QUERY_WORDS = 5  # enough to name a thing, short enough for a retailer to match
 _cache: dict[tuple[str, int], tuple[float, list[LiveSearchResult]]] = {}
 
 
@@ -235,22 +236,74 @@ async def find_live_result(query: str, *, retailer_slug: str, retailer_product_i
     sitting on screen in front of them. Only a retailer that can't look
     items up by id falls back to the search scan."""
     provider = next((p for p in get_all_providers() if p.slug == retailer_slug), None)
-    if provider is not None:
-        try:
-            raw = await provider.fetch_by_id(retailer_product_id)
-        except (NotImplementedError, RetailerNotConfiguredError):
-            raw = None
-        except Exception as exc:  # noqa: BLE001 — fall back to the search
-            logger.warning("find_live_by_id_failed", retailer=retailer_slug, error=str(exc)[:200])
-            raw = None
-        else:
-            if raw is not None:
-                return LiveSearchResult(provider=provider, raw=raw)
-            # a definite "gone" from the retailer still deserves the
-            # search fallback: some ids only resolve through search
-            logger.info("find_live_by_id_empty", retailer=retailer_slug, product=retailer_product_id[:60])
+    if provider is None:
+        return None
+    if provider.slug in await _disabled_retailer_slugs():
+        return None  # an admin turned this retailer off
 
-    for result in await live_search(query, limit=48):
-        if result.provider.slug == retailer_slug and result.raw.retailer_product_id == retailer_product_id:
-            return result
+    raw = await _by_id(provider, retailer_product_id) or await _by_search(
+        provider, query, retailer_product_id
+    )
+    if raw is None:
+        return None
+    result = LiveSearchResult(provider=provider, raw=raw)
+    hidden = await _hidden_product_keys([result])
+    return None if (provider.slug, raw.retailer_product_id) in hidden else result
+
+
+async def _by_id(provider: ProductProvider, retailer_product_id: str) -> RawProduct | None:
+    """The listing itself, from the retailers that can look one up."""
+    try:
+        raw = await provider.fetch_by_id(retailer_product_id)
+    except (NotImplementedError, RetailerNotConfiguredError):
+        return None
+    except Exception as exc:  # noqa: BLE001 — fall back to the search
+        logger.warning("find_live_by_id_failed", retailer=provider.slug, error=str(exc)[:200])
+        return None
+    if raw is None:
+        # a definite "gone" from the retailer still deserves the search
+        # fallback: some ids only resolve through search
+        logger.info("find_live_by_id_empty", retailer=provider.slug, product=retailer_product_id[:60])
+    return raw
+
+
+async def _by_search(provider: ProductProvider, query: str, retailer_product_id: str) -> RawProduct | None:
+    """Ask that one retailer for the same words and look for the id.
+
+    Deliberately not live_search(): that builds the shopper-facing shelf,
+    and everything it does to make a shelf readable — dropping listings
+    that don't match the query's distinctive words, dropping a duplicate
+    of something another retailer also sells, cutting to one page — can
+    drop the very item being looked up. Here we already know exactly
+    which listing is wanted, so none of it applies.
+
+    The words are tried shortest-last. A stylist alternative is clicked
+    with its own full title as the query, and AliExpress answers a long
+    brand-heavy title with nothing at all (verified live: 0 results for
+    "Fabulicious Women's Black Patent Platform Heels", 3 for "black
+    patent platform heels") — so a first-page miss gets one more try with
+    the query cut down."""
+    for words in _narrowing(query):
+        try:
+            found = await provider.search_live(query=words, limit=_MAX_PER_RETAILER)
+        except (NotImplementedError, RetailerNotConfiguredError):
+            return None
+        except Exception as exc:  # noqa: BLE001 — a broken retailer reads as "gone"
+            logger.warning("find_live_search_failed", retailer=provider.slug, error=str(exc)[:200])
+            return None
+        for raw in found:
+            if raw.retailer_product_id == retailer_product_id:
+                return raw
+    logger.info(
+        "find_live_not_found", retailer=provider.slug, product=retailer_product_id[:60], query=query[:80]
+    )
     return None
+
+
+def _narrowing(query: str) -> list[str]:
+    """The query, then a shorter version of it if there is one worth
+    trying — the first few words that actually pin it down."""
+    words = query.split()
+    if len(words) <= _SHORT_QUERY_WORDS:
+        return [query]
+    return [query, " ".join(words[:_SHORT_QUERY_WORDS])]
