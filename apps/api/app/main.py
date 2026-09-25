@@ -13,6 +13,7 @@ from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.core.logging import RequestLoggingMiddleware, configure_logging, logger
 from app.core.runtime_settings import refresh_if_stale
+from app.core.version import running_commit
 from app.db.schema_state import schema_status
 from app.services.queue import queue_state
 from app.services.stuck_jobs import sweep_forever
@@ -144,6 +145,9 @@ def create_app() -> FastAPI:
         return {
             "status": "ok",
             "env": settings.ENV,
+            # which commit this process is running, so "is it deployed?"
+            # is answerable from outside without a shell on the box
+            "commit": running_commit(),
             "tryon_provider": settings.VIRTUAL_TRYON_PROVIDER,
             "queue": queue_state(),
             "schema": await schema_status(),

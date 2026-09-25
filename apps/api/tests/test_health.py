@@ -45,3 +45,12 @@ async def test_startup_shouts_when_the_database_is_behind_the_code(capsys, monke
     logged = printed.out + printed.err
     assert "database_schema_behind_code" in logged
     assert "alembic upgrade head" in logged  # says what to do, not just that it's wrong
+
+
+async def test_health_says_which_commit_is_running(client):
+    """"Is the fix deployed?" has cost more time here than most bugs —
+    a pull without a restart looks exactly like a restart without a pull."""
+    body = (await client.get("/health")).json()
+    assert "commit" in body
+    commit = body["commit"]
+    assert commit is None or (len(commit) == 7 and commit.isalnum())
