@@ -137,14 +137,17 @@ class Settings(BaseSettings):
     # the quality pipeline (app/services/tryon_quality): keep the person's own
     # pixels outside the product, grade every item, retry or refuse bad renders
     TRYON_QUALITY_PIPELINE: bool = True
-    # extra renders per item when one fails inspection. 2 means a rejected
-    # item gets its own detailed render and then one more with a new seed
-    # before the try-on is refused — only failures pay for this.
-    TRYON_QUALITY_RETRIES: int = 2
+    # Extra renders per item when one fails inspection. 1 means a rejected
+    # item gets its own detailed render, and that is the last word: a
+    # second retry rarely flipped a verdict and cost another ~35s on a
+    # shopper already watching a spinner.
+    TRYON_QUALITY_RETRIES: int = 1
     # how long the look may spend before it stops buying more attempts: the
     # customer is watching a spinner, and a 3-item outfit that re-rendered
     # everything sequentially reached 141s live
-    TRYON_QUALITY_BUDGET_SECONDS: int = 150
+    # Past this, no further attempt is bought and the best one is
+    # returned as it is — a minute of waiting should end in a photo.
+    TRYON_QUALITY_BUDGET_SECONDS: int = 70
     TRYON_QUALITY_MIN_PRODUCT: int = 7  # 0-10: exact product (colour, pattern, logo, hardware)
     TRYON_QUALITY_MIN_FIT: int = 6  # 0-10: worn correctly, and realism
     EMBEDDING_DIM: int = 1536

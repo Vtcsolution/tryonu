@@ -505,6 +505,7 @@ async def _render_one(
     turned an ivory dress pink and flattened its gold embroidery."""
     best: tuple[float, Merge, Verdict] | None = None
     already_failed = bool(fix)
+    out_of_time = False
     last_region: Region | None = None
     part = _body_part_of(item) if zoom_small and item.slot in _SMALL else None
     region_is_body_part = False
@@ -571,9 +572,9 @@ async def _render_one(
             break
         fix = verdict.fix
         if deadline is not None and time.monotonic() > deadline:
-            # the customer is watching a spinner: stop spending renders and
-            # answer with the best attempt (or refuse) rather than going on
+            # the customer is watching a spinner: stop spending renders
             report.history.append("out of time for another attempt")
+            out_of_time = True
             break
 
     assert best is not None
@@ -582,6 +583,17 @@ async def _render_one(
     report.box = last_region
     logger.info("tryon_item_quality", item=item.name[:80], history=report.history)
     if not verdict.passes(_min_product_for(item, min_product), min_other):
+        if out_of_time:
+            # A shopper who has waited a minute wants their photo, not a
+            # refund and an apology. Past the budget the best attempt goes
+            # out, with what the inspector disliked recorded against it.
+            logger.warning(
+                "tryon_item_shipped_on_time_limit",
+                item=item.name[:80],
+                issues=verdict.issues[:2],
+                history=report.history,
+            )
+            return merge.image, merge.mask
         raise QualityFailure(item.name, verdict.issues)
     return merge.image, merge.mask
 

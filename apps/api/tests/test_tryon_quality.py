@@ -452,17 +452,28 @@ async def test_clothes_are_still_drawn_one_on_top_of_the_other(fake_vision):
     assert not np.array_equal(bases[0][y0:y1, x0:x1], bases[1][y0:y1, x0:x1])
 
 
-async def test_attempts_stop_once_the_look_has_taken_too_long(fake_vision):
-    """Better a flawed answer (or an honest refusal) than a customer still
-    watching a spinner at five minutes."""
+async def test_past_the_budget_the_best_attempt_ships_rather_than_nothing(fake_vision):
+    """A shopper who has waited a minute wants their photo, not a refund
+    and an apology. Inside the budget a poor render is still refused —
+    see the test below — but past it the best one goes out."""
     fake_vision.extend([BAD, BAD, BAD])
     calls: list = []
 
+    image, reports = await pipeline.render_look(
+        encode_jpeg(_person(), 97), ITEMS, _renderer(calls), retries=5, budget_seconds=0.0
+    )
+    assert image.startswith(b"\xff\xd8")  # they got their photo
+    assert len(calls) == 1  # and no second attempt was bought
+    assert "out of time" in reports[0].history[-1]
+
+
+async def test_inside_the_budget_a_poor_render_is_still_refused(fake_vision):
+    """The time limit is a deadline, not a lowering of the bar."""
+    fake_vision.extend([BAD, BAD])
     with pytest.raises(pipeline.QualityFailure):
         await pipeline.render_look(
-            encode_jpeg(_person(), 97), ITEMS, _renderer(calls), retries=5, budget_seconds=0.0
+            encode_jpeg(_person(), 97), ITEMS, _renderer([]), retries=1, budget_seconds=600
         )
-    assert len(calls) == 1  # no second attempt was bought
 
 
 async def test_the_report_says_where_each_item_ended_up(fake_vision):
