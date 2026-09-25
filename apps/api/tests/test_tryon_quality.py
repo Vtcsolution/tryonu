@@ -584,3 +584,45 @@ def test_items_with_no_fixed_place_are_left_alone():
 
     dress = pipeline.LookItem("https://img/x.jpg", OutfitSlot.DRESS, "Bridal Red Lehenga Choli")
     assert pipeline._plausible_area(dress, Box(x=400, y=100, w=200, h=260), (1536, 1024)) is None
+
+
+def test_shoes_cannot_be_recorded_as_the_whole_standing_body():
+    """Live: a pair of derby shoes came back with a box of x 0.08-0.71,
+    y 0.04-1.00 — the render changed the dress and the shoes together, so
+    the shoes took the whole figure, and their card beside the photo was
+    another copy of the photo."""
+    from app.services.face_restore import Box
+
+    shoes = pipeline.LookItem("https://img/x.jpg", OutfitSlot.SHOES, "George Men's Tan Leather Derby Shoes")
+    area = pipeline._plausible_area(shoes, Box(x=400, y=380, w=200, h=260), (1536, 1024))
+    assert area is not None
+
+    whole_body = pipeline.Region(0.077, 0.042, 0.711, 1.0)
+    assert not pipeline._inside(whole_body, area)
+    settled = pipeline._settle(whole_body, area)
+    # the render still knew which side of the frame they were on
+    assert (settled.x0, settled.x1) == (0.077, 0.711)
+    assert settled.y0 >= 0.6 and settled.y1 == 1.0
+
+
+def test_a_box_with_nothing_plausible_left_falls_back_to_the_area():
+    area = pipeline.Region(0.2, 0.6, 0.8, 1.0)
+    in_the_ceiling = pipeline.Region(0.3, 0.02, 0.5, 0.1)
+    assert pipeline._settle(in_the_ceiling, area) == area
+
+
+def test_a_shoes_box_that_is_already_at_the_feet_is_left_alone():
+    from app.services.face_restore import Box
+
+    shoes = pipeline.LookItem("https://img/x.jpg", OutfitSlot.SHOES, "Suede Ankle Boots")
+    area = pipeline._plausible_area(shoes, Box(x=400, y=380, w=200, h=260), (1536, 1024))
+    at_the_feet = pipeline.Region(0.423, 0.931, 0.671, 1.0)
+    assert area is not None and pipeline._inside(at_the_feet, area)
+
+
+def test_a_dress_is_never_second_guessed():
+    """A garment legitimately covers most of a full-body photo."""
+    from app.services.face_restore import Box
+
+    dress = pipeline.LookItem("https://img/x.jpg", OutfitSlot.DRESS, "Pakistani Salwar Kameez 3 PC")
+    assert pipeline._plausible_area(dress, Box(x=400, y=380, w=200, h=260), (1536, 1024)) is None

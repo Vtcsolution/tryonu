@@ -91,6 +91,13 @@ _DEFAULT_REGION = {
 # worn items that are small in a full-body photo: refined to their own
 # pixels instead of taking a whole redrawn arm or torso around them
 _SMALL = {OutfitSlot.WATCH, OutfitSlot.ACCESSORY, OutfitSlot.OTHER}
+# ...and the ones whose box needs the same refinement without the softer
+# quality bar _SMALL also buys. Live: a pair of shoes recorded a box of
+# x 0.08-0.71, y 0.04-1.00 — the whole standing figure — because the
+# whole-look render changed the dress and the shoes together, so the
+# shoes' card was another copy of the photo. Shoes are big enough to be
+# judged at full strength; they are not big enough to be a whole body.
+_REFINE_BOX = _SMALL | {OutfitSlot.SHOES, OutfitSlot.BAG}
 # Items that are a dozen pixels wide on a full-body photo: rendered on a
 # close-up of the body part from the first attempt, because at full-body
 # scale the model often doesn't draw them at all ("the product was not drawn
@@ -125,6 +132,8 @@ def _body_part_of(item: LookItem) -> str | None:
 _GARMENTS = {OutfitSlot.DRESS, OutfitSlot.TOP, OutfitSlot.BOTTOM, OutfitSlot.OUTERWEAR}
 _EYEWEAR = re.compile(r"\b(sunglasses|glasses|eyeglasses|spectacles|goggles)\b")
 _AROUND_THE_NECK = _BODY_PART_FOR[2][0]  # necklace, choker, pendant, chain, tie, scarf
+_ON_THE_FLOOR = {OutfitSlot.SHOES}  # and anything else a person stands in
+_ON_THE_FLOOR_AREA = Region(0.0, 0.62, 1.0, 1.0)
 
 
 @dataclass(frozen=True, slots=True)
@@ -367,7 +376,30 @@ def _plausible_area(item: LookItem, face, shape: tuple[int, int]) -> Region | No
         return Region(near_left, max(0.0, top - 0.4 * tall), near_right, min(1.0, bottom + 0.6 * tall))
     if _AROUND_THE_NECK.search(name):  # necklace, choker, pendant, tie, scarf
         return Region(near_left, top + 0.5 * tall, near_right, min(1.0, bottom + 2.5 * tall))
+    if item.slot in _ON_THE_FLOOR:
+        # Feet are the far end of a standing body from a detected face, and
+        # how far depends on how the photo is cropped, so this is the one
+        # place a fraction of the frame says more than the face does. Kept
+        # loose — a seated person's shoes come well up the frame — and full
+        # width, because where in the frame someone stands is their own
+        # business; the claim here is only that shoes are not a torso.
+        return _ON_THE_FLOOR_AREA
     return None
+
+
+def _settle(box: Region, area: Region) -> Region:
+    """`box` cut down to the part of it that can really be the item.
+
+    Trimmed rather than replaced: the render still knew which side of the
+    photo the shoes were on, even when it thought they reached the
+    ceiling. Only a box with nothing plausible left in it is thrown away
+    for the area itself."""
+    trimmed = Region(
+        max(box.x0, area.x0), max(box.y0, area.y0), min(box.x1, area.x1), min(box.y1, area.y1)
+    )
+    if trimmed.x1 - trimmed.x0 > 0.01 and trimmed.y1 - trimmed.y0 > 0.01:
+        return trimmed
+    return area
 
 
 def _inside(box: Region, area: Region) -> bool:
@@ -387,7 +419,7 @@ async def _tight_box(
     split again at a higher strength and re-chosen, the same refinement
     their own renders use. The merge is untouched: this only decides where
     the label points."""
-    if item.slot not in _SMALL or changes.share_of(picked) <= 0.006:
+    if item.slot not in _REFINE_BOX or changes.share_of(picked) <= 0.006:
         return _box_of(changes, picked, item)
     finer = changes.refine(picked)
     numbers = [c.number for c in finer.candidates]
@@ -505,7 +537,7 @@ async def _whole_look_pass(
         # ...and refuse a box that can't be where that item goes: a pair of
         # earrings was once labelled onto the chandelier above the bride
         area = _plausible_area(items[index], face, base.shape[:2])
-        reports[index].box = area if area is not None and not _inside(box, area) else box
+        reports[index].box = _settle(box, area) if area is not None and not _inside(box, area) else box
     logger.info("tryon_whole_look", kept=len(items) - len(todo), redo=len(todo))
     if not keep:
         # nothing survived, but the inspector still said what was wrong with

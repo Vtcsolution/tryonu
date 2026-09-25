@@ -1,5 +1,6 @@
 "use client";
 
+import { shortLabel } from "@/components/try/labels";
 import type { ResultPlacement } from "@/lib/api/types";
 
 /** Numbered markers naming each item that was actually drawn on the photo.
@@ -12,9 +13,25 @@ import type { ResultPlacement } from "@/lib/api/types";
  * them, which is the honest split. */
 
 export function markerItems(placements: ResultPlacement[] | null | undefined): ResultPlacement[] {
-  return (placements ?? []).filter((p) => p.drawn && p.box && p.box.length === 4);
+  // Numbered down the body, head first — the order a person reads a
+  // labelled figure in. They used to be numbered in whatever order the
+  // stylist happened to pick them, so the column beside the photo ran
+  // 3, 1, 2 from top to bottom and the numbers told the shopper nothing.
+  return (placements ?? [])
+    .filter((p) => p.drawn && p.box && p.box.length === 4)
+    .sort((a, b) => centre(a) - centre(b));
 }
 
+function centre(placement: ResultPlacement): number {
+  const box = placement.box as number[];
+  return (box[1] + box[3]) / 2;
+}
+
+// What the thing actually is, for a caption with no room to spare.
+// Retailers title a listing to be found, not to be read: "Prada PR17WS
+// 1AB5S049 Women's Sunglasses" truncates to "Prada PR17WS 1AB5S049
+// Women's..." in a 150px card, which names everything except the item.
+// The full title stays on the card's tooltip and in the list below.
 /** The number a placement is shown as, matching the list beside the photo. */
 export function markerNumber(placements: ResultPlacement[] | null | undefined, productId: string): number | null {
   const index = markerItems(placements).findIndex((p) => p.product_id === productId);
@@ -73,8 +90,11 @@ export function ResultMarkers({ placements }: { placements: ResultPlacement[] | 
             <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-sage text-[11px] font-semibold text-white shadow-[0_1px_6px_rgba(0,0,0,0.45)] ring-2 ring-white/70">
               {number}
             </span>
-            <span className="truncate rounded-full bg-black/65 px-2 py-0.5 text-[11px] font-medium text-white backdrop-blur-sm">
-              {item.name}
+            <span
+              className="truncate rounded-full bg-black/65 px-2 py-0.5 text-[11px] font-medium text-white backdrop-blur-sm"
+              title={item.name}
+            >
+              {shortLabel(item.name, item.slot)}
             </span>
           </div>
         );

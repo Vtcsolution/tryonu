@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { cardCrop } from "@/components/try/lookCrop";
+import { shortLabel } from "@/components/try/labels";
 import { markerItems } from "@/components/try/ResultMarkers";
 import { ZoomableImage } from "@/components/try/ZoomableImage";
 import type { ResultPlacement } from "@/lib/api/types";
@@ -18,12 +20,6 @@ import type { ResultPlacement } from "@/lib/api/types";
  *
  * Below the breakpoint the margins disappear, so the cards become a
  * scrolling strip under the photo and the lines are dropped. */
-
-const PADDING = 0.9; // context around each item's own box, in its own size
-// A watch is ~3% of a full-body photo. Cropping to just that and blowing
-// it up to a 150px card gives a blur with no landmarks — the wrist around
-// it is what makes it readable, so no crop goes tighter than this.
-const MIN_CROP = 0.16;
 
 type Item = { item: ResultPlacement; number: number; x: number; y: number };
 type Line = { x1: number; y1: number; x2: number; y2: number; bend: number };
@@ -155,7 +151,10 @@ export function LookBoard({
       />
       {column(left, "left")}
 
-      <div className="w-full min-w-[260px] max-w-[540px] flex-1">
+      {/* as big as the board allows: the render is 1024-2048px and the
+          detail a shopper is paying to see — stitching, a clasp, how a
+          hem sits — does not survive being shown at half that */}
+      <div className="w-full min-w-[260px] max-w-[680px] flex-1">
         <div
           ref={frame}
           className="relative overflow-hidden rounded-[26px] border border-line bg-paper-2 shadow-lift"
@@ -235,9 +234,13 @@ function Card({
   onMount: (node: HTMLElement | null) => void;
 }) {
   const [x0, y0, x1, y1] = item.box as number[];
-  const tile = crop({ x0, y0, x1, y1 }, natural);
+  const tile = cardCrop({ x0, y0, x1, y1 }, natural);
   return (
-    <figure ref={onMount} className="w-[150px] rounded-[14px] border border-line bg-surface p-1.5 shadow-sm">
+    <figure
+      ref={onMount}
+      title={item.name}
+      className="w-[150px] rounded-[14px] border border-line bg-surface p-1.5 shadow-sm"
+    >
       <div
         className="relative aspect-square overflow-hidden rounded-[10px] bg-paper-2"
         style={{
@@ -247,8 +250,8 @@ function Card({
           backgroundRepeat: "no-repeat",
         }}
       />
-      <figcaption className="mt-1 line-clamp-2 px-0.5 text-[10.5px] leading-tight text-ink-soft">
-        <span className="font-semibold text-ink">{number}.</span> {item.name}
+      <figcaption className="mt-1 truncate px-0.5 text-[11px] font-medium leading-tight text-ink">
+        {number}. {shortLabel(item.name, item.slot)}
       </figcaption>
     </figure>
   );
@@ -274,7 +277,7 @@ function LookStrip({
       <div className="flex gap-2.5 overflow-x-auto pb-1.5">
         {items.map((item, i) => {
           const [x0, y0, x1, y1] = item.box as number[];
-          const tile = crop({ x0, y0, x1, y1 }, natural);
+          const tile = cardCrop({ x0, y0, x1, y1 }, natural);
           return (
             <figure key={`${item.product_id ?? item.name}-${i}`} className="w-[108px] shrink-0">
               <div
@@ -290,8 +293,8 @@ function LookStrip({
                   {i + 1}
                 </span>
               </div>
-              <figcaption className="mt-1 line-clamp-2 text-[10.5px] leading-tight text-ink-soft">
-                {item.name}
+              <figcaption className="mt-1 truncate text-[11px] font-medium leading-tight text-ink" title={item.name}>
+                {shortLabel(item.name, item.slot)}
               </figcaption>
             </figure>
           );
@@ -299,36 +302,4 @@ function LookStrip({
       </div>
     </div>
   );
-}
-
-/** Background size/position that fills a square tile with the item's box.
- *
- * The box is in fractions of the image, which are not square unless the
- * image is — so the region is squared off in the image's own pixels
- * first, using its natural proportions. */
-function crop(
-  box: { x0: number; y0: number; x1: number; y1: number },
-  natural: { w: number; h: number } | null,
-): { size: string; position: string } {
-  const aspect = natural ? natural.w / natural.h : 1;
-  const width = Math.max(MIN_CROP, (box.x1 - box.x0) * (1 + PADDING));
-  const height = Math.max(MIN_CROP, (box.y1 - box.y0) * (1 + PADDING));
-  const side = Math.max(width, height / aspect);
-  const w = Math.min(1, side);
-  const h = Math.min(1, side * aspect);
-
-  const left = clamp((box.x0 + box.x1) / 2 - w / 2, 0, 1 - w);
-  const top = clamp((box.y0 + box.y1) / 2 - h / 2, 0, 1 - h);
-  return {
-    size: `${(100 / w).toFixed(2)}% ${(100 / h).toFixed(2)}%`,
-    position: `${pct(left, w)}% ${pct(top, h)}%`,
-  };
-}
-
-function pct(offset: number, span: number): string {
-  return span >= 1 ? "0" : ((offset / (1 - span)) * 100).toFixed(2);
-}
-
-function clamp(value: number, low: number, high: number): number {
-  return Math.min(high, Math.max(low, value));
 }
