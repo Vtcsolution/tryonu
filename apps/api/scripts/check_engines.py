@@ -83,6 +83,41 @@ async def _try(label: str, provider, photo: bytes) -> bool:  # noqa: ANN001
     return True
 
 
+def _what_renders(settings) -> None:  # noqa: ANN001
+    """Which engine a customer's try-on would actually go to.
+
+    Printed first because it is the question people think they are
+    asking. A server can hold a working key for an engine it never
+    calls: this one was set to FASHN throughout a week of tuning the
+    OpenAI path and a day of testing Gemini, and nothing said so."""
+    from app.ai.providers.registry import get_full_look_provider, get_tryon_provider
+
+    engine = get_tryon_provider()
+    looks = get_full_look_provider() or engine
+    print(f"one item:  {engine.name} {engine.model}")
+    print(f"a look:    {looks.name} {looks.model}")
+    if settings.VIRTUAL_TRYON_PROVIDER == "mock":
+        print("           (mock — the chosen engine has no key, so nothing real is rendered)")
+
+
+def _key_looks_wrong(value: str) -> str | None:
+    """Why a key in the environment cannot be the key that was meant.
+
+    A key pasted from an instruction can arrive as the instruction. Live,
+    a server answered "API key not valid" because it held the literal
+    placeholder from a copy-paste line — and a carriage return off a
+    Windows editor fails exactly the same way with nothing to see."""
+    if value != value.strip():
+        return "it has whitespace or a carriage return around it"
+    if value.strip("\"'") != value:
+        return "it is wrapped in quotes"
+    if value.lower() in {"your-key", "yourkey", "changeme", "xxx", "todo"}:
+        return "it is a placeholder, not a key"
+    if len(value) < 20 or " " in value:
+        return "it is too short, or has a space in it"
+    return None
+
+
 async def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--photo", help="a real full-body photo to edit; a placeholder is drawn without it")
@@ -91,11 +126,15 @@ async def main() -> int:
     settings = get_settings()
     photo = Path(args.photo).read_bytes() if args.photo else _placeholder()
     print(f"photo:     {args.photo or 'drawn placeholder (checks keys and reachability only)'}")
-    print(f"rendering with: VIRTUAL_TRYON_PROVIDER={settings.VIRTUAL_TRYON_PROVIDER}\n")
+    _what_renders(settings)
+    print()
 
     results: list[bool] = []
 
     if settings.OPENAI_API_KEY:
+        wrong = _key_looks_wrong(settings.OPENAI_API_KEY)
+        if wrong:
+            print(f"  openai                             OPENAI_API_KEY here: {wrong}")
         from app.ai.providers.openai_image import OpenAIImageTryOnProvider
 
         results.append(
@@ -113,6 +152,9 @@ async def main() -> int:
         print("  openai                             SKIPPED  no OPENAI_API_KEY in this environment")
 
     if settings.GEMINI_API_KEY:
+        wrong = _key_looks_wrong(settings.GEMINI_API_KEY)
+        if wrong:
+            print(f"  gemini                             GEMINI_API_KEY here: {wrong}")
         from app.ai.providers.gemini_image import GeminiImageTryOnProvider
 
         results.append(
