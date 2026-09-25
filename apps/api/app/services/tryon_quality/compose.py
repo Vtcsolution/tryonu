@@ -331,12 +331,23 @@ def _mask_from(
         # whole, out to a hand's length; the fade only crosses pixels where
         # the two images nearly agree, where blending is invisible.
         hard_reach = max(reach, 0.08 * max(h, w))
-        # Texture counts as much as colour throughout: white embroidery on
-        # a white T-shirt is the product, and so is the white cotton
-        # between two of its flowers. Tried with texture only in `hard`
-        # and not in the growth below, the kurti arrived as green patches
-        # pasted on with the T-shirt showing between them.
-        strong = diff if detail is None else np.maximum(diff, detail)
+        # Texture counts as much as colour, but only *within* the outline
+        # colour already found. Inside, it is what rescues white
+        # embroidery on a white T-shirt, and the plain cotton between two
+        # of a kurti's flowers — without it the garment arrives as
+        # coloured patches with the old shirt showing between them.
+        #
+        # Outside, it is ruinous. An image model redraws a blurred
+        # background differently every time, and a blurred background is
+        # nothing but local contrast, so texture fires across all of it.
+        # Live, on a wedding hall: the whole room — chandeliers, flowers,
+        # tables, floor — came back spattered with fragments of a blue
+        # blouse. Colour alone decides how far the merge reaches; texture
+        # only decides what to keep once it is there.
+        strong = diff
+        if detail is not None:
+            within = _fill_holes(taken).astype(bool)
+            strong = np.where(within, np.maximum(diff, detail), diff)
         hard = (taken.astype(bool) & (strong > high) & (distance < hard_reach)).astype(np.uint8)
         hard = cv2.morphologyEx(hard, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)))
         # ...and grow along any strongly-different pixels touching it, thin
@@ -520,6 +531,7 @@ def find_changes(
     render: np.ndarray,
     protect: list[tuple[int, int, int, int]] = (),
     *,
+    body: np.ndarray | None = None,
     low: float = 14.0,
     high: float = 32.0,
     max_candidates: int = 12,
@@ -538,6 +550,15 @@ def find_changes(
     corrected = match_local_tone(match_colors(aligned, base, np.ones((h, w), np.uint8)), base)
     diff = _lab_diff(base, corrected)
     blocked = _blocked((h, w), protect)
+    if body is not None:
+        # Whatever the model redrew out there, it is not the thing being
+        # tried on. An image model rebuilds a blurred background from
+        # scratch every time, so on a busy one — a wedding hall, its
+        # chandeliers and flowers and tables — a great deal "changes", and
+        # anything that changes can be mistaken for the product and
+        # merged. Live, a pale blue blouse came back spattered across the
+        # whole room. Nobody wears a blouse on the ceiling.
+        blocked = blocked | ~body
     _, weak = _changed_areas(diff, blocked, low)
     n, cores, stats = _strong_cores(diff, blocked, high, min_share)
     candidates, label_of = _numbered(cores, stats, n, max_candidates)

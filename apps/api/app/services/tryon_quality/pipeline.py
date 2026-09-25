@@ -232,6 +232,31 @@ def _protect(face, item: LookItem) -> list[tuple[int, int, int, int]]:
     return [(x - int(w * 0.25), y - int(h * 0.45), x + w + int(w * 0.25), y + h + int(h * 0.2))]
 
 
+def _body_area(face, shape: tuple[int, int]) -> np.ndarray | None:  # noqa: ANN001
+    """Roughly where the person is, from their face.
+
+    Not a silhouette — a generous cone. A standing figure is about seven
+    face-heights tall and widens from the head to the hem, so the room a
+    person can occupy is a wedge with the face at its narrow end. Held
+    loose on purpose: an outflung arm, a dupatta held wide and the sweep
+    of a lehenga all have to fit inside it, and the only thing it needs
+    to exclude is the far side of the room."""
+    if face is None:
+        return None
+    h, w = shape
+    centre = face.x + face.w / 2
+    top = max(0, int(face.y - 1.5 * face.h))
+    area = np.zeros((h, w), bool)
+    for y in range(top, h):
+        # from two face-widths either side at the head to four at the
+        # floor: room for the sweep of a lehenga, still well short of the
+        # walls
+        down = (y - top) / max(1, h - top)
+        half = face.w * (2.0 + 2.0 * down)
+        area[y, max(0, int(centre - half)) : min(w, int(centre + half) + 1)] = True
+    return area
+
+
 async def _download(url: str) -> np.ndarray:
     async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
         resp = await client.get(url)
@@ -504,7 +529,7 @@ async def _whole_look_pass(
         logger.warning("tryon_whole_look_render_failed", error=str(exc)[:300])
         return base, _all_of(items)
 
-    changes = find_changes(base, raw, _protect(face, head_item))
+    changes = find_changes(base, raw, _protect(face, head_item), body=_body_area(face, base.shape[:2]))
     if not changes.candidates:
         return base, _all_of(items)
 
@@ -648,7 +673,11 @@ async def _render_one(
             # a ring is ~15px across on a full-body photo: don't let the
             # noise filter throw it away with the specks
             changes = find_changes(
-                base, raw, _protect(face, item), min_share=0.00004 if item.slot in _SMALL else 0.0003
+                base,
+                raw,
+                _protect(face, item),
+                body=_body_area(face, base.shape[:2]),
+                min_share=0.00004 if item.slot in _SMALL else 0.0003,
             )
             merged, region = await _take_product(changes, product, description, item)
         if merged is not None and item.slot in _GARMENTS:

@@ -698,3 +698,62 @@ def test_an_item_with_no_believable_place_stops_claiming_one():
     # ...while a dress really is most of a full-body photo
     dress = pipeline.LookItem("https://img/x.jpg", OutfitSlot.DRESS, "Salwar Kameez")
     assert not pipeline._too_big_to_be(dress, pipeline.Region(0.0, 0.16, 1.0, 1.0))
+
+
+def test_texture_rescues_inside_the_garment_and_never_outside_it():
+    """Live, on a wedding hall: the whole room — chandeliers, flowers,
+    tables, floor — came back spattered with fragments of a blue blouse.
+    An image model redraws a blurred background differently every time,
+    and a blurred background is nothing but local contrast, so counting
+    texture as change anywhere made everywhere change.
+
+    Inside the garment the same signal is what rescues white embroidery
+    on a white T-shirt. Both at once, on one mask."""
+    from app.services.tryon_quality.compose import _mask_from
+
+    shape = (400, 400)
+    garment = (slice(100, 300), slice(150, 250))
+    core = np.zeros(shape, np.uint8)
+    core[garment] = 1
+    core[180:220, 170:230] = 0  # a band of it the same colour as what it replaced
+
+    weak = np.zeros(shape, np.int32)
+    weak[garment] = 1
+
+    colour = np.full(shape, 5.0, np.float32)  # nothing differs by colour...
+    colour[core.astype(bool)] = 50.0  # ...except the garment around that band
+    texture = np.full(shape, 50.0, np.float32)  # ...and everything differs by texture
+
+    mask = _mask_from(core, weak, np.zeros(shape, bool), 0.03, colour, detail=texture)
+
+    assert mask[190:210, 180:220].mean() > 0.9  # the band is rescued
+    outside = np.ones(shape, bool)
+    outside[60:340, 110:290] = False  # the garment and a wide margin round it
+    assert mask[outside].mean() < 0.01  # the room is left alone
+
+
+def test_nothing_off_the_body_can_be_taken_for_the_product():
+    """Live, on a wedding hall: a pale blue blouse came back spattered
+    across the whole room — the ceiling, the flowers, the tables. An
+    image model rebuilds a blurred background from scratch every time, so
+    a great deal of it 'changes', and anything that changes can be
+    mistaken for the product. Nobody wears a blouse on the ceiling."""
+    from app.services.face_restore import Box
+
+    face = Box(x=460, y=180, w=110, h=140)
+    area = pipeline._body_area(face, (1536, 1024))
+    assert area is not None
+
+    assert area[700, 515]  # her torso
+    assert area[1400, 300] and area[1400, 730]  # the sweep of a long hem
+    assert area[250, 470]  # her head
+
+    assert not area[100, 900]  # a chandelier in the corner of the ceiling
+    assert not area[300, 60]  # a flower arch at the far left
+    assert not area[1450, 990]  # a table leg at the far right
+
+
+def test_a_photo_with_no_face_found_is_left_entirely_alone():
+    """Better to trust the render everywhere than to cut a body out of
+    the wrong place."""
+    assert pipeline._body_area(None, (1536, 1024)) is None
