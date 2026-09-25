@@ -91,7 +91,14 @@ def align(render: np.ndarray, base: np.ndarray) -> tuple[np.ndarray, float]:
     shift = float(np.hypot(matrix[0, 2], matrix[1, 2]))
     if not 0.9 < scale < 1.1 or shift > 0.08 * max(w, h):
         return resized, 0.0  # implausible — the render isn't a re-framing of the same photo
-    warped = cv2.warpAffine(resized, matrix, (w, h), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+    # Lanczos, not bilinear. This warp is a sub-pixel nudge — a couple of
+    # pixels of shift and a fraction of a percent of scale — but every
+    # rendered pixel goes through it, and resampling a whole image
+    # bilinearly at a fractional offset softens all of it. Measured on one
+    # render: 129 sharpness after the downscale, 89 through the bilinear
+    # warp, 125 through this one. A third of the detail the model drew was
+    # being thrown away here, after all the work to keep it.
+    warped = cv2.warpAffine(resized, matrix, (w, h), flags=cv2.INTER_LANCZOS4, borderMode=cv2.BORDER_REFLECT)
     return warped, float(inliers.sum()) / len(matches)
 
 
