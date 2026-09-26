@@ -397,6 +397,52 @@ async def _pick_areas(changes: Changes, product: np.ndarray, description: str, i
     return picked or []
 
 
+def _fill_garment_gaps(
+    changes: Changes, items: list[LookItem], picks: list[list[int]], pad: float = 0.35
+) -> list[list[int]]:
+    """A blob nobody picked, sitting near a garment's own reach, joins it.
+
+    A dress or kameez fragments into several disconnected blobs wherever
+    an arm, a bag or the dupatta's own fold interrupts the change — three
+    or four separate numbered boxes for one continuous piece of clothing,
+    picked out of a busy, many-boxed image. Live: a beige kameez was
+    drawn correctly, but a strip of dupatta beside a handbag and the
+    trouser leg behind it stayed the original photo's pink, a jagged
+    seam down the middle of the outfit, because two of its own blobs
+    were never in the vision model's answer — separated from the one
+    piece it did pick by exactly the bag that caused the split.
+
+    "Reach" is the union of the boxes it WAS given credit for, grown by a
+    margin (the bag or arm that caused the gap in the first place), then
+    grown again from whatever it just picked up — a chain, so a third
+    fragment beyond a rescued second one is still reached. A candidate
+    that falls inside, and that nothing else asked for, is overwhelmingly
+    more likely to be the rest of the same garment than anything else.
+    Only ever grows a pick; never takes a box another item's own answer
+    already claimed. Terminates on its own: each pass either adds at
+    least one new, never-seen-again candidate or stops."""
+    claimed = {n for picked in picks for n in picked}
+    filled = [list(picked) for picked in picks]
+    for index, item in enumerate(items):
+        if item.slot not in _GARMENTS or not filled[index]:
+            continue
+        while True:
+            boxes = [c.region for c in changes.candidates if c.number in filled[index]]
+            x0, y0 = min(b.x0 for b in boxes), min(b.y0 for b in boxes)
+            x1, y1 = max(b.x1 for b in boxes), max(b.y1 for b in boxes)
+            dx, dy = (x1 - x0) * pad, (y1 - y0) * pad
+            reach = Region(max(0.0, x0 - dx), max(0.0, y0 - dy), min(1.0, x1 + dx), min(1.0, y1 + dy))
+            gained = [
+                c.number for c in changes.candidates
+                if c.number not in claimed and c.number not in filled[index] and _overlaps(c.region, reach)
+            ]
+            if not gained:
+                break
+            filled[index] = sorted(set(filled[index]) | set(gained))
+            claimed |= set(gained)
+    return filled
+
+
 def _plausible_area(item: LookItem, face, shape: tuple[int, int]) -> Region | None:  # noqa: ANN001
     """Roughly where an item of this kind can be on a body.
 
@@ -551,6 +597,7 @@ async def _whole_look_pass(
         *(_pick_areas(changes, product, description, item)
           for product, description, item in zip(products, descriptions, items))
     )
+    picks = _fill_garment_gaps(changes, items, list(picks))
     everything = sorted({n for picked in picks for n in picked})
     if not everything:
         return base, _all_of(items)

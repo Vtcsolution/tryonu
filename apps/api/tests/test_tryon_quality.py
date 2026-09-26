@@ -787,3 +787,80 @@ def test_score_reports_of_nothing_judged_is_zero_not_a_free_pass():
     that was scored and found merely imperfect."""
     assert pipeline.score_reports([pipeline.ItemReport(name="kameez", verdict=None)]) == 0.0
     assert pipeline.score_reports([]) == 0.0
+
+
+def test_a_garment_absorbs_a_blob_nobody_claimed_inside_its_own_reach():
+    """Live: a beige kameez was drawn correctly, but a strip of dupatta and
+    the trouser leg behind a handbag stayed the original photo's pink — a
+    jagged seam down the middle of the outfit — because two of the
+    kameez's own changed blobs were never in the vision model's answer.
+    A blob nobody else asked for, sitting inside the span the kameez
+    already claimed, is overwhelmingly more likely to be the rest of the
+    same garment than anything else."""
+    from types import SimpleNamespace
+
+    from app.services.tryon_quality.compose import Candidate
+
+    candidates = [
+        Candidate(1, Region(0.1, 0.1, 0.4, 0.5), 0.1),  # kameez: left torso — picked
+        Candidate(2, Region(0.45, 0.1, 0.9, 0.5), 0.1),  # kameez: right torso + dupatta — MISSED
+        Candidate(3, Region(0.2, 0.5, 0.8, 1.0), 0.1),  # kameez: legs — MISSED
+        Candidate(4, Region(0.3, 0.55, 0.55, 0.75), 0.05),  # the bag — someone else's
+    ]
+    changes = SimpleNamespace(candidates=candidates)
+    kameez = pipeline.LookItem("https://img/x.jpg", OutfitSlot.DRESS, "Beige Embroidered Kameez")
+    bag = pipeline.LookItem("https://img/b.jpg", OutfitSlot.BAG, "Brown Leather Tote")
+
+    filled = pipeline._fill_garment_gaps(changes, [kameez, bag], [[1], [4]])
+
+    assert filled[0] == [1, 2, 3]  # the rest of the kameez, recovered
+    assert filled[1] == [4]  # the bag's own pick is untouched
+
+
+def test_a_garment_never_takes_a_blob_another_item_already_claimed():
+    from types import SimpleNamespace
+
+    from app.services.tryon_quality.compose import Candidate
+
+    candidates = [
+        Candidate(1, Region(0.1, 0.1, 0.9, 0.9), 0.3),  # the kameez's whole reach
+        Candidate(2, Region(0.4, 0.3, 0.6, 0.5), 0.02),  # the watch, inside that reach
+    ]
+    changes = SimpleNamespace(candidates=candidates)
+    kameez = pipeline.LookItem("https://img/x.jpg", OutfitSlot.DRESS, "Kameez")
+    watch = pipeline.LookItem("https://img/w.jpg", OutfitSlot.WATCH, "Watch")
+
+    filled = pipeline._fill_garment_gaps(changes, [kameez, watch], [[1], [2]])
+
+    assert filled == [[1], [2]]  # the watch's own pick is never pulled into the dress
+
+
+def test_an_item_with_nothing_picked_yet_is_left_alone():
+    """Refused items and small items still awaiting their own render have
+    no reach to grow from — this only ever adds to an existing pick."""
+    from types import SimpleNamespace
+
+    from app.services.tryon_quality.compose import Candidate
+
+    changes = SimpleNamespace(candidates=[Candidate(1, Region(0, 0, 1, 1), 0.5)])
+    kameez = pipeline.LookItem("https://img/x.jpg", OutfitSlot.DRESS, "Kameez")
+
+    assert pipeline._fill_garment_gaps(changes, [kameez], [[]]) == [[]]
+
+
+def test_a_garment_does_not_reach_all_the_way_across_the_photo():
+    """The margin bridges a bag-sized gap, not the whole frame — a change
+    on the far side of the picture stays unclaimed rather than being
+    swept into the dress on the strength of "nothing else wanted it"."""
+    from types import SimpleNamespace
+
+    from app.services.tryon_quality.compose import Candidate
+
+    candidates = [
+        Candidate(1, Region(0.05, 0.1, 0.35, 0.9), 0.2),  # the kameez, picked
+        Candidate(2, Region(0.85, 0.1, 0.98, 0.3), 0.02),  # far side of the frame, unclaimed
+    ]
+    changes = SimpleNamespace(candidates=candidates)
+    kameez = pipeline.LookItem("https://img/x.jpg", OutfitSlot.DRESS, "Kameez")
+
+    assert pipeline._fill_garment_gaps(changes, [kameez], [[1]]) == [[1]]
