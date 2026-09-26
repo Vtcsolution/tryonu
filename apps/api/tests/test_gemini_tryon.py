@@ -144,3 +144,22 @@ async def test_an_unconfigured_key_never_selects_this_engine(monkeypatch):
 
     settings = Settings(VIRTUAL_TRYON_PROVIDER="gemini", GEMINI_API_KEY=None)
     assert settings.VIRTUAL_TRYON_PROVIDER == "mock"
+
+
+@pytest.mark.parametrize(
+    ("openai_key", "gemini_key", "expected"),
+    [
+        ("k", "k", "best_of"),  # both configured — run both, keep the winner
+        ("k", None, "openai"),  # missing one isn't missing both
+        (None, "k", "gemini"),
+        (None, None, "mock"),
+    ],
+)
+def test_best_of_falls_back_to_whichever_single_engine_still_works(openai_key, gemini_key, expected):
+    """Asking for both isn't a reason to render with neither, and a
+    half-configured "best_of" should behave exactly like asking for the
+    one engine that actually has a key."""
+    from app.core.config import Settings
+
+    settings = Settings(VIRTUAL_TRYON_PROVIDER="best_of", OPENAI_API_KEY=openai_key, GEMINI_API_KEY=gemini_key)
+    assert settings.VIRTUAL_TRYON_PROVIDER == expected

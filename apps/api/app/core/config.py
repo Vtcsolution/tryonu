@@ -101,7 +101,11 @@ class Settings(BaseSettings):
     # --- AI providers ---
     # "mock" needs no credentials and simulates a realistic job lifecycle —
     # used automatically whenever the real provider has no API key set.
-    VIRTUAL_TRYON_PROVIDER: Literal["fashn", "openai", "gemini", "mock"] = "mock"
+    # "best_of" renders with OpenAI and Gemini at once and keeps whichever
+    # one the inspector scores higher, per job — see _render_with_engine
+    # in tryon_tasks.py. Costs both engines' worth of API calls on every
+    # job, so it is a choice to make deliberately, not a safer default.
+    VIRTUAL_TRYON_PROVIDER: Literal["fashn", "openai", "gemini", "best_of", "mock"] = "mock"
     FASHN_API_KEY: str | None = None
     FASHN_API_BASE_URL: str = "https://api.fashn.ai/v1"
     FASHN_MODEL: Literal["tryon-v1.6", "tryon-max"] = "tryon-v1.6"
@@ -281,6 +285,16 @@ class Settings(BaseSettings):
             self.VIRTUAL_TRYON_PROVIDER = "mock"
         if self.VIRTUAL_TRYON_PROVIDER == "gemini" and not self.GEMINI_API_KEY:
             self.VIRTUAL_TRYON_PROVIDER = "mock"
+        if self.VIRTUAL_TRYON_PROVIDER == "best_of" and not (self.OPENAI_API_KEY and self.GEMINI_API_KEY):
+            # one engine missing its key isn't "neither" — fall back to
+            # whichever of the two is actually usable, same as picking
+            # that provider directly would
+            if self.OPENAI_API_KEY:
+                self.VIRTUAL_TRYON_PROVIDER = "openai"
+            elif self.GEMINI_API_KEY:
+                self.VIRTUAL_TRYON_PROVIDER = "gemini"
+            else:
+                self.VIRTUAL_TRYON_PROVIDER = "mock"
         if self.LLM_PROVIDER == "openai" and not self.OPENAI_API_KEY:
             self.LLM_PROVIDER = "mock"
         if self.PAYMENT_PROVIDER == "stripe" and not self.STRIPE_SECRET_KEY:

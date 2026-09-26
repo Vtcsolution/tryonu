@@ -159,6 +159,20 @@ class ItemReport:
     box: Region | None = None
 
 
+def score_reports(reports: list[ItemReport]) -> float:
+    """One number for how well a whole look came out, for weighing one
+    engine's attempt at it against another's.
+
+    Mean of Verdict.score (the same product-weighted score a single
+    item's candidate renders are already picked by) over every item a
+    verdict exists for. An item nobody managed to judge doesn't count
+    against an otherwise fine result; an attempt where nothing was judged
+    at all — a hard failure, or every item refused — scores 0 rather than
+    some default generous enough to let trying less win."""
+    scored = [r.verdict.score for r in reports if r.verdict is not None]
+    return sum(scored) / len(scored) if scored else 0.0
+
+
 class QualityFailure(Exception):
     def __init__(self, item: str, issues: list[str]) -> None:
         self.item = item

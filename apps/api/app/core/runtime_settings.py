@@ -45,10 +45,13 @@ class SettingSpec:
 
 SPECS: tuple[SettingSpec, ...] = (
     # --- AI try-on ---
-    SettingSpec("VIRTUAL_TRYON_PROVIDER", "Try-on provider", "ai_tryon", "choice", ("openai", "fashn", "mock"),
-                "“openai” dresses the photo in the whole outfit at once (shoes, bags and jewellery included) using "
-                "the OpenAI API key; “fashn” renders clothing one piece at a time; “mock” returns a placeholder. "
-                "Falls back to mock if the chosen provider has no API key."),
+    SettingSpec("VIRTUAL_TRYON_PROVIDER", "Try-on provider", "ai_tryon", "choice",
+                ("openai", "gemini", "best_of", "fashn", "mock"),
+                "“openai” and “gemini” (nano banana) each dress the photo in the whole outfit at once — shoes, "
+                "bags and jewellery included; “best_of” renders with both at once and keeps whichever the "
+                "inspector scores higher, at both engines' cost on every job; “fashn” renders clothing one piece "
+                "at a time; “mock” returns a placeholder. Falls back to whichever of the above still has its "
+                "API key(s) configured, or to mock, if the chosen one doesn't."),
     SettingSpec("TRYON_OPENAI_FOR_FULL_LOOKS", "Use OpenAI for items tryon-v1.6 can't draw", "ai_tryon", "bool",
                 help="With FASHN tryon-v1.6 (clothing only), outfits that also include shoes, bags, jewellery, hats "
                 "or any other accessory are drawn by OpenAI in one pass. OpenAI can change the face; FASHN tryon-max "
@@ -76,6 +79,16 @@ SPECS: tuple[SettingSpec, ...] = (
     SettingSpec("FASHN_MODEL", "FASHN model", "ai_tryon", "choice", ("tryon-max", "tryon-v1.6"),
                 "tryon-max draws anything wearable — clothing, shoes, bags, jewellery, hats, accessories — and "
                 "keeps the person's face; tryon-v1.6 is clothing only."),
+    SettingSpec("GEMINI_API_KEY", "Gemini API key", "ai_tryon", "secret",
+                help="From Google AI Studio. Used when the try-on provider is “gemini” or “best_of”."),
+    SettingSpec("GEMINI_IMAGE_MODEL", "Gemini try-on image model", "ai_tryon", "text",
+                help='"nano banana" family, e.g. gemini-3-pro-image or gemini-3.1-flash-image. Do not use '
+                "gemini-2.5-flash-image for try-on: given a full-body product photo among its inputs it can "
+                "edit that photo instead of the customer's, returning the retailer's model, not the customer."),
+    SettingSpec("GEMINI_IMAGE_SIZE", "Gemini render size", "ai_tryon", "choice", ("1K", "2K", "4K"),
+                "Measured on the same edit, brought to a common size to compare: the 1K default scores lowest "
+                "on real detail, 2K is sharper at four times the pixels, 4K is an upscale of the same drawing "
+                "and comes out softer than 2K despite being sixteen times the pixels."),
     # --- AI stylist ---
     SettingSpec("LLM_PROVIDER", "Stylist provider", "ai_stylist", "choice", ("openai", "mock")),
     SettingSpec("OPENAI_API_KEY", "OpenAI API key", "ai_stylist", "secret"),

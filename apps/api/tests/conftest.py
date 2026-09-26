@@ -27,6 +27,13 @@ os.environ["PAYMENT_PROVIDER"] = "mock"
 os.environ["EMAIL_PROVIDER"] = "mock"
 os.environ["FASHN_API_KEY"] = ""
 os.environ["OPENAI_API_KEY"] = ""
+# Settings reads .env (see app/core/config.py's model_config), and a real
+# key belongs there for live testing — but an env var here beats it, so
+# without this line a real key sitting in .env leaks into every test that
+# constructs Settings(), silently changing what "unconfigured" means for
+# best_of's fallback logic and risking a real, billed call from any test
+# that isn't as carefully mocked as it looks.
+os.environ["GEMINI_API_KEY"] = ""
 os.environ["STRIPE_SECRET_KEY"] = ""
 os.environ["SMTP_HOST"] = ""
 os.environ["S3_ENDPOINT_URL"] = ""

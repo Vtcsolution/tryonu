@@ -85,11 +85,22 @@ def _display(settings: Settings, key: str) -> tuple[bool, str | None]:
     return True, str(raw)
 
 
-_PROVIDER_KEY_FOR = {
-    "VIRTUAL_TRYON_PROVIDER": ("fashn", "FASHN API key"),
-    "LLM_PROVIDER": ("openai", "OpenAI API key"),
-    "PAYMENT_PROVIDER": ("stripe", "Stripe secret key"),
-    "EMAIL_PROVIDER": ("smtp", "SMTP host"),
+# For a provider-choosing setting: which key(s) each non-mock choice
+# actually needs, so the panel can say why a save "took" as something
+# else instead of what was picked. best_of needs both engines' keys —
+# everything else here needs exactly one, but the check is written for
+# either, and names whichever of the needed keys is actually missing
+# rather than a fixed phrase.
+_PROVIDER_REQUIRES: dict[str, dict[str, tuple[str, ...]]] = {
+    "VIRTUAL_TRYON_PROVIDER": {
+        "fashn": ("FASHN_API_KEY",),
+        "openai": ("OPENAI_API_KEY",),
+        "gemini": ("GEMINI_API_KEY",),
+        "best_of": ("OPENAI_API_KEY", "GEMINI_API_KEY"),
+    },
+    "LLM_PROVIDER": {"openai": ("OPENAI_API_KEY",)},
+    "PAYMENT_PROVIDER": {"stripe": ("STRIPE_SECRET_KEY",)},
+    "EMAIL_PROVIDER": {"smtp": ("SMTP_HOST",)},
 }
 
 
@@ -107,10 +118,15 @@ async def _settings_payload() -> SettingsOut:
             source = "admin" if spec.key in overrides else "env" if spec.key in from_env else "default"
             warning = None
             wanted = overrides.get(spec.key)
-            if spec.key in _PROVIDER_KEY_FOR and wanted and wanted != value:
-                real, needs = _PROVIDER_KEY_FOR[spec.key]
-                if wanted == real:
-                    warning = f"Saved as “{real}”, but running as mock because the {needs} is missing."
+            needed = _PROVIDER_REQUIRES.get(spec.key, {}).get(wanted, ())
+            if wanted and wanted != value and needed:
+                missing = [SPECS_BY_KEY[k].label for k in needed if not getattr(effective, k, None)]
+                if missing:
+                    be = "are" if len(missing) > 1 else "is"
+                    warning = (
+                        f"Saved as “{wanted}”, but running as “{value}” because the "
+                        f"{' and '.join(missing)} {be} missing."
+                    )
             fields.append(
                 SettingFieldOut(
                     key=spec.key,

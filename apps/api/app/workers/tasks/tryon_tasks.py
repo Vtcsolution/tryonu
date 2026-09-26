@@ -15,7 +15,9 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.ai.providers.base import OutfitPiece, TryOnInput, TryOnProviderError
+from app.ai.providers.base import OutfitPiece, TryOnInput, TryOnProviderError, VirtualTryOnProvider
+from app.ai.providers.gemini_image import GeminiImageTryOnProvider
+from app.ai.providers.openai_image import OpenAIImageTryOnProvider
 from app.ai.providers.registry import get_full_look_provider, get_tryon_provider
 from app.core.config import get_settings
 from app.core.logging import logger
@@ -45,6 +47,7 @@ from app.services.tryon_quality.pipeline import (
     RenderHint,
     keep_person,
     render_look,
+    score_reports,
 )
 
 settings = get_settings()
@@ -167,6 +170,42 @@ def _progress_writer(session, job: TryOnJob):  # noqa: ANN001, ANN202
     return write
 
 
+async def _render_with_engine(
+    provider: VirtualTryOnProvider, person: bytes, items: list[LookItem]
+) -> tuple[bytes, list[ItemReport]]:
+    """One engine's full, independent attempt at the whole look — with its
+    own retries — so it can be scored against another engine's attempt at
+    the same look (see the VIRTUAL_TRYON_PROVIDER=best_of branch below).
+
+    Runs whichever of the two quality pipelines fits how the engine
+    behaves: the merge-based one for an engine that redraws the person,
+    the direct one for an engine that gives the person back untouched.
+    No progress is written here — two of these run concurrently against
+    one job row, and committing from both at once isn't safe on one
+    AsyncSession."""
+    if provider.preserves_person:
+        return await render_whole_look(
+            person,
+            items,
+            _pipeline_render_all(provider),
+            retries=settings.TRYON_QUALITY_RETRIES,
+            min_product=settings.TRYON_QUALITY_MIN_PRODUCT,
+            min_other=settings.TRYON_QUALITY_MIN_FIT,
+            budget_seconds=settings.TRYON_QUALITY_BUDGET_SECONDS,
+        )
+    return await render_look(
+        person,
+        items,
+        _pipeline_renderer(provider),
+        retries=settings.TRYON_QUALITY_RETRIES,
+        min_product=settings.TRYON_QUALITY_MIN_PRODUCT,
+        min_other=settings.TRYON_QUALITY_MIN_FIT,
+        render_all=_pipeline_render_all(provider) if provider.whole_outfit else None,
+        zoom_small=provider.whole_outfit,
+        budget_seconds=settings.TRYON_QUALITY_BUDGET_SECONDS,
+    )
+
+
 async def _keep_person_if_on(job: TryOnJob, image: bytes, content_type: str, layers: list[_Layer]) -> tuple[bytes, str, bool]:
     """A whole-look render with the person's own pixels kept outside the
     products. (image, content type, whether the person was kept)."""
@@ -277,6 +316,65 @@ async def run_tryon_job_async(job_id: str) -> None:
         final_content_type = "image/jpeg"
 
         try:
+            if settings.VIRTUAL_TRYON_PROVIDER == "best_of":
+                # Checked first, ahead of every other branch below, so it
+                # never depends on what a plain get_tryon_provider() call
+                # would have done with this look — it builds both real
+                # engines itself and renders with both.
+                person = await asyncio.to_thread(get_storage().read, job.user_photo.storage_key)
+                items = [_look_item(layer) for layer in layers]
+                engines: list[VirtualTryOnProvider] = [
+                    OpenAIImageTryOnProvider(
+                        api_key=settings.OPENAI_API_KEY,  # type: ignore[arg-type]
+                        model=settings.OPENAI_IMAGE_MODEL,
+                        quality=settings.OPENAI_IMAGE_QUALITY,
+                    ),
+                    GeminiImageTryOnProvider(
+                        api_key=settings.GEMINI_API_KEY,  # type: ignore[arg-type]
+                        model=settings.GEMINI_IMAGE_MODEL,
+                        image_size=settings.GEMINI_IMAGE_SIZE,
+                    ),
+                ]
+                await _progress_writer(session, job)(
+                    "Drawing the look two ways, to keep whichever matches the products better"
+                )
+                attempts = await asyncio.gather(
+                    *(_render_with_engine(engine, person, items) for engine in engines),
+                    return_exceptions=True,
+                )
+
+                won: list[tuple[str, str, bytes, list[ItemReport], float]] = []
+                for engine, attempt in zip(engines, attempts):
+                    if isinstance(attempt, BaseException):
+                        logger.warning(
+                            "tryon_best_of_engine_failed",
+                            job_id=job.id, engine=engine.name, error=str(attempt)[:200],
+                        )
+                        continue
+                    image, reports = attempt
+                    won.append((engine.name, engine.model, image, reports, score_reports(reports)))
+
+                if not won:
+                    # both engines failed outright — raise whichever error
+                    # is more informative, and let the handling below (which
+                    # already knows how to fail a job and refund) take it
+                    raise next(a for a in attempts if isinstance(a, BaseException))
+
+                winner_name, winner_model, image, reports, _winner_score = max(won, key=lambda w: w[4])
+                logger.info(
+                    "tryon_best_of_chosen",
+                    job_id=job.id,
+                    scores={name: round(score, 1) for name, _, _, _, score in won},
+                    winner=winner_name,
+                )
+                kept_image, ctype, kept = await _keep_person_if_on(job, image, "image/jpeg", layers)
+                await _complete_job(
+                    session, job, kept_image, ctype, winner_name, winner_model,
+                    placements=_placements(layers, reports),
+                    drawn=[layer.name for layer in layers], face_kept=kept,
+                )
+                return
+
             if provider.whole_outfit and not _quality_pipeline_on(provider):
                 # one render with every item at once (shoes, bags, jewellery too)
                 output = await provider.generate_outfit(model_url, _outfit_pieces(layers))

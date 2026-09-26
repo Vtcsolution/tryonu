@@ -757,3 +757,33 @@ def test_a_photo_with_no_face_found_is_left_entirely_alone():
     """Better to trust the render everywhere than to cut a body out of
     the wrong place."""
     assert pipeline._body_area(None, (1536, 1024)) is None
+
+
+def test_score_reports_averages_the_verdicts_that_exist():
+    """The number two engines' whole-look attempts get compared by."""
+    reports = [
+        pipeline.ItemReport(name="kameez", verdict=Verdict(product_match=9, worn_correctly=9, realism=8)),
+        pipeline.ItemReport(name="khussa", verdict=Verdict(product_match=8, worn_correctly=9, realism=8)),
+    ]
+    expected = (
+        Verdict(product_match=9, worn_correctly=9, realism=8).score
+        + Verdict(product_match=8, worn_correctly=9, realism=8).score
+    ) / 2
+    assert pipeline.score_reports(reports) == pytest.approx(expected)
+
+
+def test_score_reports_ignores_items_nobody_could_judge():
+    """A verdict the judge itself errored on shouldn't count against an
+    otherwise fine attempt, or drag a good result down to a coin flip."""
+    reports = [
+        pipeline.ItemReport(name="kameez", verdict=Verdict(product_match=9, worn_correctly=9, realism=9)),
+        pipeline.ItemReport(name="bangles", verdict=None),
+    ]
+    assert pipeline.score_reports(reports) == pytest.approx(Verdict(product_match=9, worn_correctly=9, realism=9).score)
+
+
+def test_score_reports_of_nothing_judged_is_zero_not_a_free_pass():
+    """An attempt that failed outright must never look better than one
+    that was scored and found merely imperfect."""
+    assert pipeline.score_reports([pipeline.ItemReport(name="kameez", verdict=None)]) == 0.0
+    assert pipeline.score_reports([]) == 0.0

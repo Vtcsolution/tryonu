@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from app.ai.providers.base import VirtualTryOnProvider
+from app.ai.providers.base import TryOnInput, TryOnOutput, VirtualTryOnProvider
 from app.ai.providers.fashn import FASHNTryOnProvider
 from app.ai.providers.mock import MockTryOnProvider
 from app.ai.providers.gemini_image import GeminiImageTryOnProvider
@@ -20,9 +20,36 @@ from app.models.enums import OutfitSlot
 from app.services.outfit_slots import render_plan
 
 
+class _BestOfMarker(VirtualTryOnProvider):
+    """Stands in for `get_tryon_provider()` when VIRTUAL_TRYON_PROVIDER is
+    "best_of" — enough for the callers that only read .name/.model/
+    .whole_outfit before the job runs (job creation, layer planning).
+
+    The actual dual-engine render is its own branch in the worker task,
+    checked ahead of anything that would call generate()/generate_outfit()
+    on a provider — so those methods here exist only to satisfy the ABC
+    and should never run. If one ever does, that's this guard rail having
+    caught a real bug rather than silently rendering nothing."""
+
+    name = "best_of"
+    whole_outfit = True
+
+    def __init__(self, model: str) -> None:
+        self.model = model
+
+    async def generate(self, payload: TryOnInput) -> TryOnOutput:  # noqa: ARG002
+        raise NotImplementedError(
+            "best_of is rendered directly in the worker task (see _render_with_engine "
+            "in tryon_tasks.py), never through this provider's own generate()"
+        )
+
+
 @lru_cache
 def get_tryon_provider() -> VirtualTryOnProvider:
     settings = get_settings()
+
+    if settings.VIRTUAL_TRYON_PROVIDER == "best_of":
+        return _BestOfMarker(model=f"{settings.GEMINI_IMAGE_MODEL}+{settings.OPENAI_IMAGE_MODEL}")
 
     if settings.VIRTUAL_TRYON_PROVIDER == "fashn":
         return FASHNTryOnProvider(

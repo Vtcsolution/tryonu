@@ -177,3 +177,36 @@ async def test_fashn_connection_test_distinguishes_valid_and_rejected_keys(clien
     assert resp.status_code == 200
     assert resp.json()["ok"] is ok
     assert secret not in resp.text
+
+
+async def test_gemini_and_best_of_are_choosable_from_the_admin_panel(client, db):
+    """Live bug: Gemini was wired into the app but never added to the
+    admin panel's provider list, so the only way to switch to it — or to
+    best_of, which needs both engines' keys set here too — was editing
+    .env directly on the server and restarting."""
+    await _admin(client, db)
+    resp = await client.get("/api/v1/admin/settings")
+    field = _field(resp.json(), "VIRTUAL_TRYON_PROVIDER")
+    assert {"gemini", "best_of"} <= set(field["choices"])
+    assert any(f["key"] == "GEMINI_API_KEY" for group in resp.json()["groups"] for f in group["fields"])
+
+
+async def test_best_of_warns_by_name_for_each_missing_key(client, db):
+    """Both keys missing names both of them, not a fixed phrase written
+    for the single-key providers this warning used to be hardcoded to."""
+    await _admin(client, db)
+    resp = await client.put("/api/v1/admin/settings", json={"values": {"VIRTUAL_TRYON_PROVIDER": "best_of"}})
+    assert resp.status_code == 200
+    field = _field(resp.json(), "VIRTUAL_TRYON_PROVIDER")
+    assert field["value"] == "mock"
+    assert "OpenAI API key" in field["warning"] and "Gemini API key" in field["warning"]
+
+
+async def test_best_of_falls_back_to_the_engine_that_still_has_a_key(client, db):
+    await _admin(client, db)
+    await client.put("/api/v1/admin/settings", json={"values": {"OPENAI_API_KEY": "sk-test-key"}})
+    resp = await client.put("/api/v1/admin/settings", json={"values": {"VIRTUAL_TRYON_PROVIDER": "best_of"}})
+    assert resp.status_code == 200
+    field = _field(resp.json(), "VIRTUAL_TRYON_PROVIDER")
+    assert field["value"] == "openai"  # only one of the two keys is set
+    assert "missing" in field["warning"]

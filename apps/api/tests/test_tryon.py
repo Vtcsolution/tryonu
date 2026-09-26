@@ -11,11 +11,37 @@ from app.ai.providers.base import TryOnOutput, TryOnProviderError
 from app.ai.providers.mock import MockTryOnProvider
 from app.models.enums import CreditReason, OutfitSlot
 from app.models.outfit import Outfit, OutfitItem
+from app.db.session import AsyncSessionLocal
 from app.services import credit_service
 from app.workers.tasks.tryon_tasks import _renderable_slots
 from tests.conftest import credit_balance, register_and_login, seed_product, small_jpeg_bytes
 
 TERMINAL = {"completed", "failed", "cancelled"}
+
+
+async def _was_refunded(job_id: str) -> bool:
+    """Whether this job's debit has a matching refund in the ledger — the
+    actual source of truth (see CreditTransaction's own docstring:
+    "User.credits_balance is a cache written in the same DB
+    transaction"). Checked here instead of the cached balance column
+    because reading that column back in a test can land between two
+    statements of the worker's still-open commit: every AsyncSession in
+    this suite shares one physical SQLite connection (StaticPool — see
+    app/db/session.py), so a second session's read isn't isolated from a
+    first session's not-yet-committed writes the way separate Postgres
+    connections would be, and it can see the job marked failed a beat
+    before the refund row lands beside it. The ledger rows themselves,
+    checked here, were never observed to show that gap — only the derived
+    column was."""
+    from sqlalchemy import select
+
+    from app.models.credit import CreditTransaction
+
+    async with AsyncSessionLocal() as fresh:
+        rows = (
+            await fresh.execute(select(CreditTransaction.reason).where(CreditTransaction.reference_id == job_id))
+        ).scalars().all()
+    return CreditReason.TRYON_REFUND in rows
 
 
 async def _poll_until_terminal(client, job_id: str, *, attempts: int = 300, delay: float = 0.1) -> dict:
@@ -490,3 +516,160 @@ async def test_photo_links_are_signed_fresh_so_they_work_after_the_upload_link_e
     assert finished["status"] == "completed"
     model_exp = int(seen[0].split("exp=")[1].split("&")[0])
     assert model_exp > real_time() + 3600
+
+
+async def test_render_with_engine_uses_the_pipeline_that_matches_the_engine(monkeypatch):
+    """An engine that gives the person back unchanged is used directly
+    (render_whole_look); one that redraws the photo goes through the
+    merge-based pipeline instead (render_look) — see VirtualTryOnProvider.
+    preserves_person. This is what VIRTUAL_TRYON_PROVIDER=best_of relies
+    on to run each engine correctly without knowing anything else about
+    it."""
+    from app.workers.tasks import tryon_tasks
+
+    calls: list[str] = []
+
+    async def fake_whole_look(person, items, render_all, **kw):  # noqa: ARG001
+        calls.append("whole_look")
+        return b"\xff\xd8img", []
+
+    async def fake_look(person, items, render, **kw):  # noqa: ARG001
+        calls.append("look")
+        return b"\xff\xd8img", []
+
+    monkeypatch.setattr(tryon_tasks, "render_whole_look", fake_whole_look)
+    monkeypatch.setattr(tryon_tasks, "render_look", fake_look)
+
+    class _FakeEngine:
+        name = "fake"
+        model = "fake-1"
+        whole_outfit = True
+        preserves_person = True
+
+    preserving = _FakeEngine()
+    await tryon_tasks._render_with_engine(preserving, b"person", [])
+    assert calls == ["whole_look"]
+
+    redrawing = _FakeEngine()
+    redrawing.preserves_person = False
+    await tryon_tasks._render_with_engine(redrawing, b"person", [])
+    assert calls == ["whole_look", "look"]
+
+
+async def test_best_of_keeps_whichever_engine_scores_higher(client, db, monkeypatch):
+    """VIRTUAL_TRYON_PROVIDER=best_of renders with OpenAI and Gemini at
+    once and keeps whichever one the inspector actually liked better —
+    here Gemini, even though OpenAI is the one most other settings point
+    at by default. The job record ends up naming the true winner, not
+    whichever engine was asked for first."""
+    from app.services.tryon_quality.judge import Verdict
+    from app.services.tryon_quality.pipeline import ItemReport
+    from app.workers.tasks import tryon_tasks
+
+    monkeypatch.setattr(tryon_tasks.settings, "VIRTUAL_TRYON_PROVIDER", "best_of")
+    monkeypatch.setattr(tryon_tasks.settings, "OPENAI_API_KEY", "test-openai-key")
+    monkeypatch.setattr(tryon_tasks.settings, "GEMINI_API_KEY", "test-gemini-key")
+
+    async def fake_keep_person_if_on(job, image, content_type, layers):  # noqa: ARG001
+        # not what this test is about — keep_person's own network/vision
+        # calls are covered where keep_person itself is tested. face_kept
+        # True skips _complete_job's own face-restore fallback, which
+        # would otherwise decode these fake, invalid JPEG bytes for real.
+        return image, content_type, True
+
+    monkeypatch.setattr(tryon_tasks, "_keep_person_if_on", fake_keep_person_if_on)
+
+    calls: list[str] = []
+
+    async def fake_render_with_engine(provider, person, items):  # noqa: ARG001
+        calls.append(provider.name)
+        if provider.name == "openai":
+            return b"\xff\xd8openai-render", [
+                ItemReport(name=items[0].name, verdict=Verdict(product_match=6, worn_correctly=7, realism=6))
+            ]
+        return b"\xff\xd8gemini-render", [
+            ItemReport(name=items[0].name, verdict=Verdict(product_match=9, worn_correctly=9, realism=9))
+        ]
+
+    monkeypatch.setattr(tryon_tasks, "_render_with_engine", fake_render_with_engine)
+
+    await register_and_login(client)
+    photo_id = await _upload_front_photo(client)
+    product = await seed_product(db, name="Maroon Shalwar Kameez", image_url="https://img.example/kameez.jpg")
+
+    resp = await client.post("/api/v1/tryon", json={"user_photo_id": photo_id, "product_id": product.id})
+    assert resp.status_code == 201, resp.text
+    finished = await _poll_until_terminal(client, resp.json()["id"])
+
+    assert finished["status"] == "completed"
+    assert sorted(calls) == ["gemini", "openai"]  # both engines were actually asked
+    assert finished["provider"] == "gemini"
+    assert finished["provider_model"] == "gemini-3-pro-image"
+    assert finished["result"]["placements"][0]["name"] == "Maroon Shalwar Kameez"
+
+
+async def test_best_of_survives_one_engine_failing_outright(client, db, monkeypatch):
+    """A customer's try-on must not fail just because one of the two
+    engines had a bad moment — the other one's result still ships."""
+    from app.ai.providers.base import TryOnProviderError
+    from app.services.tryon_quality.judge import Verdict
+    from app.services.tryon_quality.pipeline import ItemReport
+    from app.workers.tasks import tryon_tasks
+
+    monkeypatch.setattr(tryon_tasks.settings, "VIRTUAL_TRYON_PROVIDER", "best_of")
+    monkeypatch.setattr(tryon_tasks.settings, "OPENAI_API_KEY", "test-openai-key")
+    monkeypatch.setattr(tryon_tasks.settings, "GEMINI_API_KEY", "test-gemini-key")
+
+    async def fake_keep_person_if_on(job, image, content_type, layers):  # noqa: ARG001
+        # face_kept=True: skips _complete_job's own face-restore fallback,
+        # which would otherwise decode these fake, invalid JPEG bytes for
+        # real — not what this test is about.
+        return image, content_type, True
+
+    monkeypatch.setattr(tryon_tasks, "_keep_person_if_on", fake_keep_person_if_on)
+
+    async def fake_render_with_engine(provider, person, items):  # noqa: ARG001
+        if provider.name == "openai":
+            raise TryOnProviderError("OpenAI had a bad moment")
+        return b"\xff\xd8gemini-render", [
+            ItemReport(name=items[0].name, verdict=Verdict(product_match=8, worn_correctly=8, realism=8))
+        ]
+
+    monkeypatch.setattr(tryon_tasks, "_render_with_engine", fake_render_with_engine)
+
+    await register_and_login(client)
+    photo_id = await _upload_front_photo(client)
+    product = await seed_product(db, name="Khussa", image_url="https://img.example/khussa.jpg")
+
+    resp = await client.post("/api/v1/tryon", json={"user_photo_id": photo_id, "product_id": product.id})
+    assert resp.status_code == 201, resp.text
+    finished = await _poll_until_terminal(client, resp.json()["id"])
+
+    assert finished["status"] == "completed"
+    assert finished["provider"] == "gemini"
+
+
+async def test_best_of_fails_cleanly_and_refunds_if_both_engines_fail(client, db, monkeypatch):
+    """A customer isn't charged for a try-on neither engine could produce."""
+    from app.ai.providers.base import TryOnProviderError
+    from app.workers.tasks import tryon_tasks
+
+    monkeypatch.setattr(tryon_tasks.settings, "VIRTUAL_TRYON_PROVIDER", "best_of")
+    monkeypatch.setattr(tryon_tasks.settings, "OPENAI_API_KEY", "test-openai-key")
+    monkeypatch.setattr(tryon_tasks.settings, "GEMINI_API_KEY", "test-gemini-key")
+
+    async def fake_render_with_engine(provider, person, items):  # noqa: ARG001
+        raise TryOnProviderError(f"{provider.name} had a bad moment", retryable=False)
+
+    monkeypatch.setattr(tryon_tasks, "_render_with_engine", fake_render_with_engine)
+
+    await register_and_login(client)
+    photo_id = await _upload_front_photo(client)
+    product = await seed_product(db, name="Bangles", image_url="https://img.example/bangles.jpg")
+
+    resp = await client.post("/api/v1/tryon", json={"user_photo_id": photo_id, "product_id": product.id})
+    assert resp.status_code == 201, resp.text
+    job_id = resp.json()["id"]
+    finished = await _poll_until_terminal(client, job_id)
+    assert finished["status"] == "failed"
+    assert await _was_refunded(job_id)
