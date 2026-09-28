@@ -291,20 +291,26 @@ def _one_of_each_item(chosen: list[_Candidate], pool: list[_Candidate], max_item
     return [by_term[t] for t in terms if t in by_term][:max_items]
 
 
-def _alternatives_for(chosen: _Candidate, pool: list[_Candidate], picked_ids: set[str]) -> list[RawProduct]:
+def _alternatives_for(chosen: _Candidate, pool: list[_Candidate], picked_ids: set[str]) -> list[LiveSearchResult]:
     """Other real, live-fetched results for the same item type — spanning
     low to high price so "show me other options, cheap and expensive" is
     real data, not invented. Excludes everything already in the pick: two
     outfit items from the same search would otherwise list each other, and
-    swapping one in would put the same product in the outfit twice."""
+    swapping one in would put the same product in the outfit twice.
+
+    Keeps the whole LiveSearchResult, not just its RawProduct: the caller
+    needs to know which retailer actually found each one — AliExpress
+    alternatives were being shown labelled "eBay" because only the raw
+    listing survived past this point, from back when eBay really was the
+    only retailer with a live search."""
     same_term = [
-        c.result.raw
+        c.result
         for c in pool
         if c.term == chosen.term and c.result.raw.retailer_product_id not in picked_ids
     ]
     if not same_term:
         return []
-    by_price = sorted(same_term, key=lambda raw: raw.price_cents)
+    by_price = sorted(same_term, key=lambda result: result.raw.price_cents)
     if len(by_price) <= _MAX_ALTERNATIVES:
         return by_price
     # spread across the price range rather than just "the next 3 cheapest"
@@ -332,7 +338,7 @@ async def _shopper_gender(db: AsyncSession, user_id: str, prompt: str) -> str | 
 
 async def ask_stylist(
     db: AsyncSession, *, user_id: str, req: StylistAskRequest
-) -> tuple[StylistRequest, dict[str, tuple[str, list[RawProduct]]]]:
+) -> tuple[StylistRequest, dict[str, tuple[str, list[LiveSearchResult]]]]:
     wardrobe_item: WardrobeItem | None = None
     if req.wardrobe_item_id:
         wardrobe_item = await _load_owned_wardrobe_item(db, user_id, req.wardrobe_item_id)

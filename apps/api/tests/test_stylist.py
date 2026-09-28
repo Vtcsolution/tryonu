@@ -24,6 +24,14 @@ class _FakeLiveProvider:
         return f"{product_url}?campid={tracking_tag}"
 
 
+class _FakeAliExpressProvider:
+    slug = "aliexpress"
+    display_name = "AliExpress"
+
+    def build_affiliate_url(self, product_url: str, *, tracking_tag: str) -> str:
+        return f"{product_url}?aff_short_key={tracking_tag}"
+
+
 def _raw(name: str, **overrides) -> RawProduct:
     defaults = dict(
         retailer_product_id=f"live-{name}",
@@ -37,8 +45,8 @@ def _raw(name: str, **overrides) -> RawProduct:
     return RawProduct(**defaults)
 
 
-def _live_results(*names_or_raws: str | RawProduct) -> list[LiveSearchResult]:
-    provider = _FakeLiveProvider()
+def _live_results(*names_or_raws: str | RawProduct, provider=None) -> list[LiveSearchResult]:
+    provider = provider or _FakeLiveProvider()
     return [
         LiveSearchResult(provider=provider, raw=r if isinstance(r, RawProduct) else _raw(r))
         for r in names_or_raws
@@ -231,6 +239,40 @@ async def test_stylist_returns_real_alternatives_at_different_prices(client, mon
     # carries the search term back, so a client can persist one via
     # POST /products/select-live without needing to know what was searched
     assert all(a["search_term"] == "leather jacket" for a in alts)
+
+
+async def test_an_alternative_from_a_non_ebay_retailer_is_labelled_correctly(client, monkeypatch):
+    """Real bug: alternatives used to hardcode retailer_slug="ebay" for
+    every one, from back when eBay really was the only retailer with a
+    live search. An AliExpress alternative came back labelled eBay —
+    wrong retailer_name shown, and POST /products/select-live for it
+    would have asked eBay for an id AliExpress actually owns."""
+    options = [
+        _raw("Budget Jacket", price_cents=3000),
+        _raw("AliExpress Jacket", price_cents=6000, retailer_product_id="ali-1"),
+    ]
+    results = _live_results(options[0]) + _live_results(options[1], provider=_FakeAliExpressProvider())
+    _patch_live_search(monkeypatch, results)
+
+    class PicksFirstProvider:
+        name = "picks-first"
+        model = "picks-first-1"
+
+        async def recommend(self, query: StylistQuery, candidates: list[StylistCandidate]) -> StylistRecommendation:
+            return StylistRecommendation(summary="the budget one", chosen_indexes=[0])
+
+    monkeypatch.setattr("app.services.stylist_service.get_stylist_provider", lambda: PicksFirstProvider())
+    await register_and_login(client)
+
+    resp = await client.post("/api/v1/stylist/ask", json={"prompt": "a leather jacket", "max_items": 1})
+    assert resp.status_code == 200
+    body = resp.json()
+    chosen = body["products"][0]
+
+    alts = body["alternatives"][chosen["id"]]
+    ali_alt = next(a for a in alts if a["name"] == "AliExpress Jacket")
+    assert ali_alt["retailer_slug"] == "aliexpress"
+    assert ali_alt["retailer_name"] == "AliExpress"
 
 
 async def test_stylist_alternatives_span_the_price_range_not_just_cheapest(client, monkeypatch):
