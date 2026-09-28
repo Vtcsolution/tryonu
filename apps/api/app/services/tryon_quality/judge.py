@@ -2,10 +2,16 @@
 refused instead of being reported as a success.
 
 Identity isn't asked of the vision model: the merge keeps the person's
-own pixels outside the product area, and that's checked by measurement
-(see pipeline._identity_kept). The vision model grades what only it can:
-is this the exact product, is it worn the way a real one would be, does
-it look like a photograph."""
+own pixels outside the product area on purpose, and masked.py's real API
+mask enforces the same thing more strongly still. Neither is checked by
+pixel measurement here — tried once, on masked.py's own before/after: a
+plain colour diff between the customer's (usually smaller) original
+photo and the model's own generation reads as 20-50% "changed" even on a
+visually-confirmed-correct render, because upscaling the small original
+to compare is blurrier than a fresh render at every pixel, protected or
+not. That number measures resolution mismatch, not a broken mask. The
+vision model grades what only it can: is this the exact product, is it
+worn the way a real one would be, does it look like a photograph."""
 
 from __future__ import annotations
 

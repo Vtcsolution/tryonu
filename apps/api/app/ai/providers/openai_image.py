@@ -69,6 +69,12 @@ def masked_prompt(piece: OutfitPiece) -> str:
         f"{_HOW.get(piece.slot, 'worn or carried where it naturally goes')} — into the transparent region.",
         "Every pixel outside the transparent region must come back exactly as it went in: the same face, hair, "
         "skin, pose, clothing, background and lighting already there. Do not redraw, retouch or shift any of it.",
+        "The transparent region itself is wider than the product alone — it may include background, floor or "
+        "other clothing beside it, left that generous on purpose so the product has room to reach its natural "
+        "edges. Only the product's own pixels should look different. Anything else inside the transparent "
+        "region — the wall, the floor, the room, what's visible beside the product — must also come back "
+        "exactly as it already looks in Image 1. Do not invent a new setting, restyle the room, change the "
+        "camera angle or move the lighting just because that area happens to be editable.",
         f"Reproduce the product faithfully: {_PRESERVE.get(piece.slot, _PRESERVE['other'])}."
         " This is a try-on, not an illustration: a product that merely resembles the photo is wrong.",
         "Colour is not approximate: yellow gold is not silver, ivory is not pink, navy is not black. Match the"

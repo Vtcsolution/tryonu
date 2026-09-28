@@ -120,6 +120,29 @@ async def test_a_garments_mask_without_a_face_falls_back_to_the_plain_default():
     assert region == masked._MASK_REGION[OutfitSlot.TOP]
 
 
+async def test_a_garments_mask_narrows_toward_her_on_a_wide_photo():
+    """Live: on a full-body photo where she filled under half the frame
+    width, the kameez's mask reached the fixed 0.03-0.97 ceiling on both
+    sides — background metres away from her, a wedding hall's own décor —
+    and the model re-staged the whole room. It should stop well short of
+    the frame edge when her own face says there's no need to reach it."""
+    face = Box(x=206, y=135, w=58, h=58)
+    region = await _mask_region(LookItem("x", OutfitSlot.DRESS, "kameez"), face, np.zeros((668, 459, 3), np.uint8))
+    assert region is not None
+    assert region.x0 > masked._MASK_REGION[OutfitSlot.DRESS].x0  # tighter than the fixed ceiling
+    assert region.x1 < masked._MASK_REGION[OutfitSlot.DRESS].x1
+    assert region.x0 < 0.5 < region.x1  # still centred on her
+
+
+async def test_a_garments_mask_never_widens_past_the_fixed_ceiling():
+    # a close, cropped-in face makes the face-relative window huge —
+    # nothing here should ever reach past the slot's own fixed bounds
+    face = Box(x=60, y=40, w=150, h=150)
+    region = await _mask_region(LookItem("x", OutfitSlot.DRESS, "kameez"), face, np.zeros((300, 200, 3), np.uint8))
+    fixed = masked._MASK_REGION[OutfitSlot.DRESS]
+    assert region.x0 == fixed.x0 and region.x1 == fixed.x1
+
+
 async def test_a_non_garment_defers_to_the_existing_body_part_lookup(monkeypatch):
     called = {}
 

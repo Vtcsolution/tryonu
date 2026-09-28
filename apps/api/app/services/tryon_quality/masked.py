@@ -101,6 +101,19 @@ _MASK_REGION = {
 # top of the mask starts just under the chin, not at the collar — a
 # high neckline or a dupatta thrown back needs the collarbone in reach
 _NECKLINE_DROP = 0.35  # of a face-height, below the bottom of the face
+# A garment's mask never reaches wider than this, either side of her own
+# centre. _MASK_REGION's fixed 0.03-0.97 is the ceiling for someone who
+# already fills most of the frame; most photos aren't that tight a crop,
+# and everything between her and that edge — wall, pillars, a wedding
+# hall's own décor — was sitting inside the "editable" window right along
+# with the sleeve. Live, on a full-body photo where she filled under half
+# the frame width: the room behind her came back completely re-staged,
+# a different hall than the one she was standing in, while the garment
+# itself rendered correctly — the mask, not the model, was the bug. 2.6
+# face-widths each side is generous enough for a dupatta thrown open or
+# a flared sleeve (checked live against the same photo, hem to cuff,
+# nothing clipped) without also handing over everything beside her.
+_GARMENT_HALF_WIDTH = 2.6  # face-widths, each side of her centre
 # the lowest a hand/wrist/bag item's own window may start: below this,
 # never above it, regardless of what the body-part lookup returned
 _SHOULDER_DROP = 1.15  # of a face-height, below the bottom of the face
@@ -126,8 +139,16 @@ async def _mask_region(item: LookItem, face, base: np.ndarray) -> Region | None:
         region = _MASK_REGION.get(item.slot)
         if region is None or face is None:
             return region
-        top = min(region.y1, (face.y + face.h + _NECKLINE_DROP * face.h) / base.shape[0])
-        return Region(region.x0, top, region.x1, region.y1)
+        h, w = base.shape[:2]
+        top = min(region.y1, (face.y + face.h + _NECKLINE_DROP * face.h) / h)
+        # Narrow the slot's own fixed width toward her, never widen it —
+        # a close-up photo where the face-relative window would exceed
+        # the fixed bounds just keeps those bounds unchanged.
+        cx = (face.x + face.w / 2) / w
+        half = _GARMENT_HALF_WIDTH * face.w / w
+        x0 = max(region.x0, cx - half)
+        x1 = min(region.x1, cx + half)
+        return Region(x0, top, x1, region.y1)
 
     region = await _area_for(item, face, base)
     if region is None or face is None:
