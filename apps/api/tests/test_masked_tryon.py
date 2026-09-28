@@ -10,12 +10,22 @@ import cv2
 import numpy as np
 import pytest
 
+import asyncio
+
 from app.models.enums import OutfitSlot
 from app.services.face_restore import Box
 from app.services.tryon_quality import masked
-from app.services.tryon_quality.compose import Region, encode_jpeg
+from app.services.tryon_quality.compose import Region, decode, encode_jpeg
 from app.services.tryon_quality.judge import Verdict
-from app.services.tryon_quality.masked import LookItem, _mask_png, _mask_region, _order_of, render_masked_look
+from app.services.tryon_quality.masked import (
+    LookItem,
+    _mask_png,
+    _mask_region,
+    _order_of,
+    _overlaps,
+    _waves,
+    render_masked_look,
+)
 
 GOOD = Verdict(9, 9, 8)
 BAD = Verdict(4, 5, 6, ["wrong strap colour"], "make the bracelet silver steel like the reference")
@@ -259,3 +269,113 @@ async def test_a_neck_or_head_item_is_never_clamped_away_from_the_face(monkeypat
         LookItem("x", OutfitSlot.ACCESSORY, "Jhumka Earrings"), face, np.zeros((1536, 1024, 3), np.uint8)
     )
     assert region == Region(0.3, 0.05, 0.7, 0.3)  # untouched
+
+
+# --------------------------------------------------------------------- waves
+
+
+def test_overlaps_is_true_for_crossing_regions_and_false_with_a_gap():
+    assert _overlaps(Region(0.0, 0.0, 0.5, 0.5), Region(0.4, 0.4, 0.9, 0.9))
+    assert not _overlaps(Region(0.0, 0.0, 0.3, 0.3), Region(0.6, 0.6, 0.9, 0.9))
+
+
+def test_overlaps_keeps_a_margin_around_a_bare_touch():
+    # sharing an exact edge isn't a gap: the API's own blend at the
+    # boundary is real, so two windows that just meet still count as
+    # overlapping rather than being trusted to draw in the same round
+    assert _overlaps(Region(0.0, 0.0, 0.5, 1.0), Region(0.5, 0.0, 1.0, 1.0))
+
+
+def test_waves_batches_non_overlapping_steps_together():
+    regions = [Region(0.0, 0.0, 0.3, 0.3), Region(0.6, 0.6, 0.9, 0.9), Region(0.0, 0.6, 0.3, 0.9)]
+    assert _waves([0, 1, 2], regions) == [[0, 1, 2]]  # none of the three touch
+
+
+def test_waves_separates_steps_whose_windows_cross():
+    # step 0 is a dress-sized box; step 1 sits inside it and must wait
+    regions = [Region(0.0, 0.0, 1.0, 1.0), Region(0.4, 0.4, 0.6, 0.6)]
+    assert _waves([0, 1], regions) == [[0], [1]]
+
+
+def test_waves_lets_a_third_item_join_whichever_wave_it_fits():
+    # 0 and 1 collide (both waves must stay apart); 2 fits in neither
+    # 0's wave nor a spot alone if it also collides with 1 only — it
+    # should land with 0, the earliest wave it doesn't cross
+    regions = [Region(0.0, 0.0, 0.5, 0.5), Region(0.4, 0.4, 0.9, 0.9), Region(0.0, 0.6, 0.5, 1.0)]
+    assert _waves([0, 1, 2], regions) == [[0, 2], [1]]
+
+
+# ------------------------------------------------------- parallel rendering
+
+
+async def test_non_overlapping_items_draw_in_the_same_round(monkeypatch):
+    """If these ran one after another rather than together, the first call
+    would block forever on an event only the second call sets — this test
+    times out rather than passing if the pipeline regresses to serial."""
+    entered: list[str] = []
+    second_arrived = asyncio.Event()
+
+    async def area_for(item, face, base):  # noqa: ARG001
+        return {"Watch": Region(0.0, 0.0, 0.3, 0.3), "Bag": Region(0.6, 0.6, 0.9, 0.9)}[item.name]
+
+    async def download(url):  # noqa: ARG001
+        return np.zeros((10, 10, 3), np.uint8)
+
+    async def describe(image, url, name):  # noqa: ARG001
+        return name
+
+    async def judge_ok(product, before, after, region, description, small_item=False):  # noqa: ARG001
+        return GOOD
+
+    async def edit(person_png, mask_png, item, hint):  # noqa: ARG001
+        entered.append(item.name)
+        if len(entered) == 1:
+            await second_arrived.wait()  # only released once BOTH have started
+        else:
+            second_arrived.set()
+        return _photo()
+
+    monkeypatch.setattr(masked, "_area_for", area_for)
+    monkeypatch.setattr(masked, "_download", download)
+    monkeypatch.setattr(masked, "describe_product", describe)
+    monkeypatch.setattr(masked, "judge", judge_ok)
+
+    items = [LookItem("x", OutfitSlot.WATCH, "Watch"), LookItem("x", OutfitSlot.BAG, "Bag")]
+    _, reports = await asyncio.wait_for(render_masked_look(_photo(), items, edit, retries=0), timeout=2)
+    assert sorted(entered) == ["Bag", "Watch"]
+    assert all(r.verdict == GOOD for r in reports)
+
+
+async def test_a_parallel_rounds_result_takes_each_items_own_window_only(monkeypatch):
+    async def area_for(item, face, base):  # noqa: ARG001
+        return {"Watch": Region(0.0, 0.0, 0.4, 0.4), "Bag": Region(0.6, 0.6, 1.0, 1.0)}[item.name]
+
+    async def download(url):  # noqa: ARG001
+        return np.zeros((10, 10, 3), np.uint8)
+
+    async def describe(image, url, name):  # noqa: ARG001
+        return name
+
+    async def judge_ok(product, before, after, region, description, small_item=False):  # noqa: ARG001
+        return GOOD
+
+    colours = {"Watch": (0, 0, 255), "Bag": (255, 0, 0)}
+
+    async def edit(person_png, mask_png, item, hint):  # noqa: ARG001
+        return encode_jpeg(np.full((300, 200, 3), colours[item.name], np.uint8), 95)
+
+    monkeypatch.setattr(masked, "_area_for", area_for)
+    monkeypatch.setattr(masked, "_download", download)
+    monkeypatch.setattr(masked, "describe_product", describe)
+    monkeypatch.setattr(masked, "judge", judge_ok)
+
+    items = [LookItem("x", OutfitSlot.WATCH, "Watch"), LookItem("x", OutfitSlot.BAG, "Bag")]
+    image, _ = await render_masked_look(_photo(), items, edit, retries=0)
+
+    def close(pixel, expected):
+        return all(abs(int(a) - b) <= 6 for a, b in zip(pixel, expected))  # allows for JPEG round-trip
+
+    out = decode(image)
+    assert close(out[20, 20], colours["Watch"])  # inside the watch's own window
+    assert close(out[250, 150], colours["Bag"])  # inside the bag's own window
+    assert close(out[150, 100], (220, 220, 220))  # untouched: the original grey

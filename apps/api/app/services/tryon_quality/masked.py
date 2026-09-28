@@ -25,12 +25,15 @@ blob is whose — which is exactly the machinery every seam, ghost,
 fragmented-limb and half-original-photo bug this project has chased came
 from.
 
-The trade-off is real and stated plainly: each product is its own
-sequential edit — a dress's mask covers most of the body, so it and a
-watch cannot be drawn in the same pass without each ignoring the other's
-change — where the whole-look engines draw everything in one call. A
-three-item outfit is three edits, one after another, each waiting on the
-last.
+The trade-off is real and stated plainly: two products can only share a
+round if their windows don't overlap — a dress's mask covers most of the
+body, so it and a watch cannot be drawn in the same pass without each
+ignoring the other's change, and must go one after another — where the
+whole-look engines draw everything in one call regardless. What overlap
+actually forces to wait is worked out per look, not assumed from the
+item count: a watch on one wrist and a bag in the other usually don't
+touch, and draw in the same round; a dress and anything on the torso
+almost always do. See _waves() below.
 
 Where the region to protect comes FROM is the one place this still
 depends on a guess rather than a guarantee, and the one place a mistake
@@ -165,6 +168,97 @@ def _order_of(items: list[LookItem]) -> list[int]:
     return sorted(range(len(items)), key=lambda i: (_MASK_ORDER.get(items[i].slot, _LAST), i))
 
 
+def _overlaps(a: Region, b: Region, margin: float = 0.02) -> bool:
+    """Would two mask windows touch or cross, with a small buffer so a
+    seam right at the boundary (the API's own blend, not ours) never has
+    to be discovered live to be believed?"""
+    return not (a.x1 + margin <= b.x0 or b.x1 + margin <= a.x0 or a.y1 + margin <= b.y0 or b.y1 + margin <= a.y0)
+
+
+def _waves(ready: list[int], regions: list[Region | None]) -> list[list[int]]:
+    """Batch draw steps whose windows don't overlap so independent items —
+    a watch on one wrist, a bag in the other hand — render in the same API
+    round instead of waiting their turn, while anything whose window
+    crosses an earlier one still waits for it. `ready` already comes in
+    draw-priority order (garments first, then worn items), so a later item
+    that collides with an earlier one always yields the earlier a wave to
+    itself rather than the reverse."""
+    waves: list[list[int]] = []
+    for step in ready:
+        region = regions[step]
+        for wave in waves:
+            if not any(_overlaps(region, regions[s]) for s in wave):
+                wave.append(step)
+                break
+        else:
+            waves.append([step])
+    return waves
+
+
+async def _render_item(
+    item: LookItem,
+    product: np.ndarray,
+    description: str,
+    region: Region,
+    canvas: np.ndarray,
+    report: ItemReport,
+    edit: MaskedRenderFn,
+    *,
+    min_p: float,
+    min_other: float,
+    retries: int,
+    budget_seconds: int,
+    started: float,
+) -> np.ndarray | None:
+    """One item's own retry loop, against a shared starting canvas it does
+    not mutate — a sibling drawn the same round reads the same pixels.
+    Returns the accepted render, or None if every attempt failed outright."""
+    note = ""
+    for_model = _for_model(canvas)
+    mask_png = _mask_png(for_model.shape[:2], region)
+    for attempt in range(retries + 1):
+        hint = RenderHint(description=description, fix=note)
+        try:
+            raw_bytes = await edit(encode_png(for_model), mask_png, item, hint)
+        except Exception as exc:  # noqa: BLE001 — one item's failure must not lose the rest
+            logger.warning("tryon_masked_edit_failed", item=item.name[:60], error=str(exc)[:200])
+            report.history.append(f"attempt {attempt + 1}: the render failed ({str(exc)[:120]})")
+            return None
+        # Used as it comes back, at the model's own output resolution —
+        # sharper than the small input it was given (see MODEL_SIDE's own
+        # comment) — never shrunk to match what was sent, the same way
+        # render_whole_look never shrinks Gemini's output.
+        raw = decode(raw_bytes)
+
+        verdict = await judge(product, canvas, raw, region, description, item.slot in _SMALL)
+        report.attempts = attempt + 1
+        report.history.append(
+            f"attempt {attempt + 1}: product={verdict.product_match:.0f} "
+            f"worn={verdict.worn_correctly:.0f} realism={verdict.realism:.0f}"
+        )
+        passed = verdict.passes(min_p, min_other)
+        # A near miss is kept as it is — "product 6 instead of 7" is a
+        # detail nobody sees, and redrawing costs the customer's own
+        # minute (see TRYON_QUALITY_BUDGET_SECONDS). Out of budget, the
+        # best attempt made ships rather than nothing.
+        close = verdict.passes(min_p - 1, min_other - 1)
+        # last_chance: either this was the final retry, or the customer's
+        # own time budget for the whole look is spent — either way, this
+        # attempt ships rather than nothing.
+        last_chance = attempt >= retries or time.monotonic() - started > budget_seconds
+        if passed or close or last_chance:
+            if not passed:
+                report.history.append("kept as a near miss rather than spending a redraw" if close else "out of time for another attempt")
+            report.verdict = verdict
+            report.box = region
+            return raw
+        # raw text, not pre-labelled: openai_image.masked_prompt() adds
+        # "Correction from the previous attempt:" itself, matching how
+        # OutfitPiece.note is already treated for a per-item retry
+        note = "; ".join(verdict.issues[:3])
+    return None  # unreachable — last_chance is always true by the final attempt
+
+
 async def render_masked_look(
     person: bytes,
     items: list[LookItem],
@@ -176,10 +270,12 @@ async def render_masked_look(
     budget_seconds: int = 60,
     on_progress: ProgressFn | None = None,
 ) -> tuple[bytes, list[ItemReport]]:
-    """Every product drawn through its own real edit mask, one after
-    another onto the result so far. Returns the final image and one
-    report per item — box is the exact mask window used, not a guess
-    recovered from the render afterwards, because here it never was one."""
+    """Every product drawn through its own real edit mask, in as few
+    sequential rounds as their windows allow — items whose masks don't
+    overlap draw in parallel, since each is independently guaranteed to
+    leave every other pixel alone. Returns the final image and one report
+    per item — box is the exact mask window used, not a guess recovered
+    from the render afterwards, because here it never was one."""
     started = time.monotonic()
     base = _cap(decode(person))
     face = detect_face(base)
@@ -192,60 +288,48 @@ async def render_masked_look(
     )
     regions = await asyncio.gather(*(_mask_region(items[i], face, base) for i in order))
 
-    current = base
+    ready = []
     for step, index in enumerate(order):
-        item, product, description, region = items[index], products[step], descriptions[step], regions[step]
-        report = reports[index]
-        if region is None:
-            report.history.append("couldn't find where this goes on the photo")
-            continue
+        if regions[step] is None:
+            reports[index].history.append("couldn't find where this goes on the photo")
+        else:
+            ready.append(step)
 
-        await _say(on_progress, f"Drawing {item.name[:40]}")
-        note = ""
-        min_p = _min_product_for(item, min_product)
-        for_model = _for_model(current)
-        mask_png = _mask_png(for_model.shape[:2], region)
-        for attempt in range(retries + 1):
-            hint = RenderHint(description=description, fix=note)
-            try:
-                raw_bytes = await edit(encode_png(for_model), mask_png, item, hint)
-            except Exception as exc:  # noqa: BLE001 — one item's failure must not lose the rest
-                logger.warning("tryon_masked_edit_failed", item=item.name[:60], error=str(exc)[:200])
-                report.history.append(f"attempt {attempt + 1}: the render failed ({str(exc)[:120]})")
-                break
-            # Used as it comes back, at the model's own output resolution —
-            # sharper than the small input it was given (see MODEL_SIDE's
-            # own comment) — never shrunk to match what was sent, the same
-            # way render_whole_look never shrinks Gemini's output.
-            raw = decode(raw_bytes)
-
-            verdict = await judge(product, current, raw, region, description, item.slot in _SMALL)
-            report.attempts = attempt + 1
-            report.history.append(
-                f"attempt {attempt + 1}: product={verdict.product_match:.0f} "
-                f"worn={verdict.worn_correctly:.0f} realism={verdict.realism:.0f}"
+    current = base
+    for wave in _waves(ready, regions):
+        names = ", ".join(items[order[s]].name[:30] for s in wave)
+        await _say(on_progress, f"Drawing {names}")
+        results = await asyncio.gather(
+            *(
+                _render_item(
+                    items[order[s]],
+                    products[s],
+                    descriptions[s],
+                    regions[s],
+                    current,
+                    reports[order[s]],
+                    edit,
+                    min_p=_min_product_for(items[order[s]], min_product),
+                    min_other=min_other,
+                    retries=retries,
+                    budget_seconds=budget_seconds,
+                    started=started,
+                )
+                for s in wave
             )
-            passed = verdict.passes(min_p, min_other)
-            # A near miss is kept as it is — "product 6 instead of 7" is a
-            # detail nobody sees, and redrawing costs the customer's own
-            # minute (see TRYON_QUALITY_BUDGET_SECONDS). Out of budget, the
-            # best attempt made ships rather than nothing.
-            close = verdict.passes(min_p - 1, min_other - 1)
-            # last_chance: either this was the final retry, or the
-            # customer's own time budget for the whole look is spent —
-            # either way, this attempt ships rather than nothing.
-            last_chance = attempt >= retries or time.monotonic() - started > budget_seconds
-            if passed or close or last_chance:
-                if not passed:
-                    report.history.append("kept as a near miss rather than spending a redraw" if close else "out of time for another attempt")
-                current = raw
-                report.verdict = verdict
-                report.box = region
-                break
-            # raw text, not pre-labelled: openai_image.masked_prompt() adds
-            # "Correction from the previous attempt:" itself, matching how
-            # OutfitPiece.note is already treated for a per-item retry
-            note = "; ".join(verdict.issues[:3])
+        )
+        h, w = current.shape[:2]
+        merged = current
+        for step, raw in zip(wave, results):
+            if raw is None:
+                continue
+            if raw.shape[:2] != (h, w):
+                raw = cv2.resize(raw, (w, h), interpolation=cv2.INTER_LANCZOS4)
+            if merged is current:
+                merged = current.copy()
+            x0, y0, x1, y1 = regions[step].pixels(w, h)
+            merged[y0:y1, x0:x1] = raw[y0:y1, x0:x1]
+        current = merged
 
     return encode_jpeg(current, 97), reports
 
