@@ -72,8 +72,22 @@ class TryOnJobOut(ORMModel):
 
     @model_validator(mode="after")
     def _labels_match_what_was_drawn(self) -> "TryOnJobOut":
-        # a finished job's "on photo" labels follow the engine that actually
-        # drew it (e.g. FASHN after an OpenAI fallback), not today's config
+        # A finished job's "on photo" labels follow what actually
+        # happened, not a plan of what an engine was expected to draw:
+        # drawn_by() predicts from the item list alone, so a product that
+        # was attempted and failed — no region found, every retry missed
+        # the quality bar and nothing shippable resulted — still counted
+        # as "drawn" as long as the theoretical plan included its slot.
+        # That produced "every item is on the photo" on a job where a
+        # selected item genuinely wasn't. Real per-item results exist
+        # (placements, from the same reports the quality pipeline already
+        # verified each item against) whenever the render path computed
+        # them; use those instead, and only fall back to the plan-based
+        # guess for the paths that don't (whole-outfit engines, the
+        # legacy per-layer chain) where no real per-item signal exists.
         if self.outfit is not None and self.status == JobStatus.COMPLETED:
-            self.outfit.drawn_by(self.provider, self.provider_model)
+            if self.result is not None and self.result.placements:
+                self.outfit.drawn_from_placements(self.result.placements)
+            else:
+                self.outfit.drawn_by(self.provider, self.provider_model)
         return self

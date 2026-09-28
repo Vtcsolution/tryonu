@@ -67,3 +67,16 @@ class OutfitOut(ORMModel):
     def drawn_by(self, provider_name: str, model: str) -> None:
         plan = render_plan([(i.slot, i.product.name) for i in self.items], model, provider_name in WHOLE_OUTFIT_PROVIDERS)
         self.rendered_item_ids = [self.items[idx].id for idx, _ in plan]
+
+    def drawn_from_placements(self, placements: list) -> None:
+        """A completed job's real, per-item outcome — which of this
+        outfit's products the render actually placed and the quality
+        inspector actually verified, not which ones a plan predicted it
+        would attempt. `placements` is a completed TryOnResult's own
+        list (see tryon_tasks._placements): matched back to this
+        outfit's items by product id, the same key it already carries.
+        Call this instead of drawn_by() whenever a real result exists —
+        drawn_by()'s plan is a guess about what a job WOULD draw, made
+        before it runs; this is what one actually did."""
+        applied = {p.product_id for p in placements if p.drawn and p.product_id}
+        self.rendered_item_ids = [i.id for i in self.items if i.product.id in applied]

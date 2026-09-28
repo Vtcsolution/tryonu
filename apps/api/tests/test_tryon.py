@@ -738,3 +738,79 @@ async def test_a_masked_edit_capable_provider_uses_the_masked_pipeline(client, d
     assert finished["status"] == "completed"
     assert finished["provider"] == "fake-masked"
     assert finished["result"]["placements"][0]["name"] == "Masked Kameez"
+
+
+async def test_an_item_that_failed_is_not_claimed_as_on_the_photo(client, db, monkeypatch):
+    """Real bug: a customer selected a dupatta, a ring and a khussa; the
+    khussa never actually rendered (no findable region), but the result
+    still said "every item in this outfit is on the photo" — because
+    rendered_item_ids came from render_plan(), a plan of what an engine
+    is theoretically capable of drawing, computed without ever looking at
+    what that job's own render actually produced. A selected item being
+    in the plan isn't the same as it being applied. Fixed by sourcing
+    rendered_item_ids from the job's real placements (drawn_from_
+    placements) whenever they exist, falling back to the plan only for
+    render paths that never compute per-item results."""
+    from app.services.tryon_quality.compose import Region
+    from app.services.tryon_quality.judge import Verdict
+    from app.services.tryon_quality.masked import ItemReport
+    from app.workers.tasks import tryon_tasks
+
+    class _FakeMaskedProvider:
+        name = "fake-masked"
+        model = "fake-masked-1"
+        whole_outfit = True
+        preserves_person = False
+        supports_masked_edit = True
+
+    provider = _FakeMaskedProvider()
+    monkeypatch.setattr("app.workers.tasks.tryon_tasks.get_tryon_provider", lambda: provider)
+    monkeypatch.setattr("app.ai.providers.registry.get_tryon_provider", lambda: provider)
+
+    async def fake_render_masked_look(person, items, edit, **kw):  # noqa: ARG001
+        # dupatta and ring found a place and passed inspection; the
+        # khussa never found a region at all — exactly a real, failed
+        # item, not a manufactured edge case
+        reports = [
+            ItemReport(name=i.name, verdict=Verdict(9, 9, 8), box=Region(0.1, 0.1, 0.9, 0.9))
+            if "Khussa" not in i.name
+            else ItemReport(name=i.name, verdict=None, box=None)
+            for i in items
+        ]
+        return small_jpeg_bytes(), reports
+
+    monkeypatch.setattr(tryon_tasks, "render_masked_look", fake_render_masked_look)
+
+    async def fake_keep_person_if_on(*a, **kw):  # noqa: ARG001
+        raise AssertionError("face-restore fallback must not run for a masked-edit engine")
+
+    monkeypatch.setattr(tryon_tasks, "_keep_person_if_on", fake_keep_person_if_on)
+
+    await register_and_login(client)
+    photo_id = await _upload_front_photo(client)
+    user_id = (await client.get("/api/v1/auth/me")).json()["id"]
+
+    outfit = Outfit(user_id=user_id)
+    db.add(outfit)
+    await db.flush()
+    rows = [
+        ("Dupatta", OutfitSlot.OUTERWEAR),
+        ("Ring", OutfitSlot.ACCESSORY),
+        ("Khussa", OutfitSlot.SHOES),
+    ]
+    for pos, (name, slot) in enumerate(rows):
+        product = await seed_product(db, name=name, image_url=f"https://img.example/{name.lower()}.jpg")
+        db.add(OutfitItem(outfit_id=outfit.id, product_id=product.id, slot=slot, position=pos))
+    await db.commit()
+
+    resp = await client.post("/api/v1/tryon", json={"user_photo_id": photo_id, "outfit_id": outfit.id})
+    assert resp.status_code == 201, resp.text
+    finished = await _poll_until_terminal(client, resp.json()["id"])
+    assert finished["status"] == "completed"
+
+    items_by_name = {i["product"]["name"]: i for i in finished["outfit"]["items"]}
+    rendered = set(finished["outfit"]["rendered_item_ids"])
+    assert items_by_name["Dupatta"]["id"] in rendered
+    assert items_by_name["Ring"]["id"] in rendered
+    assert items_by_name["Khussa"]["id"] not in rendered  # the one that actually failed
+    assert len(rendered) == 2  # never "every item", because it wasn't true
