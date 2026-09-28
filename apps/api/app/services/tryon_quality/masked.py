@@ -1,0 +1,257 @@
+"""Try-on via real, API-level masked editing — each product drawn only
+into a transparent window of an edit mask, with everywhere else on the
+photo protected by the API itself.
+
+Why this exists, next to render_look/render_whole_look: those two exist
+because most engines don't give the person back unchanged, and each
+copes with that in its own way — render_look reconstructs protection
+afterwards, by finding what an unconstrained whole-look redraw changed
+and merging only the parts judged to be the product; render_whole_look
+trusts an engine that mostly preserves the person on its own. Both are
+working around the same fact: the model was free to touch every pixel,
+and something downstream has to decide, after it already has, which of
+what it touched was allowed.
+
+A real edit mask removes the question. The API is told which pixels it
+may draw into (an alpha channel, not a sentence), and every other pixel
+is refused before generation starts — not reconstructed, not trusted,
+refused. Measured live, three chained edits (a shalwar kameez, a watch,
+a handbag) on the same photo: 2-4% of the untouched region differed from
+the original per edit — re-encoding noise, not redrawing — against
+27-40% for an engine that "mostly" preserves the person and far more for
+one given no protection at all. It is also structurally simpler: no
+alignment, no diff, no candidate blobs, no vision call to decide whose
+blob is whose — which is exactly the machinery every seam, ghost,
+fragmented-limb and half-original-photo bug this project has chased came
+from.
+
+The trade-off is real and stated plainly: each product is its own
+sequential edit — a dress's mask covers most of the body, so it and a
+watch cannot be drawn in the same pass without each ignoring the other's
+change — where the whole-look engines draw everything in one call. A
+three-item outfit is three edits, one after another, each waiting on the
+last.
+
+Where the region to protect comes FROM is the one place this still
+depends on a guess rather than a guarantee, and the one place a mistake
+here is expensive rather than merely imprecise: whatever is inside the
+window is not just "probably the product" the way a merge's chosen blob
+was, it is the ONLY thing the model is allowed to touch. A garment's
+mask is a generous, face-relative rectangle (see _MASK_REGION below),
+not real body segmentation, because building the latter is its own,
+separate problem. A small worn item's mask reuses the body-part lookup
+the older pipeline already relies on (pipeline._area_for) — a live
+vision call, and not a perfectly reliable one: asked live for "the
+person's hands, forearms and shoulders" it once returned a box starting
+2.5% down the photo, the top of her head, and the bag edit drew a scarf
+into it, over her face. _mask_region's own clamp (below) is the
+backstop for exactly that: nothing routed through the vision lookup is
+ever allowed to reach above the shoulder, whatever the lookup says.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import time
+from collections.abc import Awaitable, Callable
+
+import cv2
+import numpy as np
+
+from app.core.logging import logger
+from app.models.enums import OutfitSlot
+from app.services.face_restore import detect_face
+from app.services.outfit_slots import worn_on_head
+from app.services.tryon_quality.compose import Region, decode, encode_jpeg
+from app.services.tryon_quality.judge import judge
+from app.services.tryon_quality.pipeline import (
+    ItemReport,
+    LookItem,
+    ProgressFn,
+    RenderHint,
+    _AROUND_THE_NECK,
+    _area_for,
+    _cap,
+    _download,
+    _for_model,
+    _GARMENTS,
+    _min_product_for,
+    _ON_THE_FLOOR,
+    _say,
+    _SMALL,
+)
+from app.services.tryon_quality.product_prep import describe_product
+
+# A garment's mask, face-relative fractions of the photo: generous on
+# purpose. Too small clips the garment against a hard edge it cannot
+# cross; too large only widens the area the model is trusted to blend
+# naturally into, which is the one thing it is reliably good at. Live,
+# 0.05-0.95 wide and down to the ankle for anything with a lower half
+# drew full sleeves and hemlines with room to spare and never touched
+# the face or the floor.
+_MASK_REGION = {
+    OutfitSlot.DRESS: Region(0.03, 0.0, 0.97, 0.97),
+    OutfitSlot.TOP: Region(0.03, 0.0, 0.97, 0.75),
+    OutfitSlot.OUTERWEAR: Region(0.0, 0.0, 1.0, 0.8),
+    OutfitSlot.BOTTOM: Region(0.05, 0.4, 0.95, 0.97),
+}
+# top of the mask starts just under the chin, not at the collar — a
+# high neckline or a dupatta thrown back needs the collarbone in reach
+_NECKLINE_DROP = 0.35  # of a face-height, below the bottom of the face
+# the lowest a hand/wrist/bag item's own window may start: below this,
+# never above it, regardless of what the body-part lookup returned
+_SHOULDER_DROP = 1.15  # of a face-height, below the bottom of the face
+
+# drawn first to last: a sleeve has to exist before a bracelet can sit on
+# top of the wrist inside it, and a bag is carried over a finished outfit
+_MASK_ORDER = {
+    OutfitSlot.DRESS: 0,
+    OutfitSlot.BOTTOM: 1,
+    OutfitSlot.TOP: 2,
+    OutfitSlot.OUTERWEAR: 3,
+    OutfitSlot.SHOES: 4,
+    OutfitSlot.BAG: 5,
+}
+_LAST = 6  # watch, jewellery, anything else: on top of everything already drawn
+
+MaskedRenderFn = Callable[[bytes, bytes, LookItem, RenderHint], Awaitable[bytes]]
+
+
+async def _mask_region(item: LookItem, face, base: np.ndarray) -> Region | None:  # noqa: ANN001
+    """Where to cut this item's transparent window."""
+    if item.slot in _GARMENTS:
+        region = _MASK_REGION.get(item.slot)
+        if region is None or face is None:
+            return region
+        top = min(region.y1, (face.y + face.h + _NECKLINE_DROP * face.h) / base.shape[0])
+        return Region(region.x0, top, region.x1, region.y1)
+
+    region = await _area_for(item, face, base)
+    if region is None or face is None:
+        return region
+    name = item.name.lower()
+    if worn_on_head(name) or _AROUND_THE_NECK.search(name) or item.slot in _ON_THE_FLOOR:
+        return region  # legitimately near the head, the neck, or nowhere near either
+
+    # A bag, a watch, a ring, a bracelet: none of them belong above the
+    # shoulder, whatever the body-part lookup just said. Asked live for
+    # "the person's hands, forearms and shoulders", it returned a box
+    # starting 2.5% down the photo — the top of her head — on one run,
+    # and a sensible one at shoulder height on the next: the same query,
+    # two very different answers. This is the backstop for whichever one
+    # it gives.
+    shoulder = min(1.0, (face.y + face.h * _SHOULDER_DROP) / base.shape[0])
+    if region.y0 < shoulder:
+        return Region(region.x0, shoulder, region.x1, max(region.y1, shoulder + 0.05))
+    return region
+
+
+def _mask_png(shape: tuple[int, int], region: Region) -> bytes:
+    """A same-size, fully opaque PNG except for a transparent window at
+    `region` — OpenAI's edit mask format: transparent = editable."""
+    h, w = shape
+    alpha = np.full((h, w), 255, np.uint8)
+    x0, y0, x1, y1 = region.pixels(w, h)
+    alpha[y0:y1, x0:x1] = 0
+    rgba = np.zeros((h, w, 4), np.uint8)
+    rgba[..., 3] = alpha
+    ok, buf = cv2.imencode(".png", rgba)
+    if not ok:
+        raise ValueError("could not encode mask")
+    return buf.tobytes()
+
+
+def _order_of(items: list[LookItem]) -> list[int]:
+    return sorted(range(len(items)), key=lambda i: (_MASK_ORDER.get(items[i].slot, _LAST), i))
+
+
+async def render_masked_look(
+    person: bytes,
+    items: list[LookItem],
+    edit: MaskedRenderFn,
+    *,
+    retries: int = 1,
+    min_product: float = 7.0,
+    min_other: float = 6.0,
+    budget_seconds: int = 60,
+    on_progress: ProgressFn | None = None,
+) -> tuple[bytes, list[ItemReport]]:
+    """Every product drawn through its own real edit mask, one after
+    another onto the result so far. Returns the final image and one
+    report per item — box is the exact mask window used, not a guess
+    recovered from the render afterwards, because here it never was one."""
+    started = time.monotonic()
+    base = _cap(decode(person))
+    face = detect_face(base)
+    order = _order_of(items)
+    reports = [ItemReport(name=item.name) for item in items]
+
+    products = await asyncio.gather(*(_download(items[i].image_url) for i in order))
+    descriptions = await asyncio.gather(
+        *(describe_product(p, items[i].image_url, items[i].name) for p, i in zip(products, order))
+    )
+    regions = await asyncio.gather(*(_mask_region(items[i], face, base) for i in order))
+
+    current = base
+    for step, index in enumerate(order):
+        item, product, description, region = items[index], products[step], descriptions[step], regions[step]
+        report = reports[index]
+        if region is None:
+            report.history.append("couldn't find where this goes on the photo")
+            continue
+
+        await _say(on_progress, f"Drawing {item.name[:40]}")
+        note = ""
+        min_p = _min_product_for(item, min_product)
+        for_model = _for_model(current)
+        mask_png = _mask_png(for_model.shape[:2], region)
+        for attempt in range(retries + 1):
+            hint = RenderHint(description=description, fix=note)
+            try:
+                raw_bytes = await edit(encode_png(for_model), mask_png, item, hint)
+            except Exception as exc:  # noqa: BLE001 — one item's failure must not lose the rest
+                logger.warning("tryon_masked_edit_failed", item=item.name[:60], error=str(exc)[:200])
+                report.history.append(f"attempt {attempt + 1}: the render failed ({str(exc)[:120]})")
+                break
+            # Used as it comes back, at the model's own output resolution —
+            # sharper than the small input it was given (see MODEL_SIDE's
+            # own comment) — never shrunk to match what was sent, the same
+            # way render_whole_look never shrinks Gemini's output.
+            raw = decode(raw_bytes)
+
+            verdict = await judge(product, current, raw, region, description, item.slot in _SMALL)
+            report.attempts = attempt + 1
+            report.history.append(
+                f"attempt {attempt + 1}: product={verdict.product_match:.0f} "
+                f"worn={verdict.worn_correctly:.0f} realism={verdict.realism:.0f}"
+            )
+            passed = verdict.passes(min_p, min_other)
+            # A near miss is kept as it is — "product 6 instead of 7" is a
+            # detail nobody sees, and redrawing costs the customer's own
+            # minute (see TRYON_QUALITY_BUDGET_SECONDS). Out of budget, the
+            # best attempt made ships rather than nothing.
+            close = verdict.passes(min_p - 1, min_other - 1)
+            # last_chance: either this was the final retry, or the
+            # customer's own time budget for the whole look is spent —
+            # either way, this attempt ships rather than nothing.
+            last_chance = attempt >= retries or time.monotonic() - started > budget_seconds
+            if passed or close or last_chance:
+                if not passed:
+                    report.history.append("kept as a near miss rather than spending a redraw" if close else "out of time for another attempt")
+                current = raw
+                report.verdict = verdict
+                report.box = region
+                break
+            # raw text, not pre-labelled: openai_image.masked_prompt() adds
+            # "Correction from the previous attempt:" itself, matching how
+            # OutfitPiece.note is already treated for a per-item retry
+            note = "; ".join(verdict.issues[:3])
+
+    return encode_jpeg(current, 97), reports
+
+
+def encode_png(img: np.ndarray) -> bytes:
+    ok, buf = cv2.imencode(".png", img)
+    if not ok:
+        raise ValueError("could not encode image")
+    return buf.tobytes()

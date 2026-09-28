@@ -39,6 +39,7 @@ from app.services.outfit_slots import (
     worn_on_head,
 )
 from app.services.storage_service import get_storage, new_key
+from app.services.tryon_quality.masked import render_masked_look
 from app.services.tryon_quality.pipeline import (
     render_whole_look,
     ItemReport,
@@ -160,6 +161,17 @@ def _pipeline_render_all(provider):  # noqa: ANN001, ANN202
     return render_all
 
 
+def _pipeline_edit_masked(provider):  # noqa: ANN001, ANN202
+    """How the masked pipeline asks the provider to draw one item: on the
+    pipeline's current image, only inside the given mask."""
+
+    async def edit(person_png: bytes, mask_png: bytes, item: LookItem, hint: RenderHint) -> bytes:
+        piece = OutfitPiece(item.image_url, item.slot.value, item.name, note=hint.fix, description=hint.description)
+        return (await provider.edit_masked(person_png, mask_png, piece)).image_bytes
+
+    return edit
+
+
 def _progress_writer(session, job: TryOnJob):  # noqa: ANN001, ANN202
     """Writes what the render is doing onto the job the client polls."""
 
@@ -177,12 +189,22 @@ async def _render_with_engine(
     own retries — so it can be scored against another engine's attempt at
     the same look (see the VIRTUAL_TRYON_PROVIDER=best_of branch below).
 
-    Runs whichever of the two quality pipelines fits how the engine
-    behaves: the merge-based one for an engine that redraws the person,
-    the direct one for an engine that gives the person back untouched.
-    No progress is written here — two of these run concurrently against
-    one job row, and committing from both at once isn't safe on one
-    AsyncSession."""
+    Runs whichever of these fits how the engine behaves, best guarantee
+    first: real masked editing for an engine that supports it, the
+    direct render for one that gives the person back untouched on its
+    own, the merge-based pipeline for one that does neither. No progress
+    is written here — two of these run concurrently against one job row,
+    and committing from both at once isn't safe on one AsyncSession."""
+    if provider.supports_masked_edit:
+        return await render_masked_look(
+            person,
+            items,
+            _pipeline_edit_masked(provider),
+            retries=settings.TRYON_QUALITY_RETRIES,
+            min_product=settings.TRYON_QUALITY_MIN_PRODUCT,
+            min_other=settings.TRYON_QUALITY_MIN_FIT,
+            budget_seconds=settings.TRYON_QUALITY_BUDGET_SECONDS,
+        )
     if provider.preserves_person:
         return await render_whole_look(
             person,
@@ -382,6 +404,29 @@ async def run_tryon_job_async(job_id: str) -> None:
                 await _complete_job(
                     session, job, image, ctype, provider.name, provider.model,
                     drawn=[layer.name for layer in layers], face_kept=kept,
+                )
+                return
+
+            if provider.supports_masked_edit and _quality_pipeline_on(provider):
+                # each product drawn through its own real edit mask — the
+                # API itself refuses to touch anything outside it, not
+                # reconstructed afterwards from a diff (see
+                # app/services/tryon_quality/masked.py)
+                person = await asyncio.to_thread(get_storage().read, job.user_photo.storage_key)
+                image, reports = await render_masked_look(
+                    person,
+                    [_look_item(layer) for layer in layers],
+                    _pipeline_edit_masked(provider),
+                    retries=settings.TRYON_QUALITY_RETRIES,
+                    min_product=settings.TRYON_QUALITY_MIN_PRODUCT,
+                    min_other=settings.TRYON_QUALITY_MIN_FIT,
+                    budget_seconds=settings.TRYON_QUALITY_BUDGET_SECONDS,
+                    on_progress=_progress_writer(session, job),
+                )
+                await _complete_job(
+                    session, job, image, "image/jpeg", provider.name, provider.model,
+                    placements=_placements(layers, reports),
+                    drawn=[layer.name for layer in layers], face_kept=True,
                 )
                 return
 

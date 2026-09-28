@@ -519,15 +519,20 @@ async def test_photo_links_are_signed_fresh_so_they_work_after_the_upload_link_e
 
 
 async def test_render_with_engine_uses_the_pipeline_that_matches_the_engine(monkeypatch):
-    """An engine that gives the person back unchanged is used directly
-    (render_whole_look); one that redraws the photo goes through the
-    merge-based pipeline instead (render_look) — see VirtualTryOnProvider.
-    preserves_person. This is what VIRTUAL_TRYON_PROVIDER=best_of relies
-    on to run each engine correctly without knowing anything else about
-    it."""
+    """Best guarantee first: real masked editing (render_masked_look) for
+    an engine that supports it, the direct render (render_whole_look) for
+    one that gives the person back unchanged on its own, the merge-based
+    pipeline (render_look) for one that does neither — see
+    VirtualTryOnProvider.supports_masked_edit / .preserves_person. This
+    is what VIRTUAL_TRYON_PROVIDER=best_of relies on to run each engine
+    correctly without knowing anything else about it."""
     from app.workers.tasks import tryon_tasks
 
     calls: list[str] = []
+
+    async def fake_masked_look(person, items, edit, **kw):  # noqa: ARG001
+        calls.append("masked_look")
+        return b"\xff\xd8img", []
 
     async def fake_whole_look(person, items, render_all, **kw):  # noqa: ARG001
         calls.append("whole_look")
@@ -537,6 +542,7 @@ async def test_render_with_engine_uses_the_pipeline_that_matches_the_engine(monk
         calls.append("look")
         return b"\xff\xd8img", []
 
+    monkeypatch.setattr(tryon_tasks, "render_masked_look", fake_masked_look)
     monkeypatch.setattr(tryon_tasks, "render_whole_look", fake_whole_look)
     monkeypatch.setattr(tryon_tasks, "render_look", fake_look)
 
@@ -544,6 +550,7 @@ async def test_render_with_engine_uses_the_pipeline_that_matches_the_engine(monk
         name = "fake"
         model = "fake-1"
         whole_outfit = True
+        supports_masked_edit = False
         preserves_person = True
 
     preserving = _FakeEngine()
@@ -554,6 +561,12 @@ async def test_render_with_engine_uses_the_pipeline_that_matches_the_engine(monk
     redrawing.preserves_person = False
     await tryon_tasks._render_with_engine(redrawing, b"person", [])
     assert calls == ["whole_look", "look"]
+
+    masking = _FakeEngine()
+    masking.preserves_person = False
+    masking.supports_masked_edit = True
+    await tryon_tasks._render_with_engine(masking, b"person", [])
+    assert calls == ["whole_look", "look", "masked_look"]
 
 
 async def test_best_of_keeps_whichever_engine_scores_higher(client, db, monkeypatch):
@@ -673,3 +686,55 @@ async def test_best_of_fails_cleanly_and_refunds_if_both_engines_fail(client, db
     finished = await _poll_until_terminal(client, job_id)
     assert finished["status"] == "failed"
     assert await _was_refunded(job_id)
+
+
+async def test_a_masked_edit_capable_provider_uses_the_masked_pipeline(client, db, monkeypatch):
+    """VIRTUAL_TRYON_PROVIDER pointed at an engine that supports real edit
+    masks goes through render_masked_look — checked ahead of preserves_
+    person and the merge-based pipeline, since it's the strongest of the
+    three guarantees. face_kept=True: masked editing already protects
+    the face at the API level, so _complete_job's own face-restore
+    fallback is skipped rather than run redundantly on top of it."""
+    from app.services.tryon_quality.judge import Verdict
+    from app.services.tryon_quality.masked import ItemReport
+    from app.workers.tasks import tryon_tasks
+
+    class _FakeMaskedProvider:
+        name = "fake-masked"
+        model = "fake-masked-1"
+        whole_outfit = True
+        preserves_person = False
+        supports_masked_edit = True
+
+    provider = _FakeMaskedProvider()
+    monkeypatch.setattr("app.workers.tasks.tryon_tasks.get_tryon_provider", lambda: provider)
+    monkeypatch.setattr("app.ai.providers.registry.get_tryon_provider", lambda: provider)
+
+    calls: list[str] = []
+
+    async def fake_render_masked_look(person, items, edit, **kw):  # noqa: ARG001
+        calls.append("masked")
+        reports = [
+            ItemReport(name=i.name, verdict=Verdict(9, 9, 8), box=None) for i in items
+        ]
+        return small_jpeg_bytes(), reports
+
+    monkeypatch.setattr(tryon_tasks, "render_masked_look", fake_render_masked_look)
+
+    async def fake_keep_person_if_on(*a, **kw):  # noqa: ARG001
+        raise AssertionError("face-restore fallback must not run for a masked-edit engine")
+
+    monkeypatch.setattr(tryon_tasks, "_keep_person_if_on", fake_keep_person_if_on)
+
+    await register_and_login(client)
+    photo_id = await _upload_front_photo(client)
+    product = await seed_product(db, name="Masked Kameez", image_url="https://img.example/kameez.jpg")
+
+    resp = await client.post("/api/v1/tryon", json={"user_photo_id": photo_id, "product_id": product.id})
+    assert resp.status_code == 201, resp.text
+    finished = await _poll_until_terminal(client, resp.json()["id"])
+
+    assert calls == ["masked"]
+    assert finished["status"] == "completed"
+    assert finished["provider"] == "fake-masked"
+    assert finished["result"]["placements"][0]["name"] == "Masked Kameez"

@@ -391,3 +391,45 @@ def test_a_set_of_different_pieces_is_not_drawn_as_copies_of_one():
     prompt = build_prompt([OutfitPiece("https://img/b.jpg", "accessory", "Stackable Bangle Set")])
     assert "one wrist, not both" in prompt
     assert "several copies of one plain piece" in prompt
+
+
+async def test_edit_masked_sends_person_product_and_a_real_mask(monkeypatch):
+    """The one call that makes protection an API guarantee rather than
+    something reconstructed afterwards: person, product and a mask file,
+    where the mask's job (not this provider's) is to say what may
+    change."""
+    edits: list[httpx.Request] = []
+    _patch_transport(monkeypatch, _image_handler(edits))
+    provider = OpenAIImageTryOnProvider(api_key="sk-test", model="gpt-image-1")
+
+    out = await provider.edit_masked(
+        b"\x89PNGfake-person", b"\x89PNGfake-mask", OutfitPiece("https://img/watch.jpg", "watch", "Bulova Watch")
+    )
+
+    assert out.image_bytes == RESULT
+    assert len(edits) == 1
+    body = edits[0].content
+    assert b'name="mask"' in body
+    assert b"\x89PNGfake-mask" in body
+    assert b'name="image[]"' in body
+    assert b"\x89PNGfake-person" in body
+    # no input_fidelity here — that parameter belongs to generate_outfit's
+    # whole-image call and was never tested against the edits endpoint's
+    # masked path
+    assert b'name="prompt"' in body
+
+
+async def test_masked_prompt_names_the_transparent_region_and_the_product():
+    from app.ai.providers.openai_image import masked_prompt
+
+    prompt = masked_prompt(OutfitPiece("https://img/b.jpg", "bag", "Leather Tote with Crocodile-Embossed Base"))
+    assert "transparent" in prompt
+    assert "embossed" in prompt  # the product's own preservation rules still apply
+    assert "exactly as it went in" in prompt  # what's outside the region
+
+
+async def test_masked_prompt_carries_a_correction_note():
+    from app.ai.providers.openai_image import masked_prompt
+
+    prompt = masked_prompt(OutfitPiece("https://img/w.jpg", "watch", "Watch", note="dial is the wrong colour"))
+    assert "Correction from the previous attempt: dial is the wrong colour" in prompt

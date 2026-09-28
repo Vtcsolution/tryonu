@@ -72,6 +72,14 @@ class VirtualTryOnProvider(ABC):
     #: dupatta floating beside a knee. An engine that preserves the
     #: person needs none of it, and its render is used as it comes back.
     preserves_person: bool = False
+    #: Can this engine take a real edit mask — draw only where told to,
+    #: with everywhere else protected by the API itself rather than by
+    #: anything we do afterwards? The strongest guarantee available: not
+    #: "the model usually leaves this alone" (preserves_person) or "we
+    #: reconstructed protection from a diff" (the merge pipeline), but
+    #: the API refusing to touch those pixels in the first place. See
+    #: edit_masked() below and app/services/tryon_quality/masked.py.
+    supports_masked_edit: bool = False
 
     @abstractmethod
     async def generate(self, payload: TryOnInput) -> TryOnOutput:
@@ -80,4 +88,9 @@ class VirtualTryOnProvider(ABC):
         ...
 
     async def generate_outfit(self, model_image_url: str, pieces: list[OutfitPiece]) -> TryOnOutput:
+        raise NotImplementedError
+
+    async def edit_masked(self, person_png: bytes, mask_png: bytes, piece: OutfitPiece) -> TryOnOutput:
+        """One product, drawn only where `mask_png`'s alpha is
+        transparent. Only meaningful when supports_masked_edit is True."""
         raise NotImplementedError

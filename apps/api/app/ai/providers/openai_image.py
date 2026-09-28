@@ -57,6 +57,33 @@ _PRESERVE = {
 }
 
 
+def masked_prompt(piece: OutfitPiece) -> str:
+    """The prompt for a real, API-level masked edit — see edit_masked()
+    below. Everything outside the transparent region is the API's own
+    guarantee, not something asked for in words, but the model still
+    needs to know what's IN that region and how to blend into its edge."""
+    lines = [
+        "Image 1 is a photo of a real person. Part of it is marked transparent by its own alpha channel — "
+        "that is the ONLY region you may draw into. Image 2 is a product photo.",
+        f"Draw the product shown in Image 2 — {piece.name} — "
+        f"{_HOW.get(piece.slot, 'worn or carried where it naturally goes')} — into the transparent region.",
+        "Every pixel outside the transparent region must come back exactly as it went in: the same face, hair, "
+        "skin, pose, clothing, background and lighting already there. Do not redraw, retouch or shift any of it.",
+        f"Reproduce the product faithfully: {_PRESERVE.get(piece.slot, _PRESERVE['other'])}."
+        " This is a try-on, not an illustration: a product that merely resembles the photo is wrong.",
+        "Colour is not approximate: yellow gold is not silver, ivory is not pink, navy is not black. Match the"
+        " product photo's exact shade.",
+        "Take ONLY the product from Image 2: ignore any model, mannequin, background, text or watermark in it.",
+        "Fit it naturally to the person's body and pose, with realistic folds, drape and shadows, blending"
+        " seamlessly into the edge of the transparent region rather than sitting on top of it.",
+    ]
+    if piece.description:
+        lines.append(f"It is: {piece.description}")
+    if piece.note:
+        lines.append(f"Correction from the previous attempt: {piece.note}")
+    return "\n".join(lines)
+
+
 def build_prompt(pieces: list[OutfitPiece]) -> str:
     lines = [
         "Image 1 is a photo of a real person — possibly a close-up of part of the body, such as a wrist. "
@@ -141,6 +168,7 @@ def _retryable(exc: BaseException) -> bool:
 class OpenAIImageTryOnProvider(VirtualTryOnProvider):
     name = "openai"
     whole_outfit = True
+    supports_masked_edit = True
 
     def __init__(
         self, *, api_key: str, model: str, base_url: str = "https://api.openai.com/v1", quality: str = "high"
@@ -208,6 +236,51 @@ class OpenAIImageTryOnProvider(VirtualTryOnProvider):
                 _NO_INPUT_FIDELITY.add(self.model)
                 data.pop("input_fidelity", None)
                 resp = await self._post(client, data, files)
+        _raise_for_status(resp)
+        try:
+            b64 = resp.json()["data"][0]["b64_json"]
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            raise TryOnProviderError("OpenAI returned no image") from exc
+        return TryOnOutput(
+            image_bytes=base64.b64decode(b64),
+            content_type="image/jpeg",
+            latency_ms=int((time.perf_counter() - start) * 1000),
+        )
+
+    @retry(
+        retry=retry_if_exception(_retryable),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(min=2, max=16),
+        reraise=True,
+    )
+    async def edit_masked(self, person_png: bytes, mask_png: bytes, piece: OutfitPiece) -> TryOnOutput:
+        """One product, drawn only where `mask_png`'s alpha channel is
+        transparent — everywhere else is protected by the API itself,
+        never touched, rather than reconstructed afterwards from a diff
+        against the original. See app/services/tryon_quality/masked.py
+        for why this exists and what it measured against the whole-image
+        approach: a seam across a collarbone, hair replaced by a
+        chandelier, a blouse spattered across a wedding hall and a
+        garment left half the original photo were all failures of
+        reconstructing protection after the fact; this protects up
+        front, at the one point that can actually guarantee it."""
+        start = time.perf_counter()
+        async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS, follow_redirects=True) as client:
+            product = await _download(client, piece.image_url, piece.name)
+            files = [
+                ("image[]", ("person.png", person_png, "image/png")),
+                ("image[]", ("product.jpg", product[0], product[1])),
+                ("mask", ("mask.png", mask_png, "image/png")),
+            ]
+            data = {
+                "model": self.model,
+                "prompt": masked_prompt(piece),
+                "size": _best_size(person_png),
+                "quality": self.quality,
+                "output_format": "jpeg",
+                "n": "1",
+            }
+            resp = await self._post(client, data, files)
         _raise_for_status(resp)
         try:
             b64 = resp.json()["data"][0]["b64_json"]
