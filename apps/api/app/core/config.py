@@ -177,6 +177,14 @@ class Settings(BaseSettings):
     TRYON_QUALITY_BUDGET_SECONDS: int = 40
     TRYON_QUALITY_MIN_PRODUCT: int = 7  # 0-10: exact product (colour, pattern, logo, hardware)
     TRYON_QUALITY_MIN_FIT: int = 6  # 0-10: worn correctly, and realism
+    # best_of only: a second full render — its own retries, its own vision
+    # calls, on top of the first engine's — is real, doubled OpenAI/Gemini
+    # spend. Worth paying only when the first engine left a real question
+    # open: something it never got to judge, or a score low enough that a
+    # second opinion could actually change the outcome. Below this score
+    # (and only once every item was judged at all), the second engine is
+    # skipped and its result ships as is.
+    TRYON_QUALITY_BEST_OF_SKIP_SCORE: int = 8  # 0-10, same scale as Verdict.score
     EMBEDDING_DIM: int = 1536
 
     # --- retailer / affiliate credentials (each optional; the adapter

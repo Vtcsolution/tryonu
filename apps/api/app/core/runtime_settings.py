@@ -64,6 +64,12 @@ SPECS: tuple[SettingSpec, ...] = (
                 help="Extra renders when an item fails inspection — each costs one more render."),
     SettingSpec("TRYON_QUALITY_MIN_PRODUCT", "Minimum product match (0-10)", "ai_tryon", "int", min_value=0),
     SettingSpec("TRYON_QUALITY_MIN_FIT", "Minimum fit & realism (0-10)", "ai_tryon", "int", min_value=0),
+    SettingSpec("TRYON_QUALITY_BEST_OF_SKIP_SCORE", "best_of: score to skip the second engine (0-10)", "ai_tryon", "int",
+                min_value=0,
+                help="best_of only. When the first engine's whole look scores at or above this AND every item "
+                "was judged at all, the second engine is never rendered — real doubled cost (its own retries, "
+                "its own vision calls on both engines) avoided on the common case. Lower = cheaper, more often "
+                "ships the first engine's result unquestioned; higher = closer to always comparing both."),
     SettingSpec("OPENAI_VISION_MODEL", "Vision model (inspection)", "ai_tryon", "text",
                 help="Looks at images only — never draws. e.g. gpt-5.4-mini"),
     SettingSpec("TRYON_KEEP_ORIGINAL_FACE", "Keep the person's real face", "ai_tryon", "bool",

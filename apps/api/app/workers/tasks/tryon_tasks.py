@@ -357,24 +357,40 @@ async def run_tryon_job_async(job_id: str) -> None:
                         image_size=settings.GEMINI_IMAGE_SIZE,
                     ),
                 ]
-                await _progress_writer(session, job)(
-                    "Drawing the look two ways, to keep whichever matches the products better"
-                )
-                attempts = await asyncio.gather(
-                    *(_render_with_engine(engine, person, items) for engine in engines),
-                    return_exceptions=True,
-                )
-
-                won: list[tuple[str, str, bytes, list[ItemReport], float]] = []
-                for engine, attempt in zip(engines, attempts):
-                    if isinstance(attempt, BaseException):
+                async def _attempt(engine: VirtualTryOnProvider):
+                    try:
+                        image, reports = await _render_with_engine(engine, person, items)
+                        return engine.name, engine.model, image, reports, score_reports(reports)
+                    except Exception as exc:  # noqa: BLE001 — collected below, not raised here
                         logger.warning(
                             "tryon_best_of_engine_failed",
-                            job_id=job.id, engine=engine.name, error=str(attempt)[:200],
+                            job_id=job.id, engine=engine.name, error=str(exc)[:200],
                         )
-                        continue
-                    image, reports = attempt
-                    won.append((engine.name, engine.model, image, reports, score_reports(reports)))
+                        return exc
+
+                await _progress_writer(session, job)("Drawing the look")
+                attempts = [await _attempt(engines[0])]
+                won: list[tuple[str, str, bytes, list[ItemReport], float]] = (
+                    [] if isinstance(attempts[0], BaseException) else [attempts[0]]
+                )
+
+                # A second full render is real, doubled spend on both
+                # OpenAI and Gemini: its own per-item retries, its own
+                # describe_product()/judge() vision calls, on top of the
+                # first engine's — not "another try," a second whole job's
+                # worth of API calls. Worth it only when the first left a
+                # real question open: something it never got the chance to
+                # judge at all, or a score low enough a second opinion
+                # could actually change which one ships.
+                skip_second = won and all(r.verdict is not None for r in won[0][3]) and won[0][4] >= settings.TRYON_QUALITY_BEST_OF_SKIP_SCORE
+                if not skip_second:
+                    await _progress_writer(session, job)(
+                        "Drawing it a second way too, to keep whichever matches the products better"
+                    )
+                    second = await _attempt(engines[1])
+                    attempts.append(second)
+                    if not isinstance(second, BaseException):
+                        won.append(second)
 
                 if not won:
                     # both engines failed outright — raise whichever error
