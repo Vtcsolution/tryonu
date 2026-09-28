@@ -60,6 +60,38 @@ _SAME_THING = (
     {"tikka", "teeka", "matha", "patti"},
 )
 
+# Departments. A listing that answers none of a query's category words is
+# excluded outright, never merely scored lower — "shoes" and "ring" are
+# _FILLER (they match nearly anything, so they can't carry a query on
+# their own), but that made them count for NOTHING, and a black bracelet
+# answered "black Adidas sneakers" on "black" alone with nothing to say a
+# bracelet isn't a shoe. Grouped broadly within a department (a boot
+# answers "shoes" — shoppers use it as the generic word) but never across
+# one: a bracelet never answers "sneakers", however many other words
+# match, because it is a different department, not a weaker answer.
+_CATEGORY_GROUPS = (
+    {"shoe", "shoes", "sneaker", "sneakers", "trainer", "trainers", "boot", "boots", "sandal", "sandals",
+     "slipper", "slippers", "flat", "flats", "heel", "heels", "footwear", "khussa", "jutti", "juttis", "mojari"},
+    {"bag", "bags", "handbag", "handbags", "purse", "purses", "tote", "totes", "clutch", "clutches"},
+    {"belt", "belts"},
+    {"dress", "dresses", "gown", "gowns"},
+    {"earring", "earrings", "jhumka", "jhumkas"},
+    {"necklace", "necklaces", "pendant", "pendants", "choker", "chokers"},
+    {"ring", "rings"},
+    {"bracelet", "bracelets", "bangle", "bangles"},
+    {"jewellery", "jewelry"},
+    {"pant", "pants", "trouser", "trousers"},
+    {"shirt", "shirts", "top", "tops"},
+    {"suit", "suits"},
+    {"watch", "watches"},
+    {"kameez", "kurta", "kurti", "kurtis"},
+    {"dupatta", "chunni", "odhni"},
+    {"lehenga", "ghagra", "gharara"},
+    {"tikka", "teeka", "matha", "patti"},
+    {"sunglasses", "glasses", "eyeglasses", "spectacles", "goggles"},
+)
+_CATEGORY_WORDS = frozenset(w for group in _CATEGORY_GROUPS for w in group)
+
 
 def _words(text: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", text.lower())
@@ -69,6 +101,25 @@ def distinctive(query: str) -> set[str]:
     """The words that actually pin down what was asked for."""
     words = {w for w in _words(query) if len(w) > 2}
     return words - _FILLER
+
+
+def category_words(query: str) -> set[str]:
+    """Which department(s) the query names, if any — "shoes" and
+    "khussa" both name the footwear one."""
+    return {w for w in _words(query) if w in _CATEGORY_WORDS}
+
+
+def _category_of(word: str) -> frozenset[str]:
+    for group in _CATEGORY_GROUPS:
+        if word in group:
+            return frozenset(group)
+    return frozenset({word})
+
+
+def _answers_category(title_words: set[str], categories: set[str]) -> bool:
+    if not categories:
+        return True
+    return any(seen in _category_of(cat) for cat in categories for seen in title_words)
 
 
 def _group(word: str) -> frozenset[str]:
@@ -94,8 +145,14 @@ def _same_word(a: str, b: str) -> bool:
     return shared >= 4 and (a.startswith(b[:shared]) or b.startswith(a[:shared]))
 
 
-def score(title: str, wanted: set[str]) -> int:
+def score(title: str, wanted: set[str], categories: set[str] = frozenset()) -> int:
     """How many of the words that pin down the query this listing answers.
+    0 outright if the query named a department — sneakers, a ring, a
+    dupatta — this listing doesn't belong to, however many other words
+    it shares: a black bracelet used to answer "black Adidas sneakers"
+    on "black" alone, with nothing checking that a bracelet isn't a
+    shoe. A department mismatch disqualifies; it is never just a weak
+    signal like an unmatched colour or brand.
 
     Counting rather than answering yes/no is what makes a mixed shelf
     work. Live, on "pakistani lawn suit": every AliExpress title begins
@@ -104,13 +161,17 @@ def score(title: str, wanted: set[str]) -> int:
     A 3-piece cotton kurta set answers both words and a sari answers
     one, so the set goes first and the sari falls off the end."""
     title_words = set(_words(title))
+    if not _answers_category(title_words, categories):
+        return 0
+    if not wanted:
+        return 1 if categories else 0  # named the right department, nothing else to check
     return sum(1 for word in wanted if any(_same_word(word, seen) for seen in title_words))
 
 
-def matches(title: str, wanted: set[str]) -> bool:
-    if not wanted:
+def matches(title: str, wanted: set[str], categories: set[str] = frozenset()) -> bool:
+    if not wanted and not categories:
         return True  # nothing distinctive to check against
-    return score(title, wanted) > 0
+    return score(title, wanted, categories) > 0
 
 
 def keep_relevant(
@@ -120,11 +181,16 @@ def keep_relevant(
 
     Never empties a shelf: if too few survive, the rest follow behind the
     ones that matched, because an empty page is worse than a loose one
-    and the shopper can judge for themselves."""
+    and the shopper can judge for themselves. That padding still never
+    crosses a named department, though — a bracelet is not a looser
+    match for "black Adidas sneakers", it is a different department, and
+    padding a thin shelf with the wrong department is exactly the bug
+    this exists to prevent."""
     items = list(items)
     wanted = distinctive(query)
     if not wanted:
         return items
+    categories = category_words(query)
 
     # The filler words break ties. "pakistani lawn suit" pins down
     # "pakistani" and "lawn"; no AliExpress listing says "lawn", so every
@@ -132,9 +198,10 @@ def keep_relevant(
     # dance costume above a 3-piece kurta set. The kurta set says "suit"
     # and the costume doesn't — too weak to select on, strong enough to
     # order by.
-    also = set(_words(query)) - distinctive(query)
+    also = set(_words(query)) - wanted - categories
     scored = [
-        (score(title(item), wanted), score(title(item), also), item) for item in items
+        (score(title(item), wanted, categories), score(title(item), also, categories), item)
+        for item in items
     ]
     # best answers first, and a retailer's own order held within a tie —
     # it knows more about its catalogue than we do
@@ -142,5 +209,13 @@ def keep_relevant(
     kept = [item for points, _, item in ranked if points > 0]
     if len(kept) >= keep_at_least:
         return kept
+
+    if categories:
+        same_department = [
+            item for points, _, item in scored
+            if points == 0 and _answers_category(set(_words(title(item))), categories)
+        ]
+        return kept + same_department[: max(0, keep_at_least - len(kept))]
+
     rest = [item for points, _, item in scored if points == 0]
     return kept + rest[: max(0, keep_at_least - len(kept))] if kept else items

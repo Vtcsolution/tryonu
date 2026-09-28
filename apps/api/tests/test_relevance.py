@@ -73,6 +73,40 @@ def test_near_misses_follow_the_real_matches_rather_than_replacing_them():
     assert len(kept) == 3  # the one real match, then the nearest fillers
 
 
+def test_a_bracelet_never_answers_a_shoe_query_on_colour_alone():
+    """Real bug: "black Adidas sneakers" kept a black bracelet, a black
+    ring, a black scarf — anything sharing the one word "black" — because
+    "sneakers" was pure filler and contributed nothing to check against.
+    A department mismatch must disqualify a listing outright, whatever
+    else it shares with the query. A same-department listing that only
+    shares the colour (Nike, not Adidas) is still a shoe — kept, but
+    ranked behind the listing that answers everything asked."""
+    listings = [
+        "Adidas Originals Black Sneakers Low Top Trainers Men's",
+        "Black Beaded Bracelet Adjustable Womens Fashion Jewelry",
+        "Black Cubic Zirconia Ring Womens Size 7 Silver Tone",
+        "Nike Black Running Shoes Air Max Mens",
+    ]
+    kept = keep_relevant(listings, "black adidas sneakers")
+    assert kept[0] == "Adidas Originals Black Sneakers Low Top Trainers Men's"
+    assert all("bracelet" not in k.lower() and "ring" not in k.lower() for k in kept)
+
+
+def test_a_thin_shelf_pads_from_the_same_department_only():
+    """Never nothing, but never the wrong department either: if only one
+    real match exists, the rest of the shelf is filled from more shoes —
+    never a bracelet, even to reach keep_at_least."""
+    listings = [
+        "Adidas Originals Black Sneakers Low Top Trainers Men's",
+        "White Nike Air Max Running Shoes",
+        "Black Beaded Bracelet Adjustable Womens Fashion Jewelry",
+        "Black Cubic Zirconia Ring Womens Size 7 Silver Tone",
+    ]
+    kept = keep_relevant(listings, "black adidas sneakers", keep_at_least=3)
+    assert kept[0] == "Adidas Originals Black Sneakers Low Top Trainers Men's"
+    assert all("bracelet" not in k.lower() and "ring" not in k.lower() for k in kept)
+
+
 def test_it_reads_the_title_off_whatever_it_is_given():
     class Listing:
         def __init__(self, name):
