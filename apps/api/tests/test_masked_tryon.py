@@ -185,6 +185,21 @@ async def test_a_failed_inspection_is_retried_with_the_fix(fake_vision):
     assert reports[0].verdict == GOOD
 
 
+async def test_only_a_retry_asks_for_the_detailed_setting(fake_vision):
+    """The cheap setting first, every item — the detailed, pricier one
+    only once a plain attempt has already missed the bar. A look that
+    passes first try never pays for it."""
+    fake_vision.extend([BAD, GOOD])
+    calls: list = []
+
+    async def edit(person_png, mask_png, item, hint):  # noqa: ARG001
+        calls.append(hint.detail)
+        return _photo()
+
+    await render_masked_look(_photo(), [ITEMS[1]], edit, retries=1)
+    assert calls == [False, True]
+
+
 async def test_a_near_miss_is_kept_without_spending_a_retry(fake_vision):
     close = Verdict(6, 5, 6)  # one point under the 7/6 bar on every axis
     fake_vision.append(close)

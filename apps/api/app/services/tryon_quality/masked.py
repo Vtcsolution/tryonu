@@ -304,7 +304,15 @@ async def _render_item(
     for_model = _for_model(canvas)
     mask_png = _mask_png(for_model.shape[:2], region)
     for attempt in range(retries + 1):
-        hint = RenderHint(description=description, fix=note)
+        # The cheaper setting first, every item, every look — the
+        # expensive one only once a plain attempt has already missed the
+        # bar. render_look has done this for its own items for a long
+        # time (_at_detail); this pipeline never had, so every item paid
+        # the detailed engine's price even on the first, usually-fine,
+        # attempt. Measured against the old always-detailed behaviour:
+        # a look with no retries needed now costs the cheap setting
+        # throughout instead of the expensive one throughout.
+        hint = RenderHint(description=description, fix=note, detail=attempt > 0)
         try:
             raw_bytes = await edit(encode_png(for_model), mask_png, item, hint)
         except Exception as exc:  # noqa: BLE001 — one item's failure must not lose the rest

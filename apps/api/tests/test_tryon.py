@@ -569,6 +569,40 @@ async def test_render_with_engine_uses_the_pipeline_that_matches_the_engine(monk
     assert calls == ["whole_look", "look", "masked_look"]
 
 
+async def test_masked_edit_only_escalates_to_the_detailed_setting_on_a_retry():
+    """A second full engine render is real, doubled OpenAI spend paid per
+    item on every look regardless of outcome, until now: the masked
+    pipeline always used whatever quality its provider was built with,
+    on every attempt, unlike render_look's own items (_at_detail), which
+    already paid the cheap setting first and only escalated once an
+    attempt had already failed. A look with no retries needed now costs
+    the cheap setting throughout instead of the expensive one throughout."""
+    from app.workers.tasks.tryon_tasks import _pipeline_edit_masked
+    from app.services.tryon_quality.pipeline import RenderHint
+
+    seen: list[str] = []
+
+    class _FakeMaskedEngine:
+        def __init__(self, quality: str) -> None:
+            self.quality = quality
+
+        def at_quality(self, quality: str) -> "_FakeMaskedEngine":
+            return _FakeMaskedEngine(quality)
+
+        async def edit_masked(self, person_png, mask_png, piece):  # noqa: ARG002
+            seen.append(self.quality)
+            return TryOnOutput(image_bytes=small_jpeg_bytes())
+
+    from app.services.tryon_quality.masked import LookItem
+    from app.workers.tasks.tryon_tasks import settings as tryon_settings
+
+    edit = _pipeline_edit_masked(_FakeMaskedEngine("medium"))
+    item = LookItem("https://img.example/x.jpg", OutfitSlot.ACCESSORY, "Ring")
+    await edit(b"person", b"mask", item, RenderHint(detail=False))
+    await edit(b"person", b"mask", item, RenderHint(detail=True))
+    assert seen == ["medium", tryon_settings.OPENAI_IMAGE_QUALITY_RETRY]
+
+
 async def test_best_of_keeps_whichever_engine_scores_higher(client, db, monkeypatch):
     """VIRTUAL_TRYON_PROVIDER=best_of renders with OpenAI and Gemini at
     once and keeps whichever one the inspector actually liked better —

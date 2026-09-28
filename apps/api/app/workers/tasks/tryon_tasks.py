@@ -163,11 +163,13 @@ def _pipeline_render_all(provider):  # noqa: ANN001, ANN202
 
 def _pipeline_edit_masked(provider):  # noqa: ANN001, ANN202
     """How the masked pipeline asks the provider to draw one item: on the
-    pipeline's current image, only inside the given mask."""
+    pipeline's current image, only inside the given mask, at the cheaper
+    setting unless this item has already failed once (see _at_detail)."""
 
     async def edit(person_png: bytes, mask_png: bytes, item: LookItem, hint: RenderHint) -> bytes:
+        engine = _at_detail(provider) if hint.detail else provider
         piece = OutfitPiece(item.image_url, item.slot.value, item.name, note=hint.fix, description=hint.description)
-        return (await provider.edit_masked(person_png, mask_png, piece)).image_bytes
+        return (await engine.edit_masked(person_png, mask_png, piece)).image_bytes
 
     return edit
 
