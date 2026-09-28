@@ -77,6 +77,10 @@ def masked_prompt(piece: OutfitPiece) -> str:
         "camera angle or move the lighting just because that area happens to be editable.",
         f"Reproduce the product faithfully: {_PRESERVE.get(piece.slot, _PRESERVE['other'])}."
         " This is a try-on, not an illustration: a product that merely resembles the photo is wrong.",
+        "Match the product's own length and cut exactly — a hip-length kameez stays hip-length, a knee-length "
+        "one stays knee-length. If it ends short of the transparent region's own edge, stop there: draw "
+        "whatever the reference photo shows below it (separate trousers, her own legs, the floor) rather than "
+        "stretching or extending the product's fabric to fill the rest of the space just because it's editable.",
         "Colour is not approximate: yellow gold is not silver, ivory is not pink, navy is not black. Match the"
         " product photo's exact shade.",
         "Take ONLY the product from Image 2: ignore any model, mannequin, background, text or watermark in it.",
