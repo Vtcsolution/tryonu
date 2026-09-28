@@ -55,6 +55,7 @@ ever allowed to reach above the shoulder, whatever the lookup says.
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from collections.abc import Awaitable, Callable
 
@@ -118,6 +119,26 @@ _GARMENT_HALF_WIDTH = 2.6  # face-widths, each side of her centre
 # never above it, regardless of what the body-part lookup returned
 _SHOULDER_DROP = 1.15  # of a face-height, below the bottom of the face
 
+# Sunglasses, glasses, goggles: no clamp protected these at all — every
+# other worn-on-head item (a hat, an earring, a hijab) is exempted from
+# _SHOULDER_DROP because it legitimately needs to reach the head, so
+# eyewear inherited open trust in whatever the vision lookup answered
+# with nothing checking it. Live, on a real photo: asked for where
+# oversized sunglasses go, it returned a window nearly 3 face-widths
+# wide and 2 face-heights tall, reaching from above the eyebrows to
+# below the chin — most of the face, not a band across the eyes — and
+# the render came back with a different bone structure, closer to the
+# product photo's own model than the customer's. Unlike a bag or a
+# watch, eyewear's real position is not something a body-part lookup
+# needs to guess: it sits on the face, at a fixed place relative to it,
+# every time. So this skips the vision call entirely, the same way a
+# garment's mask does, rather than clamping a number that keeps coming
+# back wrong.
+_EYEWEAR = re.compile(r"\b(sunglasses|glasses|eyeglasses|spectacles|goggles)\b")
+_EYE_TOP = 0.15  # face-heights below the top of the face: just above the brow
+_EYE_BOTTOM = 0.75  # face-heights below the top of the face: upper cheek, well short of the mouth
+_EYEWEAR_HALF_WIDTH = 0.75  # face-widths each side of centre: room for temples on an oversized frame
+
 # drawn first to last: a sleeve has to exist before a bracelet can sit on
 # top of the wrist inside it, and a bag is carried over a finished outfit
 _MASK_ORDER = {
@@ -150,10 +171,18 @@ async def _mask_region(item: LookItem, face, base: np.ndarray) -> Region | None:
         x1 = min(region.x1, cx + half)
         return Region(x0, top, x1, region.y1)
 
+    name = item.name.lower()
+    if face is not None and _EYEWEAR.search(name):
+        h, w = base.shape[:2]
+        cx = (face.x + face.w / 2) / w
+        half = _EYEWEAR_HALF_WIDTH * face.w / w
+        top = (face.y + _EYE_TOP * face.h) / h
+        bottom = (face.y + _EYE_BOTTOM * face.h) / h
+        return Region(max(0.0, cx - half), top, min(1.0, cx + half), bottom)
+
     region = await _area_for(item, face, base)
     if region is None or face is None:
         return region
-    name = item.name.lower()
     if worn_on_head(name) or _AROUND_THE_NECK.search(name) or item.slot in _ON_THE_FLOOR:
         return region  # legitimately near the head, the neck, or nowhere near either
 

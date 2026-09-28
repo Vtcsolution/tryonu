@@ -294,6 +294,39 @@ async def test_a_neck_or_head_item_is_never_clamped_away_from_the_face(monkeypat
     assert region == Region(0.3, 0.05, 0.7, 0.3)  # untouched
 
 
+async def test_eyewear_never_asks_the_body_part_lookup_at_all(monkeypatch):
+    """Real bug: asked live for oversized sunglasses, the body-part lookup
+    returned a window nearly 3 face-widths wide and 2 face-heights tall —
+    most of the face, not a band across the eyes — with nothing checking
+    it, because every worn-on-head item is exempted from the shoulder
+    clamp (they legitimately reach the head) and eyewear inherited that
+    exemption with no clamp of its own. The render came back with a
+    different face. Eyewear's real position doesn't need a guess: it
+    sits on the face at a fixed place relative to it, so this bypasses
+    the lookup entirely rather than trusting a number proven unreliable."""
+
+    async def never_called(item, face, base):  # noqa: ARG001
+        raise AssertionError("eyewear must not reach the body-part lookup at all")
+
+    monkeypatch.setattr(masked, "_area_for", never_called)
+    face = Box(x=206, y=135, w=58, h=58)
+    region = await _mask_region(
+        LookItem("x", OutfitSlot.ACCESSORY, "Oversized Square Sunglasses"), face, np.zeros((668, 459, 3), np.uint8)
+    )
+    assert region is not None
+    # a tight band across the eyes, not most of the face
+    assert region.y1 - region.y0 < 0.1
+    assert region.x0 < 0.5 < region.x1  # centred on her
+    assert region.y0 > face.y / 668  # starts at or below the top of the face, not above it
+
+
+async def test_eyewear_matches_by_name_regardless_of_slot():
+    face = Box(x=206, y=135, w=58, h=58)
+    for name in ["Vintage Round Sunglasses", "Blue Light Glasses", "Ski Goggles"]:
+        region = await _mask_region(LookItem("x", OutfitSlot.OTHER, name), face, np.zeros((668, 459, 3), np.uint8))
+        assert region is not None and region.y1 - region.y0 < 0.1
+
+
 # --------------------------------------------------------------------- waves
 
 
