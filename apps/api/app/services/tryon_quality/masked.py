@@ -318,18 +318,41 @@ async def render_masked_look(
                 for s in wave
             )
         )
-        h, w = current.shape[:2]
-        merged = current
-        for step, raw in zip(wave, results):
-            if raw is None:
-                continue
-            if raw.shape[:2] != (h, w):
-                raw = cv2.resize(raw, (w, h), interpolation=cv2.INTER_LANCZOS4)
+        accepted = [(step, raw) for step, raw in zip(wave, results) if raw is not None]
+        if len(accepted) == 1:
+            # The common case — most waves end up with exactly one item in
+            # them regardless of how many run in parallel elsewhere. Take
+            # the whole frame, the way single-item rendering always did:
+            # every pixel, "protected" ones included, comes from the SAME
+            # generation call at its one native resolution, so there is no
+            # boundary for a seam to form at. Only cropping to a mask
+            # rectangle (below) forces a join between two different
+            # renders — worth it when two items genuinely share a round,
+            # costly to pay when only one is actually there.
+            current = accepted[0][1]
+            continue
+        if accepted:
+            # Two or more items shared this round: their own masks don't
+            # overlap, but each must still supply only its own rectangle —
+            # taking either one's whole frame would silently erase the
+            # other's edit. Upscale the shared canvas to the models' own
+            # resolution first (Lanczos loses no detail going up) so the
+            # paste boundary is at least a resolution match, even though a
+            # boundary — and the sharpness step across it, since the
+            # canvas's own pixels are an upscale, not a fresh render —
+            # still exists here in a way the single-item case avoids.
+            th, tw = accepted[0][1].shape[:2]
+            merged = current if current.shape[:2] == (th, tw) else cv2.resize(
+                current, (tw, th), interpolation=cv2.INTER_LANCZOS4
+            )
             if merged is current:
-                merged = current.copy()
-            x0, y0, x1, y1 = regions[step].pixels(w, h)
-            merged[y0:y1, x0:x1] = raw[y0:y1, x0:x1]
-        current = merged
+                merged = merged.copy()
+            for step, raw in accepted:
+                if raw.shape[:2] != (th, tw):
+                    raw = cv2.resize(raw, (tw, th), interpolation=cv2.INTER_LANCZOS4)
+                x0, y0, x1, y1 = regions[step].pixels(tw, th)
+                merged[y0:y1, x0:x1] = raw[y0:y1, x0:x1]
+            current = merged
 
     return encode_jpeg(current, 97), reports
 
