@@ -139,6 +139,44 @@ _EYE_TOP = 0.15  # face-heights below the top of the face: just above the brow
 _EYE_BOTTOM = 0.75  # face-heights below the top of the face: upper cheek, well short of the mouth
 _EYEWEAR_HALF_WIDTH = 0.75  # face-widths each side of centre: room for temples on an oversized frame
 
+# Every other head-worn item — a tikka, earrings, a hairband — was
+# falling through to pipeline._plausible_area()'s one generic box for
+# "worn_on_head": from 0.4 face-heights above the face to 0.6 below it,
+# a face-width past each side. That box doesn't know a tikka sits on
+# the forehead and earrings sit at the ears; it hands the same
+# almost-the-whole-head window to both. Live, with a maang tikka product
+# photographed as part of a full set (the tikka pendant beside a
+# matching necklace and earrings in one image, as these commonly are
+# listed): that generous a window, reaching down past the jaw, gave the
+# model room to draw pieces from the necklace it could see in the
+# reference rather than just the forehead pendant that was actually
+# asked for. Tikka and earrings get their own tight, face-relative
+# windows instead, the same way eyewear already does.
+_FOREHEAD = re.compile(r"\b(maang tikka|tikka|bindi|matha patti)\b")
+_TIKKA_TOP = -0.2  # face-heights above the top of the face: into the hair parting
+_TIKKA_BOTTOM = 0.3  # face-heights below the top of the face: upper forehead, above the brow
+_TIKKA_HALF_WIDTH = 0.35  # face-widths each side of centre: the forehead's own width, not the whole head
+
+_EARS = re.compile(r"\b(earring|earrings|jhumka|jhumkas|chandbali|stud|studs|ear cuff|ear cuffs)\b")
+_EAR_TOP = 0.15  # face-heights below the top of the face: roughly eye level
+_EAR_BOTTOM = 0.95  # face-heights below the top of the face: past the jaw, for a long dangle
+_EAR_HALF_WIDTH = 0.85  # face-widths each side of centre: ears sit near the face's own edge, with dangle room
+
+
+def _face_window(face, base: np.ndarray, top_frac: float, bottom_frac: float, half_width_frac: float) -> Region:  # noqa: ANN001
+    """A window purely from face geometry — no vision call, nothing to
+    come back wrong on a given run — for an item whose real position on
+    a face doesn't vary: `top_frac`/`bottom_frac` are face-heights below
+    the TOP of the face box (negative reaches above it), `half_width_frac`
+    is face-widths either side of its horizontal centre."""
+    h, w = base.shape[:2]
+    cx = (face.x + face.w / 2) / w
+    half = half_width_frac * face.w / w
+    top = max(0.0, (face.y + top_frac * face.h) / h)
+    bottom = min(1.0, (face.y + bottom_frac * face.h) / h)
+    return Region(max(0.0, cx - half), top, min(1.0, cx + half), bottom)
+
+
 # drawn first to last: a sleeve has to exist before a bracelet can sit on
 # top of the wrist inside it, and a bag is carried over a finished outfit
 _MASK_ORDER = {
@@ -173,12 +211,11 @@ async def _mask_region(item: LookItem, face, base: np.ndarray) -> Region | None:
 
     name = item.name.lower()
     if face is not None and _EYEWEAR.search(name):
-        h, w = base.shape[:2]
-        cx = (face.x + face.w / 2) / w
-        half = _EYEWEAR_HALF_WIDTH * face.w / w
-        top = (face.y + _EYE_TOP * face.h) / h
-        bottom = (face.y + _EYE_BOTTOM * face.h) / h
-        return Region(max(0.0, cx - half), top, min(1.0, cx + half), bottom)
+        return _face_window(face, base, _EYE_TOP, _EYE_BOTTOM, _EYEWEAR_HALF_WIDTH)
+    if face is not None and _FOREHEAD.search(name):
+        return _face_window(face, base, _TIKKA_TOP, _TIKKA_BOTTOM, _TIKKA_HALF_WIDTH)
+    if face is not None and _EARS.search(name):
+        return _face_window(face, base, _EAR_TOP, _EAR_BOTTOM, _EAR_HALF_WIDTH)
 
     region = await _area_for(item, face, base)
     if region is None or face is None:

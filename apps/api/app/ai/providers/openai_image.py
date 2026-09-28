@@ -84,6 +84,10 @@ def masked_prompt(piece: OutfitPiece) -> str:
         "Colour is not approximate: yellow gold is not silver, ivory is not pink, navy is not black. Match the"
         " product photo's exact shade.",
         "Take ONLY the product from Image 2: ignore any model, mannequin, background, text or watermark in it.",
+        f"If Image 2 shows more than one piece together — a full jewellery set on one card, several garments "
+        f"on a rack, a matching necklace and earrings beside each other — draw ONLY the {piece.name}. Ignore "
+        f"every other piece in that photo completely, even ones that would look complete alongside what you "
+        f"drew: they were not selected, and this transparent region is not theirs to use.",
         "Fit it naturally to the person's body and pose, with realistic folds, drape and shadows, blending"
         " seamlessly into the edge of the transparent region rather than sitting on top of it.",
     ]

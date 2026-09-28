@@ -279,17 +279,19 @@ async def test_a_hand_item_already_below_the_shoulder_is_left_alone(monkeypatch)
 
 
 async def test_a_neck_or_head_item_is_never_clamped_away_from_the_face(monkeypatch):
-    """Earrings and a necklace legitimately need to reach up to the ears
+    """A necklace or a hairband legitimately needs to reach up to the ears
     or down from the chin — the clamp that protects a bag from the face
-    must not also stop these from reaching it."""
+    must not also stop these from reaching it. (Not earrings or a tikka
+    here — those now get their own geometric window and never reach
+    _area_for() at all; see the forehead/ear tests below.)"""
 
     async def near_the_face(item, face, base):  # noqa: ARG001
-        return Region(0.3, 0.05, 0.7, 0.3)  # genuinely up near the head, for an earring
+        return Region(0.3, 0.05, 0.7, 0.3)  # genuinely up near the head, for a hairband
 
     monkeypatch.setattr(masked, "_area_for", near_the_face)
     face = Box(x=400, y=90, w=180, h=180)
     region = await _mask_region(
-        LookItem("x", OutfitSlot.ACCESSORY, "Jhumka Earrings"), face, np.zeros((1536, 1024, 3), np.uint8)
+        LookItem("x", OutfitSlot.ACCESSORY, "Bridal Hairband"), face, np.zeros((1536, 1024, 3), np.uint8)
     )
     assert region == Region(0.3, 0.05, 0.7, 0.3)  # untouched
 
@@ -325,6 +327,37 @@ async def test_eyewear_matches_by_name_regardless_of_slot():
     for name in ["Vintage Round Sunglasses", "Blue Light Glasses", "Ski Goggles"]:
         region = await _mask_region(LookItem("x", OutfitSlot.OTHER, name), face, np.zeros((668, 459, 3), np.uint8))
         assert region is not None and region.y1 - region.y0 < 0.1
+
+
+async def test_a_tikka_and_earrings_never_reach_the_body_part_lookup_either(monkeypatch):
+    """Real bug: a maang tikka and a pair of earrings both fell through
+    to pipeline._plausible_area()'s one generic worn_on_head() box —
+    the exact same window a hairband or sunglasses got, reaching from
+    above the eyebrows to well past the chin. A tikka photographed as
+    part of a matching necklace-and-earrings set had, inside that much
+    room, both the space and the visual reference to draw a necklace
+    that was never asked for. Tikka and earrings now get their own
+    geometry, computed directly, same as eyewear — never the lookup."""
+
+    async def never_called(item, face, base):  # noqa: ARG001
+        raise AssertionError("tikka/earrings must not reach the body-part lookup")
+
+    monkeypatch.setattr(masked, "_area_for", never_called)
+    face = Box(x=206, y=135, w=58, h=58)
+    base = np.zeros((668, 459, 3), np.uint8)
+
+    tikka = await _mask_region(LookItem("x", OutfitSlot.ACCESSORY, "Kundan Maang Tikka"), face, base)
+    assert tikka is not None
+    assert tikka.y1 <= (face.y + 0.3 * face.h) / 668 + 1e-9  # stays on the forehead, not past the brow
+    assert tikka.x0 < 0.5 < tikka.x1
+
+    earrings = await _mask_region(LookItem("x", OutfitSlot.ACCESSORY, "Jhumka Earrings"), face, base)
+    assert earrings is not None
+    assert earrings.y0 >= (face.y + 0.15 * face.h) / 668 - 1e-9  # starts at the ear line, not the forehead
+    # tighter than the old shared box's bottom (0.6 face-heights below
+    # the chin) — that extra reach toward the neck/chest is what left
+    # room for a hallucinated necklace beside the tikka
+    assert earrings.y1 < (face.y + 1.6 * face.h) / 668
 
 
 # --------------------------------------------------------------------- waves
