@@ -66,7 +66,7 @@ from app.core.logging import logger
 from app.models.enums import OutfitSlot
 from app.services.face_restore import detect_face
 from app.services.outfit_slots import worn_on_head
-from app.services.tryon_quality.compose import Region, decode, encode_jpeg
+from app.services.tryon_quality.compose import Region, composite, decode, encode_jpeg
 from app.services.tryon_quality.judge import judge
 from app.services.tryon_quality.pipeline import (
     ItemReport,
@@ -282,6 +282,34 @@ def _overlaps(a: Region, b: Region, margin: float = 0.02) -> bool:
     return not (a.x1 + margin <= b.x0 or b.x1 + margin <= a.x0 or a.y1 + margin <= b.y0 or b.y1 + margin <= a.y0)
 
 
+_FEATHER_MARGIN = 0.02  # the same buffer _overlaps() already reserves between two items' windows
+
+
+def _paste(base: np.ndarray, raw: np.ndarray, region: Region) -> np.ndarray:
+    """`raw`'s own region laid onto `base`, softened at the edges rather
+    than cut at them.
+
+    A straight rectangle cut — `base[y0:y1, x0:x1] = raw[y0:y1, x0:x1]` —
+    assumes the model's fill matches the pixels just outside the window
+    closely enough that the cut disappears. Live, twice, it didn't: a pair
+    of sunglasses came back a shade flatter just inside their own window
+    than the skin just outside it, and a handbag's crop line drew a
+    visible band straight across the dress behind it — both exactly at the
+    rectangle's edge, nowhere else. Blending across the same margin
+    _overlaps() already keeps clear between two items' windows hides a
+    small mismatch the way a real edit would, instead of drawing a ruler
+    line under it — and can never bleed into a neighbouring item's own
+    round, since that margin was already reserved as empty space between
+    them."""
+    h, w = base.shape[:2]
+    x0, y0, x1, y1 = region.pixels(w, h)
+    mask = np.zeros((h, w), dtype=np.float32)
+    mask[y0:y1, x0:x1] = 1.0
+    feather = max(3, int(_FEATHER_MARGIN * min(h, w)))
+    mask = cv2.GaussianBlur(mask, (feather * 2 + 1, feather * 2 + 1), 0)
+    return composite(base, raw, mask)
+
+
 def _waves(ready: list[int], regions: list[Region | None], is_garment: list[bool]) -> list[list[int]]:
     """Batch draw steps whose windows don't overlap so independent items —
     a watch on one wrist, a bag in the other hand — render in the same API
@@ -489,14 +517,10 @@ async def render_masked_look(
             # softness mismatch would show up in the way a garment's
             # pattern would.
             step, raw = accepted[0]
-            region = regions[step]
             h, w = current.shape[:2]
             th, tw = raw.shape[:2]
             merged = current if (h, w) == (th, tw) else cv2.resize(current, (tw, th), interpolation=cv2.INTER_LANCZOS4)
-            merged = merged.copy()
-            x0, y0, x1, y1 = region.pixels(tw, th)
-            merged[y0:y1, x0:x1] = raw[y0:y1, x0:x1]
-            current = merged
+            current = _paste(merged, raw, regions[step])
             continue
         if accepted:
             # Two or more items shared this round: their own masks don't
@@ -512,13 +536,10 @@ async def render_masked_look(
             merged = current if current.shape[:2] == (th, tw) else cv2.resize(
                 current, (tw, th), interpolation=cv2.INTER_LANCZOS4
             )
-            if merged is current:
-                merged = merged.copy()
             for step, raw in accepted:
                 if raw.shape[:2] != (th, tw):
                     raw = cv2.resize(raw, (tw, th), interpolation=cv2.INTER_LANCZOS4)
-                x0, y0, x1, y1 = regions[step].pixels(tw, th)
-                merged[y0:y1, x0:x1] = raw[y0:y1, x0:x1]
+                merged = _paste(merged, raw, regions[step])
             current = merged
 
     return encode_jpeg(current, 97), reports

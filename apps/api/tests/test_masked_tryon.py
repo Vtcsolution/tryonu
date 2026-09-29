@@ -23,6 +23,7 @@ from app.services.tryon_quality.masked import (
     _mask_region,
     _order_of,
     _overlaps,
+    _paste,
     _waves,
     render_masked_look,
 )
@@ -82,6 +83,30 @@ def test_mask_png_is_transparent_only_inside_the_region():
     assert (alpha[:40, :] == 255).all()  # outside: protected
     assert (alpha[:, :50] == 255).all()
     assert (alpha[:, 150:] == 255).all()
+
+
+# ----------------------------------------------------------------- pasting
+
+
+def test_a_paste_blends_at_the_edge_instead_of_cutting_a_hard_line():
+    """Live: a straight rectangle cut left a visibly flatter patch of skin
+    around a pair of sunglasses, and a handbag's crop line drew a visible
+    band straight across the dress behind it — both exactly at the mask
+    boundary, because a hard `base[y0:y1, x0:x1] = raw[...]` never checks
+    whether the two images agree there. This only proves the blend itself:
+    given two images that visibly disagree everywhere, the paste must still
+    be raw deep inside the region, base far outside it, and a genuine
+    in-between value right at the seam — never a hard 0-to-255 jump."""
+    base = np.zeros((200, 200, 3), np.uint8)
+    raw = np.full((200, 200, 3), 255, np.uint8)
+    region = Region(0.25, 0.25, 0.75, 0.75)  # pixel box: x 50-150, y 50-150
+
+    merged = _paste(base, raw, region)
+
+    assert tuple(merged[100, 100]) == (255, 255, 255)  # deep inside: the new item
+    assert tuple(merged[10, 10]) == (0, 0, 0)  # far outside: untouched
+    edge = merged[100, 50]  # exactly on the region's own left edge
+    assert 0 < int(edge[0]) < 255  # blended, not a hard cut either side
 
 
 # ------------------------------------------------------------------- order
