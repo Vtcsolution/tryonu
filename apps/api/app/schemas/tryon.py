@@ -42,6 +42,11 @@ class ResultPlacement(BaseModel):
     image_url: str | None = None
     drawn: bool = False
     box: list[float] | None = None
+    #: why `drawn` is False — None when it's True. A shopper who asks
+    #: "where are my shoes" deserves an answer better than a silent
+    #: "matched": whether nothing on the photo answered to where it
+    #: goes, or the render itself failed and is worth simply retrying.
+    reason: str | None = None
 
 
 class TryOnResultOut(ORMModel):

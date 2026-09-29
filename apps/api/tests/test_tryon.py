@@ -848,3 +848,56 @@ async def test_an_item_that_failed_is_not_claimed_as_on_the_photo(client, db, mo
     assert items_by_name["Ring"]["id"] in rendered
     assert items_by_name["Khussa"]["id"] not in rendered  # the one that actually failed
     assert len(rendered) == 2  # never "every item", because it wasn't true
+
+
+async def test_a_failed_item_tells_the_shopper_why_not_just_that_it_failed(client, db, monkeypatch):
+    """Real bug: a shopper asked "where did my shoes go" — the result had
+    quietly shown them as "matched" with no explanation. `drawn: false`
+    alone never answered that; the reason already existed internally
+    (ItemReport.history) but was never carried out to the response."""
+    from app.services.tryon_quality.compose import Region
+    from app.services.tryon_quality.judge import Verdict
+    from app.services.tryon_quality.masked import ItemReport
+    from app.workers.tasks import tryon_tasks
+
+    class _FakeMaskedProvider:
+        name = "fake-masked"
+        model = "fake-masked-1"
+        whole_outfit = True
+        preserves_person = False
+        supports_masked_edit = True
+
+    provider = _FakeMaskedProvider()
+    monkeypatch.setattr("app.workers.tasks.tryon_tasks.get_tryon_provider", lambda: provider)
+    monkeypatch.setattr("app.ai.providers.registry.get_tryon_provider", lambda: provider)
+
+    async def fake_render_masked_look(person, items, edit, **kw):  # noqa: ARG001
+        reports = []
+        for i in items:
+            if "Shoes" in i.name:
+                report = ItemReport(name=i.name, verdict=None, box=None)
+                report.history.append("couldn't find where this goes on the photo")
+            else:
+                report = ItemReport(name=i.name, verdict=Verdict(9, 9, 8), box=Region(0.1, 0.1, 0.9, 0.9))
+            reports.append(report)
+        return small_jpeg_bytes(), reports
+
+    monkeypatch.setattr(tryon_tasks, "render_masked_look", fake_render_masked_look)
+
+    async def fake_keep_person_if_on(*a, **kw):  # noqa: ARG001
+        raise AssertionError("face-restore fallback must not run for a masked-edit engine")
+
+    monkeypatch.setattr(tryon_tasks, "_keep_person_if_on", fake_keep_person_if_on)
+
+    await register_and_login(client)
+    photo_id = await _upload_front_photo(client)
+    product = await seed_product(db, name="Shoes", image_url="https://img.example/shoes.jpg")
+
+    resp = await client.post("/api/v1/tryon", json={"user_photo_id": photo_id, "product_id": product.id})
+    assert resp.status_code == 201, resp.text
+    finished = await _poll_until_terminal(client, resp.json()["id"])
+    assert finished["status"] == "completed"
+
+    placement = finished["result"]["placements"][0]
+    assert placement["drawn"] is False
+    assert placement["reason"] and "photo" in placement["reason"].lower()

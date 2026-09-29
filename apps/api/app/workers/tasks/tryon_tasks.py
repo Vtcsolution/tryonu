@@ -572,6 +572,22 @@ async def _with_original_face(
     return restored, "image/jpeg"
 
 
+def _reason_for(report: ItemReport) -> str | None:
+    """A shopper-facing reason `drawn` is False — reusing the same
+    history already kept for debugging, but as an answer to "where did
+    my shoes go" rather than a log line. Distinguishes the two real
+    cases: nothing on the photo answered to where the item goes at all
+    (worth trying a clearer or different photo), versus the render
+    itself failed (worth simply trying again — nothing wrong with the
+    product or the photo)."""
+    for line in report.history:
+        if "couldn't find" in line:
+            return "Couldn't find where this belongs on your photo — try a clearer or different photo."
+        if "failed" in line:
+            return "This item couldn't be rendered this time — try again."
+    return "This item couldn't be applied — try again."
+
+
 def _placements(layers: list[_Layer], reports: list[ItemReport]) -> list[dict]:
     """Where each item ended up, for the result view's labels. An item with
     no box was inspected but not located — it is still listed, just without
@@ -590,6 +606,7 @@ def _placements(layers: list[_Layer], reports: list[ItemReport]) -> list[dict]:
                 # different claim and a worse picture of a watch face.
                 "image_url": layer.image_url,
                 "drawn": box is not None,
+                "reason": None if box is not None else _reason_for(report),
                 "box": [round(box.x0, 4), round(box.y0, 4), round(box.x1, 4), round(box.y1, 4)] if box else None,
             }
         )
