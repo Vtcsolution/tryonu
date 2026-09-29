@@ -74,7 +74,19 @@ _ITEM_CATEGORY_WORDS = {
     "smartwatch", "chinos", "tuxedo", "wallet", "wallets", "cufflinks", "accessories",
     "backpack", "backpacks", "payal", "chappal", "purse", "tote", "romper", "rompers", "set", "sets",
 }
-_TERM_STOPWORDS = {"a", "an", "the", "and", "with", "or", "for", "to", "of", "in", "on", "over", "under"}
+_TERM_STOPWORDS = {
+    "a", "an", "the", "and", "with", "or", "for", "to", "of", "in", "on", "over", "under",
+    # conversational filler a shopper types around the actual ask — real
+    # bug, live: "apply ear rings, ... and also watch" built the search
+    # terms "apply ear rings" and "also watch", because neither word is a
+    # stopword, a category word or a gender word, so the "describing
+    # words right before it" rule swept them in as if they were "white"
+    # or "leather". "apply ear rings" found 2 real listings; "ear rings"
+    # alone found 10 — the extra word wasn't neutral, it actively hurt.
+    "apply", "add", "also", "please", "want", "wants", "wanted", "need", "needs", "needed",
+    "show", "get", "give", "looking", "like", "would", "some", "any", "just", "can", "could",
+    "i", "me", "my", "you", "your", "its", "it's",
+}
 # who the ask is for — said outright, or through who it's being bought for
 _WOMEN_WORDS = {
     "women", "women's", "womens", "woman", "woman's", "ladies", "lady", "girls", "girl's", "female",
@@ -208,6 +220,29 @@ class _Candidate:
     term: str  # the exact query that produced it — used to find alternatives sharing it
 
 
+def _narrow_term(term: str) -> str | None:
+    """`term` with its leading descriptor word(s) dropped, keeping only
+    the gender word (if any) and the item-category words at the end —
+    the same word a shopper typed can be one a retailer's own listings
+    never use. Live: "karahi heels shoes" (karahi is a specific
+    embroidery technique) found nothing at all; "heels shoes" alone
+    found ten real listings. None if there's no descriptor left to drop.
+    """
+    words = term.split()
+    core_start = len(words)
+    for idx in range(len(words) - 1, -1, -1):
+        if words[idx] in _ITEM_CATEGORY_WORDS:
+            core_start = idx
+        else:
+            break
+    core = words[core_start:]
+    if not core:
+        return None
+    kept_gender = [w for w in words[:core_start] if w in _WOMEN_WORDS or w in _MEN_WORDS]
+    narrowed = " ".join([*kept_gender, *core])
+    return narrowed if narrowed != term else None
+
+
 async def _fetch_candidates(
     req: StylistAskRequest, profile: TasteProfile | None, gender: str | None = None
 ) -> list[_Candidate]:
@@ -225,7 +260,20 @@ async def _fetch_candidates(
         # returns zero results, since no single real listing's title
         # contains every item type at once.
         per_term_limit = max(4, _LIVE_FETCH_POOL_SIZE // len(terms))
-        term_results = await asyncio.gather(*(live_search(t, limit=per_term_limit) for t in terms))
+        term_results = list(await asyncio.gather(*(live_search(t, limit=per_term_limit) for t in terms)))
+
+        # A term that found nothing doesn't mean the item isn't out
+        # there — it can mean the shopper's own word for it isn't the
+        # retailer's. Retried once, narrowed, rather than silently
+        # dropping that item from the outfit: a shopper who asked for
+        # five things and got four with no explanation has no way to
+        # know one was ever considered.
+        retries = {i: n for i, t in enumerate(terms) if not term_results[i] and (n := _narrow_term(t))}
+        if retries:
+            retried = await asyncio.gather(*(live_search(n, limit=per_term_limit) for n in retries.values()))
+            for i, results in zip(retries.keys(), retried):
+                term_results[i] = results
+
         pool: list[_Candidate] = []
         seen_ids: set[tuple[str, str]] = set()
         for term, results in zip(terms, term_results):

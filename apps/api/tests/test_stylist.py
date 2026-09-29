@@ -347,6 +347,62 @@ def test_extract_search_terms_keeps_comma_separated_items_apart():
     assert _extract_search_terms("jacket, jeans, sneakers") == ["jacket", "jeans", "sneakers"]
 
 
+def test_extract_search_terms_drops_conversational_filler_before_an_item():
+    """Real bug, found live: "apply ear rings , ... and also watch" built
+    the search terms "apply ear rings" and "also watch" — neither
+    "apply" nor "also" is a stopword, a category word or a gender word,
+    so the "up to two describing words before it" rule swept them in as
+    if they were real descriptors like "white" or "leather". Live:
+    "apply ear rings" found 2 listings; "ear rings" alone found 10 — the
+    extra word wasn't neutral, it actively hurt the search."""
+    from app.services.stylist_service import _extract_search_terms
+
+    terms = _extract_search_terms(
+        "apply ear rings, white color ring, white shalwar kameez with karahi heels shoes and also watch"
+    )
+    assert terms == ["ear rings", "white color ring", "white shalwar kameez", "karahi heels shoes", "watch"]
+
+
+def test_narrow_term_drops_the_leading_descriptor_keeping_gender_and_category():
+    from app.services.stylist_service import _narrow_term
+
+    assert _narrow_term("karahi heels shoes") == "heels shoes"
+    assert _narrow_term("women karahi heels shoes") == "women heels shoes"
+    assert _narrow_term("white color ring") == "ring"
+    assert _narrow_term("watch") is None  # nothing left to drop
+    assert _narrow_term("women watch") is None
+
+
+async def test_a_term_that_finds_nothing_is_retried_narrowed_rather_than_dropped(monkeypatch):
+    """Real bug, found live: "karahi heels shoes" (karahi is a specific
+    embroidery technique) returned zero results from live_search, so the
+    shopper's outfit came back missing shoes entirely with no
+    explanation — four items shown for a five-item ask. "heels shoes"
+    alone found real ones live. The item must not just vanish because
+    the shopper's own word for it isn't a retailer's."""
+    from app.schemas.stylist import StylistAskRequest
+    from app.services.stylist_service import _fetch_candidates
+
+    calls: list[str] = []
+
+    async def fake_live_search(query: str, *, limit: int = 24):
+        calls.append(query)
+        if query == "women karahi heels shoes":
+            return []  # the shopper's exact phrasing: nothing
+        if query == "women heels shoes":
+            return _live_results("Nude Ankle Strap Heels")
+        return _live_results(f"generic result for {query}")
+
+    monkeypatch.setattr("app.services.stylist_service.live_search", fake_live_search)
+
+    req = StylistAskRequest(prompt="white shalwar kameez with karahi heels shoes", max_items=2)
+    candidates = await _fetch_candidates(req, None, "women")
+
+    assert "women karahi heels shoes" in calls  # tried the shopper's own words first
+    assert "women heels shoes" in calls  # then retried, narrowed
+    assert any(c.result.raw.name == "Nude Ankle Strap Heels" for c in candidates)
+
+
 async def test_stylist_searches_each_outfit_item_separately_not_as_one_sentence(client, monkeypatch):
     """The actual end-to-end fix: a multi-item prompt must trigger one
     live_search call per item type, not a single call with the whole
