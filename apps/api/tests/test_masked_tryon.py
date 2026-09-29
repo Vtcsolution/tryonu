@@ -419,13 +419,13 @@ def test_overlaps_keeps_a_margin_around_a_bare_touch():
 
 def test_waves_batches_non_overlapping_steps_together():
     regions = [Region(0.0, 0.0, 0.3, 0.3), Region(0.6, 0.6, 0.9, 0.9), Region(0.0, 0.6, 0.3, 0.9)]
-    assert _waves([0, 1, 2], regions) == [[0, 1, 2]]  # none of the three touch
+    assert _waves([0, 1, 2], regions, [False, False, False]) == [[0, 1, 2]]  # none of the three touch
 
 
 def test_waves_separates_steps_whose_windows_cross():
     # step 0 is a dress-sized box; step 1 sits inside it and must wait
     regions = [Region(0.0, 0.0, 1.0, 1.0), Region(0.4, 0.4, 0.6, 0.6)]
-    assert _waves([0, 1], regions) == [[0], [1]]
+    assert _waves([0, 1], regions, [False, False]) == [[0], [1]]
 
 
 def test_waves_lets_a_third_item_join_whichever_wave_it_fits():
@@ -433,7 +433,36 @@ def test_waves_lets_a_third_item_join_whichever_wave_it_fits():
     # 0's wave nor a spot alone if it also collides with 1 only — it
     # should land with 0, the earliest wave it doesn't cross
     regions = [Region(0.0, 0.0, 0.5, 0.5), Region(0.4, 0.4, 0.9, 0.9), Region(0.0, 0.6, 0.5, 1.0)]
-    assert _waves([0, 1, 2], regions) == [[0, 2], [1]]
+    assert _waves([0, 1, 2], regions, [False, False, False]) == [[0, 2], [1]]
+
+
+def test_waves_never_batches_a_garment_with_anything_else(monkeypatch):
+    """Real bug, found live: a kameez and sunglasses don't overlap — the
+    kameez's mask ends at the neckline — so they shared a round, each
+    pasted into its own exact rectangle on a common canvas the way any
+    two small items are. OpenAI's masked edit doesn't hold the rest of
+    the composition perfectly still even while honouring the mask; a
+    small item's rectangle is too small for that drift to show, a
+    kameez's covers most of the body, and the seam at its own boundary —
+    chandeliers and tables not lining up with themselves a few pixels
+    either side of it — was obvious, tiled across the whole photo.
+    A garment must always get its own round, whatever the geometry says."""
+    # a garment box (step 0) and a small one nowhere near it (step 1) —
+    # geometrically these don't overlap at all, and used to share a round
+    regions = [Region(0.03, 0.3, 0.97, 0.97), Region(0.4, 0.1, 0.6, 0.15)]
+    assert _waves([0, 1], regions, [True, False]) == [[0], [1]]
+
+
+def test_waves_keeps_small_items_batched_around_a_garment():
+    # the garment (step 1, mid-priority here to prove position doesn't
+    # matter) still gets its own round; the two small items either side
+    # of it, which don't overlap each other, still share theirs
+    regions = [
+        Region(0.0, 0.1, 0.2, 0.2),  # small, step 0
+        Region(0.03, 0.3, 0.97, 0.97),  # garment, step 1
+        Region(0.8, 0.1, 1.0, 0.2),  # small, step 2
+    ]
+    assert _waves([0, 1, 2], regions, [False, True, False]) == [[0, 2], [1]]
 
 
 # ------------------------------------------------------- parallel rendering

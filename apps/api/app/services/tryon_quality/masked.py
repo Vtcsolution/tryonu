@@ -282,18 +282,36 @@ def _overlaps(a: Region, b: Region, margin: float = 0.02) -> bool:
     return not (a.x1 + margin <= b.x0 or b.x1 + margin <= a.x0 or a.y1 + margin <= b.y0 or b.y1 + margin <= a.y0)
 
 
-def _waves(ready: list[int], regions: list[Region | None]) -> list[list[int]]:
+def _waves(ready: list[int], regions: list[Region | None], is_garment: list[bool]) -> list[list[int]]:
     """Batch draw steps whose windows don't overlap so independent items —
     a watch on one wrist, a bag in the other hand — render in the same API
     round instead of waiting their turn, while anything whose window
     crosses an earlier one still waits for it. `ready` already comes in
     draw-priority order (garments first, then worn items), so a later item
     that collides with an earlier one always yields the earlier a wave to
-    itself rather than the reverse."""
+    itself rather than the reverse.
+
+    A garment is never batched with anything, whatever the geometry says.
+    Live: a kameez and sunglasses don't overlap — the kameez's own mask
+    ends at the neckline — so they shared a round, and each was pasted
+    into its own exact rectangle on a common canvas the way any two
+    small items are. But OpenAI's masked edit doesn't hold the rest of
+    the composition perfectly still even while honouring the mask; a
+    small item's rectangle is too small for that drift to be visible,
+    a kameez's covers most of the body, and the seam at its own
+    boundary — the chandeliers and tables not lining up with themselves
+    a few pixels either side of it — was obvious. A garment alone in its
+    own round is pasted as nothing at all: the whole returned frame is
+    kept, so there is no boundary for that drift to show up at."""
     waves: list[list[int]] = []
     for step in ready:
+        if is_garment[step]:
+            waves.append([step])
+            continue
         region = regions[step]
         for wave in waves:
+            if any(is_garment[s] for s in wave):
+                continue  # a garment's round is never shared, either direction
             if not any(_overlaps(region, regions[s]) for s in wave):
                 wave.append(step)
                 break
@@ -404,14 +422,16 @@ async def render_masked_look(
     regions = await asyncio.gather(*(_mask_region(items[i], face, base) for i in order))
 
     ready = []
+    is_garment = []
     for step, index in enumerate(order):
+        is_garment.append(items[index].slot in _GARMENTS)
         if regions[step] is None:
             reports[index].history.append("couldn't find where this goes on the photo")
         else:
             ready.append(step)
 
     current = base
-    for wave in _waves(ready, regions):
+    for wave in _waves(ready, regions, is_garment):
         names = ", ".join(items[order[s]].name[:30] for s in wave)
         await _say(on_progress, f"Drawing {names}")
         results = await asyncio.gather(
