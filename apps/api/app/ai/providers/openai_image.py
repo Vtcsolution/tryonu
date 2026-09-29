@@ -88,6 +88,11 @@ def masked_prompt(piece: OutfitPiece) -> str:
         f"on a rack, a matching necklace and earrings beside each other — draw ONLY the {piece.name}. Ignore "
         f"every other piece in that photo completely, even ones that would look complete alongside what you "
         f"drew: they were not selected, and this transparent region is not theirs to use.",
+        f"Draw the {piece.name} and nothing else. Do not add a necklace, earrings, bracelet, ring, bindi or any "
+        "other jewellery or accessory anywhere in the photo to make the look feel finished — not even a small "
+        "or subtle one. If her neck, ears, wrists or fingers were bare or wore something else before this edit, "
+        "they must stay exactly as they already were, even where that is inside the transparent region: only "
+        f"the {piece.name} itself may look different from Image 1.",
         "Fit it naturally to the person's body and pose, with realistic folds, drape and shadows, blending"
         " seamlessly into the edge of the transparent region rather than sitting on top of it.",
     ]

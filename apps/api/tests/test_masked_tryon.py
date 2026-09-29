@@ -269,10 +269,11 @@ async def test_a_hand_item_reaching_above_the_shoulder_is_pulled_back_down(monke
     top of her head — and the bag edit drew a scarf into it, over her
     face. The same query returned a sensible, shoulder-height box on a
     different run: this is the backstop for whichever one it gives, not
-    a fix to the lookup itself."""
+    a fix to the lookup itself. (Already hand-sized here, to isolate the
+    position clamp from the size clamp below.)"""
 
     async def bad_area_for(item, face, base):  # noqa: ARG001
-        return Region(0.2, 0.02, 0.8, 0.6)  # reaches the top of the frame
+        return Region(0.35, 0.02, 0.65, 0.22)  # reaches the top of the frame
 
     monkeypatch.setattr(masked, "_area_for", bad_area_for)
     face = Box(x=400, y=90, w=180, h=180)
@@ -280,17 +281,43 @@ async def test_a_hand_item_reaching_above_the_shoulder_is_pulled_back_down(monke
 
     assert region is not None
     assert region.y0 > (face.y + face.h) / 1536  # never reaches above the shoulder
-    assert region.x0 == 0.2 and region.x1 == 0.8  # only the vertical reach was corrected
+    assert region.x0 == 0.35 and region.x1 == 0.65  # only the vertical reach was corrected
 
 
 async def test_a_hand_item_already_below_the_shoulder_is_left_alone(monkeypatch):
     async def sensible_area_for(item, face, base):  # noqa: ARG001
-        return Region(0.2, 0.5, 0.8, 0.7)
+        return Region(0.35, 0.5, 0.65, 0.7)
 
     monkeypatch.setattr(masked, "_area_for", sensible_area_for)
     face = Box(x=400, y=90, w=180, h=180)
     region = await _mask_region(LookItem("x", OutfitSlot.WATCH, "Watch"), face, np.zeros((1536, 1024, 3), np.uint8))
-    assert region == Region(0.2, 0.5, 0.8, 0.7)
+    assert region == Region(0.35, 0.5, 0.65, 0.7)
+
+
+async def test_an_oversized_hand_item_window_is_shrunk_to_hand_size(monkeypatch):
+    """Real bug, found live: asked for a ring's own position, the same
+    lookup that usually answers with a small box near the hand once came
+    back spanning 43% of the frame's width and 30% of its height —
+    comfortably past the shoulder clamp's own floor, so that check alone
+    never caught it, but large enough that its own top edge sat close
+    enough to the collarbone for the model to add a necklace legitimately
+    inside its own window. Shrunk to a hand-sized box, centred on
+    wherever the lookup pointed — position preserved, size capped."""
+
+    async def oversized_area_for(item, face, base):  # noqa: ARG001
+        return Region(0.26, 0.465, 0.69, 0.76)  # 43% wide, 30% tall
+
+    monkeypatch.setattr(masked, "_area_for", oversized_area_for)
+    face = Box(x=400, y=90, w=180, h=180)
+    region = await _mask_region(LookItem("x", OutfitSlot.ACCESSORY, "Ring"), face, np.zeros((1536, 1024, 3), np.uint8))
+
+    assert region is not None
+    assert region.x1 - region.x0 <= masked._HAND_ITEM_MAX_WIDTH * face.w / 1024 + 1e-9
+    assert region.y1 - region.y0 <= masked._HAND_ITEM_MAX_HEIGHT * face.h / 1536 + 1e-9
+    # centred on the same point the lookup gave, not shifted to a corner
+    old_cx, old_cy = (0.26 + 0.69) / 2, (0.465 + 0.76) / 2
+    new_cx, new_cy = (region.x0 + region.x1) / 2, (region.y0 + region.y1) / 2
+    assert abs(new_cx - old_cx) < 1e-6 and abs(new_cy - old_cy) < 1e-6
 
 
 async def test_a_neck_or_head_item_is_never_clamped_away_from_the_face(monkeypatch):

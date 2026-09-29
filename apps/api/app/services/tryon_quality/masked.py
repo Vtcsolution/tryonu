@@ -118,6 +118,18 @@ _GARMENT_HALF_WIDTH = 2.6  # face-widths, each side of her centre
 # the lowest a hand/wrist/bag item's own window may start: below this,
 # never above it, regardless of what the body-part lookup returned
 _SHOULDER_DROP = 1.15  # of a face-height, below the bottom of the face
+# The shoulder clamp only ever fixed how far UP a hand/wrist item's own
+# window could start; it said nothing about how big that window could
+# be. Live: asked for a ring's own position, the same lookup that
+# usually answers with a small box near the hand once came back
+# spanning 43% of the frame's width and 30% of its height — comfortably
+# past the shoulder clamp's own floor, so it wasn't caught, but large
+# enough that its own top edge sat close enough to the collarbone for
+# the model to add a necklace legitimately inside its own window rather
+# than by breaking out of it. Capped to a hand-sized box, centred on
+# wherever the lookup pointed, the same way position already is.
+_HAND_ITEM_MAX_WIDTH = 2.5  # face-widths
+_HAND_ITEM_MAX_HEIGHT = 2.0  # face-heights
 
 # Sunglasses, glasses, goggles: no clamp protected these at all — every
 # other worn-on-head item (a hat, an earring, a hijab) is exempted from
@@ -230,10 +242,18 @@ async def _mask_region(item: LookItem, face, base: np.ndarray) -> Region | None:
     # and a sensible one at shoulder height on the next: the same query,
     # two very different answers. This is the backstop for whichever one
     # it gives.
-    shoulder = min(1.0, (face.y + face.h * _SHOULDER_DROP) / base.shape[0])
+    h, w = base.shape[:2]
+    shoulder = min(1.0, (face.y + face.h * _SHOULDER_DROP) / h)
     if region.y0 < shoulder:
-        return Region(region.x0, shoulder, region.x1, max(region.y1, shoulder + 0.05))
-    return region
+        region = Region(region.x0, shoulder, region.x1, max(region.y1, shoulder + 0.05))
+
+    max_w, max_h = _HAND_ITEM_MAX_WIDTH * face.w / w, _HAND_ITEM_MAX_HEIGHT * face.h / h
+    width, height = region.x1 - region.x0, region.y1 - region.y0
+    if width <= max_w and height <= max_h:
+        return region
+    cx, cy = (region.x0 + region.x1) / 2, (region.y0 + region.y1) / 2
+    half_w, half_h = min(width, max_w) / 2, min(height, max_h) / 2
+    return Region(max(0.0, cx - half_w), max(0.0, cy - half_h), min(1.0, cx + half_w), min(1.0, cy + half_h))
 
 
 def _mask_png(shape: tuple[int, int], region: Region) -> bytes:
@@ -414,17 +434,40 @@ async def render_masked_look(
             )
         )
         accepted = [(step, raw) for step, raw in zip(wave, results) if raw is not None]
-        if len(accepted) == 1:
-            # The common case — most waves end up with exactly one item in
-            # them regardless of how many run in parallel elsewhere. Take
-            # the whole frame, the way single-item rendering always did:
-            # every pixel, "protected" ones included, comes from the SAME
-            # generation call at its one native resolution, so there is no
-            # boundary for a seam to form at. Only cropping to a mask
-            # rectangle (below) forces a join between two different
-            # renders — worth it when two items genuinely share a round,
-            # costly to pay when only one is actually there.
+        if len(accepted) == 1 and items[order[accepted[0][0]]].slot in _GARMENTS:
+            # A garment's own mask covers most of the visible body, so
+            # trusting the whole frame back — the way single-item
+            # rendering always did — costs nothing extra to check: there
+            # isn't a meaningful "rest of the photo" left outside it for
+            # something unrequested to hide in. Confirmed live, repeatedly,
+            # on a garment alone: clean.
             current = accepted[0][1]
+            continue
+        if len(accepted) == 1:
+            # A small item's own window is a thin slice of the frame —
+            # nowhere near enough of it to make "trust the whole frame"
+            # free the way it is for a garment. Live, twice: a ring edit,
+            # its own mask nowhere near her neck, came back with a thin
+            # necklace invented at the collarbone anyway — the model
+            # "completing the look," not a mask-geometry problem, and no
+            # amount of telling it not to changed the outcome. Cropping to
+            # exactly the mask rectangle makes it structurally impossible
+            # for that to reach the final photo, whatever the model drew
+            # outside it, at the cost of the same upscale-seam risk the
+            # multi-item case below already accepts — worth it here: a
+            # small item's own crop is a small fraction of the frame, and
+            # the skin or fabric around it rarely carries fine detail a
+            # softness mismatch would show up in the way a garment's
+            # pattern would.
+            step, raw = accepted[0]
+            region = regions[step]
+            h, w = current.shape[:2]
+            th, tw = raw.shape[:2]
+            merged = current if (h, w) == (th, tw) else cv2.resize(current, (tw, th), interpolation=cv2.INTER_LANCZOS4)
+            merged = merged.copy()
+            x0, y0, x1, y1 = region.pixels(tw, th)
+            merged[y0:y1, x0:x1] = raw[y0:y1, x0:x1]
+            current = merged
             continue
         if accepted:
             # Two or more items shared this round: their own masks don't
