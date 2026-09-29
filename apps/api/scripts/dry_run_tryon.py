@@ -42,13 +42,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.models.enums import OutfitSlot  # noqa: E402
 from app.services.face_restore import detect_face  # noqa: E402
 from app.services.tryon_quality import masked as M  # noqa: E402
+from app.services.tryon_quality import pipeline as P  # noqa: E402
 from app.services.tryon_quality.compose import Region, decode  # noqa: E402
 from app.services.tryon_quality.pipeline import _cap, _GARMENTS  # noqa: E402
 
 _PLACEHOLDER_HAND = Region(0.55, 0.55, 0.72, 0.68)  # a plausible wrist — never the real answer
 
 
-async def _fake_area_for(item, face, base) -> Region:  # noqa: ANN001, ARG001
+async def _fake_find_body_part(photo, part) -> Region:  # noqa: ANN001, ARG001
+    # Only the genuine vision-call fallback is faked here — garments, eyewear,
+    # ears, forehead and floor items (shoes) all get their real answer from
+    # _plausible_area()'s free geometry, computed for real, before this is
+    # ever reached. Faking the whole of _area_for() instead (an earlier
+    # version of this script did that) silently swallowed that fast path too,
+    # and reported a fake hand-sized placeholder for shoes that the real
+    # pipeline never uses.
     return _PLACEHOLDER_HAND
 
 
@@ -77,7 +85,7 @@ async def main() -> int:
     items = [M.LookItem(url, OutfitSlot(slot.lower()), name) for slot, name, url in args.item]
     order = M._order_of(items)
 
-    with patch.object(M, "_area_for", _fake_area_for):
+    with patch.object(P, "find_body_part", _fake_find_body_part):
         regions = list(await asyncio.gather(*(M._mask_region(items[i], face, base) for i in order)))
 
     ready = [s for s in range(len(order)) if regions[s] is not None]

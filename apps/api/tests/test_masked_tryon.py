@@ -235,6 +235,43 @@ async def test_an_item_with_no_findable_region_is_skipped_not_failed(fake_vision
     assert image[:2] == b"\xff\xd8"  # still a valid photo — just without this item
 
 
+async def test_an_edit_call_that_raises_gets_the_same_retry_a_bad_image_would(fake_vision):
+    """A quality miss (BAD verdict) already earns a second attempt before
+    retries=1 gives up. An exception from the edit call itself — a
+    timeout, a flaky response — used to skip that second attempt entirely
+    and fail the item on the spot, even though the exact same budget was
+    still available. It deserves the same second chance."""
+    fake_vision.append(GOOD)  # only reached if the retry after the exception happens
+
+    calls: list = []
+
+    async def flaky_then_fine(person_png, mask_png, item: LookItem, hint):  # noqa: ARG001
+        if not calls:
+            calls.append("raised")
+            raise RuntimeError("the API had a bad moment")
+        calls.append("recovered")
+        return _photo()
+
+    _, reports = await render_masked_look(_photo(), [ITEMS[1]], flaky_then_fine, retries=1)
+    assert calls == ["raised", "recovered"]  # the exception did not end the item
+    assert reports[0].verdict == GOOD
+    assert reports[0].box is not None
+    assert any("failed" in h for h in reports[0].history)  # the failed attempt is still on record
+
+
+async def test_an_edit_call_that_keeps_raising_still_gives_up_once_out_of_retries(fake_vision):
+    calls: list = []
+
+    async def always_raises(person_png, mask_png, item: LookItem, hint):  # noqa: ARG001
+        calls.append(1)
+        raise RuntimeError("the API had a bad moment")
+
+    _, reports = await render_masked_look(_photo(), [ITEMS[1]], always_raises, retries=1)
+    assert len(calls) == 2  # the original attempt, plus its one retry — then it gives up
+    assert reports[0].box is None
+    assert "failed" in reports[0].history[-1]
+
+
 async def test_a_failed_edit_call_does_not_lose_the_rest_of_the_look(fake_vision):
     fake_vision.append(GOOD)  # only the watch gets judged — the kameez's edit raises first
 

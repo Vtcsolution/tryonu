@@ -356,7 +356,16 @@ async def _render_item(
         except Exception as exc:  # noqa: BLE001 — one item's failure must not lose the rest
             logger.warning("tryon_masked_edit_failed", item=item.name[:60], error=str(exc)[:200])
             report.history.append(f"attempt {attempt + 1}: the render failed ({str(exc)[:120]})")
-            return None
+            # A transient API error (timeout, rate limit, a flaky response)
+            # used to end this item on the spot even with retries and time
+            # left on the clock — the exact same edit call that a quality
+            # miss gets retried for got no second try at all just because
+            # it raised instead of returning a bad image. Give it the same
+            # chance: only give up here once this was genuinely the last
+            # attempt this item was going to get anyway.
+            if attempt >= retries or time.monotonic() - started > budget_seconds:
+                return None
+            continue
         # Used as it comes back, at the model's own output resolution —
         # sharper than the small input it was given (see MODEL_SIDE's own
         # comment) — never shrunk to match what was sent, the same way
