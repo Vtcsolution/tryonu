@@ -12,6 +12,7 @@ import pytest
 
 from app.core.config import get_settings
 from app.models.enums import OutfitSlot
+from app.services.face_restore import Box
 from app.services.tryon_quality import pipeline
 from app.services.tryon_quality.compose import Region, encode_jpeg, merge_product
 from app.services.tryon_quality.judge import Verdict
@@ -253,6 +254,91 @@ async def test_a_failed_small_item_is_retried_as_a_close_up_of_where_it_goes(fak
     full, close_up = sizes
     assert full[0] > close_up[0] or full[1] > close_up[1] or close_up != full  # a different, zoomed input
     assert max(close_up) >= 1000  # enlarged for the model
+
+
+# --------------------------------------------------------- render_whole_look
+#
+# The engine that preserves the person on its own (Gemini): one whole-outfit
+# render, trusted as-is — no per-item mask, no merge. Every item used to be
+# judged against the entire photo regardless, because this pipeline never
+# computed a per-item region the way render_masked_look does. Live: a watch,
+# a ring and a pair of earrings all passed as "on the photo" in a render
+# where none of them were actually visible — a ~40px watch has no chance of
+# being confirmed present or absent from an uncropped full-body frame, and
+# the small-item note telling the judge not to penalise illegible detail
+# (written for a genuinely zoomed crop) only made it more willing to pass
+# what it could not actually see.
+
+
+async def test_a_floor_item_is_judged_against_its_own_area_not_the_whole_photo(fake_vision, monkeypatch):
+    regions_seen: list[Region] = []
+
+    async def judge(product, before, after, region, description, small_item=False):  # noqa: ARG001
+        regions_seen.append(region)
+        return GOOD
+
+    # _plausible_area's floor answer is a constant, not derived from the
+    # face at all, but it's still gated behind a face being found — a
+    # deterministic one here isolates this test from whether the synthetic
+    # photo's drawn-on head happens to pass real face detection.
+    monkeypatch.setattr(pipeline, "detect_face", lambda base: Box(x=150, y=50, w=100, h=100))  # noqa: ARG005
+    monkeypatch.setattr(pipeline, "judge", judge)
+    item = pipeline.LookItem("https://img.example/heels.jpg", OutfitSlot.SHOES, "Heels")
+
+    async def render_all(base_jpeg, items, descriptions):  # noqa: ARG001
+        return encode_jpeg(_render(_person()), 97)
+
+    await pipeline.render_whole_look(encode_jpeg(_person(), 97), [item], render_all, retries=0)
+    assert regions_seen == [pipeline._ON_THE_FLOOR_AREA]  # not Region(0, 0, 1, 1)
+
+
+async def test_a_wrist_item_is_judged_against_the_body_part_lookups_own_answer(fake_vision, monkeypatch):
+    wrist = Region(0.55, 0.55, 0.72, 0.66)
+
+    async def find_body_part(photo, part):  # noqa: ARG001
+        return wrist
+
+    regions_seen: list[Region] = []
+
+    async def judge(product, before, after, region, description, small_item=False):  # noqa: ARG001
+        regions_seen.append(region)
+        return GOOD
+
+    monkeypatch.setattr(pipeline, "detect_face", lambda base: Box(x=150, y=50, w=100, h=100))  # noqa: ARG005
+    monkeypatch.setattr(pipeline, "find_body_part", find_body_part)
+    monkeypatch.setattr(pipeline, "judge", judge)
+    item = pipeline.LookItem("https://img.example/watch.jpg", OutfitSlot.WATCH, "Bulova Blue Dial Watch")
+
+    async def render_all(base_jpeg, items, descriptions):  # noqa: ARG001
+        return encode_jpeg(_render(_person()), 97)
+
+    await pipeline.render_whole_look(encode_jpeg(_person(), 97), [item], render_all, retries=0)
+    assert regions_seen == [wrist]  # not Region(0, 0, 1, 1)
+
+
+async def test_an_item_with_no_findable_area_still_falls_back_to_the_whole_photo(fake_vision, monkeypatch):
+    """No region at all is still better answered by the old whole-photo
+    behaviour than by crashing or silently dropping the item."""
+
+    async def find_body_part(photo, part):  # noqa: ARG001
+        return None
+
+    regions_seen: list[Region] = []
+
+    async def judge(product, before, after, region, description, small_item=False):  # noqa: ARG001
+        regions_seen.append(region)
+        return GOOD
+
+    monkeypatch.setattr(pipeline, "detect_face", lambda base: Box(x=150, y=50, w=100, h=100))  # noqa: ARG005
+    monkeypatch.setattr(pipeline, "find_body_part", find_body_part)
+    monkeypatch.setattr(pipeline, "judge", judge)
+    item = pipeline.LookItem("https://img.example/ring.jpg", OutfitSlot.OTHER, "Ring")
+
+    async def render_all(base_jpeg, items, descriptions):  # noqa: ARG001
+        return encode_jpeg(_render(_person()), 97)
+
+    await pipeline.render_whole_look(encode_jpeg(_person(), 97), [item], render_all, retries=0)
+    assert regions_seen == [Region(0.0, 0.0, 1.0, 1.0)]
 
 
 async def test_the_whole_look_is_one_render_and_only_failures_get_their_own(fake_vision):

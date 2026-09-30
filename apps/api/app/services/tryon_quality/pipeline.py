@@ -953,7 +953,21 @@ async def render_whole_look(
         *(describe_product(p, i.image_url, i.name) for p, i in zip(products, items))
     )
 
+    # Every item used to be judged against the WHOLE photo — the same
+    # "before, product area" and "after, product area" crop for a kameez
+    # and a wristwatch alike, because this engine draws the whole outfit
+    # in one call and never computed a per-item region the way the masked
+    # pipeline does. Live: a watch, a ring and a pair of earrings all
+    # passed as "on the photo" in a look where none of them were actually
+    # visible — a ~40px watch has no chance of being confirmed present or
+    # absent from an uncropped full-body frame, and the small-item note
+    # telling the judge not to penalise illegible detail (written for a
+    # genuinely zoomed crop) only made it more willing to pass what it
+    # could not actually see. A real region, even an approximate one,
+    # gives the judge something to actually look at.
     whole = Region(0.0, 0.0, 1.0, 1.0)
+    face = detect_face(base)
+    judge_regions = [r or whole for r in await asyncio.gather(*(_area_for(item, face, base) for item in items))]
     fixes = [""] * len(items)
     shown = base
 
@@ -968,8 +982,8 @@ async def render_whole_look(
         await _say(on_progress, "Checking every item against its product photo")
         verdicts = await asyncio.gather(
             *(
-                judge(product, base, raw, whole, description, item.slot in _SMALL)
-                for product, description, item in zip(products, descriptions, items)
+                judge(product, base, raw, region, description, item.slot in _SMALL)
+                for product, description, item, region in zip(products, descriptions, items, judge_regions)
             ),
             return_exceptions=True,
         )
