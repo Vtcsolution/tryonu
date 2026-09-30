@@ -291,8 +291,16 @@ export function TryFlow() {
   // real-catalog-only AI stylist that powers /stylist, so this never
   // invents a product; it just picks real matches and (when more than one)
   // bundles them into an Outfit for the sequential multi-item try-on.
+  //
+  // max_items is a ceiling, not a target — the backend only ever returns
+  // one item per distinct thing it found in the prompt, so a 3-item ask
+  // still gets 3. It used to be capped at 6, well under what the render
+  // pipeline and search pool (_CANDIDATE_POOL_SIZE=40) can actually
+  // support, so a shopper naming 8-10 things silently lost the rest with
+  // no explanation. Raised, not removed, so a request can't ask for an
+  // unbounded number of live searches in one go.
   const askStylist = useMutation({
-    mutationFn: (text: string) => stylistApi.ask({ prompt: text.trim(), max_items: 6 }),
+    mutationFn: (text: string) => stylistApi.ask({ prompt: text.trim(), max_items: 12 }),
     onSuccess: (res) => {
       setLastStylistReply(res);
       setCustomItem(null);

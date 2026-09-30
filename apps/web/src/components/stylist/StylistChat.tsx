@@ -69,7 +69,7 @@ export function StylistChat() {
       prompt: prompt.trim(),
       budget_max_cents: budgetMax && !Number.isNaN(budget) ? Math.round(budget * 100) : undefined,
       wardrobe_item_id: wardrobeItemId || undefined,
-      max_items: 6,
+      max_items: 12, // a ceiling, not a target — see TryFlow.tsx's askStylist for why 6 was too low
     });
   };
 
