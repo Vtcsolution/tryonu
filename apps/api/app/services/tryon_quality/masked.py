@@ -421,6 +421,10 @@ async def _render_item(
                 report.history.append("kept as a near miss rather than spending a redraw" if close else "out of time for another attempt")
             report.verdict = verdict
             report.box = region
+            # A last_chance ship that is neither passed nor close is still
+            # genuinely wrong — shipped so the customer gets a photo at
+            # all, never so it can be called "on photo" when it isn't.
+            report.verified = passed or close
             return raw
         # raw text, not pre-labelled: openai_image.masked_prompt() adds
         # "Correction from the previous attempt:" itself, matching how

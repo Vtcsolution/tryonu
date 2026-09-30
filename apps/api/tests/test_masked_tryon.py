@@ -320,6 +320,18 @@ async def test_each_items_box_is_the_exact_mask_used_not_a_recovered_guess(fake_
     dress_report, watch_report = reports
     assert dress_report.box == masked._MASK_REGION[OutfitSlot.DRESS]  # no face in this blank photo: the plain default
     assert watch_report.box == Region(0.55, 0.55, 0.72, 0.66)  # exactly what _area_for said, not a guess
+    assert dress_report.verified and watch_report.verified
+
+
+async def test_a_last_chance_ship_that_never_passed_is_not_verified(fake_vision):
+    """A location is still true even for the best-but-still-wrong attempt
+    shipped once retries run out — the customer gets a photo either way —
+    but it must never be reported as "on photo" the way a genuine pass is."""
+    fake_vision.extend([BAD, BAD])
+    _, reports = await render_masked_look(_photo(), [ITEMS[1]], _editor([]), retries=1)
+    assert reports[0].box is not None  # shipped, with a real location
+    assert reports[0].verdict == BAD
+    assert not reports[0].verified  # but never actually passed
 
 
 # --------------------------------------------------------------- the clamp

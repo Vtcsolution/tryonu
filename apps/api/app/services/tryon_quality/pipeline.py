@@ -55,7 +55,7 @@ from app.services.tryon_quality.compose import (
 )
 from app.services.tryon_quality.judge import Verdict, check_for_extra_items, judge
 from app.ai.providers.openai_image import MAX_PIECES
-from app.services.tryon_quality.locate import choose, find_body_part, find_item
+from app.services.tryon_quality.locate import choose, find_body_part
 from app.services.tryon_quality.product_prep import describe_product
 from app.services.tryon_quality.recolour import match_product_colour
 from app.services.tryon_quality.vision import VisionError
@@ -158,6 +158,12 @@ class ItemReport:
     # where this item ended up, as fractions of the photo — what the result
     # view points its label at
     box: Region | None = None
+    # Whether the judge's own verdict actually passed (or was a near-miss
+    # kept deliberately) — never just "an attempt shipped" or "some
+    # separate, weaker lookup thinks it spotted something". A box without
+    # this is a location guess, not a confirmed application; only this
+    # field may ever tell a shopper an item is "on photo".
+    verified: bool = False
 
 
 def score_reports(reports: list[ItemReport]) -> float:
@@ -643,6 +649,7 @@ async def _whole_look_pass(
             if close and not verdict.passes(min_product, min_other):
                 report.history.append("kept as a near miss rather than spending a redraw")
             report.verdict = verdict
+            report.verified = True
             kept_indexes.append(index)
             keep.extend(picked)
         else:
@@ -787,6 +794,10 @@ async def _render_one(
     _, merge, verdict = best
     report.verdict, report.taken_share = verdict, merge.changed_share
     report.box = last_region
+    # A location is still true even for the best-but-still-wrong attempt
+    # shipped past the time budget below — verified must not be, since
+    # that attempt genuinely didn't pass.
+    report.verified = verdict.passes(_min_product_for(item, min_product), min_other)
     logger.info("tryon_item_quality", item=item.name[:80], history=report.history)
     if not verdict.passes(_min_product_for(item, min_product), min_other):
         if out_of_time:
@@ -1019,7 +1030,8 @@ async def render_whole_look(
                     f"attempt {attempt + 1}: product={verdict.product_match:.0f} "
                     f"worn={verdict.worn_correctly:.0f} realism={verdict.realism:.0f}"
                 )
-                if not verdict.passes(_min_product_for(items[i], min_product), min_other):
+                reports[i].verified = verdict.passes(_min_product_for(items[i], min_product), min_other)
+                if not reports[i].verified:
                     wrong.append(i)
                     fixes[i] = "Correction from the previous attempt: " + "; ".join(verdict.issues[:3])
 
@@ -1068,18 +1080,21 @@ async def render_whole_look(
                     continue
                 reports[i].verdict = verdict
                 passed = verdict.passes(_min_product_for(items[i], min_product), min_other)
+                reports[i].verified = passed
                 reports[i].history.append(
                     f"individual attempt: product={verdict.product_match:.0f} worn={verdict.worn_correctly:.0f} "
                     f"realism={verdict.realism:.0f}" + ("" if passed else " — still wrong")
                 )
 
-    await _say(on_progress, "Marking where each item ended up")
-    boxes = await asyncio.gather(
-        *(find_item(shown, product, description) for product, description in zip(products, descriptions)),
-        return_exceptions=True,
-    )
-    for report, box in zip(reports, boxes):
-        report.box = box if isinstance(box, Region) else None
+    # The marker points at the exact region judge() already confirmed the
+    # product against — never a separate, independent "does this appear
+    # somewhere" lookup. That lookup (find_item) answers a weaker question
+    # than the one that matters: a similar-looking object, or the item
+    # sitting somewhere the customer already had something like it, could
+    # make it say yes for an item that was never actually verified.
+    # Verified is the only thing allowed to put a box on the photo.
+    for report, region in zip(reports, judge_regions):
+        report.box = region if report.verified else None
 
     # Every check above asks "is THIS selected product there" — none of
     # them can ever notice something extra that nobody selected, since

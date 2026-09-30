@@ -806,7 +806,7 @@ async def test_an_item_that_failed_is_not_claimed_as_on_the_photo(client, db, mo
         # khussa never found a region at all — exactly a real, failed
         # item, not a manufactured edge case
         reports = [
-            ItemReport(name=i.name, verdict=Verdict(9, 9, 8), box=Region(0.1, 0.1, 0.9, 0.9))
+            ItemReport(name=i.name, verdict=Verdict(9, 9, 8), box=Region(0.1, 0.1, 0.9, 0.9), verified=True)
             if "Khussa" not in i.name
             else ItemReport(name=i.name, verdict=None, box=None)
             for i in items

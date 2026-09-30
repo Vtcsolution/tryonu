@@ -126,6 +126,7 @@ async def test_a_good_render_is_accepted_first_time(fake_vision):
     image, reports = await pipeline.render_look(encode_jpeg(_person(), 97), ITEMS, _renderer(calls), retries=1)
     assert len(calls) == 1 and reports[0].attempts == 1
     assert image[:2] == b"\xff\xd8"
+    assert reports[0].verified and reports[0].box is not None
 
 
 async def test_a_failed_inspection_is_retried_with_the_fix_and_a_new_seed(fake_vision):
@@ -441,6 +442,40 @@ async def test_nothing_extra_found_does_not_touch_a_clean_pass(fake_vision):
     assert image[:2] == b"\xff\xd8"
 
 
+async def test_a_report_is_only_verified_when_its_own_verdict_passed(fake_vision):
+    """This is what makes "on photo" trustworthy: report.box alone used to
+    decide it, filled in by find_item — a separate, independent, weaker
+    "does this appear somewhere" lookup with no connection to whether the
+    judge's own verdict actually passed. An item that failed every retry
+    could still get a box there. Now the box IS the judge's own region,
+    and it is only ever set when verified is true."""
+    fake_vision.extend([BAD, BAD])  # never passes, exhausts its one retry
+    item = pipeline.LookItem("https://img.example/watch.jpg", OutfitSlot.WATCH, "Item")
+
+    async def render_all(base_jpeg, items, descriptions):  # noqa: ARG001
+        return encode_jpeg(_render(_person()), 97)
+
+    _, reports = await pipeline.render_whole_look(encode_jpeg(_person(), 97), [item], render_all, retries=1)
+    assert reports[0].verdict == BAD
+    assert not reports[0].verified
+    assert reports[0].box is None  # never labelled "on photo" for a verdict that never passed
+
+
+async def test_an_individually_retried_item_that_now_passes_is_verified(fake_vision):
+    fake_vision.extend([GOOD, BAD, GOOD])  # A good, B bad in the shared attempt; B good on its own
+    items = [
+        pipeline.LookItem("https://img.example/a.jpg", OutfitSlot.WATCH, "Item A"),
+        pipeline.LookItem("https://img.example/b.jpg", OutfitSlot.ACCESSORY, "Item B"),
+    ]
+
+    async def render_all(base_jpeg, items, descriptions):  # noqa: ARG001
+        return encode_jpeg(_render(_person()), 97)
+
+    _, reports = await pipeline.render_whole_look(encode_jpeg(_person(), 97), items, render_all, retries=0)
+    assert reports[0].verified and reports[0].box is not None
+    assert reports[1].verified and reports[1].box is not None  # fixed by its own solo attempt
+
+
 async def test_the_whole_look_is_one_render_and_only_failures_get_their_own(fake_vision):
     """OpenAI can draw several products in one edit: measured 39s for a
     4-item outfit against 101s item by item. Items that pass inspection keep
@@ -651,6 +686,10 @@ async def test_past_the_budget_the_best_attempt_ships_rather_than_nothing(fake_v
     assert image.startswith(b"\xff\xd8")  # they got their photo
     assert len(calls) == 1  # and no second attempt was bought
     assert "out of time" in reports[0].history[-1]
+    # a location is still true for the best-but-still-wrong attempt
+    # shipped here — it must never be reported as "on photo" for that
+    assert reports[0].box is not None
+    assert not reports[0].verified
 
 
 async def test_inside_the_budget_a_poor_render_is_still_refused(fake_vision):

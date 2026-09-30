@@ -600,12 +600,18 @@ def _reason_for(report: ItemReport) -> str | None:
 
 
 def _placements(layers: list[_Layer], reports: list[ItemReport]) -> list[dict]:
-    """Where each item ended up, for the result view's labels. An item with
-    no box was inspected but not located — it is still listed, just without
-    a marker to point at."""
+    """Where each item ended up, for the result view's labels.
+
+    "drawn" is report.verified alone — never report.box by itself. A box
+    says where a marker could point; it says nothing about whether the
+    product actually passed inspection there. Trusting a box on its own
+    used to mean an item that never passed a single retry could still be
+    labelled "on photo" because some separate, independent lookup thought
+    it spotted something similar. Only a verified item is still listed
+    without a marker."""
     out: list[dict] = []
     for layer, report in zip(layers, reports):
-        box = report.box
+        box = report.box if report.verified else None
         out.append(
             {
                 "name": layer.name,
@@ -616,8 +622,8 @@ def _placements(layers: list[_Layer], reports: list[ItemReport]) -> list[dict]:
                 # the render shows our rendering of it, which is a
                 # different claim and a worse picture of a watch face.
                 "image_url": layer.image_url,
-                "drawn": box is not None,
-                "reason": None if box is not None else _reason_for(report),
+                "drawn": report.verified,
+                "reason": None if report.verified else _reason_for(report),
                 "box": [round(box.x0, 4), round(box.y0, 4), round(box.x1, 4), round(box.y1, 4)] if box else None,
             }
         )
