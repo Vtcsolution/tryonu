@@ -54,6 +54,7 @@ from app.services.tryon_quality.compose import (
     sharpen_product,
 )
 from app.services.tryon_quality.judge import Verdict, judge
+from app.ai.providers.openai_image import MAX_PIECES
 from app.services.tryon_quality.locate import choose, find_body_part, find_item
 from app.services.tryon_quality.product_prep import describe_product
 from app.services.tryon_quality.recolour import match_product_colour
@@ -968,53 +969,109 @@ async def render_whole_look(
     whole = Region(0.0, 0.0, 1.0, 1.0)
     face = detect_face(base)
     judge_regions = [r or whole for r in await asyncio.gather(*(_area_for(item, face, base) for item in items))]
-    fixes = [""] * len(items)
+
+    # The photo sent to the model used to be downscaled to MODEL_SIDE
+    # (1024px) — sound for render_look, which merges a small product patch
+    # back onto the full-size original, but this engine has no merge step
+    # of its own: the render IS the answer, so whatever detail the model
+    # was given to work with is the detail ceiling for the whole photo, the
+    # garment included. Sent at working resolution instead.
     shown = base
 
-    for attempt in range(retries + 1):
-        await _say(on_progress, "Drawing the look" if attempt == 0 else "Correcting what didn't match")
-        notes = [
-            f"{d} {fix}".strip() if fix else d for d, fix in zip(descriptions, fixes)
-        ]
-        raw = decode(await render_all(encode_jpeg(_for_model(base), 95), items, notes))
-        shown = raw
-
-        await _say(on_progress, "Checking every item against its product photo")
-        verdicts = await asyncio.gather(
-            *(
-                judge(product, base, raw, region, description, item.slot in _SMALL)
-                for product, description, item, region in zip(products, descriptions, items, judge_regions)
-            ),
-            return_exceptions=True,
-        )
-
-        wrong: list[int] = []
-        for index, verdict in enumerate(verdicts):
-            if isinstance(verdict, BaseException):
-                logger.warning("tryon_whole_judge_failed", item=items[index].name[:60], error=str(verdict)[:160])
-                continue
-            reports[index].attempts = attempt + 1
-            reports[index].verdict = verdict
-            reports[index].history.append(
-                f"attempt {attempt + 1}: product={verdict.product_match:.0f} "
-                f"worn={verdict.worn_correctly:.0f} realism={verdict.realism:.0f}"
-            )
-            if not verdict.passes(_min_product_for(items[index], min_product), min_other):
-                wrong.append(index)
-                fixes[index] = "Correction from the previous attempt: " + "; ".join(verdict.issues[:3])
-
-        logger.info("tryon_whole_render", attempt=attempt + 1, items=len(items), wrong=len(wrong))
-        if not wrong:
-            break
-        if attempt >= retries:
-            for index in wrong:
-                reports[index].history.append("still wrong after the last attempt")
-            break
+    # Gemini/OpenAI's whole-outfit endpoint takes at most MAX_PIECES images
+    # per call; sending more used to silently truncate the rest, which were
+    # then judged as "wrong" against a render that was never asked to draw
+    # them in the first place — an honest failure, but not a chance. Split
+    # into sequential batches instead, each building on the last, so a
+    # 20-item outfit is two real attempts, not one truncated to 15.
+    for batch_start in range(0, len(items), MAX_PIECES):
         if time.monotonic() - started > budget_seconds:
-            for index in wrong:
-                reports[index].history.append("out of time for another attempt")
-            logger.warning("tryon_whole_out_of_time", wrong=[items[i].name[:40] for i in wrong])
+            for i in range(batch_start, len(items)):
+                reports[i].history.append("out of time before this batch was attempted")
             break
+        batch = list(range(batch_start, min(batch_start + MAX_PIECES, len(items))))
+        fixes = {i: "" for i in batch}
+        wrong = list(batch)
+
+        for attempt in range(retries + 1):
+            if not wrong:
+                break
+            await _say(on_progress, "Drawing the look" if attempt == 0 else "Correcting what didn't match")
+            batch_items = [items[i] for i in batch]
+            notes = [f"{descriptions[i]} {fixes[i]}".strip() if fixes[i] else descriptions[i] for i in batch]
+            raw = decode(await render_all(encode_jpeg(_cap(shown), 95), batch_items, notes))
+            shown = raw
+
+            await _say(on_progress, "Checking every item against its product photo")
+            verdicts = await asyncio.gather(
+                *(judge(products[i], base, raw, judge_regions[i], descriptions[i], items[i].slot in _SMALL) for i in batch),
+                return_exceptions=True,
+            )
+
+            wrong = []
+            for i, verdict in zip(batch, verdicts):
+                if isinstance(verdict, BaseException):
+                    logger.warning("tryon_whole_judge_failed", item=items[i].name[:60], error=str(verdict)[:160])
+                    continue
+                reports[i].attempts = attempt + 1
+                reports[i].verdict = verdict
+                reports[i].history.append(
+                    f"attempt {attempt + 1}: product={verdict.product_match:.0f} "
+                    f"worn={verdict.worn_correctly:.0f} realism={verdict.realism:.0f}"
+                )
+                if not verdict.passes(_min_product_for(items[i], min_product), min_other):
+                    wrong.append(i)
+                    fixes[i] = "Correction from the previous attempt: " + "; ".join(verdict.issues[:3])
+
+            logger.info("tryon_whole_render", attempt=attempt + 1, items=len(batch), wrong=len(wrong))
+            if time.monotonic() - started > budget_seconds:
+                break
+
+        # A shared redraw of the whole batch fixes most misses, but not
+        # every one — asking again for everyone just to fix the one item
+        # that didn't take costs the customer's whole outfit its own
+        # re-roll. This engine has no mask, so a solo attempt still redraws
+        # the whole frame; it is only asked about the one product left.
+        retried: list[int] = []
+        for i in wrong:
+            if time.monotonic() - started > budget_seconds:
+                reports[i].history.append("out of time for an individual attempt")
+                continue
+            await _say(on_progress, f"Redrawing {items[i].name[:30]} on its own")
+            note = f"{descriptions[i]} {fixes[i]}".strip()
+            try:
+                raw = decode(await render_all(encode_jpeg(_cap(shown), 95), [items[i]], [note]))
+            except Exception as exc:  # noqa: BLE001 — one item's failure must not lose the rest
+                logger.warning("tryon_whole_individual_failed", item=items[i].name[:60], error=str(exc)[:160])
+                reports[i].history.append(f"individual attempt failed ({str(exc)[:120]})")
+                continue
+            reports[i].attempts += 1
+            shown = raw
+            retried.append(i)
+
+        # Every item that got a solo attempt is re-checked against the
+        # image actually being kept, never against that attempt's own
+        # verdict — this engine has no mask, so a solo redraw is a fresh
+        # whole frame, and a later item's solo attempt can disturb an
+        # earlier one's already-passing fix. Re-judging only the ones that
+        # were retried (never the ones already correct from the shared
+        # attempts) keeps this to exactly as many checks as items redrawn.
+        if retried:
+            final = await asyncio.gather(
+                *(judge(products[i], base, shown, judge_regions[i], descriptions[i], items[i].slot in _SMALL) for i in retried),
+                return_exceptions=True,
+            )
+            for i, verdict in zip(retried, final):
+                if isinstance(verdict, BaseException):
+                    logger.warning("tryon_whole_judge_failed", item=items[i].name[:60], error=str(verdict)[:160])
+                    reports[i].history.append("individual attempt made, but could not be re-checked")
+                    continue
+                reports[i].verdict = verdict
+                passed = verdict.passes(_min_product_for(items[i], min_product), min_other)
+                reports[i].history.append(
+                    f"individual attempt: product={verdict.product_match:.0f} worn={verdict.worn_correctly:.0f} "
+                    f"realism={verdict.realism:.0f}" + ("" if passed else " — still wrong")
+                )
 
     await _say(on_progress, "Marking where each item ended up")
     boxes = await asyncio.gather(

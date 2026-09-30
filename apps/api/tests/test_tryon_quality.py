@@ -341,6 +341,65 @@ async def test_an_item_with_no_findable_area_still_falls_back_to_the_whole_photo
     assert regions_seen == [Region(0.0, 0.0, 1.0, 1.0)]
 
 
+async def test_more_than_max_pieces_items_are_batched_not_truncated(fake_vision, monkeypatch):
+    """generate_outfit truncates a single call to MAX_PIECES images — used
+    to mean anything past the 15th item was never sent to the model at
+    all, yet still judged as "wrong" against a render that was never asked
+    to draw it. Batching means every item gets a real attempt."""
+    n = pipeline.MAX_PIECES + 3
+    items = [
+        pipeline.LookItem(f"https://img.example/item{i}.jpg", OutfitSlot.ACCESSORY, f"Item {i}") for i in range(n)
+    ]
+    fake_vision.extend([GOOD] * n)
+    batch_sizes: list[int] = []
+
+    async def render_all(base_jpeg, items, descriptions):  # noqa: ARG001
+        batch_sizes.append(len(items))
+        return encode_jpeg(_render(_person()), 97)
+
+    _, reports = await pipeline.render_whole_look(encode_jpeg(_person(), 97), items, render_all, retries=0)
+    assert batch_sizes == [pipeline.MAX_PIECES, 3]  # two batches, neither over the real limit
+    assert all(r.attempts >= 1 for r in reports)  # every item was actually attempted
+
+
+async def test_a_stubborn_item_gets_an_individual_retry_not_a_full_batch_redraw(fake_vision, monkeypatch):
+    fake_vision.extend([GOOD, BAD, GOOD])  # shared attempt: A good, B bad; then B alone: good
+    calls: list[int] = []
+
+    async def render_all(base_jpeg, items, descriptions):  # noqa: ARG001
+        calls.append(len(items))
+        return encode_jpeg(_render(_person()), 97)
+
+    items = [
+        pipeline.LookItem("https://img.example/a.jpg", OutfitSlot.WATCH, "Item A"),
+        pipeline.LookItem("https://img.example/b.jpg", OutfitSlot.ACCESSORY, "Item B"),
+    ]
+    _, reports = await pipeline.render_whole_look(encode_jpeg(_person(), 97), items, render_all, retries=0)
+    assert calls == [2, 1]  # the shared batch draw, then B redrawn on its own — not the whole batch again
+    assert reports[0].verdict == GOOD
+    assert reports[1].verdict == GOOD  # B's individual attempt is what gets reported, not its earlier BAD
+    assert not any("still wrong" in h for h in reports[1].history)
+
+
+async def test_the_photo_sent_to_the_model_keeps_working_resolution(fake_vision, monkeypatch):
+    """MODEL_SIDE (1024px) downscaling is sound for render_look, which
+    merges a small product patch back onto the full-size original — this
+    engine has no merge step of its own, so whatever it's handed to work
+    with is the ceiling for the whole final photo, the garment included."""
+    big_person = cv2.resize(_person(), (1000, 1500), interpolation=cv2.INTER_CUBIC)  # bigger than MODEL_SIDE
+    fake_vision.append(GOOD)
+    sizes_seen: list[tuple[int, int]] = []
+
+    async def render_all(base_jpeg, items, descriptions):  # noqa: ARG001
+        sent = cv2.imdecode(np.frombuffer(base_jpeg, np.uint8), cv2.IMREAD_COLOR)
+        sizes_seen.append(sent.shape[:2])
+        return encode_jpeg(_render(big_person), 97)
+
+    item = pipeline.LookItem("https://img.example/watch.jpg", OutfitSlot.WATCH, "Item")
+    await pipeline.render_whole_look(encode_jpeg(big_person, 97), [item], render_all, retries=0)
+    assert sizes_seen[0] == (1500, 1000)  # not shrunk to MODEL_SIDE=1024
+
+
 async def test_the_whole_look_is_one_render_and_only_failures_get_their_own(fake_vision):
     """OpenAI can draw several products in one edit: measured 39s for a
     4-item outfit against 101s item by item. Items that pass inspection keep
