@@ -21,7 +21,7 @@ import cv2
 import numpy as np
 
 from app.services.tryon_quality.compose import Region
-from app.services.tryon_quality.vision import ask_json, image_part
+from app.services.tryon_quality.vision import VisionError, ask_json, image_part
 
 _INSTRUCTIONS = (
     "You are a strict quality inspector for virtual try-on photos. You get: (1) the product reference photo, "
@@ -128,3 +128,38 @@ async def judge(
         issues=[str(i)[:160] for i in issues][:6] if isinstance(issues, list) else [],
         fix=str(answer.get("fix") or "")[:200],
     )
+
+
+_EXTRA_ITEMS_INSTRUCTIONS = (
+    "You compare a BEFORE and AFTER photo from a virtual try-on. The only fashion or accessory changes in AFTER "
+    "should be the exact products listed below being added onto her — nothing else. Reply with JSON only: "
+    '{"extra_items": ["short description", ...]}, listing anything visible in AFTER that is NOT in BEFORE and '
+    "is NOT one of the listed products — an empty list if there is nothing new. A colour, size or fit difference "
+    "in a listed product is not a new item; a garment or accessory of a kind never listed is. Ignore hair, makeup "
+    "and skin — judge fashion items and accessories only."
+)
+
+
+async def check_for_extra_items(before: np.ndarray, after: np.ndarray, expected: list[str]) -> list[str]:
+    """What Gemini's own "complete the look" habit adds beyond what was
+    asked for — a necklace, a second bracelet — that no per-item check
+    would ever catch, since every per-item judge only asks "is THIS
+    product there", never "is anything else there that shouldn't be".
+    Live, on a genuine 5-for-5 pass: a necklace and a second bracelet,
+    neither selected, both invented anyway."""
+    listed = "\n".join(f"- {d}" for d in expected) or "(none)"
+    try:
+        answer = await ask_json(
+            _EXTRA_ITEMS_INSTRUCTIONS,
+            [
+                {"type": "text", "text": f"Expected products:\n{listed}"},
+                {"type": "text", "text": "BEFORE:"},
+                image_part(before, 1024),
+                {"type": "text", "text": "AFTER:"},
+                image_part(after, 1024),
+            ],
+        )
+    except VisionError:
+        return []  # can't confirm a violation without a working check — never fail a render over that
+    extras = answer.get("extra_items")
+    return [str(e)[:160] for e in extras][:6] if isinstance(extras, list) else []

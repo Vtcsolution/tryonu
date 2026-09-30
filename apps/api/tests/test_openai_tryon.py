@@ -393,6 +393,18 @@ def test_a_set_of_different_pieces_is_not_drawn_as_copies_of_one():
     assert "several copies of one plain piece" in prompt
 
 
+def test_the_product_list_is_told_to_be_a_closed_set():
+    """Live, on a genuine 5-for-5 pass with every selected item correctly
+    applied: a necklace and a second bracelet, neither selected, both
+    invented anyway — the prompt never said not to."""
+    from app.ai.providers.openai_image import build_prompt
+
+    prompt = build_prompt([OutfitPiece("https://img/w.jpg", "watch", "Quartz Watch")])
+    assert "complete the look" in prompt
+    assert "closed set" in prompt
+    assert "leave that part of the person exactly as it already was" in prompt
+
+
 async def test_edit_masked_sends_person_product_and_a_real_mask(monkeypatch):
     """The one call that makes protection an API guarantee rather than
     something reconstructed afterwards: person, product and a mask file,

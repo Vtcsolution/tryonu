@@ -452,16 +452,27 @@ async def run_tryon_job_async(job_id: str) -> None:
                 # the render used as it comes back, inspected and
                 # corrected — no change detection, no mask, no merge
                 person = await asyncio.to_thread(get_storage().read, job.user_photo.storage_key)
-                image, reports = await render_whole_look(
-                    person,
-                    [_look_item(layer) for layer in layers],
-                    _pipeline_render_all(provider),
-                    retries=settings.TRYON_QUALITY_RETRIES,
-                    min_product=settings.TRYON_QUALITY_MIN_PRODUCT,
-                    min_other=settings.TRYON_QUALITY_MIN_FIT,
-                    budget_seconds=settings.TRYON_QUALITY_BUDGET_SECONDS,
-                    on_progress=_progress_writer(session, job),
-                )
+                try:
+                    image, reports = await render_whole_look(
+                        person,
+                        [_look_item(layer) for layer in layers],
+                        _pipeline_render_all(provider),
+                        retries=settings.TRYON_QUALITY_RETRIES,
+                        min_product=settings.TRYON_QUALITY_MIN_PRODUCT,
+                        min_other=settings.TRYON_QUALITY_MIN_FIT,
+                        budget_seconds=settings.TRYON_QUALITY_BUDGET_SECONDS,
+                        on_progress=_progress_writer(session, job),
+                    )
+                except QualityFailure as exc:
+                    await _fail_job(
+                        session,
+                        job,
+                        f"The render added {exc.item} beyond what you picked, so no result was returned and "
+                        f"your credits were refunded. Found: {'; '.join(exc.issues[:3]) or 'an unrequested item'}. "
+                        "Try again, or a different product photo.",
+                        refund=True,
+                    )
+                    return
                 kept_image, ctype, kept = await _keep_person_if_on(job, image, "image/jpeg", layers)
                 await _complete_job(
                     session, job, kept_image, ctype, provider.name, provider.model,

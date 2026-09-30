@@ -141,6 +141,12 @@ def build_prompt(pieces: list[OutfitPiece]) -> str:
         "- A product photo that shows several different pieces together — a stack of five different bracelets,"
         " a set of bangles — is one product made of those exact pieces. Draw each piece as it is, distinct from"
         " the others; do not replace the set with several copies of one plain piece.",
+        "- The products listed above are the complete, closed set to apply — exactly these, and nothing beyond"
+        " them. Do not add, invent, infer or substitute any further item to \"complete the look\", however"
+        " natural it might seem given what's shown. Do not duplicate a listed product into a second copy of"
+        " itself, and do not turn one listed product into a different one.",
+        "- If nothing above says to add or change something, leave that part of the person exactly as it already"
+        " was in image 1 — a natural-looking gap is correct; filling it with something nobody asked for is not.",
         "- The result must be a single realistic photograph, not a collage.",
     ]
     return "\n".join(lines)

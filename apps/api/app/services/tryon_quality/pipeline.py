@@ -53,7 +53,7 @@ from app.services.tryon_quality.compose import (
     product_mask,
     sharpen_product,
 )
-from app.services.tryon_quality.judge import Verdict, judge
+from app.services.tryon_quality.judge import Verdict, check_for_extra_items, judge
 from app.ai.providers.openai_image import MAX_PIECES
 from app.services.tryon_quality.locate import choose, find_body_part, find_item
 from app.services.tryon_quality.product_prep import describe_product
@@ -1080,5 +1080,20 @@ async def render_whole_look(
     )
     for report, box in zip(reports, boxes):
         report.box = box if isinstance(box, Region) else None
+
+    # Every check above asks "is THIS selected product there" — none of
+    # them can ever notice something extra that nobody selected, since
+    # each only looks at its own product's own region. Live, on a genuine
+    # 5-for-5 pass with every item correctly applied: a necklace and a
+    # second bracelet, neither selected, both invented anyway. One more
+    # check, on the whole photo, for the one question none of the others
+    # ask.
+    await _say(on_progress, "Checking nothing extra was added")
+    extra_items = await check_for_extra_items(base, shown, list(descriptions))
+    if extra_items:
+        logger.warning("tryon_whole_unexpected_items", items=extra_items)
+        raise QualityFailure(
+            "an item nobody selected" if len(extra_items) == 1 else "items nobody selected", extra_items
+        )
 
     return encode_jpeg(shown, 97), reports

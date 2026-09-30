@@ -95,10 +95,14 @@ def fake_vision(monkeypatch):
     async def judge(product, before, after, region, description, small_item=False):  # noqa: ARG001
         return verdicts.pop(0)
 
+    async def no_extras(before, after, expected):  # noqa: ARG001
+        return []
+
     monkeypatch.setattr(pipeline, "_download", download)
     monkeypatch.setattr(pipeline, "describe_product", describe)
     monkeypatch.setattr(pipeline, "choose", choose)
     monkeypatch.setattr(pipeline, "judge", judge)
+    monkeypatch.setattr(pipeline, "check_for_extra_items", no_extras)
     return verdicts
 
 
@@ -398,6 +402,43 @@ async def test_the_photo_sent_to_the_model_keeps_working_resolution(fake_vision,
     item = pipeline.LookItem("https://img.example/watch.jpg", OutfitSlot.WATCH, "Item")
     await pipeline.render_whole_look(encode_jpeg(big_person, 97), [item], render_all, retries=0)
     assert sizes_seen[0] == (1500, 1000)  # not shrunk to MODEL_SIDE=1024
+
+
+async def test_an_item_nobody_selected_fails_the_whole_render(fake_vision, monkeypatch):
+    """Live, on a genuine pass where every selected item was correctly
+    applied: a necklace and a second bracelet, neither selected, both
+    invented anyway. Every per-item judge only asks "is THIS product
+    there" — none of them can ever notice something extra that nobody
+    asked for."""
+
+    async def extras(before, after, expected):  # noqa: ARG001
+        return ["a necklace"]
+
+    monkeypatch.setattr(pipeline, "check_for_extra_items", extras)
+    fake_vision.append(GOOD)
+    item = pipeline.LookItem("https://img.example/watch.jpg", OutfitSlot.WATCH, "Item")
+
+    async def render_all(base_jpeg, items, descriptions):  # noqa: ARG001
+        return encode_jpeg(_render(_person()), 97)
+
+    with pytest.raises(pipeline.QualityFailure) as exc:
+        await pipeline.render_whole_look(encode_jpeg(_person(), 97), [item], render_all, retries=0)
+    assert "a necklace" in exc.value.issues
+
+
+async def test_nothing_extra_found_does_not_touch_a_clean_pass(fake_vision):
+    """The default (fake_vision's own check_for_extra_items mock) reports
+    nothing extra — confirms a clean render is unaffected by this check
+    existing at all."""
+    fake_vision.append(GOOD)
+    item = pipeline.LookItem("https://img.example/watch.jpg", OutfitSlot.WATCH, "Item")
+
+    async def render_all(base_jpeg, items, descriptions):  # noqa: ARG001
+        return encode_jpeg(_render(_person()), 97)
+
+    image, reports = await pipeline.render_whole_look(encode_jpeg(_person(), 97), [item], render_all, retries=0)
+    assert reports[0].verdict == GOOD
+    assert image[:2] == b"\xff\xd8"
 
 
 async def test_the_whole_look_is_one_render_and_only_failures_get_their_own(fake_vision):
