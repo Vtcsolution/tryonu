@@ -15,6 +15,7 @@ worn the way a real one would be, does it look like a photograph."""
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 import cv2
@@ -64,6 +65,125 @@ class Verdict:
         )
 
 
+def _dominant_lab(img: np.ndarray) -> tuple[float, float, float]:
+    """The median L*a*b* of `img`'s pixels, excluding a white/light-grey
+    studio backdrop.
+
+    A product photo is almost always shot on exactly that backdrop, and
+    it is usually the majority of the frame by area — splitting on
+    "more/less saturated than this image's own median" breaks exactly
+    when the product is the minority of pixels, since the median then
+    falls inside the background itself. Excluding on bright-AND-neutral
+    together, instead, targets a white/grey backdrop specifically,
+    whatever colour the product is — including a black or grey product,
+    which a saturation-only split would have excluded too."""
+    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB).astype(np.float32)
+    lightness = lab[..., 0]
+    a, b = lab[..., 1] - 128.0, lab[..., 2] - 128.0
+    saturation = np.hypot(a, b)
+    backdrop = (lightness > 200) & (saturation < 10)
+    keep = ~backdrop
+    if keep.sum() < 50:
+        keep = np.ones_like(keep, dtype=bool)
+    return tuple(float(np.median(lab[..., c][keep])) for c in range(3))
+
+
+def _delta_e_ciede2000(lab1: tuple[float, float, float], lab2: tuple[float, float, float]) -> float:
+    """Perceptual colour distance (Sharma et al., 2005) between two L*a*b*
+    colours — a shift in a saturated colour reads as smaller than the
+    same raw numeric distance in a near-neutral one, matching how a
+    person actually perceives it. 0 = identical; roughly 10+ is a colour
+    a shopper would call "wrong", not just "a bit off"."""
+    l1, a1, b1 = lab1
+    l2, a2, b2 = lab2
+    c1, c2 = math.hypot(a1, b1), math.hypot(a2, b2)
+    cbar = (c1 + c2) / 2.0
+    g = 0.5 * (1 - math.sqrt(cbar**7 / (cbar**7 + 25.0**7))) if cbar > 0 else 0.0
+    a1p, a2p = (1 + g) * a1, (1 + g) * a2
+    c1p, c2p = math.hypot(a1p, b1), math.hypot(a2p, b2)
+    h1p = math.degrees(math.atan2(b1, a1p)) % 360 if (a1p or b1) else 0.0
+    h2p = math.degrees(math.atan2(b2, a2p)) % 360 if (a2p or b2) else 0.0
+
+    dlp = l2 - l1
+    dcp = c2p - c1p
+    if c1p * c2p == 0:
+        dhp_deg = 0.0
+    else:
+        dhp_deg = h2p - h1p
+        if dhp_deg > 180:
+            dhp_deg -= 360
+        elif dhp_deg < -180:
+            dhp_deg += 360
+    dHp = 2 * math.sqrt(c1p * c2p) * math.sin(math.radians(dhp_deg) / 2)
+
+    lbarp = (l1 + l2) / 2
+    cbarp = (c1p + c2p) / 2
+    if c1p * c2p == 0:
+        hbarp = h1p + h2p
+    else:
+        hsum, hdiff = h1p + h2p, abs(h1p - h2p)
+        if hdiff <= 180:
+            hbarp = hsum / 2
+        elif hsum < 360:
+            hbarp = (hsum + 360) / 2
+        else:
+            hbarp = (hsum - 360) / 2
+
+    t = (
+        1
+        - 0.17 * math.cos(math.radians(hbarp - 30))
+        + 0.24 * math.cos(math.radians(2 * hbarp))
+        + 0.32 * math.cos(math.radians(3 * hbarp + 6))
+        - 0.20 * math.cos(math.radians(4 * hbarp - 63))
+    )
+    d_theta = 30 * math.exp(-(((hbarp - 275) / 25) ** 2))
+    rc = 2 * math.sqrt(cbarp**7 / (cbarp**7 + 25.0**7)) if cbarp > 0 else 0.0
+    sl = 1 + (0.015 * (lbarp - 50) ** 2) / math.sqrt(20 + (lbarp - 50) ** 2)
+    sc = 1 + 0.045 * cbarp
+    sh = 1 + 0.015 * cbarp * t
+    rt = -math.sin(math.radians(2 * d_theta)) * rc
+
+    return math.sqrt(
+        (dlp / sl) ** 2 + (dcp / sc) ** 2 + (dHp / sh) ** 2 + rt * (dcp / sc) * (dHp / sh)
+    )
+
+
+# Below this, a colour difference reads as "a slightly different light",
+# not "a different product" — measured against the live job that showed
+# one product's colour drift to resemble another's selected colour.
+_COLOR_FAIL_DELTA_E = 18.0
+
+
+def color_mismatch(result_crop: np.ndarray, product: np.ndarray) -> float | None:
+    """How far the result's own dominant colour is from the product
+    photo's, as a perceptual CIEDE2000 distance. None only when there
+    isn't enough of either image to form an estimate (never asks what
+    kind of product this is)."""
+    return _delta_e_ciede2000(_dominant_lab(result_crop), _dominant_lab(product))
+
+
+def _local_lab_diff(a: np.ndarray, b: np.ndarray, blur: float = 1.5) -> np.ndarray:
+    la = cv2.cvtColor(cv2.GaussianBlur(a, (0, 0), blur), cv2.COLOR_BGR2LAB).astype(np.float32)
+    lb = cv2.cvtColor(cv2.GaussianBlur(b, (0, 0), blur), cv2.COLOR_BGR2LAB).astype(np.float32)
+    return np.linalg.norm(la - lb, axis=2)
+
+
+def region_was_touched(before: np.ndarray, after: np.ndarray, *, min_share: float = 0.06) -> bool:
+    """Whether a real, contiguous part of this crop changed between before
+    and after — not the resampling/re-encoding noise a correctly-rendered
+    crop already shows on its own (this module's own docstring measured
+    that at 20-50% on a visually-confirmed-correct render when read as a
+    bare whole-image average). Blob-based, the same approach find_changes
+    already uses successfully elsewhere, rather than a plain mean a
+    genuinely untouched crop can clear on noise alone."""
+    if before.shape[:2] != after.shape[:2]:
+        after = cv2.resize(after, (before.shape[1], before.shape[0]), interpolation=cv2.INTER_AREA)
+    diff = _local_lab_diff(before, after)
+    changed = (diff > 20.0).astype(np.uint8)
+    changed = cv2.morphologyEx(changed, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+    return bool(changed.sum() / changed.size >= min_share)
+
+
 def _crop(img: np.ndarray, region: Region, pad: float = 0.6) -> np.ndarray:
     h, w = img.shape[:2]
     x0, y0, x1, y1 = region.pixels(w, h, pad)
@@ -106,6 +226,7 @@ async def judge(
     description: str,
     small_item: bool = False,
 ) -> Verdict:
+    before_crop, after_crop = _crop(before, region), _crop(after, region)
     answer = await ask_json(
         _INSTRUCTIONS + ("\n" + _SMALL_ITEM_NOTE if small_item else ""),
         [
@@ -113,19 +234,36 @@ async def judge(
             {"type": "text", "text": "(1) product reference:"},
             image_part(product, 768),
             {"type": "text", "text": "(2) BEFORE, product area:"},
-            image_part(_crop(before, region), 768),
+            image_part(before_crop, 768),
             {"type": "text", "text": "(3) AFTER, product area:"},
-            image_part(_crop(after, region), 768),
+            image_part(after_crop, 768),
             {"type": "text", "text": "(4) whole AFTER photo:"},
             image_part(after, 1024),
         ],
     )
-    issues = answer.get("issues") or []
+    issues = [str(i)[:160] for i in (answer.get("issues") or [])][:6] if isinstance(answer.get("issues"), list) else []
+    product_match = _num(answer.get("product_match"))
+
+    # Deterministic, product-agnostic hard gates — never asking what the
+    # product IS, only whether this crop's own pixels back up the VLM's
+    # opinion. A VLM asked to score a single image in isolation can be
+    # talked into a generous number by a confident-looking render even
+    # when it is the wrong colour or was never drawn at all; neither of
+    # these checks can be.
+    if not region_was_touched(before_crop, after_crop):
+        product_match = 0.0
+        issues = ["nothing changed in this item's own region — it was never drawn"] + issues
+    else:
+        delta_e = color_mismatch(after_crop, product)
+        if delta_e is not None and delta_e >= _COLOR_FAIL_DELTA_E:
+            product_match = min(product_match, 3.0)
+            issues = [f"colour does not match the product photo (ΔE {delta_e:.0f})"] + issues
+
     return Verdict(
-        product_match=_num(answer.get("product_match")),
+        product_match=product_match,
         worn_correctly=_num(answer.get("worn_correctly")),
         realism=_num(answer.get("realism")),
-        issues=[str(i)[:160] for i in issues][:6] if isinstance(issues, list) else [],
+        issues=issues[:6],
         fix=str(answer.get("fix") or "")[:200],
     )
 
