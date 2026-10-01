@@ -45,6 +45,19 @@ async def _was_refunded(job_id: str) -> bool:
 
 
 async def _poll_until_terminal(client, job_id: str, *, attempts: int = 300, delay: float = 0.1) -> dict:
+    # Wait for the actual in-process task(s) to finish before ever polling
+    # — a real await on the task object, not a guess at how many 0.1s
+    # sleeps it should take. The flat sleep-and-recheck loop below used to
+    # be the only wait at all: asyncio.sleep makes no promise about how
+    # soon control returns if the event loop is busy with something else,
+    # and under real CPU load it sometimes wasn't soon enough even for a
+    # job that finished correctly — a real, repeatedly observed flake, not
+    # a hypothetical one. Kept as a harmless fallback for the Redis/RQ
+    # case, where this wait is a no-op (a real worker is a separate
+    # process this one has no task handle for).
+    from app.services.queue import wait_for_inprocess_jobs
+
+    await wait_for_inprocess_jobs()
     for _ in range(attempts):
         resp = await client.get(f"/api/v1/tryon/{job_id}")
         job = resp.json()

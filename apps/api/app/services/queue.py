@@ -92,6 +92,27 @@ def _log_inprocess_result(task: asyncio.Task) -> None:
         logger.error("inprocess_job_task_failed", error=str(exc))
 
 
+async def wait_for_inprocess_jobs() -> None:
+    """Test-only: block until every in-process job task started so far has
+    actually finished.
+
+    Tests used to poll the HTTP API in a loop with a flat asyncio.sleep
+    between checks, racing a wall-clock budget against however long the
+    background task actually took to be scheduled and run on the same
+    event loop — asyncio.sleep makes no promise about how soon control
+    returns once its delay elapses if the loop is busy with something
+    else, and under real CPU load (several other test processes, a
+    background pytest run) it sometimes wasn't soon enough, even for a
+    job that was otherwise correct. This is a real await on the actual
+    task object already kept alive in _inprocess_tasks, not a guess at
+    how long it should take — a no-op once nothing is in flight, and
+    always a no-op under the real Redis/RQ queue, which runs in a
+    separate process this one has no task handle for."""
+    tasks = list(_inprocess_tasks)
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+
 def enqueue_product_sync() -> None:
     if settings.REDIS_URL:
         queue = _get_rq_queue("ingestion")
