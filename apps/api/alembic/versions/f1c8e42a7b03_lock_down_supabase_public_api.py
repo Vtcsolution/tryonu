@@ -39,15 +39,22 @@ begin
 end $$;
 """
 
-_REVOKE = """
-revoke all on all tables in schema public from anon, authenticated;
-revoke all on all sequences in schema public from anon, authenticated;
-revoke all on all functions in schema public from anon, authenticated;
-revoke usage on schema public from anon, authenticated;
-alter default privileges in schema public revoke all on tables from anon, authenticated;
-alter default privileges in schema public revoke all on sequences from anon, authenticated;
-alter default privileges in schema public revoke all on functions from anon, authenticated;
-"""
+# Individual statements, not one block: asyncpg's extended query protocol
+# (what both the app and this alembic env.py use) refuses to prepare more
+# than one command at a time -- "cannot insert multiple commands into a
+# prepared statement". This never surfaced against real production (its
+# anon-role check below is always false there, so _REVOKE never actually
+# ran) -- only caught running this for real against an actual Supabase
+# project for the first time.
+_REVOKE = (
+    "revoke all on all tables in schema public from anon, authenticated",
+    "revoke all on all sequences in schema public from anon, authenticated",
+    "revoke all on all functions in schema public from anon, authenticated",
+    "revoke usage on schema public from anon, authenticated",
+    "alter default privileges in schema public revoke all on tables from anon, authenticated",
+    "alter default privileges in schema public revoke all on sequences from anon, authenticated",
+    "alter default privileges in schema public revoke all on functions from anon, authenticated",
+)
 
 _DISABLE_RLS = """
 do $$
@@ -72,7 +79,8 @@ def upgrade() -> None:
     # the anon/authenticated roles only exist on Supabase; on a plain
     # Postgres (docker-compose, CI) there is nothing to revoke
     if op.get_bind().exec_driver_sql("select 1 from pg_roles where rolname = 'anon'").first():
-        op.execute(_REVOKE)
+        for statement in _REVOKE:
+            op.execute(statement)
 
 
 def downgrade() -> None:
