@@ -67,6 +67,7 @@ from app.models.enums import OutfitSlot
 from app.services.face_restore import detect_face
 from app.services.outfit_slots import worn_on_head
 from app.services.tryon_quality.compose import Region, composite, decode, encode_jpeg
+from app.services.tryon_quality.debug_capture import DebugCapture
 from app.services.tryon_quality.judge import judge
 from app.services.tryon_quality.pipeline import (
     ItemReport,
@@ -362,6 +363,7 @@ async def _render_item(
     retries: int,
     budget_seconds: int,
     started: float,
+    debug: DebugCapture | None = None,
 ) -> np.ndarray | None:
     """One item's own retry loop, against a shared starting canvas it does
     not mutate — a sibling drawn the same round reads the same pixels.
@@ -369,6 +371,8 @@ async def _render_item(
     note = ""
     for_model = _for_model(canvas)
     mask_png = _mask_png(for_model.shape[:2], region)
+    if debug is not None:
+        debug.save("mask", mask_png, label=item.name[:40])
     for attempt in range(retries + 1):
         # The cheaper setting first, every item, every look — the
         # expensive one only once a plain attempt has already missed the
@@ -399,6 +403,8 @@ async def _render_item(
         # comment) — never shrunk to match what was sent, the same way
         # render_whole_look never shrinks Gemini's output.
         raw = decode(raw_bytes)
+        if debug is not None:
+            debug.save("provider_output", raw_bytes, label=f"{item.name[:40]}_attempt{attempt + 1}")
 
         verdict = await judge(product, canvas, raw, region, description, item.slot in _SMALL, item.image_url)
         report.attempts = attempt + 1
@@ -443,6 +449,7 @@ async def render_masked_look(
     min_other: float = 6.0,
     budget_seconds: int = 60,
     on_progress: ProgressFn | None = None,
+    debug: DebugCapture | None = None,
 ) -> tuple[bytes, list[ItemReport]]:
     """Every product drawn through its own real edit mask, in as few
     sequential rounds as their windows allow — items whose masks don't
@@ -452,6 +459,8 @@ async def render_masked_look(
     from the render afterwards, because here it never was one."""
     started = time.monotonic()
     base = _cap(decode(person))
+    if debug is not None:
+        debug.save("input", base)
     face = detect_face(base)
     order = _order_of(items)
     reports = [ItemReport(name=item.name) for item in items]
@@ -472,7 +481,7 @@ async def render_masked_look(
             ready.append(step)
 
     current = base
-    for wave in _waves(ready, regions, is_garment):
+    for wave_index, wave in enumerate(_waves(ready, regions, is_garment)):
         names = ", ".join(items[order[s]].name[:30] for s in wave)
         await _say(on_progress, f"Drawing {names}")
         results = await asyncio.gather(
@@ -490,6 +499,7 @@ async def render_masked_look(
                     retries=retries,
                     budget_seconds=budget_seconds,
                     started=started,
+                    debug=debug,
                 )
                 for s in wave
             )
@@ -503,6 +513,8 @@ async def render_masked_look(
             # something unrequested to hide in. Confirmed live, repeatedly,
             # on a garment alone: clean.
             current = accepted[0][1]
+            if debug is not None:
+                debug.save("after_paste", current, label=f"wave{wave_index}")
             continue
         if len(accepted) == 1:
             # A small item's own window is a thin slice of the frame —
@@ -525,6 +537,8 @@ async def render_masked_look(
             th, tw = raw.shape[:2]
             merged = current if (h, w) == (th, tw) else cv2.resize(current, (tw, th), interpolation=cv2.INTER_LANCZOS4)
             current = _paste(merged, raw, regions[step])
+            if debug is not None:
+                debug.save("after_paste", current, label=f"wave{wave_index}")
             continue
         if accepted:
             # Two or more items shared this round: their own masks don't
@@ -545,6 +559,8 @@ async def render_masked_look(
                     raw = cv2.resize(raw, (tw, th), interpolation=cv2.INTER_LANCZOS4)
                 merged = _paste(merged, raw, regions[step])
             current = merged
+            if debug is not None:
+                debug.save("after_paste", current, label=f"wave{wave_index}")
 
     return encode_jpeg(current, 97), reports
 

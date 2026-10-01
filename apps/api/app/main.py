@@ -17,6 +17,7 @@ from app.core.version import running_commit
 from app.db.schema_state import schema_status
 from app.services.queue import queue_state
 from app.services.stuck_jobs import sweep_forever
+from app.services.tryon_quality.debug_capture import sweep_debug_forever
 from app.services.analytics_service import download_geoip_db, geoip_available
 from app.services.storage_service import is_s3_configured
 
@@ -53,11 +54,19 @@ async def lifespan(app: FastAPI):  # noqa: ANN201
     # watches a spinner and their credits stay reserved. Sweep for those.
     app.state.stuck_sweeper = asyncio.create_task(sweep_forever())
 
+    app.state.debug_sweeper = None
+    if settings.TRYON_SAVE_DEBUG:
+        # Only started when debug capture is actually on — otherwise there
+        # is nothing under the debug prefix to ever sweep.
+        app.state.debug_sweeper = asyncio.create_task(sweep_debug_forever())
+
     if settings.GEOIP_AUTO_DOWNLOAD and not geoip_available():
         # visitor countries show as "unknown" until this finishes; never block startup on it
         app.state.geoip_download = asyncio.create_task(download_geoip_db())
     yield
     app.state.stuck_sweeper.cancel()
+    if app.state.debug_sweeper is not None:
+        app.state.debug_sweeper.cancel()
     logger.info("shutdown")
 
 

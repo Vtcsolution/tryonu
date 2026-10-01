@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 import cv2
 import numpy as np
 
+from app.core.logging import logger
 from app.services.tryon_quality.compose import Region
 from app.services.tryon_quality.cutout import product_cutout_mask
 from app.services.tryon_quality.vision import VisionError, ask_json, image_part
@@ -193,6 +194,82 @@ def region_was_touched(before: np.ndarray, after: np.ndarray, *, min_share: floa
     return bool(changed.sum() / changed.size >= min_share)
 
 
+def _gradient_magnitude(img: np.ndarray) -> np.ndarray:
+    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB).astype(np.float32)
+    mag = np.zeros(img.shape[:2], np.float32)
+    for c in range(3):
+        gx = cv2.Sobel(lab[..., c], cv2.CV_32F, 1, 0, ksize=3)
+        gy = cv2.Sobel(lab[..., c], cv2.CV_32F, 0, 1, ksize=3)
+        mag += gx * gx + gy * gy
+    return np.sqrt(mag)
+
+
+def _band_kernel(radius: int) -> np.ndarray:
+    size = 2 * radius + 1
+    return cv2.getStructuringElement(cv2.MORPH_RECT, (size, size))
+
+
+def seam_score(image: np.ndarray, region: Region, band: int = 2) -> float:
+    """How much more a thin ring straddling the pasted region's own
+    rectangle boundary stands out, in local edge strength, than the
+    pixels immediately inside and immediately outside it.
+
+    A hard paste — a straight rectangle cut, or a feather too narrow to
+    hide a colour/lighting mismatch — leaves a ring of elevated local
+    contrast that traces the paste boundary exactly, on all four sides,
+    regardless of what the product is. A garment's own real edge (a hem,
+    a collar, a sleeve cuff) creates local contrast too, but not one that
+    happens to coincide with this box's own rectangle; comparing the
+    boundary ring to the bands just inside and just outside it (not to
+    the image as a whole, which has its own unrelated texture) is what
+    makes this product-agnostic: it never asks what kind of edge this is,
+    only whether an edge exists exactly where a paste would leave one.
+
+    Never asked what the product is, so it's as valid for a watch as a
+    gown. Returns 0.0 when the box reaches the photo's own edge — there's
+    no "outside" band left to compare against on that side."""
+    h, w = image.shape[:2]
+    x0, y0, x1, y1 = region.pixels(w, h)
+    margin = band * 3
+    if x0 < margin or y0 < margin or x1 > w - margin or y1 > h - margin or x1 - x0 <= margin * 2 or y1 - y0 <= margin * 2:
+        return 0.0
+    rect = np.zeros((h, w), np.uint8)
+    rect[y0:y1, x0:x1] = 1
+    k1, k2 = _band_kernel(band), _band_kernel(band * 2)
+    dilated1, eroded1 = cv2.dilate(rect, k1), cv2.erode(rect, k1)
+    dilated2, eroded2 = cv2.dilate(rect, k2), cv2.erode(rect, k2)
+    boundary = (dilated1 > 0) & (eroded1 == 0)
+    inner_ring = (eroded1 > 0) & (eroded2 == 0)
+    outer_ring = (dilated2 > 0) & (dilated1 == 0)
+    mag = _gradient_magnitude(image)
+    # The boundary ring is a few pixels wide so it reliably straddles the
+    # true edge, but that means most of its own pixels still sit a little
+    # off that edge, in flat territory either side of it — a median over
+    # the whole ring is dominated by those, not by the edge itself. A high
+    # percentile picks out the ring's own sharpest pixels, which is what a
+    # hard paste's edge actually looks like; the baseline bands have no
+    # edge to find in the first place, so their median is the right,
+    # noise-robust read of their ordinary local texture.
+    boundary_level = float(np.percentile(mag[boundary], 90)) if boundary.any() else 0.0
+    baseline = max(
+        float(np.median(mag[inner_ring])) if inner_ring.any() else 0.0,
+        float(np.median(mag[outer_ring])) if outer_ring.any() else 0.0,
+        1e-6,
+    )
+    return boundary_level / baseline
+
+
+# Shadow mode, like distractor ranking: logged on every judge() call so a
+# real threshold can be calibrated from actual passing and failing renders
+# once enough of them exist, not guessed at from synthetic tests alone.
+# Not yet wired to fail anything.
+_SEAM_RATIO_WORTH_LOGGING = 2.0
+
+
+def has_seam(image: np.ndarray, region: Region, band: int = 4, threshold: float = 2.5) -> bool:
+    return seam_score(image, region, band) >= threshold
+
+
 def _crop(img: np.ndarray, region: Region, pad: float = 0.6) -> np.ndarray:
     h, w = img.shape[:2]
     x0, y0, x1, y1 = region.pixels(w, h, pad)
@@ -268,6 +345,15 @@ async def judge(
         if delta_e >= _COLOR_FAIL_DELTA_E:
             product_match = min(product_match, 3.0)
             issues = [f"colour does not match the product photo (ΔE {delta_e:.0f})"] + issues
+
+    # Shadow mode: logged only, not yet a failure — see has_seam()'s own
+    # docstring and _SEAM_RATIO_WORTH_LOGGING. Calibrate a real fail
+    # threshold once enough real seam/clean pairs exist; a synthetic test
+    # can prove the signal fires on an obvious hard paste, not what ratio
+    # a genuine one comes back at.
+    seam = seam_score(after, region)
+    if seam >= _SEAM_RATIO_WORTH_LOGGING:
+        logger.info("tryon_seam_signal", region=str(region), seam_score=round(seam, 2))
 
     return Verdict(
         product_match=product_match,

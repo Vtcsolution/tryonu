@@ -21,8 +21,10 @@ from app.services.tryon_quality.judge import (
     _delta_e_ciede2000,
     _dominant_lab,
     color_mismatch,
+    has_seam,
     judge,
     region_was_touched,
+    seam_score,
 )
 
 PRODUCT_URL = "https://img.example/product.jpg"
@@ -130,8 +132,17 @@ def test_color_mismatch_across_product_colour_families(mock_cutout, product_bgr,
 
 
 def test_color_mismatch_fails_the_live_jobs_exact_case(mock_cutout):
-    """The live job: a product's rendered colour drifted to resemble a
-    different selected product's colour (white instead of its own red)."""
+    """The live job: a WHITE product's rendered colour drifted to RED
+    (another selected product's colour bled into this item's region)."""
+    white_product, mask = _studio_photo((235, 235, 235))
+    mock_cutout[PRODUCT_URL] = mask
+    red_result = _solid((10, 10, 200))
+    assert color_mismatch(red_result, white_product, PRODUCT_URL) >= _COLOR_FAIL_DELTA_E
+
+
+def test_color_mismatch_fails_the_reverse_direction_too(mock_cutout):
+    """The same bug class running the other way: a RED product rendered
+    WHITE. Colour mismatch must not have a blind spot in either direction."""
     red_product, mask = _studio_photo((0, 0, 220))
     mock_cutout[PRODUCT_URL] = mask
     white_result = _solid((235, 235, 235))
@@ -170,6 +181,72 @@ def test_touched_handles_a_resized_after_crop():
     assert region_was_touched(before, after)
 
 
+# ------------------------------------------------------------------- seam_score
+#
+# A generic, product-agnostic signal for a hard paste boundary: elevated
+# local edge strength in a ring that traces the pasted region's own
+# rectangle, well above its immediate surroundings. Shadow mode for now
+# (judge() logs it, never fails on it) — these tests prove the signal
+# fires on an obvious hard paste and stays quiet on a smooth photo, not
+# what ratio a genuine live seam comes back at; that threshold needs real
+# examples to calibrate (see judge.py's own _SEAM_RATIO_WORTH_LOGGING).
+
+
+def _smooth_gradient(size: tuple[int, int] = (240, 240)) -> np.ndarray:
+    """A photo-like image with no hard edges anywhere: a smooth diagonal
+    gradient, repeated across all three channels."""
+    h, w = size
+    x = np.linspace(0, 255, w, dtype=np.float32)
+    y = np.linspace(0, 255, h, dtype=np.float32)
+    plane = (x[None, :] + y[:, None]) / 2
+    return np.repeat(plane[:, :, None], 3, axis=2).astype(np.uint8)
+
+
+def _hard_paste(image: np.ndarray, region: Region, color_bgr: tuple[int, int, int]) -> np.ndarray:
+    """A straight rectangle cut, unblended — exactly the kind of paste
+    _paste() in masked.py exists to avoid, reproduced here on purpose."""
+    out = image.copy()
+    h, w = image.shape[:2]
+    x0, y0, x1, y1 = region.pixels(w, h)
+    out[y0:y1, x0:x1] = color_bgr
+    return out
+
+
+def test_a_hard_unblended_paste_is_flagged():
+    base = _smooth_gradient()
+    region = Region(0.3, 0.3, 0.7, 0.7)
+    seamed = _hard_paste(base, region, (10, 10, 200))  # sharply different from the gradient around it
+    assert has_seam(seamed, region)
+
+
+def test_an_untouched_smooth_photo_is_not_flagged():
+    base = _smooth_gradient()
+    region = Region(0.3, 0.3, 0.7, 0.7)
+    assert not has_seam(base, region)
+
+
+def test_a_region_that_continues_the_surrounding_gradient_is_not_flagged():
+    """A "paste" whose own content happens to match its surroundings
+    smoothly — the ideal, well-blended case — must not be flagged just for
+    having a region at all."""
+    base = _smooth_gradient()
+    region = Region(0.3, 0.3, 0.7, 0.7)
+    h, w = base.shape[:2]
+    x0, y0, x1, y1 = region.pixels(w, h)
+    pasted = base.copy()
+    pasted[y0:y1, x0:x1] = base[y0:y1, x0:x1]  # the same smooth content, not a different one
+    assert not has_seam(pasted, region)
+
+
+def test_seam_score_returns_zero_when_the_region_touches_the_photo_edge():
+    """No "outside the box" band exists when the box runs to the frame's
+    own edge — nothing to compare the boundary ring against, so this
+    returns a neutral 0.0 rather than a false signal."""
+    base = _smooth_gradient()
+    region = Region(0.0, 0.0, 0.3, 0.3)  # touches the top-left corner of the photo
+    assert seam_score(base, region) == 0.0
+
+
 # --------------------------------------------------------------- judge() itself
 
 
@@ -204,6 +281,22 @@ async def test_a_recoloured_product_fails_even_if_the_vlm_is_generous(fake_vlm, 
     product, mask = _studio_photo((0, 0, 220))  # the real product is red
     mock_cutout[PRODUCT_URL] = mask
     verdict = await judge(product, before, after, region, "a red item", False, PRODUCT_URL)
+    assert verdict.product_match <= 3.0
+    assert "colour" in verdict.issues[0]
+
+
+async def test_a_white_product_rendered_red_fails_even_if_the_vlm_is_generous(fake_vlm, mock_cutout):
+    """The live job, end to end through judge(): a white product's region
+    came out red (another item's colour bled in). The dedicated unit test
+    is test_color_mismatch_fails_the_live_jobs_exact_case; this proves the
+    same failure survives through the full judge() call, not just the
+    bare colour_mismatch() function."""
+    region = Region(0.0, 0.0, 1.0, 1.0)
+    before = np.full((200, 200, 3), (150, 150, 150), dtype=np.uint8)
+    after = np.full((200, 200, 3), (10, 10, 200), dtype=np.uint8)  # drawn, but red not white
+    product, mask = _studio_photo((235, 235, 235))  # the real product is white
+    mock_cutout[PRODUCT_URL] = mask
+    verdict = await judge(product, before, after, region, "a white item", False, PRODUCT_URL)
     assert verdict.product_match <= 3.0
     assert "colour" in verdict.issues[0]
 

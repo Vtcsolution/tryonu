@@ -28,6 +28,7 @@ from app.models.enums import AIUsageKind, JobStatus, OutfitSlot
 from app.models.outfit import OutfitItem
 from app.models.product import Product
 from app.models.tryon import TryOnJob, TryOnResult
+from app.models.user import User
 from app.services import credit_service
 from app.services.face_restore import restore_face
 from app.services.outfit_slots import (
@@ -39,6 +40,7 @@ from app.services.outfit_slots import (
     worn_on_head,
 )
 from app.services.storage_service import get_storage, new_key
+from app.services.tryon_quality.debug_capture import DebugCapture
 from app.services.tryon_quality.masked import render_masked_look
 from app.services.tryon_quality.pipeline import (
     render_whole_look,
@@ -185,7 +187,7 @@ def _progress_writer(session, job: TryOnJob):  # noqa: ANN001, ANN202
 
 
 async def _render_with_engine(
-    provider: VirtualTryOnProvider, person: bytes, items: list[LookItem]
+    provider: VirtualTryOnProvider, person: bytes, items: list[LookItem], debug: DebugCapture | None = None
 ) -> tuple[bytes, list[ItemReport]]:
     """One engine's full, independent attempt at the whole look — with its
     own retries — so it can be scored against another engine's attempt at
@@ -206,6 +208,7 @@ async def _render_with_engine(
             min_product=settings.TRYON_QUALITY_MIN_PRODUCT,
             min_other=settings.TRYON_QUALITY_MIN_FIT,
             budget_seconds=settings.TRYON_QUALITY_BUDGET_SECONDS,
+            debug=debug,
         )
     if provider.preserves_person:
         return await render_whole_look(
@@ -216,6 +219,7 @@ async def _render_with_engine(
             min_product=settings.TRYON_QUALITY_MIN_PRODUCT,
             min_other=settings.TRYON_QUALITY_MIN_FIT,
             budget_seconds=settings.TRYON_QUALITY_BUDGET_SECONDS,
+            debug=debug,
         )
     return await render_look(
         person,
@@ -227,17 +231,20 @@ async def _render_with_engine(
         render_all=_pipeline_render_all(provider) if provider.whole_outfit else None,
         zoom_small=provider.whole_outfit,
         budget_seconds=settings.TRYON_QUALITY_BUDGET_SECONDS,
+        debug=debug,
     )
 
 
-async def _keep_person_if_on(job: TryOnJob, image: bytes, content_type: str, layers: list[_Layer]) -> tuple[bytes, str, bool]:
+async def _keep_person_if_on(
+    job: TryOnJob, image: bytes, content_type: str, layers: list[_Layer], debug: DebugCapture | None = None
+) -> tuple[bytes, str, bool]:
     """A whole-look render with the person's own pixels kept outside the
     products. (image, content type, whether the person was kept)."""
     if not settings.TRYON_QUALITY_PIPELINE:
         return image, content_type, False
     try:
         person = await asyncio.to_thread(get_storage().read, job.user_photo.storage_key)
-        kept = await keep_person(person, image, [_look_item(layer) for layer in layers])
+        kept = await keep_person(person, image, [_look_item(layer) for layer in layers], debug=debug)
     except Exception as exc:  # noqa: BLE001 — never lose the render over this
         logger.warning("tryon_keep_person_failed", job_id=job.id, error=str(exc)[:300])
         return image, content_type, False
@@ -286,6 +293,13 @@ async def run_tryon_job_async(job_id: str) -> None:
         job.started_at = datetime.now(timezone.utc)
         await session.commit()
 
+        # Debug image capture (TRYON_SAVE_DEBUG): never for a production
+        # user's photo — only the accounts in TRYON_DEBUG_USER_EMAILS, which
+        # DebugCapture itself enforces. One extra by-id lookup per job, only
+        # ever a no-op when the flag is off.
+        user = await session.get(User, job.user_id)
+        debug = DebugCapture(job.id, user.email if user else None)
+
         provider = get_tryon_provider()
         layers = await _garment_layers(session, job, provider.model, provider.whole_outfit)
 
@@ -316,7 +330,7 @@ async def run_tryon_job_async(job_id: str) -> None:
                     )
                     await session.commit()
                 else:
-                    image, ctype, kept = await _keep_person_if_on(job, output.image_bytes, output.content_type, full_layers)
+                    image, ctype, kept = await _keep_person_if_on(job, output.image_bytes, output.content_type, full_layers, debug)
                     await _complete_job(
                         session, job, image, ctype, full.name, full.model,
                         drawn=[layer.name for layer in full_layers], face_kept=kept,
@@ -361,7 +375,7 @@ async def run_tryon_job_async(job_id: str) -> None:
                 ]
                 async def _attempt(engine: VirtualTryOnProvider):
                     try:
-                        image, reports = await _render_with_engine(engine, person, items)
+                        image, reports = await _render_with_engine(engine, person, items, debug)
                         return engine.name, engine.model, image, reports, score_reports(reports)
                     except Exception as exc:  # noqa: BLE001 — collected below, not raised here
                         logger.warning(
@@ -407,7 +421,7 @@ async def run_tryon_job_async(job_id: str) -> None:
                     scores={name: round(score, 1) for name, _, _, _, score in won},
                     winner=winner_name,
                 )
-                kept_image, ctype, kept = await _keep_person_if_on(job, image, "image/jpeg", layers)
+                kept_image, ctype, kept = await _keep_person_if_on(job, image, "image/jpeg", layers, debug)
                 await _complete_job(
                     session, job, kept_image, ctype, winner_name, winner_model,
                     placements=_placements(layers, reports),
@@ -418,7 +432,7 @@ async def run_tryon_job_async(job_id: str) -> None:
             if provider.whole_outfit and not _quality_pipeline_on(provider):
                 # one render with every item at once (shoes, bags, jewellery too)
                 output = await provider.generate_outfit(model_url, _outfit_pieces(layers))
-                image, ctype, kept = await _keep_person_if_on(job, output.image_bytes, output.content_type, layers)
+                image, ctype, kept = await _keep_person_if_on(job, output.image_bytes, output.content_type, layers, debug)
                 await _complete_job(
                     session, job, image, ctype, provider.name, provider.model,
                     drawn=[layer.name for layer in layers], face_kept=kept,
@@ -440,6 +454,7 @@ async def run_tryon_job_async(job_id: str) -> None:
                     min_other=settings.TRYON_QUALITY_MIN_FIT,
                     budget_seconds=settings.TRYON_QUALITY_BUDGET_SECONDS,
                     on_progress=_progress_writer(session, job),
+                    debug=debug,
                 )
                 await _complete_job(
                     session, job, image, "image/jpeg", provider.name, provider.model,
@@ -462,6 +477,7 @@ async def run_tryon_job_async(job_id: str) -> None:
                         min_other=settings.TRYON_QUALITY_MIN_FIT,
                         budget_seconds=settings.TRYON_QUALITY_BUDGET_SECONDS,
                         on_progress=_progress_writer(session, job),
+                        debug=debug,
                     )
                 except QualityFailure as exc:
                     await _fail_job(
@@ -473,7 +489,7 @@ async def run_tryon_job_async(job_id: str) -> None:
                         refund=True,
                     )
                     return
-                kept_image, ctype, kept = await _keep_person_if_on(job, image, "image/jpeg", layers)
+                kept_image, ctype, kept = await _keep_person_if_on(job, image, "image/jpeg", layers, debug)
                 await _complete_job(
                     session, job, kept_image, ctype, provider.name, provider.model,
                     placements=_placements(layers, reports),
@@ -502,6 +518,7 @@ async def run_tryon_job_async(job_id: str) -> None:
                         zoom_small=provider.whole_outfit,
                         budget_seconds=settings.TRYON_QUALITY_BUDGET_SECONDS,
                         on_progress=_progress_writer(session, job),
+                        debug=debug,
                     )
                 except QualityFailure as exc:
                     await _fail_job(

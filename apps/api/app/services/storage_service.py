@@ -40,6 +40,9 @@ class StorageBackend(ABC):
     @abstractmethod
     def signed_url(self, key: str, ttl_seconds: int | None = None) -> str: ...
 
+    @abstractmethod
+    def list_with_mtime(self, prefix: str) -> list[tuple[str, float]]: ...
+
 
 class S3StorageBackend(StorageBackend):
     def __init__(self) -> None:
@@ -79,6 +82,14 @@ class S3StorageBackend(StorageBackend):
             ExpiresIn=ttl_seconds or settings.SIGNED_URL_TTL_SECONDS,
         )
 
+    def list_with_mtime(self, prefix: str) -> list[tuple[str, float]]:
+        out: list[tuple[str, float]] = []
+        paginator = self._client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=self._bucket, Prefix=prefix):
+            for obj in page.get("Contents", []):
+                out.append((obj["Key"], obj["LastModified"].timestamp()))
+        return out
+
 
 class LocalDiskStorageBackend(StorageBackend):
     """Dev-only. Signs URLs with HMAC-SHA256 over (key, expiry, SECRET_KEY),
@@ -112,6 +123,17 @@ class LocalDiskStorageBackend(StorageBackend):
         # Relative path — the API's own PUBLIC_API_BASE_URL is prefixed by
         # whoever needs an absolute URL (e.g. the try-on worker).
         return f"/media/{key}?exp={exp}&sig={sig}"
+
+    def list_with_mtime(self, prefix: str) -> list[tuple[str, float]]:
+        root = self._root / prefix
+        if not root.exists():
+            return []
+        out: list[tuple[str, float]] = []
+        for path in root.rglob("*"):
+            if path.is_file():
+                key = str(path.relative_to(self._root)).replace("\\", "/")
+                out.append((key, path.stat().st_mtime))
+        return out
 
 
 def _sign(key: str, exp: int) -> str:
