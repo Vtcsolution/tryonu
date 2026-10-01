@@ -4,6 +4,13 @@ Every uploaded image is re-encoded from decoded pixels (never the original
 bytes are trusted or stored as-is) — this both strips EXIF/GPS metadata and
 neutralises polyglot-file attacks (an image whose bytes are also valid
 HTML/JS). Oversized images are downscaled before storage.
+
+Orientation is applied BEFORE that strip, never after: a phone's portrait
+photo is usually stored as landscape pixels plus an EXIF rotation tag, and
+stripping metadata without reading that tag first throws away the one
+thing that could ever correct it — permanently, since nothing downstream
+(cv2.imdecode included) reads EXIF either. Every try-on pipeline then
+treats a sideways photo as the real one.
 """
 
 from __future__ import annotations
@@ -11,7 +18,7 @@ from __future__ import annotations
 import io
 
 from fastapi import HTTPException, UploadFile, status
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from app.core.config import get_settings
 
@@ -56,6 +63,10 @@ async def validate_and_optimize(file: UploadFile) -> ProcessedImage:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="File is not a valid image"
         ) from exc
+
+    # Read the EXIF orientation tag and actually rotate the pixels by it
+    # before anything below discards that tag for good.
+    img = ImageOps.exif_transpose(img)
 
     # normalise mode, strip metadata by rebuilding a fresh image buffer
     if img.mode in ("RGBA", "P"):
