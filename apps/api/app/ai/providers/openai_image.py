@@ -12,6 +12,7 @@ told to reproduce those exact items; it's not asked to invent clothing.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import time
 
@@ -100,6 +101,49 @@ def masked_prompt(piece: OutfitPiece) -> str:
         lines.append(f"It is: {piece.description}")
     if piece.note:
         lines.append(f"Correction from the previous attempt: {piece.note}")
+    return "\n".join(lines)
+
+
+def masked_prompt_batch(pieces: list[OutfitPiece]) -> str:
+    """The prompt for a batched masked edit — several products, each with
+    its own disjoint transparent window, in one call (zoned.py's
+    large/small-region batching). The mask is purely geometric — it
+    cannot label which window is whose — so each product's own line
+    below says where it naturally belongs; that positional description
+    is the only way the model can match a product to its own window
+    rather than another one's. A single clean window (masked_prompt,
+    above) carries no such ambiguity; this is the real trade this batch
+    path makes in exchange for one call instead of N."""
+    lines = [
+        f"Image 1 is a photo of a real person. It has exactly {len(pieces)} separate, disjoint regions marked "
+        "transparent by its own alpha channel — those are the ONLY regions you may draw into, each for a "
+        "different product shown in the images that follow.",
+    ]
+    for n, piece in enumerate(pieces, start=2):
+        where = _HOW.get(piece.slot, "worn or carried where it naturally goes")
+        lines.append(
+            f"Image {n} is a product photo — {piece.name}. Draw it {where}, into whichever transparent region "
+            f"sits at that natural position on the person — not any other product's region. "
+            f"Reproduce it faithfully: {_PRESERVE.get(piece.slot, _PRESERVE['other'])}. Take ONLY the product "
+            "from this image: ignore any model, mannequin, background, text or watermark in it."
+            + (f" It is: {piece.description}" if piece.description else "")
+            + (f" Correction from the previous attempt: {piece.note}" if piece.note else "")
+        )
+    lines.append(
+        "Every pixel outside every transparent region must come back exactly as it went in: the same face, hair, "
+        "skin, pose, clothing, background and lighting already there. Do not redraw, retouch or shift any of it, "
+        "and do not let one product's edit bleed into another product's own region or spill outside its own "
+        "window."
+    )
+    lines.append(
+        "Draw only the products listed above, each in its own region, and nothing else: no extra jewellery or "
+        "accessory anywhere in the photo to make the look feel finished, and nothing outside a transparent "
+        "region may change at all."
+    )
+    lines.append(
+        "Fit each product naturally to the person's body and pose, with realistic folds, drape and shadows, "
+        "blending seamlessly into the edge of its own transparent region."
+    )
     return "\n".join(lines)
 
 
@@ -300,6 +344,50 @@ class OpenAIImageTryOnProvider(VirtualTryOnProvider):
             data = {
                 "model": self.model,
                 "prompt": masked_prompt(piece),
+                "size": _best_size(person_png),
+                "quality": self.quality,
+                "output_format": "jpeg",
+                "n": "1",
+            }
+            resp = await self._post(client, data, files)
+        _raise_for_status(resp)
+        try:
+            b64 = resp.json()["data"][0]["b64_json"]
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            raise TryOnProviderError("OpenAI returned no image") from exc
+        return TryOnOutput(
+            image_bytes=base64.b64decode(b64),
+            content_type="image/jpeg",
+            latency_ms=int((time.perf_counter() - start) * 1000),
+        )
+
+    @retry(
+        retry=retry_if_exception(_retryable),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(min=2, max=16),
+        reraise=True,
+    )
+    async def edit_masked_batch(self, person_png: bytes, mask_png: bytes, pieces: list[OutfitPiece]) -> TryOnOutput:
+        """Several products in ONE call — `mask_png` has one disjoint
+        transparent window per product, protected the same way a single
+        window is in edit_masked() above. Used only by the zoned
+        pipeline's batching (app/services/tryon_quality/zoned.py), never
+        by masked.py's own single-item path. The real trade this makes:
+        the mask can't label which window belongs to which product, so
+        the model has to infer that from each product's own described
+        natural position — masked_prompt_batch() says so explicitly, but
+        this is a genuinely harder correspondence problem than a single
+        clean window carries."""
+        start = time.perf_counter()
+        async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS, follow_redirects=True) as client:
+            products = await asyncio.gather(*(_download(client, p.image_url, p.name) for p in pieces))
+            files = [("image[]", ("person.png", person_png, "image/png"))]
+            for idx, (content, ctype) in enumerate(products):
+                files.append(("image[]", (f"product{idx}.jpg", content, ctype)))
+            files.append(("mask", ("mask.png", mask_png, "image/png")))
+            data = {
+                "model": self.model,
+                "prompt": masked_prompt_batch(pieces),
                 "size": _best_size(person_png),
                 "quality": self.quality,
                 "output_format": "jpeg",

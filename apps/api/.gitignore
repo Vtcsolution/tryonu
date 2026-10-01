@@ -5,7 +5,10 @@ __pycache__/
 *.db-journal
 storage/
 .env
+.env.dev
+.env.*.local
 .pytest_cache/
 .ruff_cache/
 *.egg-info/
 data/geoip/
+data/clip/

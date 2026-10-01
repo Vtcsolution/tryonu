@@ -630,7 +630,7 @@ async def test_best_of_keeps_whichever_engine_scores_higher(client, db, monkeypa
     monkeypatch.setattr(tryon_tasks.settings, "OPENAI_API_KEY", "test-openai-key")
     monkeypatch.setattr(tryon_tasks.settings, "GEMINI_API_KEY", "test-gemini-key")
 
-    async def fake_keep_person_if_on(job, image, content_type, layers):  # noqa: ARG001
+    async def fake_keep_person_if_on(job, image, content_type, layers, debug=None):  # noqa: ARG001
         # not what this test is about — keep_person's own network/vision
         # calls are covered where keep_person itself is tested. face_kept
         # True skips _complete_job's own face-restore fallback, which
@@ -641,7 +641,7 @@ async def test_best_of_keeps_whichever_engine_scores_higher(client, db, monkeypa
 
     calls: list[str] = []
 
-    async def fake_render_with_engine(provider, person, items):  # noqa: ARG001
+    async def fake_render_with_engine(provider, person, items, debug=None):  # noqa: ARG001
         calls.append(provider.name)
         if provider.name == "openai":
             return b"\xff\xd8openai-render", [
@@ -680,7 +680,7 @@ async def test_best_of_survives_one_engine_failing_outright(client, db, monkeypa
     monkeypatch.setattr(tryon_tasks.settings, "OPENAI_API_KEY", "test-openai-key")
     monkeypatch.setattr(tryon_tasks.settings, "GEMINI_API_KEY", "test-gemini-key")
 
-    async def fake_keep_person_if_on(job, image, content_type, layers):  # noqa: ARG001
+    async def fake_keep_person_if_on(job, image, content_type, layers, debug=None):  # noqa: ARG001
         # face_kept=True: skips _complete_job's own face-restore fallback,
         # which would otherwise decode these fake, invalid JPEG bytes for
         # real — not what this test is about.
@@ -688,7 +688,7 @@ async def test_best_of_survives_one_engine_failing_outright(client, db, monkeypa
 
     monkeypatch.setattr(tryon_tasks, "_keep_person_if_on", fake_keep_person_if_on)
 
-    async def fake_render_with_engine(provider, person, items):  # noqa: ARG001
+    async def fake_render_with_engine(provider, person, items, debug=None):  # noqa: ARG001
         if provider.name == "openai":
             raise TryOnProviderError("OpenAI had a bad moment")
         return b"\xff\xd8gemini-render", [
@@ -718,7 +718,7 @@ async def test_best_of_fails_cleanly_and_refunds_if_both_engines_fail(client, db
     monkeypatch.setattr(tryon_tasks.settings, "OPENAI_API_KEY", "test-openai-key")
     monkeypatch.setattr(tryon_tasks.settings, "GEMINI_API_KEY", "test-gemini-key")
 
-    async def fake_render_with_engine(provider, person, items):  # noqa: ARG001
+    async def fake_render_with_engine(provider, person, items, debug=None):  # noqa: ARG001
         raise TryOnProviderError(f"{provider.name} had a bad moment", retryable=False)
 
     monkeypatch.setattr(tryon_tasks, "_render_with_engine", fake_render_with_engine)

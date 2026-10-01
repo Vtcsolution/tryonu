@@ -23,6 +23,7 @@ import {
 } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
 import type {
+  DistractorOption,
   LiveProduct,
   Outfit,
   OutfitItem,
@@ -324,10 +325,35 @@ export function TryFlow() {
         : outfit
           ? { outfit_id: outfit.id }
           : { product_id: product!.id };
+      // The real "other options" the shopper saw next to each selected
+      // item, if the ask-stylist flow is what put it there — the live
+      // distractor set for the backend's shadow-mode identity check,
+      // used in preference to its own same-category guess. A live
+      // alternative has no id of its own until it's actually selected
+      // (see LiveProduct's own comment), so product_id goes through as
+      // null and only its photo is sent.
+      const alternatives = lastStylistReply?.alternatives;
+      const distractor_options: Record<string, DistractorOption[]> | undefined = alternatives
+        ? Object.fromEntries(
+            Object.entries(alternatives)
+              .map(([productId, options]) => [
+                productId,
+                options.filter((o) => o.images[0]).map((o) => ({ product_id: null, image_url: o.images[0] })),
+              ] as const)
+              .filter(([, options]) => options.length > 0)
+          )
+        : undefined;
+      const withDistractors = distractor_options && Object.keys(distractor_options).length
+        ? { distractor_options }
+        : {};
       if (multiAngle && canMultiAngle) {
-        return tryonApi.createMulti({ user_photo_ids: [primaryPhoto!.id, secondaryPhoto!.id], ...target });
+        return tryonApi.createMulti({
+          user_photo_ids: [primaryPhoto!.id, secondaryPhoto!.id],
+          ...target,
+          ...withDistractors,
+        });
       }
-      const job = await tryonApi.create({ user_photo_id: primaryPhoto!.id, ...target });
+      const job = await tryonApi.create({ user_photo_id: primaryPhoto!.id, ...target, ...withDistractors });
       return [job];
     },
     onSuccess: (jobs) => {

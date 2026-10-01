@@ -238,6 +238,16 @@ export type StylistResponse = {
   created_at: string;
 };
 
+// The "other options" the shopper actually saw next to a selected item,
+// sent to the try-on job at creation time — the real distractor set for
+// the backend's shadow-mode identity check, in preference to its own
+// same-category guess. product_id is null for a live search result that
+// was only ever shown, never persisted via products.selectLive().
+export type DistractorOption = {
+  product_id: string | null;
+  image_url: string;
+};
+
 export type StylistAskInput = {
   prompt: string;
   occasion?: string;

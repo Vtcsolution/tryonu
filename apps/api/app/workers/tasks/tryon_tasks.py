@@ -12,6 +12,7 @@ import base64
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 
+import numpy as np
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -28,6 +29,7 @@ from app.models.enums import AIUsageKind, JobStatus, OutfitSlot
 from app.models.outfit import OutfitItem
 from app.models.product import Product
 from app.models.tryon import TryOnJob, TryOnResult
+from app.models.user import User
 from app.services import credit_service
 from app.services.face_restore import restore_face
 from app.services.outfit_slots import (
@@ -39,6 +41,9 @@ from app.services.outfit_slots import (
     worn_on_head,
 )
 from app.services.storage_service import get_storage, new_key
+from app.services.tryon_quality.compose import decode
+from app.services.tryon_quality.debug_capture import DebugCapture
+from app.services.tryon_quality.distractor_rank import log_distractor_rank, rank_against_distractors
 from app.services.tryon_quality.masked import render_masked_look
 from app.services.tryon_quality.pipeline import (
     render_whole_look,
@@ -46,10 +51,12 @@ from app.services.tryon_quality.pipeline import (
     LookItem,
     QualityFailure,
     RenderHint,
+    _download,
     keep_person,
     render_look,
     score_reports,
 )
+from app.services.tryon_quality.zoned import render_zoned_look
 
 settings = get_settings()
 MAX_ATTEMPTS = 3
@@ -174,6 +181,22 @@ def _pipeline_edit_masked(provider):  # noqa: ANN001, ANN202
     return edit
 
 
+def _pipeline_edit_masked_batch(provider):  # noqa: ANN001, ANN202
+    """How the zoned pipeline asks the provider to draw several items in
+    one call — see app/services/tryon_quality/zoned.py and
+    edit_masked_batch()'s own docstring for what this trades away."""
+
+    async def edit_batch(person_png: bytes, mask_png: bytes, pieces) -> bytes:  # noqa: ANN001
+        engine = _at_detail(provider) if any(p.detail for p in pieces) else provider
+        outfit_pieces = [
+            OutfitPiece(p.item.image_url, p.item.slot.value, p.item.name, note=p.fix, description=p.description)
+            for p in pieces
+        ]
+        return (await engine.edit_masked_batch(person_png, mask_png, outfit_pieces)).image_bytes
+
+    return edit_batch
+
+
 def _progress_writer(session, job: TryOnJob):  # noqa: ANN001, ANN202
     """Writes what the render is doing onto the job the client polls."""
 
@@ -185,7 +208,7 @@ def _progress_writer(session, job: TryOnJob):  # noqa: ANN001, ANN202
 
 
 async def _render_with_engine(
-    provider: VirtualTryOnProvider, person: bytes, items: list[LookItem]
+    provider: VirtualTryOnProvider, person: bytes, items: list[LookItem], debug: DebugCapture | None = None
 ) -> tuple[bytes, list[ItemReport]]:
     """One engine's full, independent attempt at the whole look — with its
     own retries — so it can be scored against another engine's attempt at
@@ -197,6 +220,17 @@ async def _render_with_engine(
     own, the merge-based pipeline for one that does neither. No progress
     is written here — two of these run concurrently against one job row,
     and committing from both at once isn't safe on one AsyncSession."""
+    if provider.supports_masked_edit and settings.TRYON_RENDER_ENGINE == "zoned":
+        return await render_zoned_look(
+            person,
+            items,
+            _pipeline_edit_masked_batch(provider),
+            retries=settings.TRYON_QUALITY_RETRIES,
+            min_product=settings.TRYON_QUALITY_MIN_PRODUCT,
+            min_other=settings.TRYON_QUALITY_MIN_FIT,
+            budget_seconds=settings.TRYON_QUALITY_BUDGET_SECONDS,
+            debug=debug,
+        )
     if provider.supports_masked_edit:
         return await render_masked_look(
             person,
@@ -206,6 +240,7 @@ async def _render_with_engine(
             min_product=settings.TRYON_QUALITY_MIN_PRODUCT,
             min_other=settings.TRYON_QUALITY_MIN_FIT,
             budget_seconds=settings.TRYON_QUALITY_BUDGET_SECONDS,
+            debug=debug,
         )
     if provider.preserves_person:
         return await render_whole_look(
@@ -216,6 +251,7 @@ async def _render_with_engine(
             min_product=settings.TRYON_QUALITY_MIN_PRODUCT,
             min_other=settings.TRYON_QUALITY_MIN_FIT,
             budget_seconds=settings.TRYON_QUALITY_BUDGET_SECONDS,
+            debug=debug,
         )
     return await render_look(
         person,
@@ -227,17 +263,20 @@ async def _render_with_engine(
         render_all=_pipeline_render_all(provider) if provider.whole_outfit else None,
         zoom_small=provider.whole_outfit,
         budget_seconds=settings.TRYON_QUALITY_BUDGET_SECONDS,
+        debug=debug,
     )
 
 
-async def _keep_person_if_on(job: TryOnJob, image: bytes, content_type: str, layers: list[_Layer]) -> tuple[bytes, str, bool]:
+async def _keep_person_if_on(
+    job: TryOnJob, image: bytes, content_type: str, layers: list[_Layer], debug: DebugCapture | None = None
+) -> tuple[bytes, str, bool]:
     """A whole-look render with the person's own pixels kept outside the
     products. (image, content type, whether the person was kept)."""
     if not settings.TRYON_QUALITY_PIPELINE:
         return image, content_type, False
     try:
         person = await asyncio.to_thread(get_storage().read, job.user_photo.storage_key)
-        kept = await keep_person(person, image, [_look_item(layer) for layer in layers])
+        kept = await keep_person(person, image, [_look_item(layer) for layer in layers], debug=debug)
     except Exception as exc:  # noqa: BLE001 — never lose the render over this
         logger.warning("tryon_keep_person_failed", job_id=job.id, error=str(exc)[:300])
         return image, content_type, False
@@ -286,6 +325,13 @@ async def run_tryon_job_async(job_id: str) -> None:
         job.started_at = datetime.now(timezone.utc)
         await session.commit()
 
+        # Debug image capture (TRYON_SAVE_DEBUG): never for a production
+        # user's photo — only the accounts in TRYON_DEBUG_USER_EMAILS, which
+        # DebugCapture itself enforces. One extra by-id lookup per job, only
+        # ever a no-op when the flag is off.
+        user = await session.get(User, job.user_id)
+        debug = DebugCapture(job.id, user.email if user else None)
+
         provider = get_tryon_provider()
         layers = await _garment_layers(session, job, provider.model, provider.whole_outfit)
 
@@ -316,7 +362,7 @@ async def run_tryon_job_async(job_id: str) -> None:
                     )
                     await session.commit()
                 else:
-                    image, ctype, kept = await _keep_person_if_on(job, output.image_bytes, output.content_type, full_layers)
+                    image, ctype, kept = await _keep_person_if_on(job, output.image_bytes, output.content_type, full_layers, debug)
                     await _complete_job(
                         session, job, image, ctype, full.name, full.model,
                         drawn=[layer.name for layer in full_layers], face_kept=kept,
@@ -361,7 +407,7 @@ async def run_tryon_job_async(job_id: str) -> None:
                 ]
                 async def _attempt(engine: VirtualTryOnProvider):
                     try:
-                        image, reports = await _render_with_engine(engine, person, items)
+                        image, reports = await _render_with_engine(engine, person, items, debug)
                         return engine.name, engine.model, image, reports, score_reports(reports)
                     except Exception as exc:  # noqa: BLE001 — collected below, not raised here
                         logger.warning(
@@ -407,22 +453,47 @@ async def run_tryon_job_async(job_id: str) -> None:
                     scores={name: round(score, 1) for name, _, _, _, score in won},
                     winner=winner_name,
                 )
-                kept_image, ctype, kept = await _keep_person_if_on(job, image, "image/jpeg", layers)
+                kept_image, ctype, kept = await _keep_person_if_on(job, image, "image/jpeg", layers, debug)
                 await _complete_job(
                     session, job, kept_image, ctype, winner_name, winner_model,
                     placements=_placements(layers, reports),
                     drawn=[layer.name for layer in layers], face_kept=kept,
                 )
+                await _log_distractor_ranks(session, job, kept_image, layers, reports)
                 return
 
             if provider.whole_outfit and not _quality_pipeline_on(provider):
                 # one render with every item at once (shoes, bags, jewellery too)
                 output = await provider.generate_outfit(model_url, _outfit_pieces(layers))
-                image, ctype, kept = await _keep_person_if_on(job, output.image_bytes, output.content_type, layers)
+                image, ctype, kept = await _keep_person_if_on(job, output.image_bytes, output.content_type, layers, debug)
                 await _complete_job(
                     session, job, image, ctype, provider.name, provider.model,
                     drawn=[layer.name for layer in layers], face_kept=kept,
                 )
+                return
+
+            if provider.supports_masked_edit and _quality_pipeline_on(provider) and settings.TRYON_RENDER_ENGINE == "zoned":
+                # each product's zone/layer/deformation read from its own
+                # photo, large-region products first, small-region ones in
+                # their own zoomed pass (see app/services/tryon_quality/zoned.py)
+                person = await asyncio.to_thread(get_storage().read, job.user_photo.storage_key)
+                image, reports = await render_zoned_look(
+                    person,
+                    [_look_item(layer) for layer in layers],
+                    _pipeline_edit_masked_batch(provider),
+                    retries=settings.TRYON_QUALITY_RETRIES,
+                    min_product=settings.TRYON_QUALITY_MIN_PRODUCT,
+                    min_other=settings.TRYON_QUALITY_MIN_FIT,
+                    budget_seconds=settings.TRYON_QUALITY_BUDGET_SECONDS,
+                    on_progress=_progress_writer(session, job),
+                    debug=debug,
+                )
+                await _complete_job(
+                    session, job, image, "image/jpeg", provider.name, provider.model,
+                    placements=_placements(layers, reports),
+                    drawn=[layer.name for layer in layers], face_kept=True,
+                )
+                await _log_distractor_ranks(session, job, image, layers, reports)
                 return
 
             if provider.supports_masked_edit and _quality_pipeline_on(provider):
@@ -440,12 +511,14 @@ async def run_tryon_job_async(job_id: str) -> None:
                     min_other=settings.TRYON_QUALITY_MIN_FIT,
                     budget_seconds=settings.TRYON_QUALITY_BUDGET_SECONDS,
                     on_progress=_progress_writer(session, job),
+                    debug=debug,
                 )
                 await _complete_job(
                     session, job, image, "image/jpeg", provider.name, provider.model,
                     placements=_placements(layers, reports),
                     drawn=[layer.name for layer in layers], face_kept=True,
                 )
+                await _log_distractor_ranks(session, job, image, layers, reports)
                 return
 
             if provider.preserves_person and _quality_pipeline_on(provider):
@@ -462,6 +535,7 @@ async def run_tryon_job_async(job_id: str) -> None:
                         min_other=settings.TRYON_QUALITY_MIN_FIT,
                         budget_seconds=settings.TRYON_QUALITY_BUDGET_SECONDS,
                         on_progress=_progress_writer(session, job),
+                        debug=debug,
                     )
                 except QualityFailure as exc:
                     await _fail_job(
@@ -473,12 +547,13 @@ async def run_tryon_job_async(job_id: str) -> None:
                         refund=True,
                     )
                     return
-                kept_image, ctype, kept = await _keep_person_if_on(job, image, "image/jpeg", layers)
+                kept_image, ctype, kept = await _keep_person_if_on(job, image, "image/jpeg", layers, debug)
                 await _complete_job(
                     session, job, kept_image, ctype, provider.name, provider.model,
                     placements=_placements(layers, reports),
                     drawn=[layer.name for layer in layers], face_kept=kept,
                 )
+                await _log_distractor_ranks(session, job, kept_image, layers, reports)
                 return
 
             if _quality_pipeline_on(provider):
@@ -502,6 +577,7 @@ async def run_tryon_job_async(job_id: str) -> None:
                         zoom_small=provider.whole_outfit,
                         budget_seconds=settings.TRYON_QUALITY_BUDGET_SECONDS,
                         on_progress=_progress_writer(session, job),
+                        debug=debug,
                     )
                 except QualityFailure as exc:
                     await _fail_job(
@@ -518,6 +594,7 @@ async def run_tryon_job_async(job_id: str) -> None:
                     placements=_placements(layers, reports),
                     drawn=[layer.name for layer in layers], face_kept=True,
                 )
+                await _log_distractor_ranks(session, job, image, layers, reports)
                 return
 
             # Multi-item outfits are rendered as a sequential chain: each
@@ -628,6 +705,79 @@ def _placements(layers: list[_Layer], reports: list[ItemReport]) -> list[dict]:
             }
         )
     return out
+
+
+async def _distractors_for(session, product: Product, limit: int = 8) -> list[Product]:  # noqa: ANN001
+    """The other active products in this one's own category — the catalog
+    has no stored "this is the exact result set a search returned", so
+    this is the closest always-available proxy for "the other results for
+    the same query": the same category filter search_service.search_products
+    itself would have applied."""
+    if not product.category_id:
+        return []
+    rows = await session.execute(
+        select(Product)
+        .where(Product.is_active.is_(True), Product.category_id == product.category_id, Product.id != product.id)
+        .limit(limit)
+    )
+    return list(rows.scalars().all())
+
+
+def _box_crop(image: np.ndarray, box) -> np.ndarray:  # noqa: ANN001
+    h, w = image.shape[:2]
+    x0, y0, x1, y1 = box.pixels(w, h)
+    return image[y0:y1, x0:x1]
+
+
+async def _distractor_images_for(session, job: TryOnJob, layer: _Layer) -> list:  # noqa: ANN001
+    """The real "other options" the client showed at selection time, if it
+    saved them (job.distractor_options, keyed by product_id) — the actual
+    distractor set this check was designed around. Falls back to the
+    same-category DB guess only when nothing was saved for this item (an
+    older client, or a wardrobe item with no search behind it at all)."""
+    saved = (job.distractor_options or {}).get(layer.product_id) if layer.product_id else None
+    if saved:
+        fetched = await asyncio.gather(
+            *(_download(_absolute_url(o["image_url"])) for o in saved if o.get("image_url")),
+            return_exceptions=True,
+        )
+        return [img for img in fetched if isinstance(img, np.ndarray)]
+
+    product = await session.get(Product, layer.product_id) if layer.product_id else None
+    if product is None:
+        return []
+    distractors = await _distractors_for(session, product)
+    fetched = await asyncio.gather(
+        *(_download(_absolute_url(p.primary_image_url)) for p in distractors if p.primary_image_url),
+        return_exceptions=True,
+    )
+    return [img for img in fetched if isinstance(img, np.ndarray)]
+
+
+async def _log_distractor_ranks(
+    session, job: TryOnJob, image_bytes: bytes, layers: list[_Layer], reports: list[ItemReport]
+) -> None:
+    """Shadow mode (TRYON_RANK_DISTRACTORS): logs how the rendered result
+    ranks the chosen product among its real distractors (or a same-category
+    guess — see _distractor_images_for), by CLIP embedding similarity —
+    never raises, never affects the job or the result. See
+    distractor_rank.py."""
+    if not settings.TRYON_RANK_DISTRACTORS:
+        return
+    try:
+        full = decode(image_bytes)
+        for layer, report in zip(layers, reports):
+            if not report.verified or report.box is None or layer.product_id is None:
+                continue
+            distractor_images = await _distractor_images_for(session, job, layer)
+            if not distractor_images:
+                continue
+            crop = _box_crop(full, report.box)
+            product_image = await _download(_absolute_url(layer.image_url))
+            result = rank_against_distractors(crop, product_image, distractor_images)
+            log_distractor_rank(job.id, layer.name, result)
+    except Exception as exc:  # noqa: BLE001 — a shadow-mode signal must never affect a real job
+        logger.warning("tryon_distractor_rank_failed", job_id=job.id, error=str(exc)[:200])
 
 
 async def _complete_job(  # noqa: ANN001

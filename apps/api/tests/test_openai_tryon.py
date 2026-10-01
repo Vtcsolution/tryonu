@@ -445,3 +445,39 @@ async def test_masked_prompt_carries_a_correction_note():
 
     prompt = masked_prompt(OutfitPiece("https://img/w.jpg", "watch", "Watch", note="dial is the wrong colour"))
     assert "Correction from the previous attempt: dial is the wrong colour" in prompt
+
+
+async def test_edit_masked_batch_sends_the_person_every_product_and_one_mask(monkeypatch):
+    """The zoned pipeline's batched call — never used by masked.py's own
+    single-item edit_masked(). One mask, several product images."""
+    edits: list[httpx.Request] = []
+    _patch_transport(monkeypatch, _image_handler(edits))
+    provider = OpenAIImageTryOnProvider(api_key="sk-test", model="gpt-image-1")
+
+    pieces = [
+        OutfitPiece("https://img/watch.jpg", "watch", "Bulova Watch"),
+        OutfitPiece("https://img/ring.jpg", "accessory", "Gold Ring"),
+    ]
+    out = await provider.edit_masked_batch(b"\x89PNGfake-person", b"\x89PNGfake-mask", pieces)
+
+    assert out.image_bytes == RESULT
+    assert len(edits) == 1
+    body = edits[0].content
+    assert body.count(b'name="image[]"') == 3  # person + 2 products
+    assert b'name="mask"' in body
+    assert b"\x89PNGfake-mask" in body
+
+
+def test_masked_prompt_batch_names_every_product_and_its_own_window():
+    from app.ai.providers.openai_image import masked_prompt_batch
+
+    prompt = masked_prompt_batch(
+        [
+            OutfitPiece("https://img/w.jpg", "watch", "Bulova Watch"),
+            OutfitPiece("https://img/r.jpg", "accessory", "Gold Ring", note="too thin"),
+        ]
+    )
+    assert "2 separate, disjoint regions" in prompt
+    assert "Bulova Watch" in prompt and "Gold Ring" in prompt
+    assert "Correction from the previous attempt: too thin" in prompt
+    assert "not any other product's region" in prompt

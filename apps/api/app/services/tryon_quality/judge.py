@@ -21,7 +21,9 @@ from dataclasses import dataclass, field
 import cv2
 import numpy as np
 
+from app.core.logging import logger
 from app.services.tryon_quality.compose import Region
+from app.services.tryon_quality.cutout import product_cutout_mask
 from app.services.tryon_quality.vision import VisionError, ask_json, image_part
 
 _INSTRUCTIONS = (
@@ -65,26 +67,27 @@ class Verdict:
         )
 
 
-def _dominant_lab(img: np.ndarray) -> tuple[float, float, float]:
-    """The median L*a*b* of `img`'s pixels, excluding a white/light-grey
-    studio backdrop.
+def _dominant_lab(img: np.ndarray, mask: np.ndarray | None = None) -> tuple[float, float, float]:
+    """The median L*a*b* of `img`'s pixels where `mask` (0..255) is
+    foreground, or of every pixel when no mask is given.
 
-    A product photo is almost always shot on exactly that backdrop, and
-    it is usually the majority of the frame by area — splitting on
-    "more/less saturated than this image's own median" breaks exactly
-    when the product is the minority of pixels, since the median then
-    falls inside the background itself. Excluding on bright-AND-neutral
-    together, instead, targets a white/grey backdrop specifically,
-    whatever colour the product is — including a black or grey product,
-    which a saturation-only split would have excluded too."""
+    An earlier version of this function tried to guess the backdrop by
+    brightness and saturation alone ("bright and near-neutral = studio
+    wall") — it silently excluded white, cream, silver and light-grey
+    PRODUCTS too, since they look exactly like a bright neutral backdrop
+    by that same measure. There is no way to tell a white product from a
+    white wall by colour statistics alone; a real foreground mask
+    (product_cutout_mask, a real background-removal model) is the only
+    thing that works for a product of any colour. No mask is needed for
+    a result crop that is already cropped to the item's own region —
+    every pixel there is already "inside the mask"."""
     lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB).astype(np.float32)
-    lightness = lab[..., 0]
-    a, b = lab[..., 1] - 128.0, lab[..., 2] - 128.0
-    saturation = np.hypot(a, b)
-    backdrop = (lightness > 200) & (saturation < 10)
-    keep = ~backdrop
-    if keep.sum() < 50:
-        keep = np.ones_like(keep, dtype=bool)
+    if mask is None:
+        keep = np.ones(img.shape[:2], dtype=bool)
+    else:
+        keep = mask > 127
+        if keep.sum() < 50:
+            keep = np.ones(img.shape[:2], dtype=bool)
     return tuple(float(np.median(lab[..., c][keep])) for c in range(3))
 
 
@@ -154,12 +157,19 @@ def _delta_e_ciede2000(lab1: tuple[float, float, float], lab2: tuple[float, floa
 _COLOR_FAIL_DELTA_E = 18.0
 
 
-def color_mismatch(result_crop: np.ndarray, product: np.ndarray) -> float | None:
+def color_mismatch(result_crop: np.ndarray, product: np.ndarray, product_image_url: str) -> float:
     """How far the result's own dominant colour is from the product
-    photo's, as a perceptual CIEDE2000 distance. None only when there
-    isn't enough of either image to form an estimate (never asks what
-    kind of product this is)."""
-    return _delta_e_ciede2000(_dominant_lab(result_crop), _dominant_lab(product))
+    photo's, as a perceptual CIEDE2000 distance (never asks what kind of
+    product this is).
+
+    The product side uses a real foreground cutout (product_cutout_mask,
+    cached forever per product image) so the backdrop never pollutes the
+    estimate, whatever colour the product itself is — including a white
+    product on a white backdrop. The result side uses every pixel in
+    `result_crop` unmasked: it's already cropped to the item's own
+    region, so every pixel in it already counts as "inside the mask"."""
+    product_mask = product_cutout_mask(product, product_image_url)
+    return _delta_e_ciede2000(_dominant_lab(result_crop), _dominant_lab(product, product_mask))
 
 
 def _local_lab_diff(a: np.ndarray, b: np.ndarray, blur: float = 1.5) -> np.ndarray:
@@ -182,6 +192,82 @@ def region_was_touched(before: np.ndarray, after: np.ndarray, *, min_share: floa
     changed = (diff > 20.0).astype(np.uint8)
     changed = cv2.morphologyEx(changed, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
     return bool(changed.sum() / changed.size >= min_share)
+
+
+def _gradient_magnitude(img: np.ndarray) -> np.ndarray:
+    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB).astype(np.float32)
+    mag = np.zeros(img.shape[:2], np.float32)
+    for c in range(3):
+        gx = cv2.Sobel(lab[..., c], cv2.CV_32F, 1, 0, ksize=3)
+        gy = cv2.Sobel(lab[..., c], cv2.CV_32F, 0, 1, ksize=3)
+        mag += gx * gx + gy * gy
+    return np.sqrt(mag)
+
+
+def _band_kernel(radius: int) -> np.ndarray:
+    size = 2 * radius + 1
+    return cv2.getStructuringElement(cv2.MORPH_RECT, (size, size))
+
+
+def seam_score(image: np.ndarray, region: Region, band: int = 2) -> float:
+    """How much more a thin ring straddling the pasted region's own
+    rectangle boundary stands out, in local edge strength, than the
+    pixels immediately inside and immediately outside it.
+
+    A hard paste — a straight rectangle cut, or a feather too narrow to
+    hide a colour/lighting mismatch — leaves a ring of elevated local
+    contrast that traces the paste boundary exactly, on all four sides,
+    regardless of what the product is. A garment's own real edge (a hem,
+    a collar, a sleeve cuff) creates local contrast too, but not one that
+    happens to coincide with this box's own rectangle; comparing the
+    boundary ring to the bands just inside and just outside it (not to
+    the image as a whole, which has its own unrelated texture) is what
+    makes this product-agnostic: it never asks what kind of edge this is,
+    only whether an edge exists exactly where a paste would leave one.
+
+    Never asked what the product is, so it's as valid for a watch as a
+    gown. Returns 0.0 when the box reaches the photo's own edge — there's
+    no "outside" band left to compare against on that side."""
+    h, w = image.shape[:2]
+    x0, y0, x1, y1 = region.pixels(w, h)
+    margin = band * 3
+    if x0 < margin or y0 < margin or x1 > w - margin or y1 > h - margin or x1 - x0 <= margin * 2 or y1 - y0 <= margin * 2:
+        return 0.0
+    rect = np.zeros((h, w), np.uint8)
+    rect[y0:y1, x0:x1] = 1
+    k1, k2 = _band_kernel(band), _band_kernel(band * 2)
+    dilated1, eroded1 = cv2.dilate(rect, k1), cv2.erode(rect, k1)
+    dilated2, eroded2 = cv2.dilate(rect, k2), cv2.erode(rect, k2)
+    boundary = (dilated1 > 0) & (eroded1 == 0)
+    inner_ring = (eroded1 > 0) & (eroded2 == 0)
+    outer_ring = (dilated2 > 0) & (dilated1 == 0)
+    mag = _gradient_magnitude(image)
+    # The boundary ring is a few pixels wide so it reliably straddles the
+    # true edge, but that means most of its own pixels still sit a little
+    # off that edge, in flat territory either side of it — a median over
+    # the whole ring is dominated by those, not by the edge itself. A high
+    # percentile picks out the ring's own sharpest pixels, which is what a
+    # hard paste's edge actually looks like; the baseline bands have no
+    # edge to find in the first place, so their median is the right,
+    # noise-robust read of their ordinary local texture.
+    boundary_level = float(np.percentile(mag[boundary], 90)) if boundary.any() else 0.0
+    baseline = max(
+        float(np.median(mag[inner_ring])) if inner_ring.any() else 0.0,
+        float(np.median(mag[outer_ring])) if outer_ring.any() else 0.0,
+        1e-6,
+    )
+    return boundary_level / baseline
+
+
+# Shadow mode, like distractor ranking: logged on every judge() call so a
+# real threshold can be calibrated from actual passing and failing renders
+# once enough of them exist, not guessed at from synthetic tests alone.
+# Not yet wired to fail anything.
+_SEAM_RATIO_WORTH_LOGGING = 2.0
+
+
+def has_seam(image: np.ndarray, region: Region, band: int = 4, threshold: float = 2.5) -> bool:
+    return seam_score(image, region, band) >= threshold
 
 
 def _crop(img: np.ndarray, region: Region, pad: float = 0.6) -> np.ndarray:
@@ -224,7 +310,8 @@ async def judge(
     after: np.ndarray,
     region: Region,
     description: str,
-    small_item: bool = False,
+    small_item: bool,
+    product_image_url: str,
 ) -> Verdict:
     before_crop, after_crop = _crop(before, region), _crop(after, region)
     answer = await ask_json(
@@ -254,10 +341,19 @@ async def judge(
         product_match = 0.0
         issues = ["nothing changed in this item's own region — it was never drawn"] + issues
     else:
-        delta_e = color_mismatch(after_crop, product)
-        if delta_e is not None and delta_e >= _COLOR_FAIL_DELTA_E:
+        delta_e = color_mismatch(after_crop, product, product_image_url)
+        if delta_e >= _COLOR_FAIL_DELTA_E:
             product_match = min(product_match, 3.0)
             issues = [f"colour does not match the product photo (ΔE {delta_e:.0f})"] + issues
+
+    # Shadow mode: logged only, not yet a failure — see has_seam()'s own
+    # docstring and _SEAM_RATIO_WORTH_LOGGING. Calibrate a real fail
+    # threshold once enough real seam/clean pairs exist; a synthetic test
+    # can prove the signal fires on an obvious hard paste, not what ratio
+    # a genuine one comes back at.
+    seam = seam_score(after, region)
+    if seam >= _SEAM_RATIO_WORTH_LOGGING:
+        logger.info("tryon_seam_signal", region=str(region), seam_score=round(seam, 2))
 
     return Verdict(
         product_match=product_match,

@@ -186,6 +186,29 @@ class Settings(BaseSettings):
     # skipped and its result ships as is.
     TRYON_QUALITY_BEST_OF_SKIP_SCORE: int = 8  # 0-10, same scale as Verdict.score
     EMBEDDING_DIM: int = 1536
+    # Per-job debug images (input, each provider output, after alignment,
+    # after keep_person, after each paste-back, the masks used) under a
+    # private storage prefix — see app/services/tryon_quality/debug_capture.py.
+    # Off by default, and even when on, only ever for the accounts listed in
+    # TRYON_DEBUG_USER_EMAILS: production users' photos are private and
+    # nothing here is allowed to capture them.
+    TRYON_SAVE_DEBUG: bool = False
+    TRYON_DEBUG_USER_EMAILS: str = ""  # comma-separated allowlist
+    TRYON_DEBUG_RETENTION_DAYS: int = 7
+    # Shadow-mode distractor ranking (see tryon_quality/distractor_rank.py):
+    # CLIP image embeddings score how the chosen product ranks among the
+    # other results for the same search — logged only, never a failure, until
+    # enough real-job data exists to calibrate a threshold.
+    TRYON_RANK_DISTRACTORS: bool = True
+    # "auto": today's provider-capability dispatch (masked/whole-look/
+    # change-detection, see tryon_tasks._render_with_engine). "zoned":
+    # app/services/tryon_quality/zoned.py — each product's zone/layer/
+    # deformation read from its own photo, large-region products first
+    # (max 3/call), every small-region product in its own zoomed pass (max
+    # 2-3/call), pixel-locked to the original photo's own resolution
+    # throughout. Only takes effect for a provider that supports real
+    # masked editing (same requirement as "auto"'s masked.py branch).
+    TRYON_RENDER_ENGINE: Literal["auto", "zoned"] = "auto"
 
     # --- retailer / affiliate credentials (each optional; the adapter
     # skips itself with a clear message when unset — see app/retailers/*) ---

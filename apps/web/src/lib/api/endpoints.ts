@@ -19,6 +19,7 @@ import type {
   CreditBalance,
   CreditPackage,
   CreditTransaction,
+  DistractorOption,
   FittingProfileStatus,
   ForYouFeed,
   LiveProduct,
@@ -298,8 +299,15 @@ export const outfits = {
 /* --------------------------------- try-on ---------------------------------- */
 
 export const tryon = {
-  create: (input: { user_photo_id: string; product_id?: string; outfit_id?: string; wardrobe_item_id?: string }) =>
-    apiFetch<TryOnJob>("/api/v1/tryon", { method: "POST", body: input }),
+  create: (input: {
+    user_photo_id: string;
+    product_id?: string;
+    outfit_id?: string;
+    wardrobe_item_id?: string;
+    // The "other options" shown alongside each selected item, keyed by
+    // that item's product id — see DistractorOption's own comment.
+    distractor_options?: Record<string, DistractorOption[]>;
+  }) => apiFetch<TryOnJob>("/api/v1/tryon", { method: "POST", body: input }),
 
   // One job per photo angle (e.g. front + back) — same product/outfit,
   // charged per job. See POST /tryon/multi.
@@ -308,6 +316,7 @@ export const tryon = {
     product_id?: string;
     outfit_id?: string;
     wardrobe_item_id?: string;
+    distractor_options?: Record<string, DistractorOption[]>;
   }) => apiFetch<TryOnJob[]>("/api/v1/tryon/multi", { method: "POST", body: input }),
 
   get: (jobId: string) => apiFetch<TryOnJob>(`/api/v1/tryon/${jobId}`),

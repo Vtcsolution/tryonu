@@ -12,11 +12,24 @@ from app.schemas.product import ProductOut
 from app.schemas.wardrobe import WardrobeItemOut
 
 
+class DistractorOption(BaseModel):
+    """One of the "other options" the client showed alongside a selected
+    item, at the moment of selection — used as the real distractor set
+    for the shadow-mode identity check instead of a same-category guess."""
+
+    product_id: str | None = None
+    image_url: str
+
+
 class CreateTryOnRequest(BaseModel):
     user_photo_id: str
     product_id: str | None = None
     outfit_id: str | None = None
     wardrobe_item_id: str | None = None
+    # Keyed by the product_id of the selected item ("other options" the
+    # shopper saw alongside it, newest first). Optional — an older client
+    # or a wardrobe item with no search behind it simply sends nothing.
+    distractor_options: dict[str, list[DistractorOption]] | None = None
 
 
 class CreateMultiTryOnRequest(BaseModel):
@@ -29,6 +42,7 @@ class CreateMultiTryOnRequest(BaseModel):
     product_id: str | None = None
     outfit_id: str | None = None
     wardrobe_item_id: str | None = None
+    distractor_options: dict[str, list[DistractorOption]] | None = None
 
 
 class ResultPlacement(BaseModel):

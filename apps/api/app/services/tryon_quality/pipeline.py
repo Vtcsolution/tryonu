@@ -56,6 +56,7 @@ from app.services.tryon_quality.compose import (
     sharpen_product,
     unpad_and_resize,
 )
+from app.services.tryon_quality.debug_capture import DebugCapture
 from app.services.tryon_quality.judge import Verdict, check_for_extra_items, judge
 from app.ai.providers.openai_image import MAX_PIECES
 from app.services.tryon_quality.locate import choose, find_body_part
@@ -301,6 +302,7 @@ async def render_look(
     zoom_small: bool = False,
     budget_seconds: float = 150.0,
     on_progress: ProgressFn | None = None,
+    debug: DebugCapture | None = None,
 ) -> tuple[bytes, list[ItemReport]]:
     """The look on the person's photo, with only the products taken from the
     renders, every item inspected, and anything that fails re-rendered or
@@ -315,6 +317,8 @@ async def render_look(
     """
     started = time.monotonic()
     base = _cap(decode(person))
+    if debug is not None:
+        debug.save("input", base)
     photo = base.copy()  # kept to find what the renders supplied, at the end
     face = detect_face(base)
     products = await asyncio.gather(*(_download(item.image_url) for item in items))
@@ -337,7 +341,7 @@ async def render_look(
         base = await _redo(
             base, face, items, products, descriptions, reports, todo,
             render, retries, min_product, min_other, zoom_small,
-            deadline=started + budget_seconds,
+            deadline=started + budget_seconds, debug=debug,
         )
     await _say(on_progress, "Finishing the photo")
 
@@ -362,6 +366,7 @@ async def _redo(
     min_other: float,
     zoom_small: bool,
     deadline: float,
+    debug: DebugCapture | None = None,
 ) -> np.ndarray:
     """The items that still need their own render, together.
 
@@ -377,7 +382,7 @@ async def _redo(
     async def one(index: int, fix: str, on: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         return await _render_one(
             on, face, items[index], products[index], descriptions[index], reports[index],
-            render, retries, min_product, min_other, zoom_small, fix, deadline,
+            render, retries, min_product, min_other, zoom_small, fix, deadline, debug=debug,
         )
 
     async def chain() -> np.ndarray:
@@ -625,7 +630,7 @@ async def _whole_look_pass(
             shown = match_product_colour(shown, garment_masks[index], products[index], name=item.name)
 
     verdicts = await asyncio.gather(
-        *(judge(product, base, shown, _box_of(changes, picked, item), description, item.slot in _SMALL)
+        *(judge(product, base, shown, _box_of(changes, picked, item), description, item.slot in _SMALL, item.image_url)
           for product, description, item, picked in zip(products, descriptions, items, picks)),
         return_exceptions=True,
     )
@@ -708,6 +713,7 @@ async def _render_one(
     zoom_small: bool,
     fix: str = "",
     deadline: float | None = None,
+    debug: DebugCapture | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """One item rendered on the current image, inspected, retried, or refused.
 
@@ -742,6 +748,8 @@ async def _render_one(
             )
         else:
             raw = decode(await render(encode_jpeg(_for_model(base), 95), item, hint))
+            if debug is not None:
+                debug.save("provider_output", raw, label=f"{item.name[:40]}_attempt{attempt + 1}")
             # a ring is ~15px across on a full-body photo: don't let the
             # noise filter throw it away with the specks
             changes = find_changes(
@@ -751,7 +759,12 @@ async def _render_one(
                 body=_body_area(face, base.shape[:2]),
                 min_share=0.00004 if item.slot in _SMALL else 0.0003,
             )
+            if debug is not None:
+                debug.save("after_alignment", changes.aligned, label=f"{item.name[:40]}_attempt{attempt + 1}")
             merged, region = await _take_product(changes, product, description, item)
+            if debug is not None and merged is not None:
+                debug.save("after_paste", merged.image, label=f"{item.name[:40]}_attempt{attempt + 1}")
+                debug.save("mask", (merged.mask * 255).astype(np.uint8), label=f"{item.name[:40]}_attempt{attempt + 1}")
         if merged is not None and item.slot in _GARMENTS:
             merged = Merge(
                 match_product_colour(merged.image, merged.mask, product, name=item.name),
@@ -772,7 +785,7 @@ async def _render_one(
             verdict = Verdict(0, 0, 0, ["the product was not drawn on the photo"])
         else:
             try:
-                verdict = await judge(product, base, merged.image, region, description, item.slot in _SMALL)
+                verdict = await judge(product, base, merged.image, region, description, item.slot in _SMALL, item.image_url)
             except VisionError as exc:
                 # the inspector is down — don't block the customer on our outage
                 logger.warning("tryon_judge_unavailable", item=item.name[:80], error=str(exc)[:200])
@@ -908,14 +921,21 @@ def _overlaps(a: Region, b: Region) -> bool:
     return a.x0 < b.x1 and b.x0 < a.x1 and a.y0 < b.y1 and b.y0 < a.y1
 
 
-async def keep_person(person: bytes, render_bytes: bytes, items: list[LookItem]) -> bytes:
+async def keep_person(
+    person: bytes, render_bytes: bytes, items: list[LookItem], *, debug: DebugCapture | None = None
+) -> bytes:
     """For a whole-look render made in one pass (OpenAI image editing): keep
     the person's own pixels everywhere except the products."""
     base = _cap(decode(person))
+    if debug is not None:
+        debug.save("input", base)
+        debug.save("provider_output", decode(render_bytes))
     face = detect_face(base)
     head_item = next((i for i in items if worn_on_head(i.name)), None)
     protect = _protect(face, head_item or items[0]) if items else []
     changes = find_changes(base, decode(render_bytes), protect)
+    if debug is not None:
+        debug.save("after_alignment", changes.aligned)
     picked: set[int] = set()
     for item in items:
         product = await _download(item.image_url)
@@ -923,7 +943,11 @@ async def keep_person(person: bytes, render_bytes: bytes, items: list[LookItem])
         merged, _ = await _take_product(changes, product, description, item)
         if merged is not None:
             picked |= {c.number for c in changes.candidates if _chosen_by(changes, merged, c)}
-    return encode_jpeg(changes.merge(sorted(picked)).image, 97)
+    result = changes.merge(sorted(picked))
+    if debug is not None:
+        debug.save("after_keep_person", result.image)
+        debug.save("mask", (result.mask * 255).astype(np.uint8))
+    return encode_jpeg(result.image, 97)
 
 
 def _chosen_by(changes: Changes, merged: Merge, candidate) -> bool:  # noqa: ANN001
@@ -962,6 +986,7 @@ async def render_whole_look(
     min_other: float = 6.0,
     budget_seconds: int = 90,
     on_progress: ProgressFn | None = None,
+    debug: DebugCapture | None = None,
 ) -> tuple[bytes, list[ItemReport]]:
     """The render used as it comes back, inspected, and corrected if wrong.
 
@@ -981,6 +1006,8 @@ async def render_whole_look(
     """
     started = time.monotonic()
     base = _cap(decode(person))
+    if debug is not None:
+        debug.save("input", base)
     reports = [ItemReport(name=item.name) for item in items]
 
     await _say(on_progress, "Reading each product photo")
@@ -1035,10 +1062,12 @@ async def render_whole_look(
             batch_items = [items[i] for i in batch]
             notes = [f"{descriptions[i]} {fixes[i]}".strip() if fixes[i] else descriptions[i] for i in batch]
             shown = await _render_padded(render_all, _cap(shown), batch_items, notes, base.shape[:2])
+            if debug is not None:
+                debug.save("provider_output", shown, label=f"batch{batch_start}_attempt{attempt + 1}")
 
             await _say(on_progress, "Checking every item against its product photo")
             verdicts = await asyncio.gather(
-                *(judge(products[i], base, shown, judge_regions[i], descriptions[i], items[i].slot in _SMALL) for i in batch),
+                *(judge(products[i], base, shown, judge_regions[i], descriptions[i], items[i].slot in _SMALL, items[i].image_url) for i in batch),
                 return_exceptions=True,
             )
 
@@ -1076,6 +1105,8 @@ async def render_whole_look(
             note = f"{descriptions[i]} {fixes[i]}".strip()
             try:
                 shown = await _render_padded(render_all, _cap(shown), [items[i]], [note], base.shape[:2])
+                if debug is not None:
+                    debug.save("provider_output", shown, label=f"{items[i].name[:40]}_solo")
             except Exception as exc:  # noqa: BLE001 — one item's failure must not lose the rest
                 logger.warning("tryon_whole_individual_failed", item=items[i].name[:60], error=str(exc)[:160])
                 reports[i].history.append(f"individual attempt failed ({str(exc)[:120]})")
@@ -1092,7 +1123,7 @@ async def render_whole_look(
         # attempts) keeps this to exactly as many checks as items redrawn.
         if retried:
             final = await asyncio.gather(
-                *(judge(products[i], base, shown, judge_regions[i], descriptions[i], items[i].slot in _SMALL) for i in retried),
+                *(judge(products[i], base, shown, judge_regions[i], descriptions[i], items[i].slot in _SMALL, items[i].image_url) for i in retried),
                 return_exceptions=True,
             )
             for i, verdict in zip(retried, final):
