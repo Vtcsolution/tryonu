@@ -200,6 +200,15 @@ class Settings(BaseSettings):
     # other results for the same search — logged only, never a failure, until
     # enough real-job data exists to calibrate a threshold.
     TRYON_RANK_DISTRACTORS: bool = True
+    # "auto": today's provider-capability dispatch (masked/whole-look/
+    # change-detection, see tryon_tasks._render_with_engine). "zoned":
+    # app/services/tryon_quality/zoned.py — each product's zone/layer/
+    # deformation read from its own photo, large-region products first
+    # (max 3/call), every small-region product in its own zoomed pass (max
+    # 2-3/call), pixel-locked to the original photo's own resolution
+    # throughout. Only takes effect for a provider that supports real
+    # masked editing (same requirement as "auto"'s masked.py branch).
+    TRYON_RENDER_ENGINE: Literal["auto", "zoned"] = "auto"
 
     # --- retailer / affiliate credentials (each optional; the adapter
     # skips itself with a clear message when unset — see app/retailers/*) ---

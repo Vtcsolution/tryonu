@@ -56,6 +56,7 @@ from app.services.tryon_quality.pipeline import (
     render_look,
     score_reports,
 )
+from app.services.tryon_quality.zoned import render_zoned_look
 
 settings = get_settings()
 MAX_ATTEMPTS = 3
@@ -180,6 +181,22 @@ def _pipeline_edit_masked(provider):  # noqa: ANN001, ANN202
     return edit
 
 
+def _pipeline_edit_masked_batch(provider):  # noqa: ANN001, ANN202
+    """How the zoned pipeline asks the provider to draw several items in
+    one call — see app/services/tryon_quality/zoned.py and
+    edit_masked_batch()'s own docstring for what this trades away."""
+
+    async def edit_batch(person_png: bytes, mask_png: bytes, pieces) -> bytes:  # noqa: ANN001
+        engine = _at_detail(provider) if any(p.detail for p in pieces) else provider
+        outfit_pieces = [
+            OutfitPiece(p.item.image_url, p.item.slot.value, p.item.name, note=p.fix, description=p.description)
+            for p in pieces
+        ]
+        return (await engine.edit_masked_batch(person_png, mask_png, outfit_pieces)).image_bytes
+
+    return edit_batch
+
+
 def _progress_writer(session, job: TryOnJob):  # noqa: ANN001, ANN202
     """Writes what the render is doing onto the job the client polls."""
 
@@ -203,6 +220,17 @@ async def _render_with_engine(
     own, the merge-based pipeline for one that does neither. No progress
     is written here — two of these run concurrently against one job row,
     and committing from both at once isn't safe on one AsyncSession."""
+    if provider.supports_masked_edit and settings.TRYON_RENDER_ENGINE == "zoned":
+        return await render_zoned_look(
+            person,
+            items,
+            _pipeline_edit_masked_batch(provider),
+            retries=settings.TRYON_QUALITY_RETRIES,
+            min_product=settings.TRYON_QUALITY_MIN_PRODUCT,
+            min_other=settings.TRYON_QUALITY_MIN_FIT,
+            budget_seconds=settings.TRYON_QUALITY_BUDGET_SECONDS,
+            debug=debug,
+        )
     if provider.supports_masked_edit:
         return await render_masked_look(
             person,
@@ -442,6 +470,30 @@ async def run_tryon_job_async(job_id: str) -> None:
                     session, job, image, ctype, provider.name, provider.model,
                     drawn=[layer.name for layer in layers], face_kept=kept,
                 )
+                return
+
+            if provider.supports_masked_edit and _quality_pipeline_on(provider) and settings.TRYON_RENDER_ENGINE == "zoned":
+                # each product's zone/layer/deformation read from its own
+                # photo, large-region products first, small-region ones in
+                # their own zoomed pass (see app/services/tryon_quality/zoned.py)
+                person = await asyncio.to_thread(get_storage().read, job.user_photo.storage_key)
+                image, reports = await render_zoned_look(
+                    person,
+                    [_look_item(layer) for layer in layers],
+                    _pipeline_edit_masked_batch(provider),
+                    retries=settings.TRYON_QUALITY_RETRIES,
+                    min_product=settings.TRYON_QUALITY_MIN_PRODUCT,
+                    min_other=settings.TRYON_QUALITY_MIN_FIT,
+                    budget_seconds=settings.TRYON_QUALITY_BUDGET_SECONDS,
+                    on_progress=_progress_writer(session, job),
+                    debug=debug,
+                )
+                await _complete_job(
+                    session, job, image, "image/jpeg", provider.name, provider.model,
+                    placements=_placements(layers, reports),
+                    drawn=[layer.name for layer in layers], face_kept=True,
+                )
+                await _log_distractor_ranks(session, job, image, layers, reports)
                 return
 
             if provider.supports_masked_edit and _quality_pipeline_on(provider):

@@ -94,3 +94,15 @@ class VirtualTryOnProvider(ABC):
         """One product, drawn only where `mask_png`'s alpha is
         transparent. Only meaningful when supports_masked_edit is True."""
         raise NotImplementedError
+
+    async def edit_masked_batch(self, person_png: bytes, mask_png: bytes, pieces: list[OutfitPiece]) -> TryOnOutput:
+        """Several products in ONE real alpha-mask edit call — `mask_png`
+        has one disjoint transparent window per product. Used by the
+        zoned pipeline's large/small-region batching
+        (app/services/tryon_quality/zoned.py) to turn "max 3 per call"
+        into an actual reduction in paid image-generation calls, not just
+        shared concurrency. Never called by masked.py's own single-item
+        path. Only meaningful when supports_masked_edit is True; a
+        provider that doesn't implement this (every one but OpenAI, as of
+        this writing) simply can't be used with TRYON_RENDER_ENGINE=zoned."""
+        raise NotImplementedError
