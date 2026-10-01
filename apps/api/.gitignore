@@ -9,3 +9,4 @@ storage/
 .ruff_cache/
 *.egg-info/
 data/geoip/
+data/clip/

@@ -12,6 +12,7 @@ import base64
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 
+import numpy as np
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -40,7 +41,9 @@ from app.services.outfit_slots import (
     worn_on_head,
 )
 from app.services.storage_service import get_storage, new_key
+from app.services.tryon_quality.compose import decode
 from app.services.tryon_quality.debug_capture import DebugCapture
+from app.services.tryon_quality.distractor_rank import log_distractor_rank, rank_against_distractors
 from app.services.tryon_quality.masked import render_masked_look
 from app.services.tryon_quality.pipeline import (
     render_whole_look,
@@ -48,6 +51,7 @@ from app.services.tryon_quality.pipeline import (
     LookItem,
     QualityFailure,
     RenderHint,
+    _download,
     keep_person,
     render_look,
     score_reports,
@@ -427,6 +431,7 @@ async def run_tryon_job_async(job_id: str) -> None:
                     placements=_placements(layers, reports),
                     drawn=[layer.name for layer in layers], face_kept=kept,
                 )
+                await _log_distractor_ranks(session, job, kept_image, layers, reports)
                 return
 
             if provider.whole_outfit and not _quality_pipeline_on(provider):
@@ -461,6 +466,7 @@ async def run_tryon_job_async(job_id: str) -> None:
                     placements=_placements(layers, reports),
                     drawn=[layer.name for layer in layers], face_kept=True,
                 )
+                await _log_distractor_ranks(session, job, image, layers, reports)
                 return
 
             if provider.preserves_person and _quality_pipeline_on(provider):
@@ -495,6 +501,7 @@ async def run_tryon_job_async(job_id: str) -> None:
                     placements=_placements(layers, reports),
                     drawn=[layer.name for layer in layers], face_kept=kept,
                 )
+                await _log_distractor_ranks(session, job, kept_image, layers, reports)
                 return
 
             if _quality_pipeline_on(provider):
@@ -535,6 +542,7 @@ async def run_tryon_job_async(job_id: str) -> None:
                     placements=_placements(layers, reports),
                     drawn=[layer.name for layer in layers], face_kept=True,
                 )
+                await _log_distractor_ranks(session, job, image, layers, reports)
                 return
 
             # Multi-item outfits are rendered as a sequential chain: each
@@ -645,6 +653,63 @@ def _placements(layers: list[_Layer], reports: list[ItemReport]) -> list[dict]:
             }
         )
     return out
+
+
+async def _distractors_for(session, product: Product, limit: int = 8) -> list[Product]:  # noqa: ANN001
+    """The other active products in this one's own category — the catalog
+    has no stored "this is the exact result set a search returned", so
+    this is the closest always-available proxy for "the other results for
+    the same query": the same category filter search_service.search_products
+    itself would have applied."""
+    if not product.category_id:
+        return []
+    rows = await session.execute(
+        select(Product)
+        .where(Product.is_active.is_(True), Product.category_id == product.category_id, Product.id != product.id)
+        .limit(limit)
+    )
+    return list(rows.scalars().all())
+
+
+def _box_crop(image: np.ndarray, box) -> np.ndarray:  # noqa: ANN001
+    h, w = image.shape[:2]
+    x0, y0, x1, y1 = box.pixels(w, h)
+    return image[y0:y1, x0:x1]
+
+
+async def _log_distractor_ranks(
+    session, job: TryOnJob, image_bytes: bytes, layers: list[_Layer], reports: list[ItemReport]
+) -> None:
+    """Shadow mode (TRYON_RANK_DISTRACTORS): logs how the rendered result
+    ranks the chosen product among same-category distractors, by CLIP
+    embedding similarity — never raises, never affects the job or the
+    result. See distractor_rank.py."""
+    if not settings.TRYON_RANK_DISTRACTORS:
+        return
+    try:
+        full = decode(image_bytes)
+        for layer, report in zip(layers, reports):
+            if not report.verified or report.box is None or layer.product_id is None:
+                continue
+            product = await session.get(Product, layer.product_id)
+            if product is None:
+                continue
+            distractors = await _distractors_for(session, product)
+            if not distractors:
+                continue
+            crop = _box_crop(full, report.box)
+            product_image = await _download(_absolute_url(layer.image_url))
+            fetched = await asyncio.gather(
+                *(_download(_absolute_url(p.primary_image_url)) for p in distractors if p.primary_image_url),
+                return_exceptions=True,
+            )
+            distractor_images = [img for img in fetched if isinstance(img, np.ndarray)]
+            if not distractor_images:
+                continue
+            result = rank_against_distractors(crop, product_image, distractor_images)
+            log_distractor_rank(job.id, layer.name, result)
+    except Exception as exc:  # noqa: BLE001 — a shadow-mode signal must never affect a real job
+        logger.warning("tryon_distractor_rank_failed", job_id=job.id, error=str(exc)[:200])
 
 
 async def _complete_job(  # noqa: ANN001
