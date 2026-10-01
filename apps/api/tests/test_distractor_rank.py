@@ -117,3 +117,34 @@ async def test_saved_distractor_options_are_used_instead_of_the_category_fallbac
 
     assert len(images) == 2
     assert calls == ["https://img.example/a.jpg", "https://img.example/b.jpg"]
+
+
+# ------------------------------------- _distractors_for eager-loads images
+#
+# Live bug (2026-10-01): session.get(Product, ...) and the category query
+# both fetched a Product without its `images` relationship loaded;
+# .primary_image_url then lazy-loads it, which an AsyncSession refuses to
+# do implicitly ("greenlet_spawn has not been called") -- caught live,
+# after deploy, as tryon_distractor_rank_failed on every real job that hit
+# the same-category fallback.
+
+
+async def test_distractors_for_can_read_primary_image_url_without_a_lazy_load_error(db):
+    from tests.conftest import seed_product
+    from app.models.retailer import ProductCategory
+    from app.workers.tasks.tryon_tasks import _distractors_for
+
+    category = ProductCategory(slug="kurtis", name="Kurtis")
+    db.add(category)
+    await db.commit()
+
+    chosen = await seed_product(db, name="Chosen Kurti", image_url="https://img.example/chosen.jpg")
+    other = await seed_product(db, name="Other Kurti", image_url="https://img.example/other.jpg")
+    chosen.category_id = other.category_id = category.id
+    await db.commit()
+    await db.refresh(chosen)
+
+    distractors = await _distractors_for(db, chosen)
+
+    assert len(distractors) == 1
+    assert distractors[0].primary_image_url == "https://img.example/other.jpg"  # must not raise a lazy-load error

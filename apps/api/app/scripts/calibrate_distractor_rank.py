@@ -25,6 +25,7 @@ import statistics
 import sys
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.db.session import AsyncSessionLocal
 from app.models.enums import JobStatus
@@ -67,7 +68,9 @@ async def main(limit: int) -> int:
             for placement in result.placements or []:
                 if not placement.get("drawn") or not placement.get("product_id") or not placement.get("box"):
                     continue
-                product = await session.get(Product, placement["product_id"])
+                product = await session.get(
+                    Product, placement["product_id"], options=[selectinload(Product.images)]
+                )
                 if product is None:
                     continue
                 # The real "other options" the client saved at selection
