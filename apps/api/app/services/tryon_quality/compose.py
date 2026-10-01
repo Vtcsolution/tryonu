@@ -64,6 +64,75 @@ def encode_jpeg(img: np.ndarray, quality: int = 94) -> bytes:
     return buf.tobytes()
 
 
+_RATIO_BUCKETS = {"portrait": (3, 4), "landscape": (4, 3), "square": (1, 1)}
+
+
+def ratio_bucket(w: int, h: int) -> tuple[int, int]:
+    """Which of the three aspect-ratio buckets (portrait 3:4, landscape
+    4:3, square 1:1) a photo's own ratio is closest to. Both the OpenAI
+    and Gemini image adapters already request their output at one of
+    exactly these three (same 1.15/0.87 thresholds in each) — shared here
+    so padding a photo before a call and the bucket the provider will
+    actually answer in are guaranteed to be the same one, never a
+    guess that happens to differ from the provider's own rounding."""
+    ratio = w / h
+    if ratio > 1.15:
+        return _RATIO_BUCKETS["landscape"]
+    if ratio < 0.87:
+        return _RATIO_BUCKETS["portrait"]
+    return _RATIO_BUCKETS["square"]
+
+
+def pad_to_ratio(img: np.ndarray, ratio: tuple[int, int]) -> tuple[np.ndarray, tuple[int, int, int, int]]:
+    """`img` letterboxed (edges replicated, not a hard colour) to exactly
+    `ratio` (w:h), centred. Returns the padded image and the (top, bottom,
+    left, right) pixels added, so the padding can be removed exactly
+    later — the alternative, resizing the photo itself to the provider's
+    chosen ratio, stretches a real person non-uniformly whenever their
+    photo's own ratio doesn't already match one of the three buckets."""
+    h, w = img.shape[:2]
+    rw, rh = ratio
+    target, current = rw / rh, w / h
+    if abs(target - current) < 1e-3:
+        return img, (0, 0, 0, 0)
+    if current < target:
+        pad = max(0, round(h * target) - w)
+        left, right = pad // 2, pad - pad // 2
+        top = bottom = 0
+    else:
+        pad = max(0, round(w / target) - h)
+        top, bottom = pad // 2, pad - pad // 2
+        left = right = 0
+    padded = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_REFLECT_101)
+    return padded, (top, bottom, left, right)
+
+
+def unpad_and_resize(
+    img: np.ndarray,
+    padding: tuple[int, int, int, int],
+    padded_size: tuple[int, int],
+    out_size: tuple[int, int],
+) -> np.ndarray:
+    """The padding pad_to_ratio recorded, mapped onto `img`'s own
+    resolution — the model's own output is rarely the exact pixel size of
+    what was sent, so the padding fraction, not the raw pixel count, is
+    what has to carry over — removed, then one single uniform (aspect-
+    preserving by construction, since the crop above is already the
+    original photo's own ratio) resize to `out_size`. This replaces a
+    straight `cv2.resize(render, (w, h))` to a possibly different ratio,
+    which silently stretched the person whenever the model's answer
+    wasn't already the same shape as the base photo."""
+    top, bottom, left, right = padding
+    pw, ph = padded_size
+    sy, sx = img.shape[0] / ph, img.shape[1] / pw
+    t, b, l, r = round(top * sy), round(bottom * sy), round(left * sx), round(right * sx)
+    h, w = img.shape[:2]
+    cropped = img[t : h - b, l : w - r]
+    if cropped.size == 0:
+        cropped = img  # padding fractions didn't survive the resize sanely — safer than an empty image
+    return cv2.resize(cropped, out_size, interpolation=cv2.INTER_LANCZOS4)
+
+
 def align(render: np.ndarray, base: np.ndarray) -> tuple[np.ndarray, float]:
     """The render warped onto the base's pixel grid, and how well they line
     up (0..1, share of feature matches consistent with the transform).

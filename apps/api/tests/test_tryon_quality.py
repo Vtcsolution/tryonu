@@ -390,7 +390,10 @@ async def test_the_photo_sent_to_the_model_keeps_working_resolution(fake_vision,
     """MODEL_SIDE (1024px) downscaling is sound for render_look, which
     merges a small product patch back onto the full-size original — this
     engine has no merge step of its own, so whatever it's handed to work
-    with is the ceiling for the whole final photo, the garment included."""
+    with is the ceiling for the whole final photo, the garment included.
+    The photo is also padded to the nearest aspect bucket before sending
+    (see the padding tests below) — its height stays at full working
+    resolution either way; only the width grows to reach that bucket."""
     big_person = cv2.resize(_person(), (1000, 1500), interpolation=cv2.INTER_CUBIC)  # bigger than MODEL_SIDE
     fake_vision.append(GOOD)
     sizes_seen: list[tuple[int, int]] = []
@@ -402,7 +405,8 @@ async def test_the_photo_sent_to_the_model_keeps_working_resolution(fake_vision,
 
     item = pipeline.LookItem("https://img.example/watch.jpg", OutfitSlot.WATCH, "Item")
     await pipeline.render_whole_look(encode_jpeg(big_person, 97), [item], render_all, retries=0)
-    assert sizes_seen[0] == (1500, 1000)  # not shrunk to MODEL_SIDE=1024
+    assert sizes_seen[0][0] == 1500  # height: not shrunk to MODEL_SIDE=1024
+    assert sizes_seen[0][1] >= 1000  # width: at least the original, padded wider to reach the 3:4 bucket
 
 
 async def test_an_item_nobody_selected_fails_the_whole_render(fake_vision, monkeypatch):
@@ -474,6 +478,52 @@ async def test_an_individually_retried_item_that_now_passes_is_verified(fake_vis
     _, reports = await pipeline.render_whole_look(encode_jpeg(_person(), 97), items, render_all, retries=0)
     assert reports[0].verified and reports[0].box is not None
     assert reports[1].verified and reports[1].box is not None  # fixed by its own solo attempt
+
+
+async def test_a_provider_answering_in_a_different_aspect_does_not_break_identity(fake_vision, monkeypatch):
+    """The real regression: render_whole_look's output feeds straight into
+    keep_person() in the actual job path (tryon_tasks.py), never tested
+    together before this. A provider that rounds the photo it's given to
+    its own nearest aspect bucket used to come back a different shape than
+    it went in; keep_person's align() fixed that with a plain
+    cv2.resize(render, (w, h)) — stretching the person non-uniformly to
+    force the shapes to match. This runs the real pipeline end to end,
+    including the real (unmocked) find_changes/align compositing, and
+    checks the one thing that must never move: the face."""
+    from app.services.tryon_quality import compose
+
+    sent_ratios: list[float] = []
+
+    async def render_all(base_jpeg, items, descriptions):  # noqa: ARG001
+        sent = cv2.imdecode(np.frombuffer(base_jpeg, np.uint8), cv2.IMREAD_COLOR)
+        sh, sw = sent.shape[:2]
+        sent_ratios.append(sw / sh)
+        # a real provider: keeps the aspect it was sent, answers at its
+        # own resolution (here: a deliberately different one, ~1024px on
+        # the long side) — never the same pixel size as the input.
+        scale = 1024 / max(sh, sw)
+        resized = cv2.resize(sent, (round(sw * scale), round(sh * scale)), interpolation=cv2.INTER_AREA)
+        out = resized.copy()
+        cv2.rectangle(out, (10, out.shape[0] - 60), (90, out.shape[0] - 10), (40, 90, 160), -1)  # the "product"
+        return encode_jpeg(out, 97)
+
+    base = _person()  # 400x600 (ratio 0.667) — doesn't match any of the three buckets exactly
+    monkeypatch.setattr(pipeline, "detect_face", lambda img: Box(x=FACE[1], y=FACE[0], w=FACE[3] - FACE[1], h=FACE[2] - FACE[0]))  # noqa: ARG005
+    fake_vision.append(GOOD)
+    item = pipeline.LookItem("https://img.example/watch.jpg", OutfitSlot.WATCH, "Item")
+
+    image_bytes, _ = await pipeline.render_whole_look(encode_jpeg(base, 97), [item], render_all, retries=0)
+
+    expected = compose.ratio_bucket(W, H)
+    assert abs(sent_ratios[0] - expected[0] / expected[1]) < 0.02  # padded to the real bucket, not a guess
+
+    final_bytes = await pipeline.keep_person(encode_jpeg(base, 97), image_bytes, [item])
+    final = cv2.imdecode(np.frombuffer(final_bytes, np.uint8), cv2.IMREAD_COLOR)
+    assert final.shape[:2] == base.shape[:2]  # back to the original size, not left at the model's own resolution
+
+    y0, x0, y1, x1 = FACE
+    diff = np.abs(final[y0:y1, x0:x1].astype(int) - base[y0:y1, x0:x1].astype(int)).mean()
+    assert diff < 2.0  # the face is still exactly where and what it was — no stretch, no drift
 
 
 async def test_the_whole_look_is_one_render_and_only_failures_get_their_own(fake_vision):

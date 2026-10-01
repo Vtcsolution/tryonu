@@ -50,8 +50,11 @@ from app.services.tryon_quality.compose import (
     draw_candidates,
     encode_jpeg,
     find_changes,
+    pad_to_ratio,
     product_mask,
+    ratio_bucket,
     sharpen_product,
+    unpad_and_resize,
 )
 from app.services.tryon_quality.judge import Verdict, check_for_extra_items, judge
 from app.ai.providers.openai_image import MAX_PIECES
@@ -928,6 +931,27 @@ def _chosen_by(changes: Changes, merged: Merge, candidate) -> bool:  # noqa: ANN
     return bool(merged.mask[y0:y1, x0:x1].max() > 0.5)
 
 
+async def _render_padded(
+    render_all: RenderAllFn, image: np.ndarray, pieces: list[LookItem], notes: list[str], out_shape: tuple[int, int]
+) -> np.ndarray:
+    """One render call, protected against the provider answering in a
+    different aspect ratio than it was sent. Gemini and OpenAI both round
+    the photo they're given to one of three ratio buckets (portrait,
+    landscape, square — see ratio_bucket()); a photo that doesn't already
+    match one exactly used to come back a different shape than it went
+    in, and the one place that mattered (keep_person's align(), via a
+    plain `cv2.resize(render, (w, h))`) stretched the person non-uniformly
+    to force it back — a visible source of "broken into pieces" results.
+    Padding to the exact bucket before sending, then removing exactly
+    that padding (scaled to whatever resolution came back) and resizing
+    once, uniformly, removes the stretch instead of adding a second one
+    on top of it."""
+    oh, ow = out_shape
+    padded, padding = pad_to_ratio(image, ratio_bucket(image.shape[1], image.shape[0]))
+    raw = decode(await render_all(encode_jpeg(padded, 95), pieces, notes))
+    return unpad_and_resize(raw, padding, (padded.shape[1], padded.shape[0]), (ow, oh))
+
+
 async def render_whole_look(
     person: bytes,
     items: list[LookItem],
@@ -1010,12 +1034,11 @@ async def render_whole_look(
             await _say(on_progress, "Drawing the look" if attempt == 0 else "Correcting what didn't match")
             batch_items = [items[i] for i in batch]
             notes = [f"{descriptions[i]} {fixes[i]}".strip() if fixes[i] else descriptions[i] for i in batch]
-            raw = decode(await render_all(encode_jpeg(_cap(shown), 95), batch_items, notes))
-            shown = raw
+            shown = await _render_padded(render_all, _cap(shown), batch_items, notes, base.shape[:2])
 
             await _say(on_progress, "Checking every item against its product photo")
             verdicts = await asyncio.gather(
-                *(judge(products[i], base, raw, judge_regions[i], descriptions[i], items[i].slot in _SMALL) for i in batch),
+                *(judge(products[i], base, shown, judge_regions[i], descriptions[i], items[i].slot in _SMALL) for i in batch),
                 return_exceptions=True,
             )
 
@@ -1052,13 +1075,12 @@ async def render_whole_look(
             await _say(on_progress, f"Redrawing {items[i].name[:30]} on its own")
             note = f"{descriptions[i]} {fixes[i]}".strip()
             try:
-                raw = decode(await render_all(encode_jpeg(_cap(shown), 95), [items[i]], [note]))
+                shown = await _render_padded(render_all, _cap(shown), [items[i]], [note], base.shape[:2])
             except Exception as exc:  # noqa: BLE001 — one item's failure must not lose the rest
                 logger.warning("tryon_whole_individual_failed", item=items[i].name[:60], error=str(exc)[:160])
                 reports[i].history.append(f"individual attempt failed ({str(exc)[:120]})")
                 continue
             reports[i].attempts += 1
-            shown = raw
             retried.append(i)
 
         # Every item that got a solo attempt is re-checked against the
