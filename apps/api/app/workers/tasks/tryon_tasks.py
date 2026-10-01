@@ -718,6 +718,7 @@ async def _distractors_for(session, product: Product, limit: int = 8) -> list[Pr
     rows = await session.execute(
         select(Product)
         .where(Product.is_active.is_(True), Product.category_id == product.category_id, Product.id != product.id)
+        .options(selectinload(Product.images))
         .limit(limit)
     )
     return list(rows.scalars().all())
@@ -743,7 +744,11 @@ async def _distractor_images_for(session, job: TryOnJob, layer: _Layer) -> list:
         )
         return [img for img in fetched if isinstance(img, np.ndarray)]
 
-    product = await session.get(Product, layer.product_id) if layer.product_id else None
+    product = (
+        await session.get(Product, layer.product_id, options=[selectinload(Product.images)])
+        if layer.product_id
+        else None
+    )
     if product is None:
         return []
     distractors = await _distractors_for(session, product)
