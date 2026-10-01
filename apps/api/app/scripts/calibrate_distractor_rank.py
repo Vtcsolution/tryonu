@@ -70,19 +70,25 @@ async def main(limit: int) -> int:
                 product = await session.get(Product, placement["product_id"])
                 if product is None:
                     continue
-                distractors = await _distractors_for(session, product)
-                if not distractors:
+                # The real "other options" the client saved at selection
+                # time, if any — same preference order as production (see
+                # tryon_tasks._distractor_images_for); a same-category guess
+                # only for jobs that predate this, or saved nothing.
+                saved = (job.distractor_options or {}).get(placement["product_id"])
+                distractor_urls = [o["image_url"] for o in saved if o.get("image_url")] if saved else None
+                if distractor_urls is None:
+                    distractors = await _distractors_for(session, product)
+                    distractor_urls = [d.primary_image_url for d in distractors if d.primary_image_url]
+                if not distractor_urls:
                     continue
                 try:
                     box = Region(*placement["box"])
                     crop = _box_crop(full, box)
                     product_image = await _fetch(product.primary_image_url)
                     distractor_images = []
-                    for d in distractors:
-                        if not d.primary_image_url:
-                            continue
+                    for url in distractor_urls:
                         try:
-                            distractor_images.append(await _fetch(d.primary_image_url))
+                            distractor_images.append(await _fetch(url))
                         except Exception:  # noqa: BLE001 — one missing distractor photo isn't fatal
                             continue
                     if not distractor_images:

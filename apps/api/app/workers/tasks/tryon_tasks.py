@@ -677,13 +677,39 @@ def _box_crop(image: np.ndarray, box) -> np.ndarray:  # noqa: ANN001
     return image[y0:y1, x0:x1]
 
 
+async def _distractor_images_for(session, job: TryOnJob, layer: _Layer) -> list:  # noqa: ANN001
+    """The real "other options" the client showed at selection time, if it
+    saved them (job.distractor_options, keyed by product_id) — the actual
+    distractor set this check was designed around. Falls back to the
+    same-category DB guess only when nothing was saved for this item (an
+    older client, or a wardrobe item with no search behind it at all)."""
+    saved = (job.distractor_options or {}).get(layer.product_id) if layer.product_id else None
+    if saved:
+        fetched = await asyncio.gather(
+            *(_download(_absolute_url(o["image_url"])) for o in saved if o.get("image_url")),
+            return_exceptions=True,
+        )
+        return [img for img in fetched if isinstance(img, np.ndarray)]
+
+    product = await session.get(Product, layer.product_id) if layer.product_id else None
+    if product is None:
+        return []
+    distractors = await _distractors_for(session, product)
+    fetched = await asyncio.gather(
+        *(_download(_absolute_url(p.primary_image_url)) for p in distractors if p.primary_image_url),
+        return_exceptions=True,
+    )
+    return [img for img in fetched if isinstance(img, np.ndarray)]
+
+
 async def _log_distractor_ranks(
     session, job: TryOnJob, image_bytes: bytes, layers: list[_Layer], reports: list[ItemReport]
 ) -> None:
     """Shadow mode (TRYON_RANK_DISTRACTORS): logs how the rendered result
-    ranks the chosen product among same-category distractors, by CLIP
-    embedding similarity — never raises, never affects the job or the
-    result. See distractor_rank.py."""
+    ranks the chosen product among its real distractors (or a same-category
+    guess — see _distractor_images_for), by CLIP embedding similarity —
+    never raises, never affects the job or the result. See
+    distractor_rank.py."""
     if not settings.TRYON_RANK_DISTRACTORS:
         return
     try:
@@ -691,21 +717,11 @@ async def _log_distractor_ranks(
         for layer, report in zip(layers, reports):
             if not report.verified or report.box is None or layer.product_id is None:
                 continue
-            product = await session.get(Product, layer.product_id)
-            if product is None:
-                continue
-            distractors = await _distractors_for(session, product)
-            if not distractors:
+            distractor_images = await _distractor_images_for(session, job, layer)
+            if not distractor_images:
                 continue
             crop = _box_crop(full, report.box)
             product_image = await _download(_absolute_url(layer.image_url))
-            fetched = await asyncio.gather(
-                *(_download(_absolute_url(p.primary_image_url)) for p in distractors if p.primary_image_url),
-                return_exceptions=True,
-            )
-            distractor_images = [img for img in fetched if isinstance(img, np.ndarray)]
-            if not distractor_images:
-                continue
             result = rank_against_distractors(crop, product_image, distractor_images)
             log_distractor_rank(job.id, layer.name, result)
     except Exception as exc:  # noqa: BLE001 — a shadow-mode signal must never affect a real job

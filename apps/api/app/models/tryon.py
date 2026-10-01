@@ -44,6 +44,14 @@ class TryOnJob(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     wardrobe_item_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("wardrobe_items.id", ondelete="RESTRICT"), nullable=True
     )
+    # The "other options" the client showed alongside each selected item at
+    # the moment this job was created — {"<product_id>": [{"product_id",
+    # "image_url"}, ...]}. The real set of distractors for the shadow-mode
+    # identity check (app/services/tryon_quality/distractor_rank.py): a
+    # same-category DB query is only ever a fallback for jobs that didn't
+    # send this (an older client, or a wardrobe item with no search behind
+    # it at all).
+    distractor_options: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     provider: Mapped[str] = mapped_column(String(32), nullable=False)
     provider_model: Mapped[str] = mapped_column(String(64), nullable=False)

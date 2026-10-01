@@ -81,3 +81,39 @@ def test_log_distractor_rank_never_raises_on_a_missing_best_distractor(caplog):
 
     result = DistractorRank(rank=1, total=1, chosen_similarity=0.9, best_distractor_similarity=None, margin=0.9)
     log_distractor_rank("job-123", "a red kurta", result)  # must not raise
+
+
+# --------------------------------------------- _distractor_images_for priority
+#
+# The "other options" saved on the job at creation time (the real set the
+# shopper actually saw) must be used in preference to the same-category DB
+# guess, whenever the client sent any.
+
+
+class _FakeJob:
+    def __init__(self, distractor_options):
+        self.distractor_options = distractor_options
+
+
+async def test_saved_distractor_options_are_used_instead_of_the_category_fallback(monkeypatch):
+    from app.workers.tasks import tryon_tasks
+
+    calls: list[str] = []
+
+    async def fake_download(url: str):
+        calls.append(url)
+        return np.zeros((4, 4, 3), np.uint8)
+
+    async def fail_if_called(*a, **kw):  # noqa: ARG001
+        raise AssertionError("the same-category fallback must not run when options were saved")
+
+    monkeypatch.setattr(tryon_tasks, "_download", fake_download)
+    monkeypatch.setattr(tryon_tasks, "_distractors_for", fail_if_called)
+
+    job = _FakeJob({"prod-1": [{"image_url": "https://img.example/a.jpg"}, {"image_url": "https://img.example/b.jpg"}]})
+    layer = tryon_tasks._Layer(image_url="https://img.example/chosen.jpg", slot=None, name="a kurta", product_id="prod-1")
+
+    images = await tryon_tasks._distractor_images_for(session=None, job=job, layer=layer)
+
+    assert len(images) == 2
+    assert calls == ["https://img.example/a.jpg", "https://img.example/b.jpg"]

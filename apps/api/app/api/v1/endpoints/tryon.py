@@ -88,6 +88,7 @@ async def _create_one_job(
     outfit_id: str | None,
     wardrobe_item_id: str | None,
     cost: int,
+    distractor_options: dict[str, list] | None = None,
 ) -> str:
     provider = get_tryon_provider()
     job_id = new_uuid()
@@ -116,6 +117,11 @@ async def _create_one_job(
         status=JobStatus.QUEUED,
         credit_cost=cost,
         queued_at=datetime.now(timezone.utc),
+        distractor_options=(
+            {pid: [o.model_dump() for o in options] for pid, options in distractor_options.items()}
+            if distractor_options
+            else None
+        ),
     )
     db.add(job)
     await db.commit()
@@ -142,6 +148,7 @@ async def create_tryon(payload: CreateTryOnRequest, user: CurrentUser, db: DbSes
         outfit_id=payload.outfit_id,
         wardrobe_item_id=payload.wardrobe_item_id,
         cost=cost,
+        distractor_options=payload.distractor_options,
     )
     return await _load_job(db, job_id)
 
@@ -178,6 +185,7 @@ async def create_tryon_multi(payload: CreateMultiTryOnRequest, user: CurrentUser
             outfit_id=payload.outfit_id,
             wardrobe_item_id=payload.wardrobe_item_id,
             cost=cost,
+            distractor_options=payload.distractor_options,
         )
         for photo in photos
     ]
