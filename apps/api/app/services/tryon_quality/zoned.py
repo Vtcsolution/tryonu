@@ -8,24 +8,30 @@ Staging: large-region products (a garment covering most of the body) draw
 first, up to 3 per call; every small-region product (jewellery, a watch,
 a bag, eyewear) then gets its own ZOOMED pass — cropped tight around its
 own zone so the model sees it many times larger, the same technique
-pipeline.py's `_render_close_up` already validated for a single item,
-generalised here to a batch of up to 2-3 non-overlapping small items
-sharing one crop.
+pipeline.py's `_render_close_up` already validated for a single item.
 
-A batch is a real reduction in paid image-generation calls, not just
-shared concurrency: every item in a batch is drawn in ONE
-edit_masked_batch() call, against a mask with one disjoint transparent
-window per item (see app/ai/providers/openai_image.py's
+A batch NEVER mixes two different zones, in either staging group — only
+products that share the exact same zone (two earrings, several bangles)
+ever go in one call together, up to 3 per call. The mask's windows can't
+be labelled, so the model has no way to tell which product belongs to
+which window beyond spatial guessing; across different zones (an earring
+next to a bracelet's window) that guess is exactly the swap/misplacement
+bug this pipeline exists to eliminate, so it is never risked. Within the
+same zone the ambiguity doesn't matter — several bangles sharing the
+wrist's one window are all going to the same place anyway.
+
+A same-zone batch is still a real reduction in paid image-generation
+calls, not just shared concurrency: every item in it is drawn in ONE
+edit_masked_batch() call (see app/ai/providers/openai_image.py's
 masked_prompt_batch/edit_masked_batch, additive — masked.py's own
 single-item edit_masked() is untouched and still what "auto" mode uses).
-The real cost of that: the mask can't label which window is whose, so the
-model has to infer correspondence from each product's own described
-position — a batch of 3 is cheaper per call, never free, and riskier on
-placement than a single clean window. Verification (judge() per item,
-individually, against its own region in the shared result) is what
-catches a mistake there rather than trusting the batch blindly: an item
-that fails stays in the batch and is retried together with its
-still-failing siblings, never redrawing one that already passed.
+A typical look where every item occupies a different zone sees no
+batching at all — each gets its own call, the same count as "auto" mode —
+and that is the correct, safer trade this design deliberately makes.
+Verification (judge() per item, individually, against its own region in
+the shared result) still runs regardless: an item that fails stays in the
+batch and is retried together with its still-failing batch-mates, never
+redrawing one that already passed.
 
 Pixel-lock: `current` never leaves the base photo's own fixed resolution.
 Every pass's own raw output — whatever size the model actually returns —
@@ -172,24 +178,22 @@ async def _zone_region(spec: ZoneSpec, face, base: np.ndarray) -> Region | None:
     return await _small_region(spec.zone, face, base)
 
 
-def _overlaps(a: Region, b: Region, margin: float = 0.02) -> bool:
-    return not (a.x1 + margin <= b.x0 or b.x1 + margin <= a.x0 or a.y1 + margin <= b.y0 or b.y1 + margin <= a.y0)
-
-
-def _batches(indices: list[int], regions: list[Region], max_size: int) -> list[list[int]]:
-    """Group indices whose windows don't overlap, up to max_size per
-    group — the same non-overlap safety masked.py's _waves() already
-    relies on, with an explicit hard cap instead of an unbounded one."""
-    batches: list[list[int]] = []
+def _zone_batches(indices: list[int], specs: list[ZoneSpec], max_size: int) -> list[list[int]]:
+    """Group indices by their own zone ONLY — two earrings or several
+    bangles share a call because they're genuinely the same zone; an
+    earring and a bracelet never do, however their windows sit, because
+    the mask can't label which window belongs to which product and the
+    model guessing wrong is exactly the swap/misplacement bug this
+    pipeline exists to avoid. Each zone's own group is then capped at
+    max_size per call — never an overlap check, since items in the same
+    zone are deliberately meant to share that one spot."""
+    by_zone: dict[str, list[int]] = {}
     for i in indices:
-        for batch in batches:
-            if len(batch) >= max_size:
-                continue
-            if not any(_overlaps(regions[i], regions[j]) for j in batch):
-                batch.append(i)
-                break
-        else:
-            batches.append([i])
+        by_zone.setdefault(specs[i].zone, []).append(i)
+    batches: list[list[int]] = []
+    for zone_indices in by_zone.values():
+        for start in range(0, len(zone_indices), max_size):
+            batches.append(zone_indices[start : start + max_size])
     return batches
 
 
@@ -432,7 +436,7 @@ async def render_zoned_look(
     large = sorted((i for i in ready if specs[i].large_region), key=lambda i: specs[i].layer)
     small = sorted((i for i in ready if not specs[i].large_region), key=lambda i: specs[i].layer)
 
-    for batch in _batches(large, regions, _LARGE_BATCH_MAX):
+    for batch in _zone_batches(large, specs, _LARGE_BATCH_MAX):
         names = ", ".join(items[i].name[:30] for i in batch)
         await _say(on_progress, f"Drawing {names}")
         current = await _execute_batch_pass(
@@ -443,7 +447,7 @@ async def render_zoned_look(
         if debug is not None:
             debug.save("after_paste", current, label=f"large_{'_'.join(str(i) for i in batch)}")
 
-    for batch in _batches(small, regions, _SMALL_BATCH_MAX):
+    for batch in _zone_batches(small, specs, _SMALL_BATCH_MAX):
         names = ", ".join(items[i].name[:30] for i in batch)
         await _say(on_progress, f"Drawing {names}")
         current = await _run_small_batch(
