@@ -22,6 +22,7 @@ import cv2
 import numpy as np
 
 from app.services.tryon_quality.compose import Region
+from app.services.tryon_quality.cutout import product_cutout_mask
 from app.services.tryon_quality.vision import VisionError, ask_json, image_part
 
 _INSTRUCTIONS = (
@@ -65,26 +66,27 @@ class Verdict:
         )
 
 
-def _dominant_lab(img: np.ndarray) -> tuple[float, float, float]:
-    """The median L*a*b* of `img`'s pixels, excluding a white/light-grey
-    studio backdrop.
+def _dominant_lab(img: np.ndarray, mask: np.ndarray | None = None) -> tuple[float, float, float]:
+    """The median L*a*b* of `img`'s pixels where `mask` (0..255) is
+    foreground, or of every pixel when no mask is given.
 
-    A product photo is almost always shot on exactly that backdrop, and
-    it is usually the majority of the frame by area — splitting on
-    "more/less saturated than this image's own median" breaks exactly
-    when the product is the minority of pixels, since the median then
-    falls inside the background itself. Excluding on bright-AND-neutral
-    together, instead, targets a white/grey backdrop specifically,
-    whatever colour the product is — including a black or grey product,
-    which a saturation-only split would have excluded too."""
+    An earlier version of this function tried to guess the backdrop by
+    brightness and saturation alone ("bright and near-neutral = studio
+    wall") — it silently excluded white, cream, silver and light-grey
+    PRODUCTS too, since they look exactly like a bright neutral backdrop
+    by that same measure. There is no way to tell a white product from a
+    white wall by colour statistics alone; a real foreground mask
+    (product_cutout_mask, a real background-removal model) is the only
+    thing that works for a product of any colour. No mask is needed for
+    a result crop that is already cropped to the item's own region —
+    every pixel there is already "inside the mask"."""
     lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB).astype(np.float32)
-    lightness = lab[..., 0]
-    a, b = lab[..., 1] - 128.0, lab[..., 2] - 128.0
-    saturation = np.hypot(a, b)
-    backdrop = (lightness > 200) & (saturation < 10)
-    keep = ~backdrop
-    if keep.sum() < 50:
-        keep = np.ones_like(keep, dtype=bool)
+    if mask is None:
+        keep = np.ones(img.shape[:2], dtype=bool)
+    else:
+        keep = mask > 127
+        if keep.sum() < 50:
+            keep = np.ones(img.shape[:2], dtype=bool)
     return tuple(float(np.median(lab[..., c][keep])) for c in range(3))
 
 
@@ -154,12 +156,19 @@ def _delta_e_ciede2000(lab1: tuple[float, float, float], lab2: tuple[float, floa
 _COLOR_FAIL_DELTA_E = 18.0
 
 
-def color_mismatch(result_crop: np.ndarray, product: np.ndarray) -> float | None:
+def color_mismatch(result_crop: np.ndarray, product: np.ndarray, product_image_url: str) -> float:
     """How far the result's own dominant colour is from the product
-    photo's, as a perceptual CIEDE2000 distance. None only when there
-    isn't enough of either image to form an estimate (never asks what
-    kind of product this is)."""
-    return _delta_e_ciede2000(_dominant_lab(result_crop), _dominant_lab(product))
+    photo's, as a perceptual CIEDE2000 distance (never asks what kind of
+    product this is).
+
+    The product side uses a real foreground cutout (product_cutout_mask,
+    cached forever per product image) so the backdrop never pollutes the
+    estimate, whatever colour the product itself is — including a white
+    product on a white backdrop. The result side uses every pixel in
+    `result_crop` unmasked: it's already cropped to the item's own
+    region, so every pixel in it already counts as "inside the mask"."""
+    product_mask = product_cutout_mask(product, product_image_url)
+    return _delta_e_ciede2000(_dominant_lab(result_crop), _dominant_lab(product, product_mask))
 
 
 def _local_lab_diff(a: np.ndarray, b: np.ndarray, blur: float = 1.5) -> np.ndarray:
@@ -224,7 +233,8 @@ async def judge(
     after: np.ndarray,
     region: Region,
     description: str,
-    small_item: bool = False,
+    small_item: bool,
+    product_image_url: str,
 ) -> Verdict:
     before_crop, after_crop = _crop(before, region), _crop(after, region)
     answer = await ask_json(
@@ -254,8 +264,8 @@ async def judge(
         product_match = 0.0
         issues = ["nothing changed in this item's own region — it was never drawn"] + issues
     else:
-        delta_e = color_mismatch(after_crop, product)
-        if delta_e is not None and delta_e >= _COLOR_FAIL_DELTA_E:
+        delta_e = color_mismatch(after_crop, product, product_image_url)
+        if delta_e >= _COLOR_FAIL_DELTA_E:
             product_match = min(product_match, 3.0)
             issues = [f"colour does not match the product photo (ΔE {delta_e:.0f})"] + issues
 

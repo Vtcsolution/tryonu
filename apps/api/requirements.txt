@@ -34,6 +34,14 @@ maxminddb==2.6.2
 Pillow==11.0.0             # image validation / optimization
 opencv-python-headless==4.10.0.84  # face detection + blending to keep the person's real face on try-on results
 
+# --- local CV (CPU only, no GPU) ---
+# rembg: MIT. Bundled u2netp model: Apache 2.0 -- both commercial-use safe.
+# Confirmed: rembg also offers other models (e.g. RMBG-2.0) under a
+# non-commercial BRIA license -- never select those; this codebase must
+# only ever request "u2netp" by name (see cutout.py).
+onnxruntime==1.30.0
+rembg==2.0.85
+
 # --- misc ---
 python-slugify==8.0.4
 tenacity==9.0.0           # retry logic for AI/provider calls

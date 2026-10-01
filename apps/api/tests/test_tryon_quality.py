@@ -92,7 +92,7 @@ def fake_vision(monkeypatch):
     async def choose(marked, product, description, numbers):  # noqa: ARG001
         return numbers  # every changed area is the product in these synthetic renders
 
-    async def judge(product, before, after, region, description, small_item=False):  # noqa: ARG001
+    async def judge(product, before, after, region, description, small_item=False, product_image_url=""):  # noqa: ARG001
         return verdicts.pop(0)
 
     async def no_extras(before, after, expected):  # noqa: ARG001
@@ -278,7 +278,7 @@ async def test_a_failed_small_item_is_retried_as_a_close_up_of_where_it_goes(fak
 async def test_a_floor_item_is_judged_against_its_own_area_not_the_whole_photo(fake_vision, monkeypatch):
     regions_seen: list[Region] = []
 
-    async def judge(product, before, after, region, description, small_item=False):  # noqa: ARG001
+    async def judge(product, before, after, region, description, small_item=False, product_image_url=""):  # noqa: ARG001
         regions_seen.append(region)
         return GOOD
 
@@ -305,7 +305,7 @@ async def test_a_wrist_item_is_judged_against_the_body_part_lookups_own_answer(f
 
     regions_seen: list[Region] = []
 
-    async def judge(product, before, after, region, description, small_item=False):  # noqa: ARG001
+    async def judge(product, before, after, region, description, small_item=False, product_image_url=""):  # noqa: ARG001
         regions_seen.append(region)
         return GOOD
 
@@ -330,7 +330,7 @@ async def test_an_item_with_no_findable_area_still_falls_back_to_the_whole_photo
 
     regions_seen: list[Region] = []
 
-    async def judge(product, before, after, region, description, small_item=False):  # noqa: ARG001
+    async def judge(product, before, after, region, description, small_item=False, product_image_url=""):  # noqa: ARG001
         regions_seen.append(region)
         return GOOD
 
@@ -584,10 +584,11 @@ async def test_small_items_are_judged_at_the_size_they_are_actually_seen(monkeyp
         return {"product_match": 8, "worn_correctly": 9, "realism": 8, "issues": [], "fix": ""}
 
     monkeypatch.setattr(judge_module, "ask_json", fake_ask)
+    monkeypatch.setattr(judge_module, "product_cutout_mask", lambda image, url: np.full(image.shape[:2], 255, np.uint8))
     product = np.full((100, 100, 3), 40, np.uint8)
     person = _person()
-    await judge_module.judge(product, person, person, _item_region(), "a watch", small_item=True)
-    await judge_module.judge(product, person, person, _item_region(), "a shirt", small_item=False)
+    await judge_module.judge(product, person, person, _item_region(), "a watch", True, "https://img.example/watch.jpg")
+    await judge_module.judge(product, person, person, _item_region(), "a shirt", False, "https://img.example/shirt.jpg")
 
     assert "cannot see those either" in asked[0]
     assert "silhouette/shape or the placement are wrong" in asked[0]  # still fails a wrong product

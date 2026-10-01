@@ -53,7 +53,7 @@ def fake_vision(monkeypatch):
     async def area_for(item, face, base):  # noqa: ARG001
         return Region(0.55, 0.55, 0.72, 0.66)  # a plausible wrist, say
 
-    async def judge(product, before, after, region, description, small_item=False):  # noqa: ARG001
+    async def judge(product, before, after, region, description, small_item=False, product_image_url=""):  # noqa: ARG001
         return verdicts.pop(0)
 
     monkeypatch.setattr(masked, "_download", download)
@@ -558,7 +558,7 @@ async def test_non_overlapping_items_draw_in_the_same_round(monkeypatch):
     async def describe(image, url, name):  # noqa: ARG001
         return name
 
-    async def judge_ok(product, before, after, region, description, small_item=False):  # noqa: ARG001
+    async def judge_ok(product, before, after, region, description, small_item=False, product_image_url=""):  # noqa: ARG001
         return GOOD
 
     async def edit(person_png, mask_png, item, hint):  # noqa: ARG001
@@ -590,7 +590,7 @@ async def test_a_parallel_rounds_result_takes_each_items_own_window_only(monkeyp
     async def describe(image, url, name):  # noqa: ARG001
         return name
 
-    async def judge_ok(product, before, after, region, description, small_item=False):  # noqa: ARG001
+    async def judge_ok(product, before, after, region, description, small_item=False, product_image_url=""):  # noqa: ARG001
         return GOOD
 
     colours = {"Watch": (0, 0, 255), "Bag": (255, 0, 0)}

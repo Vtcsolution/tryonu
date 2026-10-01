@@ -400,7 +400,7 @@ async def _render_item(
         # render_whole_look never shrinks Gemini's output.
         raw = decode(raw_bytes)
 
-        verdict = await judge(product, canvas, raw, region, description, item.slot in _SMALL)
+        verdict = await judge(product, canvas, raw, region, description, item.slot in _SMALL, item.image_url)
         report.attempts = attempt + 1
         report.history.append(
             f"attempt {attempt + 1}: product={verdict.product_match:.0f} "
