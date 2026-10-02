@@ -185,11 +185,10 @@ def test_touched_handles_a_resized_after_crop():
 #
 # A generic, product-agnostic signal for a hard paste boundary: elevated
 # local edge strength in a ring that traces the pasted region's own
-# rectangle, well above its immediate surroundings. Shadow mode for now
-# (judge() logs it, never fails on it) — these tests prove the signal
-# fires on an obvious hard paste and stays quiet on a smooth photo, not
-# what ratio a genuine live seam comes back at; that threshold needs real
-# examples to calibrate (see judge.py's own _SEAM_RATIO_WORTH_LOGGING).
+# rectangle, well above its immediate surroundings. These tests prove the
+# bare signal fires on an obvious hard paste and stays quiet on a smooth
+# photo; judge()'s own use of it as a real fail gate (_SEAM_FAIL_RATIO) is
+# tested separately, below, now that real production renders calibrated it.
 
 
 def _smooth_gradient(size: tuple[int, int] = (240, 240)) -> np.ndarray:
@@ -323,3 +322,19 @@ async def test_a_white_product_correctly_applied_passes(fake_vlm, mock_cutout):
     verdict = await judge(product, before, after, region, "a white item", False, PRODUCT_URL)
     assert verdict.product_match == 9.0
     assert verdict.passes(7.0, 6.0)
+
+
+async def test_a_hard_paste_boundary_fails_even_if_the_vlm_is_generous(fake_vlm, mock_cutout):
+    """The real production incident this gate exists for: a small item's
+    own window came back with a flat, unblended patch at its own edge —
+    reported live as a black box over the face — that the VLM alone judged
+    fine. The patch's own colour matches the product exactly, so only the
+    seam gate (not color_mismatch) can be what fails this."""
+    region = Region(0.3, 0.3, 0.7, 0.7)
+    before = _smooth_gradient()
+    after = _hard_paste(before, region, (10, 10, 10))
+    product, mask = _studio_photo((10, 10, 10))
+    mock_cutout[PRODUCT_URL] = mask
+    verdict = await judge(product, before, after, region, "a dark item", False, PRODUCT_URL)
+    assert verdict.product_match <= 3.0
+    assert "seam" in verdict.issues[0]

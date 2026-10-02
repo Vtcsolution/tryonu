@@ -262,8 +262,17 @@ def seam_score(image: np.ndarray, region: Region, band: int = 2) -> float:
 # Shadow mode, like distractor ranking: logged on every judge() call so a
 # real threshold can be calibrated from actual passing and failing renders
 # once enough of them exist, not guessed at from synthetic tests alone.
-# Not yet wired to fail anything.
 _SEAM_RATIO_WORTH_LOGGING = 2.0
+# Calibrated from real production logs, not a guess: the exact same
+# face-relative earrings window, on the same saved photo, across four
+# separate renders the same day, scored 5.22 / 21.32 / 25.81 / 6.39. The
+# 25.81 render was a visible near-black patch at that item's own edge
+# (reported live as a black box over the face) that judge()'s own VLM
+# score had no trouble passing anyway, because a hard paste boundary and
+# "is this the right product, worn correctly" are different questions.
+# Every ordinary render in that same window landed under 8; the one
+# visibly broken one landed above 21. This sits well clear of both.
+_SEAM_FAIL_RATIO = 12.0
 
 
 def has_seam(image: np.ndarray, region: Region, band: int = 4, threshold: float = 2.5) -> bool:
@@ -346,14 +355,12 @@ async def judge(
             product_match = min(product_match, 3.0)
             issues = [f"colour does not match the product photo (ΔE {delta_e:.0f})"] + issues
 
-    # Shadow mode: logged only, not yet a failure — see has_seam()'s own
-    # docstring and _SEAM_RATIO_WORTH_LOGGING. Calibrate a real fail
-    # threshold once enough real seam/clean pairs exist; a synthetic test
-    # can prove the signal fires on an obvious hard paste, not what ratio
-    # a genuine one comes back at.
     seam = seam_score(after, region)
     if seam >= _SEAM_RATIO_WORTH_LOGGING:
         logger.info("tryon_seam_signal", region=str(region), seam_score=round(seam, 2))
+    if seam >= _SEAM_FAIL_RATIO:
+        product_match = min(product_match, 3.0)
+        issues = [f"a hard paste boundary at this item's own edge (seam {seam:.0f})"] + issues
 
     return Verdict(
         product_match=product_match,

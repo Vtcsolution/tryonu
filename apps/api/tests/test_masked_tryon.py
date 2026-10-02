@@ -12,6 +12,7 @@ import pytest
 
 import asyncio
 
+from app.ai.providers.base import TryOnProviderError
 from app.models.enums import OutfitSlot
 from app.services.face_restore import Box
 from app.services.tryon_quality import masked
@@ -302,6 +303,23 @@ async def test_an_edit_call_that_keeps_raising_still_gives_up_once_out_of_retrie
 
     _, reports = await render_masked_look(_photo(), [ITEMS[1]], always_raises, retries=1)
     assert len(calls) == 2  # the original attempt, plus its one retry — then it gives up
+    assert reports[0].box is None
+    assert "failed" in reports[0].history[-1]
+
+
+async def test_a_non_retryable_provider_error_skips_the_remaining_retries(fake_vision):
+    """OpenAI's safety system rejecting a garment-sized edit (400, same
+    request every time) used to get retried anyway — a guaranteed-identical
+    rejection paid for a second time. A TryOnProviderError that already
+    says retryable=False ends the item on the first attempt instead."""
+    calls: list = []
+
+    async def always_rejected(person_png, mask_png, item: LookItem, hint):  # noqa: ARG001
+        calls.append(1)
+        raise TryOnProviderError("OpenAI image edit failed (400): rejected by the safety system", retryable=False)
+
+    _, reports = await render_masked_look(_photo(), [ITEMS[1]], always_rejected, retries=2)
+    assert len(calls) == 1  # no retry attempted — retryable=False was honoured
     assert reports[0].box is None
     assert "failed" in reports[0].history[-1]
 

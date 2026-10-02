@@ -62,6 +62,7 @@ from collections.abc import Awaitable, Callable
 import cv2
 import numpy as np
 
+from app.ai.providers.base import TryOnProviderError
 from app.core.logging import logger
 from app.models.enums import OutfitSlot
 from app.services.face_restore import detect_face
@@ -403,6 +404,15 @@ async def _render_item(
         except Exception as exc:  # noqa: BLE001 — one item's failure must not lose the rest
             logger.warning("tryon_masked_edit_failed", item=item.name[:60], error=str(exc)[:200])
             report.history.append(f"attempt {attempt + 1}: the render failed ({str(exc)[:120]})")
+            # A provider error that already says it won't succeed again
+            # (OpenAI's safety system rejecting a garment-sized edit, a
+            # billing hard stop) used to get retried anyway, identical
+            # request and all — paying for a second guaranteed-identical
+            # rejection. Only a genuinely transient failure (timeout, rate
+            # limit, a flaky response) gets the second attempt retries
+            # exist for.
+            if isinstance(exc, TryOnProviderError) and not exc.retryable:
+                return None
             # A transient API error (timeout, rate limit, a flaky response)
             # used to end this item on the spot even with retries and time
             # left on the clock — the exact same edit call that a quality
