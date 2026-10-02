@@ -74,6 +74,25 @@ _ITEM_CATEGORY_WORDS = {
     "smartwatch", "chinos", "tuxedo", "wallet", "wallets", "cufflinks", "accessories",
     "backpack", "backpacks", "payal", "chappal", "purse", "tote", "romper", "rompers", "set", "sets",
 }
+# Generic umbrella words, each mapped to the specific items it's a mere
+# lead-in for — real bug, found live: "two jewelry pieces (earrings and
+# bangles)" produced three separate searches ("jewelry", "earrings",
+# "bangles") instead of two, because "jewelry" is itself a recognized item
+# word, not just a lead-in to the specific ones named right after it. The
+# outfit came back with 6 items instead of 5: an extra, unwanted second
+# pair of earrings from the generic term's own top result. Dropped only
+# when the prompt also names a specific item from WITHIN that umbrella —
+# "a dress and some jewelry" (nothing more specific) must still search
+# for it; "dress" being present elsewhere is not grounds to drop it.
+_JEWELRY_WORDS = {
+    "bangle", "bangles", "bracelet", "bracelets", "ring", "rings", "earring", "earrings",
+    "jhumka", "jhumkas", "necklace", "necklaces", "choker", "pendant", "anklet", "anklets",
+    "tikka", "payal",
+}
+_GENERIC_UMBRELLA_WORDS: dict[str, set[str]] = {
+    "jewelry": _JEWELRY_WORDS,
+    "jewellery": _JEWELRY_WORDS,
+}
 _TERM_STOPWORDS = {
     "a", "an", "the", "and", "with", "or", "for", "to", "of", "in", "on", "over", "under",
     # conversational filler a shopper types around the actual ask — real
@@ -86,6 +105,17 @@ _TERM_STOPWORDS = {
     "apply", "add", "also", "please", "want", "wants", "wanted", "need", "needs", "needed",
     "show", "get", "give", "looking", "like", "would", "some", "any", "just", "can", "could",
     "i", "me", "my", "you", "your", "its", "it's",
+    # Real bug, found live: "a kurti, matching trousers" built the search
+    # term "women matching trousers" — "matching" isn't a stopword, a
+    # category word or a gender word, so it was swept in as if it were a
+    # real descriptor like "white" or "leather". That term's top live
+    # result was a Western blazer-and-trousers SET literally titled
+    # "...BLAZER JACKET AND MATCHING TROUSERS...", chosen for the
+    # trousers slot, which rendered as a second, incompatible top-layer
+    # garment over the kurti. Same bug class as "apply"/"also" above:
+    # "matching"/"coordinating" describe a relationship to another item,
+    # not the item itself, and have no business being an eBay search word.
+    "matching", "coordinating",
 }
 # who the ask is for — said outright, or through who it's being bought for
 _WOMEN_WORDS = {
@@ -134,6 +164,12 @@ def _extract_search_terms(prompt: str, gender: str | None = None) -> list[str]:
         while j + 1 < len(words) and words[j + 1] in _ITEM_CATEGORY_WORDS and joined(j, j + 1):
             j += 1
         parts = words[i : j + 1]
+        specific = _GENERIC_UMBRELLA_WORDS.get(parts[0]) if len(parts) == 1 else None
+        if specific is not None and any(w in specific for w in words):
+            # a bare "jewelry" lead-in to specific items named elsewhere in
+            # the same prompt — not a request in its own right
+            i = j + 1
+            continue
         # up to two describing words right before it ("white lawn")
         k = i
         while (

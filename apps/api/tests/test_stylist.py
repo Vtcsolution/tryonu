@@ -347,6 +347,44 @@ def test_extract_search_terms_keeps_comma_separated_items_apart():
     assert _extract_search_terms("jacket, jeans, sneakers") == ["jacket", "jeans", "sneakers"]
 
 
+def test_extract_search_terms_drops_matching_as_a_fake_descriptor():
+    """Real bug, found live: "a kurti, matching trousers" built the term
+    "women matching trousers" — its top live result was a Western
+    blazer-and-trousers SET literally titled "...BLAZER JACKET AND
+    MATCHING TROUSERS...", picked for the trousers slot, which rendered
+    as a second incompatible top-layer garment over the kurti."""
+    from app.services.stylist_service import _extract_search_terms
+
+    terms = _extract_search_terms("a kurti, matching trousers and shoes", gender="women")
+    assert terms == ["women kurti", "women trousers", "women shoes"]
+
+
+def test_extract_search_terms_drops_a_generic_jewelry_lead_in():
+    """Real bug, found live: "two jewelry pieces (earrings and bangles)"
+    produced three searches instead of two — "jewelry" is itself a
+    recognized item word, not just a lead-in to the specific ones named
+    right after it — and the outfit came back with an extra, unwanted
+    second pair of earrings from the generic term's own top result."""
+    from app.services.stylist_service import _extract_search_terms
+
+    terms = _extract_search_terms(
+        "a kurti and two jewelry pieces (earrings and bangles)", gender="women"
+    )
+    assert terms == ["women kurti", "women earrings", "women bangles"]
+
+
+def test_extract_search_terms_keeps_a_bare_jewelry_ask():
+    """The umbrella word is only dropped when a more specific item from
+    the same prompt already covers it — a prompt that names nothing more
+    specific must still search for it."""
+    from app.services.stylist_service import _extract_search_terms
+
+    assert _extract_search_terms("a dress and some jewelry", gender="women") == [
+        "women dress",
+        "women jewelry",
+    ]
+
+
 def test_extract_search_terms_drops_conversational_filler_before_an_item():
     """Real bug, found live: "apply ear rings , ... and also watch" built
     the search terms "apply ear rings" and "also watch" — neither
