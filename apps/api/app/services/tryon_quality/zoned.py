@@ -83,6 +83,11 @@ class BatchPiece:
     description: str
     fix: str = ""
     detail: bool = False
+    # The zone this item was classified into (zone_spec.py) — lets a
+    # provider-routing edit_batch (see tryon_tasks.py's hybrid adapters)
+    # pick which real provider handles this piece without re-deriving its
+    # zone from the item itself.
+    zone: str = "other"
 
 
 BatchMaskedRenderFn = Callable[[bytes, bytes, list[BatchPiece]], Awaitable[bytes]]
@@ -242,6 +247,7 @@ async def _execute_batch_pass(
     products: list[np.ndarray],
     descriptions: list[str],
     regions: list[Region],
+    specs: list[ZoneSpec],
     canvas: np.ndarray,
     reports: list[ItemReport],
     edit_batch: BatchMaskedRenderFn,
@@ -269,7 +275,7 @@ async def _execute_batch_pass(
         mask_png = _mask_png_multi(for_model.shape[:2], [regions[i] for i in pending])
         if debug is not None:
             debug.save("mask", mask_png, label="_".join(items[i].name[:20] for i in pending))
-        pieces = [BatchPiece(items[i], descriptions[i], fixes[i], attempt > 0) for i in pending]
+        pieces = [BatchPiece(items[i], descriptions[i], fixes[i], attempt > 0, specs[i].zone) for i in pending]
         try:
             raw_bytes = await edit_batch(encode_png(for_model), mask_png, pieces)
         except Exception as exc:  # noqa: BLE001 — one batch's failure must not lose the rest of the look
@@ -320,6 +326,7 @@ async def _run_small_batch(
     products: list[np.ndarray],
     descriptions: list[str],
     regions: list[Region],
+    specs: list[ZoneSpec],
     reports: list[ItemReport],
     current: np.ndarray,
     edit_batch: BatchMaskedRenderFn,
@@ -370,7 +377,7 @@ async def _run_small_batch(
         local_regions[i] = _local(regions[i])
 
     merged_zoom = await _execute_batch_pass(
-        batch, items, products, descriptions, local_regions, zoomed, reports, edit_batch,
+        batch, items, products, descriptions, local_regions, specs, zoomed, reports, edit_batch,
         small_item=True, min_p=min_product, min_other=min_other, retries=retries,
         budget_seconds=budget_seconds, started=started, debug=debug,
     )
@@ -440,7 +447,7 @@ async def render_zoned_look(
         names = ", ".join(items[i].name[:30] for i in batch)
         await _say(on_progress, f"Drawing {names}")
         current = await _execute_batch_pass(
-            batch, items, products, descriptions, regions, current, reports, edit_batch,
+            batch, items, products, descriptions, regions, specs, current, reports, edit_batch,
             small_item=False, min_p=min_product, min_other=min_other, retries=retries,
             budget_seconds=budget_seconds, started=started, debug=debug,
         )
@@ -451,7 +458,7 @@ async def render_zoned_look(
         names = ", ".join(items[i].name[:30] for i in batch)
         await _say(on_progress, f"Drawing {names}")
         current = await _run_small_batch(
-            batch, items, products, descriptions, regions, reports, current, edit_batch,
+            batch, items, products, descriptions, regions, specs, reports, current, edit_batch,
             min_product=min_product, min_other=min_other, retries=retries,
             budget_seconds=budget_seconds, started=started, debug=debug,
         )

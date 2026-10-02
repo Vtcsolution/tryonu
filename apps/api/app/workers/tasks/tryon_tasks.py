@@ -56,7 +56,7 @@ from app.services.tryon_quality.pipeline import (
     render_look,
     score_reports,
 )
-from app.services.tryon_quality.zoned import render_zoned_look
+from app.services.tryon_quality.zoned import BatchMaskedRenderFn, render_zoned_look
 
 settings = get_settings()
 MAX_ATTEMPTS = 3
@@ -193,6 +193,45 @@ def _pipeline_edit_masked_batch(provider):  # noqa: ANN001, ANN202
             for p in pieces
         ]
         return (await engine.edit_masked_batch(person_png, mask_png, outfit_pieces)).image_bytes
+
+    return edit_batch
+
+
+def _pipeline_edit_batch_whole(provider):  # noqa: ANN001, ANN202
+    """How the zoned pipeline asks a provider with no real masking
+    (Gemini — confirmed 2026-10-02 against ai.google.dev: it "interprets
+    editing instructions without requiring masks or layers", i.e. there is
+    no mask parameter to give it) to draw a batch: a whole-image edit,
+    `mask_png` ignored entirely. This does not weaken zoned.py's own
+    pixel-lock guarantee — `_paste()` already only ever takes each
+    accepted item's own region out of whatever a batch call returns, the
+    same protection render_whole_look already relies on for this exact
+    provider."""
+
+    async def edit_batch(person_png: bytes, mask_png: bytes, pieces) -> bytes:  # noqa: ANN001, ARG001
+        outfit_pieces = [
+            OutfitPiece(p.item.image_url, p.item.slot.value, p.item.name, note=p.fix, description=p.description)
+            for p in pieces
+        ]
+        return (await provider.generate_outfit(_data_uri(person_png), outfit_pieces)).image_bytes
+
+    return edit_batch
+
+
+def _pipeline_edit_batch_by_zone(
+    routes: dict[str, BatchMaskedRenderFn], default: BatchMaskedRenderFn
+) -> BatchMaskedRenderFn:
+    """Routes each batch to a different provider adapter by the zone its
+    pieces belong to (zoned.py's own BatchPiece.zone) — task: "use the
+    better provider for each zone (e.g. one for garments, the other for
+    small accessories)". A batch never mixes zones (see zoned.py's
+    _zone_batches), so every piece in one call shares the same zone and
+    therefore the same route."""
+
+    async def edit_batch(person_png: bytes, mask_png: bytes, pieces) -> bytes:  # noqa: ANN001
+        zone = pieces[0].zone if pieces else None
+        route = routes.get(zone, default)
+        return await route(person_png, mask_png, pieces)
 
     return edit_batch
 

@@ -616,6 +616,58 @@ async def test_masked_edit_only_escalates_to_the_detailed_setting_on_a_retry():
     assert seen == ["medium", tryon_settings.OPENAI_IMAGE_QUALITY_RETRY]
 
 
+async def test_pipeline_edit_batch_whole_sends_a_whole_image_edit_ignoring_the_mask():
+    """Gemini has no mask parameter (confirmed against its own docs) --
+    this adapter must still satisfy the zoned pipeline's BatchMaskedRenderFn
+    contract by doing a whole-image edit and discarding mask_png."""
+    from app.services.tryon_quality.pipeline import LookItem
+    from app.services.tryon_quality.zoned import BatchPiece
+    from app.workers.tasks.tryon_tasks import _pipeline_edit_batch_whole
+
+    seen: dict = {}
+
+    class _FakeWholeEngine:
+        async def generate_outfit(self, model_image_url, pieces):
+            seen["model_image_url"] = model_image_url
+            seen["pieces"] = pieces
+            return TryOnOutput(image_bytes=small_jpeg_bytes())
+
+    edit_batch = _pipeline_edit_batch_whole(_FakeWholeEngine())
+    item = LookItem("https://img.example/x.jpg", OutfitSlot.ACCESSORY, "Bangles")
+    out = await edit_batch(b"\x89PNGperson", b"ignored-mask", [BatchPiece(item, "gold bangles", zone="hand_wrist")])
+
+    assert out == small_jpeg_bytes()
+    assert seen["model_image_url"].startswith("data:image/")  # the in-memory canvas, not a stored URL
+    assert seen["pieces"][0].name == "Bangles"
+
+
+async def test_pipeline_edit_batch_by_zone_routes_by_the_batchs_own_zone():
+    from app.services.tryon_quality.pipeline import LookItem
+    from app.services.tryon_quality.zoned import BatchPiece
+    from app.workers.tasks.tryon_tasks import _pipeline_edit_batch_by_zone
+
+    calls: list[str] = []
+
+    async def openai_route(person_png, mask_png, pieces):  # noqa: ARG001
+        calls.append("openai")
+        return b"openai-result"
+
+    async def gemini_route(person_png, mask_png, pieces):  # noqa: ARG001
+        calls.append("gemini")
+        return b"gemini-result"
+
+    edit_batch = _pipeline_edit_batch_by_zone({"hand_wrist": gemini_route}, default=openai_route)
+
+    item_a = LookItem("https://img.example/a.jpg", OutfitSlot.ACCESSORY, "Bangles")
+    item_b = LookItem("https://img.example/b.jpg", OutfitSlot.DRESS, "Kurti")
+
+    out_a = await edit_batch(b"p", b"m", [BatchPiece(item_a, "gold bangles", zone="hand_wrist")])
+    out_b = await edit_batch(b"p", b"m", [BatchPiece(item_b, "white kurti", zone="torso")])
+
+    assert out_a == b"gemini-result" and out_b == b"openai-result"
+    assert calls == ["gemini", "openai"]
+
+
 async def test_best_of_keeps_whichever_engine_scores_higher(client, db, monkeypatch):
     """VIRTUAL_TRYON_PROVIDER=best_of renders with OpenAI and Gemini at
     once and keeps whichever one the inspector actually liked better —
