@@ -13,9 +13,18 @@ from tests.conftest import register_and_login, seed_product
 
 
 def _textured(h: int = 600, w: int = 400, seed: int = 1) -> np.ndarray:
+    """A synthetic photo with real local structure (a block grid, lightly
+    blurred) rather than smooth noise: plain Gaussian-blurred noise lacks
+    the sharp local detail a real face/hair photo has (skin texture, hair
+    strands), so cv2.matchTemplate's normalized cross-correlation scores
+    it poorly even at the objectively correct alignment — not realistic
+    enough to exercise the real match-confidence gate (_MIN_MATCH_SCORE)
+    in face_restore.py meaningfully."""
     rng = np.random.default_rng(seed)
-    noise = rng.integers(0, 255, (h, w, 3), dtype=np.uint8)
-    return cv2.GaussianBlur(noise, (0, 0), 3)
+    block = 8
+    colors = rng.integers(0, 255, (h // block + 1, w // block + 1, 3), dtype=np.uint8)
+    img = colors.repeat(block, axis=0).repeat(block, axis=1)[:h, :w]
+    return cv2.GaussianBlur(img, (0, 0), 0.8)
 
 
 def test_restores_the_original_face_onto_a_rescaled_render():
@@ -54,6 +63,29 @@ def test_leaves_the_result_alone_when_the_faces_dont_match(face_r):
 def test_no_face_found_means_no_change():
     ok, a = cv2.imencode(".jpg", np.full((300, 200, 3), 128, np.uint8))
     assert restore_face(a.tobytes(), a.tobytes()) is None
+
+
+def test_refuses_to_paste_a_flat_empty_source_patch():
+    """Live bug: a degenerate/blank lifted head crop (solid colour, no
+    real content) still got pasted, becoming a black rectangle on the
+    result. A flat source must never be used, however well its box
+    otherwise lines up."""
+    original = np.full((600, 400, 3), 20, np.uint8)  # flat/blank: nothing real to lift
+    result = _textured(seed=2)
+    face_o = Box(150, 120, 100, 110)
+    face_r = Box(150, 120, 100, 110)
+    assert restore_face_arrays(original, result, face_o, face_r) is None
+
+
+def test_refuses_to_paste_when_no_alignment_is_confident():
+    """Live bug: when every candidate alignment scored poorly against the
+    result's own head area, the code pasted the best of a bad lot anyway
+    instead of refusing — a misaligned source must never be used."""
+    original = _textured(seed=1)
+    result = _textured(seed=99)  # genuinely unrelated content: no real alignment exists
+    face_o = Box(150, 120, 100, 110)
+    face_r = Box(180, 144, 120, 132)
+    assert restore_face_arrays(original, result, face_o, face_r) is None
 
 
 async def _finished_single_item_tryon(client, db, monkeypatch):

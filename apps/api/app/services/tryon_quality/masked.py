@@ -103,6 +103,19 @@ _MASK_REGION = {
 # top of the mask starts just under the chin, not at the collar — a
 # high neckline or a dupatta thrown back needs the collarbone in reach
 _NECKLINE_DROP = 0.35  # of a face-height, below the bottom of the face
+# _MASK_REGION's own y0 (0.0 for TOP/DRESS/OUTERWEAR) is a placeholder,
+# never meant to be used literally — every live validation of "never
+# touched the face" happened with a face detected, which replaces it with
+# the neckline-relative top below. Without a detected face (a wedding
+# hall's lighting, an angled shot, a photo busy enough to confuse the Haar
+# cascade), that placeholder used to pass straight through: the
+# transparent edit window then started at the very top of the photo,
+# reaching the eyes — live, a kurti edit that lost face detection returned
+# a sharp black rectangle across the eyes, not drawn by this garment's own
+# safe default but by this fallback wiping out the clamp that would have
+# stopped it. A fixed floor well below where any standing adult's
+# shoulders could plausibly be is the backstop for exactly that case.
+_NO_FACE_TOP_FLOOR = 0.15  # of the photo's own height
 # A garment's mask never reaches wider than this, either side of her own
 # centre. _MASK_REGION's fixed 0.03-0.97 is the ceiling for someone who
 # already fills most of the frame; most photos aren't that tight a crop,
@@ -209,8 +222,10 @@ async def _mask_region(item: LookItem, face, base: np.ndarray) -> Region | None:
     """Where to cut this item's transparent window."""
     if item.slot in _GARMENTS:
         region = _MASK_REGION.get(item.slot)
-        if region is None or face is None:
+        if region is None:
             return region
+        if face is None:
+            return Region(region.x0, max(region.y0, _NO_FACE_TOP_FLOOR), region.x1, region.y1)
         h, w = base.shape[:2]
         top = min(region.y1, (face.y + face.h + _NECKLINE_DROP * face.h) / h)
         # Narrow the slot's own fixed width toward her, never widen it —

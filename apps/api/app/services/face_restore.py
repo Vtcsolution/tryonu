@@ -27,6 +27,17 @@ _CASCADE = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalfac
 _UP, _SIDE, _DOWN = 0.55, 0.28, 0.32
 _MAX_SCALE_CHANGE = 1.6  # result face vs original face size
 _MAX_CENTER_SHIFT = 0.12  # share of the image size the face may move between the two
+# Below this template-match score (TM_CCOEFF_NORMED, -1..1), no candidate
+# alignment actually resembles the result's own head area -- pasting the
+# best of a bad lot anyway is how a misaligned source gets pasted at all.
+# 0.35 is comfortably below a genuine match (a real face/hair silhouette
+# scores well above this) and comfortably above noise.
+_MIN_MATCH_SCORE = 0.35
+# A real lifted head crop -- skin, hair, a face's own contrast -- has
+# meaningfully varying pixel values. A flat/near-flat patch (solid black,
+# a blank wall, a degenerate crop) has almost none; pasting it is how an
+# "empty" source becomes a black rectangle on the result.
+_MIN_PATCH_STD = 4.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,6 +92,11 @@ def restore_face_arrays(
     top = max(0, int(face_o.y - _UP * face_o.h))
     bottom = min(oh, int(face_o.y + face_o.h * (1 + _DOWN)))
     head = original[top:bottom, left:right]
+    if head.size == 0 or float(head.std()) < _MIN_PATCH_STD:
+        # Nothing real to lift: a degenerate crop, or a flat/blank patch
+        # (solid black, a blown-out wall) -- pasting it is how an "empty"
+        # source becomes a black rectangle on the result.
+        return None
 
     # The detector's boxes are only roughly placed, so refine: try sizes
     # around the box ratio and slide the head over the result's head area,
@@ -103,12 +119,13 @@ def restore_face_arrays(
         _, score, _, (mx, my) = cv2.minMaxLoc(scores)
         if best is None or score > best[0]:
             best = (score, s, sx0 + mx, sy0 + my)
-    if best is None:
-        s = scale
-        dx = int(round(face_r.cx - (face_o.cx - left) * s))
-        dy = int(round(face_r.cy - (face_o.cy - top) * s))
-    else:
-        _, s, dx, dy = best
+    if best is None or best[0] < _MIN_MATCH_SCORE:
+        # No candidate alignment actually resembles the result's own head
+        # area (or none could even be tried, head room ran out above) --
+        # pasting the best of a bad lot anyway is how a misaligned source
+        # gets pasted at all. Refuse rather than guess.
+        return None
+    _, s, dx, dy = best
 
     patch = cv2.resize(head, None, fx=s, fy=s, interpolation=cv2.INTER_AREA if s < 1 else cv2.INTER_CUBIC)
     ph, pw = patch.shape[:2]

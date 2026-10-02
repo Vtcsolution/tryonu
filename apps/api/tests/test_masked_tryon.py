@@ -140,9 +140,18 @@ async def test_a_garments_mask_sits_below_the_chin_not_the_collar():
     assert region.x0 < 0.5 < region.x1  # wide enough to be centred on her
 
 
-async def test_a_garments_mask_without_a_face_falls_back_to_the_plain_default():
+async def test_a_garments_mask_without_a_face_never_reaches_the_very_top_of_the_photo():
+    """Live bug: _MASK_REGION's own y0 (0.0 for TOP) is a placeholder that
+    every face-detected run replaces with a neckline-relative top — never
+    meant to be used literally. Without a detected face (a wedding hall's
+    lighting, an angled shot) it used to pass straight through: the edit
+    window then started at the very top of the photo and reached the
+    eyes. A kurti edit that lost face detection returned a sharp black
+    rectangle across the eyes — this is the fix."""
     region = await _mask_region(LookItem("x", OutfitSlot.TOP, "shirt"), None, np.zeros((300, 200, 3), np.uint8))
-    assert region == masked._MASK_REGION[OutfitSlot.TOP]
+    assert region.y0 >= masked._NO_FACE_TOP_FLOOR
+    fixed = masked._MASK_REGION[OutfitSlot.TOP]
+    assert region.x0 == fixed.x0 and region.x1 == fixed.x1 and region.y1 == fixed.y1  # everything else unchanged
 
 
 async def test_a_garments_mask_narrows_toward_her_on_a_wide_photo():
@@ -318,7 +327,10 @@ async def test_each_items_box_is_the_exact_mask_used_not_a_recovered_guess(fake_
     fake_vision.extend([GOOD, GOOD])
     _, reports = await render_masked_look(_photo(), ITEMS, _editor([]), retries=1)
     dress_report, watch_report = reports
-    assert dress_report.box == masked._MASK_REGION[OutfitSlot.DRESS]  # no face in this blank photo: the plain default
+    # no face in this blank photo: the plain default, with its y0 floored
+    # away from the very top of the photo (see the no-face fallback fix)
+    expected = masked._MASK_REGION[OutfitSlot.DRESS]
+    assert dress_report.box == Region(expected.x0, masked._NO_FACE_TOP_FLOOR, expected.x1, expected.y1)
     assert watch_report.box == Region(0.55, 0.55, 0.72, 0.66)  # exactly what _area_for said, not a guess
     assert dress_report.verified and watch_report.verified
 
