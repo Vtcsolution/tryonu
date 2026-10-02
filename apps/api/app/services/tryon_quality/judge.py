@@ -209,6 +209,39 @@ def _band_kernel(radius: int) -> np.ndarray:
     return cv2.getStructuringElement(cv2.MORPH_RECT, (size, size))
 
 
+# A large item window (earrings' own face-relative box reaches from eye
+# level past the jaw) can have a defect sitting well inside it rather than
+# at its own edge — the model blends its outer boundary into the photo
+# fine (seam_score sees nothing wrong there) while the middle of its own
+# window is a flat, near-black failed fill. Real production case: the
+# exact same black-box report recurred after the seam gate shipped,
+# because the black patch never touched the window's own rectangle edge.
+_FLAT_DARK_MAX_GRAY = 25
+_FLAT_DARK_MAX_STD = 6.0  # real dark content (hair, deep shadow) is never this flat
+_FLAT_DARK_MIN_SHARE = 0.12  # of the item's own padded crop
+
+
+def has_flat_dark_fill(crop: np.ndarray) -> bool:
+    """A large, near-perfectly-flat dark region inside an item's own crop —
+    the signature of a failed or silently-refused generation, not real
+    photo content. product-agnostic, the same check already proven live
+    in app/scripts/live_compare_engines.py's _detect_black_box, moved here
+    so it actually gates a real job instead of only an offline comparison."""
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    dark = (gray < _FLAT_DARK_MAX_GRAY).astype(np.uint8)
+    dark = cv2.morphologyEx(dark, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5)))
+    n, _labels, stats, _centroids = cv2.connectedComponentsWithStats(dark, connectivity=8)
+    h, w = crop.shape[:2]
+    for i in range(1, n):
+        x, y, bw, bh, area = stats[i]
+        if area / (h * w) < _FLAT_DARK_MIN_SHARE:
+            continue
+        region_px = gray[y : y + bh, x : x + bw]
+        if float(region_px.std()) < _FLAT_DARK_MAX_STD:
+            return True
+    return False
+
+
 def seam_score(image: np.ndarray, region: Region, band: int = 2) -> float:
     """How much more a thin ring straddling the pasted region's own
     rectangle boundary stands out, in local edge strength, than the
@@ -354,6 +387,9 @@ async def judge(
         if delta_e >= _COLOR_FAIL_DELTA_E:
             product_match = min(product_match, 3.0)
             issues = [f"colour does not match the product photo (ΔE {delta_e:.0f})"] + issues
+        if has_flat_dark_fill(after_crop):
+            product_match = min(product_match, 2.0)
+            issues = ["a large flat dark patch where the product should be — a failed render"] + issues
 
     seam = seam_score(after, region)
     if seam >= _SEAM_RATIO_WORTH_LOGGING:

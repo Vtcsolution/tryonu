@@ -21,6 +21,7 @@ from app.services.tryon_quality.judge import (
     _delta_e_ciede2000,
     _dominant_lab,
     color_mismatch,
+    has_flat_dark_fill,
     has_seam,
     judge,
     region_was_touched,
@@ -246,6 +247,43 @@ def test_seam_score_returns_zero_when_the_region_touches_the_photo_edge():
     assert seam_score(base, region) == 0.0
 
 
+# -------------------------------------------------------------- has_flat_dark_fill
+#
+# A defect doesn't have to sit at an item's own window edge: a large item
+# window (earrings' own face-relative box reaches from eye level past the
+# jaw) can have a flat, failed fill well inside it while its outer
+# boundary blends fine — invisible to seam_score, which only looks at the
+# boundary. This is a separate, product-agnostic check for that case.
+
+
+def _dark_checkered(size: tuple[int, int] = (300, 300)) -> np.ndarray:
+    """Dark but genuinely textured, unlike a failed render's flat fill:
+    alternating 10x10 blocks of two dark values, well under the "dark"
+    threshold on average but with real local variation a flat patch
+    never has — real hair or deep shadow, not a black box."""
+    h, w = size
+    yy, xx = np.mgrid[0:h, 0:w]
+    block = (((yy // 10) + (xx // 10)) % 2).astype(np.uint8)
+    gray = np.where(block == 0, 2, 20).astype(np.uint8)
+    return np.stack([gray] * 3, axis=-1)
+
+
+def test_has_flat_dark_fill_finds_a_large_flat_black_patch():
+    crop = np.full((300, 300, 3), 200, np.uint8)
+    crop[100:220, 100:220] = 2  # large, perfectly flat, near-black
+    assert has_flat_dark_fill(crop)
+
+
+def test_has_flat_dark_fill_ignores_real_dark_textured_content():
+    assert not has_flat_dark_fill(_dark_checkered())
+
+
+def test_has_flat_dark_fill_ignores_a_small_dark_patch():
+    crop = np.full((300, 300, 3), 200, np.uint8)
+    crop[10:30, 10:30] = 2  # well under the min-share threshold
+    assert not has_flat_dark_fill(crop)
+
+
 # --------------------------------------------------------------- judge() itself
 
 
@@ -309,6 +347,27 @@ async def test_a_correctly_applied_product_passes(fake_vlm, mock_cutout):
     verdict = await judge(product, before, after, region, "a red item", False, PRODUCT_URL)
     assert verdict.product_match == 9.0  # the VLM's own score survives — neither gate fired
     assert verdict.passes(7.0, 6.0)
+
+
+async def test_a_flat_dark_patch_inside_the_window_fails_even_though_the_edge_blends_fine(fake_vlm, mock_cutout):
+    """The real recurring production case: the seam gate shipped, and the
+    exact same black-box report recurred on the next real job anyway,
+    because the black patch sat well inside the item's own window rather
+    than at its edge — the model blended the window's own boundary into
+    the photo fine, so seam_score never saw a problem. before/after are
+    otherwise identical solid colours (matching the product's own colour,
+    so color_mismatch doesn't fire either) specifically to isolate this
+    gate as the one that must catch it."""
+    region = Region(0.3, 0.3, 0.7, 0.7)
+    before = np.full((300, 300, 3), (150, 150, 150), dtype=np.uint8)
+    after = np.full((300, 300, 3), (200, 200, 200), dtype=np.uint8)
+    after[130:230, 130:230] = (2, 2, 2)  # well inside the region, nowhere near its own rectangle edge
+    assert seam_score(after, region) < 12.0  # confirms the edge itself blends fine
+    product, mask = _studio_photo((200, 200, 200))  # matches the render's own non-defect colour exactly
+    mock_cutout[PRODUCT_URL] = mask
+    verdict = await judge(product, before, after, region, "a grey item", False, PRODUCT_URL)
+    assert verdict.product_match <= 2.0
+    assert "flat dark patch" in verdict.issues[0]
 
 
 async def test_a_white_product_correctly_applied_passes(fake_vlm, mock_cutout):
