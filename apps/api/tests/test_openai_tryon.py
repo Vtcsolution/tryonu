@@ -440,6 +440,38 @@ async def test_masked_prompt_names_the_transparent_region_and_the_product():
     assert "exactly as it went in" in prompt  # what's outside the region
 
 
+def test_insufficient_quota_is_not_retryable_even_at_429():
+    """OpenAI returns 429 for both a temporary rate limit and an exhausted
+    billing balance -- retrying the second never helps until the account
+    is topped up. Live: every item of a job placed with an empty balance
+    retried 3 times with backoff before giving up, on every single item."""
+    from app.ai.providers.base import TryOnProviderError
+    from app.ai.providers.openai_image import _raise_for_status
+
+    resp = httpx.Response(
+        429,
+        json={"error": {"message": "You have no credits remaining.", "code": "insufficient_quota"}},
+        request=httpx.Request("POST", "https://api.openai.com/v1/images/edits"),
+    )
+    with pytest.raises(TryOnProviderError) as exc_info:
+        _raise_for_status(resp)
+    assert exc_info.value.retryable is False
+
+
+def test_a_genuine_rate_limit_is_still_retryable():
+    from app.ai.providers.base import TryOnProviderError
+    from app.ai.providers.openai_image import _raise_for_status
+
+    resp = httpx.Response(
+        429,
+        json={"error": {"message": "Rate limit reached, please slow down.", "code": "rate_limit_exceeded"}},
+        request=httpx.Request("POST", "https://api.openai.com/v1/images/edits"),
+    )
+    with pytest.raises(TryOnProviderError) as exc_info:
+        _raise_for_status(resp)
+    assert exc_info.value.retryable is True
+
+
 async def test_masked_prompt_carries_a_correction_note():
     from app.ai.providers.openai_image import masked_prompt
 

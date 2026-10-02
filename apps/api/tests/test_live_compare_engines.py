@@ -13,6 +13,7 @@ import pytest
 
 from app.models.enums import OutfitSlot
 from app.scripts.live_compare_engines import (
+    BillingHalted,
     BudgetExceeded,
     CostBudget,
     LocalDebug,
@@ -24,17 +25,38 @@ from app.scripts.live_compare_engines import (
 
 def test_budget_allows_spending_up_to_the_cap():
     budget = CostBudget(max_usd=0.10)
-    budget.spend(0.04, "a")
-    budget.spend(0.04, "b")
+    budget.preflight(0.04, "a")
+    budget.charge(0.04, "a")
+    budget.preflight(0.04, "b")
+    budget.charge(0.04, "b")
     assert budget.spent_usd == pytest.approx(0.08)
 
 
 def test_budget_refuses_before_exceeding_not_after():
     budget = CostBudget(max_usd=0.10)
-    budget.spend(0.06, "a")
+    budget.preflight(0.06, "a")
+    budget.charge(0.06, "a")
     with pytest.raises(BudgetExceeded):
-        budget.spend(0.06, "b")  # would bring total to 0.12, over the cap
+        budget.preflight(0.06, "b")  # would bring total to 0.12, over the cap
     assert budget.spent_usd == pytest.approx(0.06)  # the refused spend was never counted
+
+
+def test_a_failed_call_is_never_charged():
+    """A call that fails (billing or otherwise) was never charged by the
+    provider — preflight reserves nothing, only charge() after success
+    actually counts."""
+    budget = CostBudget(max_usd=0.10)
+    budget.preflight(0.06, "a")  # the attempt itself
+    # the real call then fails and charge() is simply never called
+    assert budget.spent_usd == 0.0
+
+
+def test_halt_blocks_every_subsequent_preflight():
+    budget = CostBudget(max_usd=10.0)
+    budget.halt("no credits remaining")
+    with pytest.raises(BillingHalted):
+        budget.preflight(0.01, "next item")
+    assert budget.halted_reason == "no credits remaining"
 
 
 def test_local_debug_writes_bytes_and_arrays_to_disk(tmp_path):

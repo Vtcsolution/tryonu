@@ -439,12 +439,26 @@ async def _download(client: httpx.AsyncClient, url: str, what: str) -> tuple[byt
     return resp.content, ctype
 
 
+# OpenAI returns 429 for two very different things: a temporary rate
+# limit (retrying in a few seconds helps) and an exhausted/empty billing
+# balance (retrying never helps until the account is topped up). Both
+# arrive as the same HTTP status, so retryable=(429 or 5xx) alone used to
+# retry a billing failure 3 times with backoff before giving up — wasted
+# time on every single item of a job placed with no credits left, and no
+# distinct signal for a caller that specifically wants to stop immediately
+# on billing rather than retry.
+_NOT_RETRYABLE_ERROR_CODES = {"insufficient_quota", "billing_hard_limit_reached"}
+
+
 def _raise_for_status(resp: httpx.Response) -> None:
     if resp.status_code < 400:
         return
     try:
-        message = resp.json().get("error", {}).get("message") or resp.text
+        error = resp.json().get("error", {})
+        message = error.get("message") or resp.text
     except ValueError:
+        error = {}
         message = resp.text
-    retryable = resp.status_code == 429 or resp.status_code >= 500
+    is_billing = str(error.get("code") or error.get("type") or "").lower() in _NOT_RETRYABLE_ERROR_CODES
+    retryable = (resp.status_code == 429 or resp.status_code >= 500) and not is_billing
     raise TryOnProviderError(f"OpenAI image edit failed ({resp.status_code}): {message[:300]}", retryable=retryable)

@@ -62,18 +62,39 @@ class BudgetExceeded(RuntimeError):
     pass
 
 
+class BillingHalted(RuntimeError):
+    pass
+
+
 @dataclass
 class CostBudget:
     max_usd: float
     spent_usd: float = 0.0
     log: list[str] = field(default_factory=list)
+    halted_reason: str | None = None
 
-    def spend(self, usd: float, label: str) -> None:
+    def halt(self, reason: str) -> None:
+        self.halted_reason = reason
+        print(f"  BILLING FAILURE — stopping, not retrying: {reason}")
+
+    def preflight(self, usd: float, label: str) -> None:
+        """Call before attempting a real API call: raises immediately if a
+        prior call already found a non-retryable billing failure (a
+        provider that's out of credit doesn't get a second attempt just
+        because it's a different item), or if even a successful call
+        would push estimated spend over the cap."""
+        if self.halted_reason is not None:
+            raise BillingHalted(self.halted_reason)
         if self.spent_usd + usd > self.max_usd:
             raise BudgetExceeded(
                 f"refusing '{label}' (${usd:.3f}): would bring total to "
                 f"${self.spent_usd + usd:.3f}, over the ${self.max_usd:.2f} cap"
             )
+
+    def charge(self, usd: float, label: str) -> None:
+        """Call only after a real API call actually succeeded — a call
+        that failed (billing or otherwise) was never charged by the
+        provider, so it must not be counted as spent here either."""
         self.spent_usd += usd
         line = f"[${self.spent_usd:.3f}/{self.max_usd:.2f}] {label} (${usd:.3f})"
         self.log.append(line)
@@ -183,29 +204,48 @@ def _build_adapters(openai_provider, gemini_provider, budget: CostBudget):  # no
     from app.ai.providers.base import OutfitPiece
     import base64
 
+    from app.ai.providers.base import TryOnProviderError
+
+    async def _call_and_account(coro_fn, usd: float, label: str):
+        budget.preflight(usd, label)
+        try:
+            output = await coro_fn()
+        except TryOnProviderError as exc:
+            if not exc.retryable:
+                budget.halt(f"{label}: {exc}")
+            raise
+        budget.charge(usd, label)
+        return output.image_bytes
+
     async def edit_masked_old(person_png, mask_png, item, hint):
-        budget.spend(_OPENAI_COST_PER_IMAGE_USD, f"old/edit_masked: {item.name[:40]}")
         piece = OutfitPiece(item.image_url, item.slot.value, item.name, note=hint.fix, description=hint.description)
-        return (await openai_provider.edit_masked(person_png, mask_png, piece)).image_bytes
+        return await _call_and_account(
+            lambda: openai_provider.edit_masked(person_png, mask_png, piece),
+            _OPENAI_COST_PER_IMAGE_USD, f"old/edit_masked: {item.name[:40]}",
+        )
 
     async def edit_batch_openai(person_png, mask_png, pieces: list[BatchPiece]):
         names = ", ".join(p.item.name[:30] for p in pieces)
-        budget.spend(_OPENAI_COST_PER_IMAGE_USD, f"zoned-openai/batch ({len(pieces)}): {names}")
         outfit_pieces = [
             OutfitPiece(p.item.image_url, p.item.slot.value, p.item.name, note=p.fix, description=p.description)
             for p in pieces
         ]
-        return (await openai_provider.edit_masked_batch(person_png, mask_png, outfit_pieces)).image_bytes
+        return await _call_and_account(
+            lambda: openai_provider.edit_masked_batch(person_png, mask_png, outfit_pieces),
+            _OPENAI_COST_PER_IMAGE_USD, f"zoned-openai/batch ({len(pieces)}): {names}",
+        )
 
     async def edit_batch_gemini(person_png, mask_png, pieces: list[BatchPiece]):
         names = ", ".join(p.item.name[:30] for p in pieces)
-        budget.spend(_GEMINI_COST_PER_IMAGE_USD, f"zoned-gemini/batch ({len(pieces)}): {names}")
         outfit_pieces = [
             OutfitPiece(p.item.image_url, p.item.slot.value, p.item.name, note=p.fix, description=p.description)
             for p in pieces
         ]
         data_uri = "data:image/png;base64," + base64.b64encode(person_png).decode()
-        return (await gemini_provider.generate_outfit(data_uri, outfit_pieces)).image_bytes
+        return await _call_and_account(
+            lambda: gemini_provider.generate_outfit(data_uri, outfit_pieces),
+            _GEMINI_COST_PER_IMAGE_USD, f"zoned-gemini/batch ({len(pieces)}): {names}",
+        )
 
     return edit_masked_old, edit_batch_openai, edit_batch_gemini
 
@@ -247,8 +287,17 @@ async def main(photo_path: Path, prompts: list[str], max_usd: float, which: list
             items = _look_items(products)
             print(f"  {len(items)} real products: {[it.name[:40] for it in items]}")
 
+            # render_masked_look/render_zoned_look's own per-item retry loop
+            # catches every exception internally (one item's failure must
+            # never lose the rest of that render) -- so a billing halt from
+            # deep inside edit_masked/edit_masked_batch never reaches a
+            # try/except wrapped around the whole call. budget.halted_reason
+            # is checked explicitly before each engine attempt instead, so
+            # the very next engine (or prompt) doesn't even start a call
+            # that would fail the exact same way.
+            stop = False
             try:
-                if "old" in which:
+                if "old" in which and budget.halted_reason is None:
                     print("\n  --- OLD engine (masked.py, OpenAI) ---")
                     debug = LocalDebug(out_root, f"prompt{i}_old")
                     image, reports = await render_masked_look(
@@ -263,7 +312,7 @@ async def main(photo_path: Path, prompts: list[str], max_usd: float, which: list
                     bb = _detect_black_box(cv2.imdecode(np.frombuffer(image, np.uint8), cv2.IMREAD_COLOR))
                     print(f"    black-box check: {'FOUND ' + str(bb) if bb else 'clean'}")
 
-                if "zoned" in which:
+                if "zoned" in which and budget.halted_reason is None:
                     print("\n  --- ZONED engine (OpenAI) ---")
                     debug = LocalDebug(out_root, f"prompt{i}_zoned_openai")
                     image, reports = await render_zoned_look(
@@ -278,7 +327,7 @@ async def main(photo_path: Path, prompts: list[str], max_usd: float, which: list
                     bb = _detect_black_box(cv2.imdecode(np.frombuffer(image, np.uint8), cv2.IMREAD_COLOR))
                     print(f"    black-box check: {'FOUND ' + str(bb) if bb else 'clean'}")
 
-                if "gemini" in which and gemini_provider is not None:
+                if "gemini" in which and gemini_provider is not None and budget.halted_reason is None:
                     print("\n  --- ZONED engine (Gemini) ---")
                     debug = LocalDebug(out_root, f"prompt{i}_zoned_gemini")
                     image, reports = await render_zoned_look(
@@ -294,9 +343,14 @@ async def main(photo_path: Path, prompts: list[str], max_usd: float, which: list
                     print(f"    black-box check: {'FOUND ' + str(bb) if bb else 'clean'}")
             except BudgetExceeded as exc:
                 print(f"\nSTOPPED: {exc}")
+                stop = True
+
+            if budget.halted_reason is not None or stop:
                 break
 
     print(f"\n{'=' * 70}\nOutput: {out_root}\ntotal spend: ${budget.spent_usd:.3f} / ${budget.max_usd:.2f}\n{'=' * 70}")
+    if budget.halted_reason is not None:
+        print(f"Stopped early due to a non-retryable billing failure: {budget.halted_reason}")
     return 0
 
 

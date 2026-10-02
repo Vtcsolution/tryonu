@@ -64,17 +64,36 @@ class BudgetExceeded(RuntimeError):
     pass
 
 
+class BillingHalted(RuntimeError):
+    pass
+
+
 @dataclass
 class CostBudget:
     max_usd: float
     spent_usd: float = 0.0
+    halted_reason: str | None = None
 
-    def spend(self, usd: float, label: str) -> None:
+    def halt(self, reason: str) -> None:
+        self.halted_reason = reason
+        print(f"  BILLING FAILURE — stopping, not retrying: {reason}")
+
+    def preflight(self, usd: float, label: str) -> None:
+        """Call before attempting a real API call: raises immediately if a
+        prior call already found a non-retryable billing failure, or if
+        even a successful call would push estimated spend over the cap."""
+        if self.halted_reason is not None:
+            raise BillingHalted(self.halted_reason)
         if self.spent_usd + usd > self.max_usd:
             raise BudgetExceeded(
                 f"refusing '{label}' (${usd:.3f}): would bring total to "
                 f"${self.spent_usd + usd:.3f}, over the ${self.max_usd:.2f} cap"
             )
+
+    def charge(self, usd: float, label: str) -> None:
+        """Call only after a real API call actually succeeded — a call
+        that failed (billing or otherwise) was never charged by the
+        provider, so it must not be counted as spent here either."""
         self.spent_usd += usd
         print(f"  [${self.spent_usd:.3f}/{self.max_usd:.2f}] {label} (${usd:.3f})")
 
@@ -158,11 +177,27 @@ def _report_row(name: str, report: ItemReport) -> str:
     )
 
 
+async def _call_and_account(budget: CostBudget, coro_fn, usd: float, label: str) -> bytes:
+    from app.ai.providers.base import TryOnProviderError
+
+    budget.preflight(usd, label)
+    try:
+        output = await coro_fn()
+    except TryOnProviderError as exc:
+        if not exc.retryable:
+            budget.halt(f"{label}: {exc}")
+        raise
+    budget.charge(usd, label)
+    return output.image_bytes
+
+
 def _pipeline_edit_masked_openai(provider: OpenAIImageTryOnProvider, budget: CostBudget):
     async def edit(person_png: bytes, mask_png: bytes, item: LookItem, hint: RenderHint) -> bytes:
-        budget.spend(_OPENAI_COST_PER_IMAGE_USD, f"edit_masked (old engine): {item.name[:40]}")
         piece = OutfitPiece(item.image_url, item.slot.value, item.name, note=hint.fix, description=hint.description)
-        return (await provider.edit_masked(person_png, mask_png, piece)).image_bytes
+        return await _call_and_account(
+            budget, lambda: provider.edit_masked(person_png, mask_png, piece),
+            _OPENAI_COST_PER_IMAGE_USD, f"edit_masked (old engine): {item.name[:40]}",
+        )
 
     return edit
 
@@ -170,12 +205,14 @@ def _pipeline_edit_masked_openai(provider: OpenAIImageTryOnProvider, budget: Cos
 def _pipeline_edit_batch_openai(provider: OpenAIImageTryOnProvider, budget: CostBudget):
     async def edit_batch(person_png: bytes, mask_png: bytes, pieces: list[BatchPiece]) -> bytes:
         names = ", ".join(p.item.name[:30] for p in pieces)
-        budget.spend(_OPENAI_COST_PER_IMAGE_USD, f"edit_masked_batch ({len(pieces)}, zoned/OpenAI): {names}")
         outfit_pieces = [
             OutfitPiece(p.item.image_url, p.item.slot.value, p.item.name, note=p.fix, description=p.description)
             for p in pieces
         ]
-        return (await provider.edit_masked_batch(person_png, mask_png, outfit_pieces)).image_bytes
+        return await _call_and_account(
+            budget, lambda: provider.edit_masked_batch(person_png, mask_png, outfit_pieces),
+            _OPENAI_COST_PER_IMAGE_USD, f"edit_masked_batch ({len(pieces)}, zoned/OpenAI): {names}",
+        )
 
     return edit_batch
 
@@ -183,13 +220,15 @@ def _pipeline_edit_batch_openai(provider: OpenAIImageTryOnProvider, budget: Cost
 def _pipeline_edit_batch_gemini(provider: GeminiImageTryOnProvider, budget: CostBudget):
     async def edit_batch(person_png: bytes, mask_png: bytes, pieces: list[BatchPiece]) -> bytes:  # noqa: ARG001
         names = ", ".join(p.item.name[:30] for p in pieces)
-        budget.spend(_GEMINI_COST_PER_IMAGE_USD, f"generate_outfit ({len(pieces)}, zoned/Gemini): {names}")
         outfit_pieces = [
             OutfitPiece(p.item.image_url, p.item.slot.value, p.item.name, note=p.fix, description=p.description)
             for p in pieces
         ]
         data_uri = "data:image/png;base64," + base64.b64encode(person_png).decode()
-        return (await provider.generate_outfit(data_uri, outfit_pieces)).image_bytes
+        return await _call_and_account(
+            budget, lambda: provider.generate_outfit(data_uri, outfit_pieces),
+            _GEMINI_COST_PER_IMAGE_USD, f"generate_outfit ({len(pieces)}, zoned/Gemini): {names}",
+        )
 
     return edit_batch
 
@@ -232,40 +271,40 @@ async def main(manifest_path: Path, max_usd: float, which: list[str]) -> int:
 
     results: dict[str, tuple] = {}
     try:
-        if "old" in which:
-            if not settings.OPENAI_API_KEY:
-                print("OPENAI_API_KEY not set — skipping old engine")
-            else:
-                print("=== OLD engine (masked.py, OpenAI) ===")
-                openai_provider = OpenAIImageTryOnProvider(
-                    api_key=settings.OPENAI_API_KEY, model=settings.OPENAI_IMAGE_MODEL, quality="high"
-                )
-                results["old_openai"] = await _run_old_engine(person, items, openai_provider, budget, out_root)
+        if "old" in which and not settings.OPENAI_API_KEY:
+            print("OPENAI_API_KEY not set — skipping old engine")
+        elif "old" in which:
+            print("=== OLD engine (masked.py, OpenAI) ===")
+            openai_provider = OpenAIImageTryOnProvider(
+                api_key=settings.OPENAI_API_KEY, model=settings.OPENAI_IMAGE_MODEL, quality="high"
+            )
+            results["old_openai"] = await _run_old_engine(person, items, openai_provider, budget, out_root)
 
-        if "openai" in which:
-            if not settings.OPENAI_API_KEY:
-                print("OPENAI_API_KEY not set — skipping zoned/OpenAI")
-            else:
-                print("\n=== ZONED engine, OpenAI ===")
-                openai_provider = OpenAIImageTryOnProvider(
-                    api_key=settings.OPENAI_API_KEY, model=settings.OPENAI_IMAGE_MODEL, quality="high"
-                )
-                edit_batch = _pipeline_edit_batch_openai(openai_provider, budget)
-                results["zoned_openai"] = await _run_zoned(person, items, edit_batch, "zoned_openai", out_root)
+        if "openai" in which and not settings.OPENAI_API_KEY:
+            print("OPENAI_API_KEY not set — skipping zoned/OpenAI")
+        elif "openai" in which and budget.halted_reason is None:
+            print("\n=== ZONED engine, OpenAI ===")
+            openai_provider = OpenAIImageTryOnProvider(
+                api_key=settings.OPENAI_API_KEY, model=settings.OPENAI_IMAGE_MODEL, quality="high"
+            )
+            edit_batch = _pipeline_edit_batch_openai(openai_provider, budget)
+            results["zoned_openai"] = await _run_zoned(person, items, edit_batch, "zoned_openai", out_root)
 
-        if "gemini" in which:
-            if not settings.GEMINI_API_KEY:
-                print("GEMINI_API_KEY not set — skipping zoned/Gemini")
-            else:
-                print("\n=== ZONED engine, Gemini ===")
-                gemini_provider = GeminiImageTryOnProvider(
-                    api_key=settings.GEMINI_API_KEY, model=settings.GEMINI_IMAGE_MODEL, image_size="2K"
-                )
-                edit_batch = _pipeline_edit_batch_gemini(gemini_provider, budget)
-                results["zoned_gemini"] = await _run_zoned(person, items, edit_batch, "zoned_gemini", out_root)
+        if "gemini" in which and not settings.GEMINI_API_KEY:
+            print("GEMINI_API_KEY not set — skipping zoned/Gemini")
+        elif "gemini" in which and budget.halted_reason is None:
+            print("\n=== ZONED engine, Gemini ===")
+            gemini_provider = GeminiImageTryOnProvider(
+                api_key=settings.GEMINI_API_KEY, model=settings.GEMINI_IMAGE_MODEL, image_size="2K"
+            )
+            edit_batch = _pipeline_edit_batch_gemini(gemini_provider, budget)
+            results["zoned_gemini"] = await _run_zoned(person, items, edit_batch, "zoned_gemini", out_root)
     except BudgetExceeded as exc:
         print(f"\nSTOPPED: {exc}")
         print(f"Partial results (if any) are saved under {out_root}")
+
+    if budget.halted_reason is not None:
+        print(f"\nStopped early due to a non-retryable billing failure: {budget.halted_reason}")
 
     print(f"\n=== Results: {out_root} ===")
     for label, (image, reports, elapsed) in results.items():

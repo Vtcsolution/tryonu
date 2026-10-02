@@ -11,6 +11,7 @@ import pytest
 
 from app.models.enums import OutfitSlot
 from app.scripts.live_user_simulation import (
+    BillingHalted,
     BudgetExceeded,
     CostBudget,
     _detect_black_box,
@@ -22,10 +23,24 @@ from app.scripts.live_user_simulation import (
 
 def test_budget_refuses_before_exceeding_not_after():
     budget = CostBudget(max_usd=0.10)
-    budget.spend(0.06, "a")
+    budget.preflight(0.06, "a")
+    budget.charge(0.06, "a")
     with pytest.raises(BudgetExceeded):
-        budget.spend(0.06, "b")
+        budget.preflight(0.06, "b")
     assert budget.spent_usd == pytest.approx(0.06)
+
+
+def test_a_failed_call_is_never_charged():
+    budget = CostBudget(max_usd=0.10)
+    budget.preflight(0.06, "a")  # the attempt; charge() is never called since the call fails
+    assert budget.spent_usd == 0.0
+
+
+def test_halt_blocks_every_subsequent_preflight():
+    budget = CostBudget(max_usd=10.0)
+    budget.halt("no credits remaining")
+    with pytest.raises(BillingHalted):
+        budget.preflight(0.01, "next item")
 
 
 def test_detect_black_box_finds_a_large_flat_dark_rectangle():
