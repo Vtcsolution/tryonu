@@ -7,6 +7,10 @@ switch it, without the admin panel.
     python -m app.scripts.tryon_doctor --use openai --openai-model gpt-image-1.5
     python -m app.scripts.tryon_doctor --fashn-model tryon-max  # FASHN's model that
         # also draws shoes, bags and jewellery while keeping the person's face
+    python -m app.scripts.tryon_doctor --debug-job <job-id>  # signed URLs to that
+        # job's saved debug-capture images (requires TRYON_SAVE_DEBUG=true and the
+        # job's own account on TRYON_DEBUG_USER_EMAILS at render time — see
+        # app/services/tryon_quality/debug_capture.py)
 
 Switching writes the same encrypted admin setting the Settings page does;
 running servers pick it up within ~15 seconds. Never prints secrets.
@@ -26,6 +30,7 @@ from app.core.runtime_settings import SettingsValidationError, build_settings, e
 from app.db.session import AsyncSessionLocal
 from app.models.app_setting import AppSetting
 from app.models.tryon import TryOnJob
+from app.services.storage_service import get_storage
 
 
 def _yes(value: object) -> str:
@@ -67,12 +72,33 @@ async def _openai_image_access(s: Settings) -> str:
     return f"NO ({resp.status_code}) {message[:200]}"
 
 
+async def _print_debug_urls(job_id: str) -> int:
+    settings = Settings()
+    base = settings.PUBLIC_API_BASE_URL.rstrip("/")
+    storage = get_storage()
+    entries = sorted(storage.list_with_mtime(f"debug/tryon/{job_id}"))
+    if not entries:
+        print(f"No debug images found for job {job_id}.")
+        print("Either TRYON_SAVE_DEBUG was off, the job's account wasn't on TRYON_DEBUG_USER_EMAILS,")
+        print("the job predates debug capture being enabled, or the retention window already swept it.")
+        return 1
+    print(f"{len(entries)} debug image(s) for job {job_id} (each URL valid ~1 hour):")
+    for key, _mtime in entries:
+        url = storage.signed_url(key, ttl_seconds=3600)
+        print(f"  {url if url.startswith('http') else base + url}")
+    return 0
+
+
 async def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--use", choices=["openai", "fashn", "mock"])
     parser.add_argument("--fashn-model", choices=["tryon-max", "tryon-v1.6"])
     parser.add_argument("--openai-model", help="OpenAI image model for try-ons, e.g. gpt-image-1.5")
+    parser.add_argument("--debug-job", help="Print signed URLs to a job's saved debug-capture images, then exit")
     args = parser.parse_args()
+
+    if args.debug_job:
+        return await _print_debug_urls(args.debug_job)
 
     try:
         if args.use:
@@ -113,7 +139,7 @@ async def main() -> int:
     print("\nLast try-ons (newest first)")
     for job in jobs:
         error = f" — {job.error_message[:120]}" if job.error_message else ""
-        print(f"  {job.created_at:%Y-%m-%d %H:%M}  {job.provider}/{job.provider_model}  {job.status.value}{error}")
+        print(f"  {job.id}  {job.created_at:%Y-%m-%d %H:%M}  {job.provider}/{job.provider_model}  {job.status.value}{error}")
     if not jobs:
         print("  (none)")
     return 0
