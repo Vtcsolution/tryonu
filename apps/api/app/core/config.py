@@ -118,11 +118,19 @@ class Settings(BaseSettings):
     #   gemini-2.5-flash-image   98%  (it returned the catalogue's model)
     #   gemini-3-pro-image       37%  27s, and it changed her shoes
     #   gemini-3.1-flash-image   37%  13s, and it kept them
+    # gemini-2.5-flash-image is deprecated by Google as of 2026-10-02 —
+    # confirmed via ai.google.dev/gemini-api/docs/pricing; it was never
+    # the default here, but it's now unusable regardless.
     GEMINI_API_KEY: str | None = None
-    # "nano banana Pro". 3.1-flash measured a shade better and twice as
-    # fast on one look; Pro is the default because it is what was asked
-    # for, and the gap is inside the run-to-run spread.
-    GEMINI_IMAGE_MODEL: str = "gemini-3-pro-image"
+    # Switched from "gemini-3-pro-image" ("nano banana Pro") to
+    # "gemini-3.1-flash-image" ("nano banana 2") 2026-10-02: the
+    # measurement above already showed it a shade better and twice as
+    # fast on one look, and current pricing (ai.google.dev/gemini-api/docs/pricing)
+    # confirmed it's also meaningfully cheaper at every resolution tier
+    # ($0.045-0.151/image vs Pro's $0.134-0.24) — no longer just "inside
+    # the run-to-run spread" once cost is part of the comparison. Pro
+    # remains available by setting this back explicitly.
+    GEMINI_IMAGE_MODEL: str = "gemini-3.1-flash-image"  # was: gemini-3-pro-image
     # 1792x2400 rather than the 896x1200 default — see DEFAULT_IMAGE_SIZE
     GEMINI_IMAGE_SIZE: Literal["1K", "2K", "4K"] = "2K"
 
@@ -135,6 +143,11 @@ class Settings(BaseSettings):
     # gpt-image-2 sharpness 256, gpt-image-2.5-flare 311,
     # gpt-image-2.5-sunburst 693 — and only sunburst returns more than
     # 1024x1536, which is what "not full HD" actually meant.
+    # Confirmed current via developers.openai.com/api/docs/guides/image-generation
+    # (2026-10-02): sunburst is explicitly "for workflows where editing
+    # precision matters most" — exactly the masked-edit use case here —
+    # against flare for "fast, high-quality everyday image generation".
+    # Still the right choice; no change from the live measurement above.
     OPENAI_IMAGE_MODEL: str = "gpt-image-2.5-sunburst"
     # Measured per render (shirt/dress/shoes/bag/watch): "low" ~15s and scored
     # 8-9, "medium" ~32s, "high" ~87s and scored WORSE (it redraws more of the
@@ -144,12 +157,16 @@ class Settings(BaseSettings):
     # scored product=8; "medium" took 19s and scored 9, holding the
     # kameez's embroidery and the tote's embossed base. Two seconds is
     # not the part of a minute worth saving.
-    OPENAI_IMAGE_QUALITY: Literal["low", "medium", "high"] = "medium"
+    # "xhigh"/"max" are new top tiers confirmed current via OpenAI's docs
+    # (2026-10-02, gpt-image-2.5-sunburst/flare only) — included here so
+    # they're a valid setting, not yet measured against "medium"/"high"
+    # for this pipeline's own use case.
+    OPENAI_IMAGE_QUALITY: Literal["low", "medium", "high", "xhigh", "max"] = "medium"
     # What a failed item is re-rendered at. "high" measured WORSE than "low"
     # overall (it redraws more of the photo), so the step up is "medium":
     # ~32s, and it holds colour and fine embroidery that "low" loses — an
     # ivory dress came back pink with its gold work flattened.
-    OPENAI_IMAGE_QUALITY_RETRY: Literal["low", "medium", "high"] = "high"
+    OPENAI_IMAGE_QUALITY_RETRY: Literal["low", "medium", "high", "xhigh", "max"] = "high"
     # looks at images (product analysis, locating the worn item, quality checks) — never draws
     OPENAI_VISION_MODEL: str = "gpt-5.4-mini"
     # with the FASHN provider: render outfits that include shoes, bags or
