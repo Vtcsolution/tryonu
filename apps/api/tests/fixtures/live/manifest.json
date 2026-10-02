@@ -1,0 +1,10 @@
+{
+  "person_photo": "person_front.jpg",
+  "products": [
+    {"name": "White Chikankari Kurti", "image_file": "1_kurti.jpg", "slot": "top"},
+    {"name": "White Cotton Trouser", "image_file": "2_trouser.jpg", "slot": "bottom"},
+    {"name": "Golden Khussa", "image_file": "3_khussa.jpg", "slot": "shoes"},
+    {"name": "Golden Glass Bangles", "image_file": "4_bangles.jpg", "slot": "accessory"},
+    {"name": "Jhumka Earrings", "image_file": "5_earrings.jpg", "slot": "accessory"}
+  ]
+}
