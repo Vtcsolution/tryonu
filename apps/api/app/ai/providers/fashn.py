@@ -268,6 +268,27 @@ class FASHNTryOnProvider(VirtualTryOnProvider):
             f"Failed to download the finished FASHN render for job {job_id}: {last}", provider_job_id=job_id
         )
 
+    async def fetch_status(self, job_id: str) -> dict:
+        """Reads an existing job's status. Read-only: creates nothing and bills nothing."""
+        headers = {"Authorization": f"Bearer {self._api_key}"}
+        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+            try:
+                resp = await client.get(f"{self._base_url}/status/{job_id}", headers=headers)
+            except httpx.RequestError as exc:
+                raise TryOnProviderError(f"FASHN status check failed: {exc}", retryable=True, provider_job_id=job_id) from exc
+        if resp.status_code >= 400:
+            raise TryOnProviderError(
+                f"FASHN status error {resp.status_code}", retryable=resp.status_code == 429, provider_job_id=job_id
+            )
+        data = resp.json()
+        if not isinstance(data, dict):
+            raise TryOnProviderError("FASHN returned an unreadable status", provider_job_id=job_id)
+        return data
+
+    async def download_output(self, job_id: str, url: str) -> tuple[bytes, str]:
+        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+            return await self._download(client, url, job_id)
+
     def _content_type(self, resp: httpx.Response) -> str:
         header = resp.headers.get("content-type", "").split(";")[0].strip().lower()
         if header.startswith("image/"):

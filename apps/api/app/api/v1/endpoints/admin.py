@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Body, HTTPException
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import selectinload
 
@@ -19,6 +19,9 @@ from app.models.user import User
 from app.schemas.admin import AdminOverview, AdminTryOnJobOut, AdminUserOut
 from app.schemas.common import Page
 from app.schemas.tryon import TryOnJobOut
+from app.ai.providers.fashn import FASHNTryOnProvider
+from app.ai.providers.registry import get_tryon_provider
+from app.services import tryon_review
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -228,3 +231,50 @@ async def list_payments(_: AdminUser, db: DbSession, limit: int = 50, offset: in
         }
         for p in rows
     ]
+
+
+def _review_row(job: TryOnJob) -> dict:
+    return {
+        "id": job.id,
+        "status": job.status.value,
+        "review_state": job.review_state,
+        "review_reason": job.review_reason,
+        "provider_job_id": job.provider_job_id,
+        "credit_cost": job.credit_cost,
+        "created_at": job.created_at.isoformat() if job.created_at else None,
+    }
+
+
+@router.get("/tryon-reviews")
+async def list_tryon_reviews(_: AdminUser, db: DbSession):
+    return [_review_row(job) for job in await tryon_review.pending_reviews(db)]
+
+
+@router.post("/tryon-reviews/{job_id}/approve")
+async def approve_tryon_review(job_id: str, admin: AdminUser, db: DbSession):
+    try:
+        job = await tryon_review.approve(db, job_id, admin.id)
+    except tryon_review.ReviewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return _review_row(job)
+
+
+@router.post("/tryon-reviews/{job_id}/refund")
+async def refund_tryon_review(job_id: str, admin: AdminUser, db: DbSession, note: str = Body(..., embed=True, min_length=3, max_length=200)):
+    try:
+        job = await tryon_review.refund(db, job_id, admin.id, note)
+    except tryon_review.ReviewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return _review_row(job)
+
+
+@router.post("/tryon-reviews/{job_id}/reconcile")
+async def reconcile_tryon_review(job_id: str, admin: AdminUser, db: DbSession):
+    provider = get_tryon_provider()
+    if not isinstance(provider, FASHNTryOnProvider):
+        raise HTTPException(status_code=409, detail="reconciliation needs FASHN as the active try-on provider")
+    try:
+        outcome = await tryon_review.reconcile(db, job_id, admin.id, provider)
+    except tryon_review.ReviewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"outcome": outcome, "job": _review_row(await tryon_review._load(db, job_id))}

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import select
+
 from app.models.enums import JobStatus
 from app.models.tryon import TryOnJob
 from app.services.stuck_jobs import sweep_stuck_jobs
@@ -95,21 +97,26 @@ async def test_a_render_that_stalled_for_twenty_minutes_is_given_up_on(client, d
     assert await credit_balance(db, user_id) == before + cost
 
 
-async def test_a_paid_fashn_render_is_never_refunded_by_the_sweeper(client, db):
+async def test_a_stalled_paid_render_goes_to_review_and_is_not_refunded(client, db):
     """FASHN accepted and may have billed this job. Refunding it while the
-    render is still running would return credits for a paid render."""
+    render may still exist would return credits for a paid render, so it is
+    held for a reviewer instead."""
     job = await _queued_job(
         db, client, age_minutes=45, status=JobStatus.PROCESSING, provider_job_id="job_paid_1"
     )
-    user_id = job.user_id
+    user_id, job_id = job.user_id, job.id
     before = await credit_balance(db, user_id)
 
-    assert await sweep_stuck_jobs() == 0
-    body = (await client.get(f"/api/v1/tryon/{job.id}")).json()
-    assert body["status"] == "processing"
+    assert await sweep_stuck_jobs() == 1
+    body = (await client.get(f"/api/v1/tryon/{job_id}")).json()
+    assert body["status"] == "failed"
+    assert "on hold" in body["error_message"]
 
     db.expire_all()
     assert await credit_balance(db, user_id) == before
+    refreshed = (await db.execute(select(TryOnJob).where(TryOnJob.id == job_id))).scalar_one()
+    assert refreshed.review_state == "pending"
+    assert "job_paid_1" in refreshed.review_reason
 
 
 async def test_a_long_but_living_render_is_not_interrupted(client, db):

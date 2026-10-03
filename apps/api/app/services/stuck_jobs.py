@@ -35,11 +35,6 @@ def _stuck_for(job: TryOnJob) -> timedelta | None:
         waited = now - _aware(since)
         return waited if waited > QUEUED_LIMIT else None
     if job.status == JobStatus.PROCESSING and job.started_at:
-        if job.provider_job_id:
-            # FASHN accepted this job and may have billed it and still be
-            # rendering it. A refund here would return the credits while the
-            # render is paid for, so it is left for a person to review.
-            return None
         running = now - _aware(job.started_at)
         return running if running > RUNNING_LIMIT else None
     return None
@@ -73,6 +68,20 @@ async def sweep_stuck_jobs() -> int:
 
 
 async def _give_up(db, job: TryOnJob, stuck: timedelta) -> None:  # noqa: ANN001
+    if job.provider_job_id:
+        # FASHN accepted and may have billed this render, and may still be
+        # producing it. Refunding here would return credits for a paid render,
+        # so the job goes to a reviewer, who checks FASHN and decides.
+        job.status = JobStatus.FAILED
+        job.completed_at = datetime.now(timezone.utc)
+        job.error_message = (
+            "Your render stalled before we could confirm it. Your credits are on hold while we check it."
+        )
+        job.review_state = "pending"
+        job.review_reason = f"stalled after FASHN accepted job {job.provider_job_id}; not refunded automatically"
+        await db.commit()
+        logger.error("tryon_paid_job_held_for_review", job_id=job.id, provider_job_id=job.provider_job_id)
+        return
     queued = job.status == JobStatus.QUEUED
     job.status = JobStatus.FAILED
     job.completed_at = datetime.now(timezone.utc)

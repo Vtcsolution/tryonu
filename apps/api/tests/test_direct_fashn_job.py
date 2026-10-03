@@ -26,7 +26,8 @@ PRODUCT_URL = f"https://{PRODUCT_HOST}/red-top.jpg"
 # eBay's largest listing size; a 225px thumbnail is refused before FASHN is called
 PRODUCT = image_bytes((1000, 1000), (255, 255, 255), rect=(130, 130, 870, 870), rect_color=(200, 30, 40), fmt="JPEG")
 # the uploaded test photo is 400x500; FASHN hands back 2x with the "garment" drawn on
-OUTPUT = image_bytes((800, 1000), (180, 160, 140), rect=(200, 400, 600, 900), rect_color=(200, 30, 40))
+# a 1k-sized render, same aspect ratio as the 400x500 test photo
+OUTPUT = image_bytes((1024, 1280), (180, 160, 140), rect=(256, 512, 768, 1152), rect_color=(200, 30, 40))
 
 
 @pytest.fixture
@@ -129,7 +130,7 @@ async def test_a_direct_try_on_sends_both_images_untouched_and_stores_fashns_byt
     assert job.provider_job_id == "job_direct_1"
     assert job.provider == "fashn" and job.provider_model == "tryon-max"
     assert job.started_at and job.completed_at and job.queued_at
-    assert (result.width, result.height) == (800, 1000)
+    assert (result.width, result.height) == (1024, 1280)
 
     meta = result.engine_meta
     assert meta["engine_mode"] == "direct"
@@ -143,28 +144,34 @@ async def test_a_direct_try_on_sends_both_images_untouched_and_stores_fashns_byt
 
     qc_report = result.qc_report
     assert qc_report["report_only"] is True
-    assert qc_report["resolution"]["output_width"] == 800
+    assert qc_report["resolution"]["output_width"] == 1024
     assert qc_report["difference"]["edited_fraction"] > 0.1
     assert qc_report["product"]["product_match_score"] is not None
     assert qc_report["vlm"] == {"enabled": False}
     assert "flags" in qc_report and "face" in qc_report
 
 
-async def test_qc_findings_never_change_or_block_the_result(client, db, direct, monkeypatch):
-    """A result FASHN sent back unchanged is flagged, and still delivered."""
+async def test_an_unverified_render_is_held_for_review_and_never_delivered(client, db, direct, monkeypatch):
+    """FASHN sent the photo back unchanged: the product was never applied.
+    That render is held for review, not delivered, and not refunded."""
     unchanged = image_bytes((400, 500), (180, 160, 140))
-    # the test photo is a flat (180,160,140) 400x500 JPEG, so this IS the photo back
     fake = FakeFashn(output=unchanged, product=PRODUCT)
     fake.install(monkeypatch)
-    photo_id, product, _ = await _setup(client, db)
+    photo_id, product, user_id = await _setup(client, db)
 
     resp = await client.post("/api/v1/tryon", json={"user_photo_id": photo_id, "product_id": product.id})
     finished = await _poll_until_terminal(client, resp.json()["id"])
 
-    assert finished["status"] == "completed"
-    _, result = await _row(resp.json()["id"])
-    assert "no_visible_edit" in result.qc_report["flags"] and "low_resolution" in result.qc_report["flags"]
-    assert get_storage().read(result.storage_key) == unchanged
+    assert finished["status"] == "failed"
+    assert finished["result"] is None
+    assert "not delivered" in finished["error_message"]
+    job, result = await _row(resp.json()["id"])
+    assert result is None
+    assert job.review_state == "pending"
+    assert "no_visible_edit" in job.review_reason
+    assert job.review_payload["qc_report"]["gate"]["passed"] is False
+    assert get_storage().read(job.review_payload["storage_key"]) == unchanged
+    assert not await _was_refunded(job.id)
 
 
 async def test_a_fashn_timeout_fails_the_job_refunds_and_never_submits_again(client, db, direct, monkeypatch):

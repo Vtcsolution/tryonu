@@ -42,7 +42,22 @@ _FACE_PAD = 0.15  # context around the detected face when comparing
 _HEAD_UP, _HEAD_SIDE = 0.55, 0.28  # hair reaches this far beyond the face box (as in face_restore)
 _MARGIN = 0.06  # share of the frame used as the left/right/top control bands
 
-# flags are advisory. Nothing in the pipeline reads them to block a result.
+# Flags that mean the product was not verified. A job with any of these is
+# held for review and never reported as successfully applied. The rest stay
+# advisory (frame_margins_changed: FASHN may legitimately re-frame the photo).
+HARD_FLAGS = frozenset(
+    {
+        "qc_failed",
+        "qc_unreadable_image",
+        "no_visible_edit",
+        "face_changed",
+        "head_changed",
+        "low_resolution",
+        "aspect_ratio_changed",
+        "low_product_colour_match",
+    }
+)
+
 THRESHOLDS = {
     "min_long_side_px": 1024,
     "min_face_similarity": 0.60,
@@ -344,3 +359,19 @@ async def run_qc(
     except (TypeError, ValueError) as exc:
         return {"report_only": True, "error": f"report not serialisable: {exc}", "flags": ["qc_failed"]}
     return report
+
+
+def qc_gate(report: dict) -> dict:
+    """Whether the render may be delivered as a verified product application.
+
+    Passes only when no hard check failed. Every failed check is recorded by
+    name, so a held job says exactly what did not verify."""
+    flags = list(report.get("flags") or [])
+    failed = [flag for flag in flags if flag in HARD_FLAGS]
+    if not failed and report.get("error") and not report.get("flags"):
+        failed = ["qc_failed"]
+    return {
+        "passed": not failed,
+        "failed_checks": failed,
+        "advisory": [flag for flag in flags if flag not in HARD_FLAGS],
+    }

@@ -71,6 +71,15 @@ class TryOnJob(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Set when a paid FASHN render could not be verified, or a paid job stalled
+    # after FASHN accepted it. Nothing is delivered or refunded from this state
+    # until a reviewer decides: "pending" -> "approved" | "refunded" | "resolved".
+    review_state: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
+    review_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # the held render's storage key, QC report and engine metadata, kept
+    # outside TryOnResult so the customer's API never serves an unverified result
+    review_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
     user: Mapped["User"] = relationship()
     user_photo: Mapped["UserPhoto"] = relationship()
     product: Mapped["Product | None"] = relationship()

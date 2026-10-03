@@ -49,7 +49,7 @@ from app.services.tryon_direct.inputs import (
     sniff_mime,
     to_data_uri,
 )
-from app.services.tryon_direct.qc import run_qc
+from app.services.tryon_direct.qc import qc_gate, run_qc
 from app.services.tryon_quality.compose import decode
 from app.services.tryon_quality.debug_capture import DebugCapture
 from app.services.tryon_quality.distractor_rank import log_distractor_rank, rank_against_distractors
@@ -749,25 +749,26 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
             product_url=product_url,
             with_vlm=settings.TRYON_DIRECT_VLM_QC and bool(settings.OPENAI_API_KEY),
         )
-        await _complete_direct_job(session, job, provider, output, qc, product, product_url, layer)
+        qc["gate"] = qc_gate(qc)
+        if qc["gate"]["passed"]:
+            await _complete_direct_job(session, job, provider, output, qc, product, product_url, layer)
+        else:
+            await _hold_direct_job(session, job, provider, output, qc, product, product_url, layer)
     except Exception as exc:  # noqa: BLE001 — never strand a job as "processing"
         logger.error("tryon_direct_job_unexpected_error", job_id=job.id, error=str(exc))
         await _fail_job(session, job, f"Unexpected error: {exc}", refund=True)
 
 
-async def _complete_direct_job(  # noqa: ANN001
-    session, job: TryOnJob, provider: VirtualTryOnProvider, output, qc: dict, product: bytes, product_url: str, layer: _Layer
-) -> None:
-    """Stores FASHN's bytes exactly as received — no face restore, no merge,
-    no re-encode — with the audit trail beside them."""
+async def _store_direct_render(job: TryOnJob, provider: VirtualTryOnProvider, output, qc: dict, product: bytes, product_url: str, layer: _Layer) -> tuple[str, dict]:  # noqa: ANN001
+    """Writes FASHN's bytes exactly as received — no face restore, no merge,
+    no re-encode — plus the product copy FASHN was given. Returns the storage
+    key and the engine metadata that goes beside it."""
     content_type = output.content_type
     ext = "jpg" if content_type == "image/jpeg" else content_type.split("/")[-1]
     storage = get_storage()
     key = new_key("tryon", "results", job.user_id, f"{job.id}.{ext}")
     storage.put(key, output.image_bytes, content_type)
-    url = storage.signed_url(key)
 
-    # the product image FASHN was actually given, for the record
     product_mime = sniff_mime(product)
     product_key: str | None = new_key("tryon", "direct-inputs", job.user_id, f"{job.id}-product.{product_mime.split('/')[-1]}")
     try:
@@ -776,7 +777,6 @@ async def _complete_direct_job(  # noqa: ANN001
         logger.warning("tryon_direct_product_copy_failed", job_id=job.id, error=str(exc)[:200])
         product_key = None
 
-    resolution = qc.get("resolution") or {}
     engine_meta = {
         **(output.meta or {}),
         "engine_mode": "direct",
@@ -790,19 +790,10 @@ async def _complete_direct_job(  # noqa: ANN001
         "person_input_size": [job.user_photo.width, job.user_photo.height],
         "job_started_at": job.started_at.isoformat() if job.started_at else None,
     }
-    session.add(
-        TryOnResult(
-            job_id=job.id,
-            storage_key=key,
-            image_url=url,
-            width=resolution.get("output_width"),
-            height=resolution.get("output_height"),
-            qc_report=qc,
-            engine_meta=engine_meta,
-        )
-    )
-    job.status = JobStatus.COMPLETED
-    job.completed_at = datetime.now(timezone.utc)
+    return key, engine_meta
+
+
+def _record_direct_billing(session, job: TryOnJob, provider: VirtualTryOnProvider, output) -> None:  # noqa: ANN001
     job.provider = provider.name
     job.provider_model = provider.model
     job.provider_job_id = output.provider_job_id
@@ -814,11 +805,60 @@ async def _complete_direct_job(  # noqa: ANN001
             model=provider.model,
             reference_type="tryon_job",
             reference_id=job.id,
-            success=True,
+            success=True,  # FASHN accepted and billed this render, verified or not
         )
     )
+
+
+async def _complete_direct_job(  # noqa: ANN001
+    session, job: TryOnJob, provider: VirtualTryOnProvider, output, qc: dict, product: bytes, product_url: str, layer: _Layer
+) -> None:
+    key, engine_meta = await _store_direct_render(job, provider, output, qc, product, product_url, layer)
+    storage = get_storage()
+    resolution = qc.get("resolution") or {}
+    session.add(
+        TryOnResult(
+            job_id=job.id,
+            storage_key=key,
+            image_url=storage.signed_url(key),
+            width=resolution.get("output_width"),
+            height=resolution.get("output_height"),
+            qc_report=qc,
+            engine_meta=engine_meta,
+        )
+    )
+    job.status = JobStatus.COMPLETED
+    job.completed_at = datetime.now(timezone.utc)
+    _record_direct_billing(session, job, provider, output)
     await session.commit()
-    logger.info("tryon_direct_job_completed", job_id=job.id, flags=qc.get("flags"))
+    logger.info("tryon_job_completed", job_id=job.id)
+
+
+async def _hold_direct_job(  # noqa: ANN001
+    session, job: TryOnJob, provider: VirtualTryOnProvider, output, qc: dict, product: bytes, product_url: str, layer: _Layer
+) -> None:
+    """A render FASHN billed that did not verify. Stored for a reviewer, never
+    shown to the customer as a result, never refunded automatically."""
+    key, engine_meta = await _store_direct_render(job, provider, output, qc, product, product_url, layer)
+    failed = qc.get("gate", {}).get("failed_checks", [])
+    job.status = JobStatus.FAILED
+    job.completed_at = datetime.now(timezone.utc)
+    job.error_message = (
+        "We couldn't verify that this product was applied to your photo, so the result was not delivered. "
+        "Your credits are on hold while we review it."
+    )
+    job.review_state = "pending"
+    job.review_reason = "verification failed: " + ", ".join(failed)
+    job.review_payload = {
+        "storage_key": key,
+        "qc_report": qc,
+        "engine_meta": engine_meta,
+        "width": (qc.get("resolution") or {}).get("output_width"),
+        "height": (qc.get("resolution") or {}).get("output_height"),
+    }
+    _record_direct_billing(session, job, provider, output)
+    await session.commit()
+    logger.warning("tryon_job_held_for_review", job_id=job.id, failed_checks=failed)
 
 
 async def _with_original_face(
