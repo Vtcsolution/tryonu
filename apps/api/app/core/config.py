@@ -130,6 +130,12 @@ class Settings(BaseSettings):
     # Also score the result with the existing OpenAI vision inspector. That
     # is a PAID OpenAI call per try-on, so it is opt-in.
     TRYON_DIRECT_VLM_QC: bool = False
+    # several products: one FASHN call each, in order. Caps are checked before the
+    # first call, so a look over the limit is refused without spending anything
+    TRYON_DIRECT_MAX_PRODUCTS: int = 10
+    TRYON_DIRECT_MAX_FASHN_CREDITS: int = 20
+    # a multi-product render is several minutes long; the queue must not kill it
+    TRYON_JOB_TIMEOUT_SECONDS: int = 5400
 
     # try-on via Google Gemini image editing, "nano banana"
     # (VIRTUAL_TRYON_PROVIDER=gemini). Measured on the same photo and the

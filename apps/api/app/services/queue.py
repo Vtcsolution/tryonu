@@ -65,7 +65,7 @@ def enqueue_tryon_job(job_id: str) -> None:
         queue.enqueue(
             "app.workers.tasks.tryon_tasks.run_tryon_job",
             job_id,
-            job_timeout=1200,  # several items x (render ~45s + inspection), plus retries
+            job_timeout=settings.TRYON_JOB_TIMEOUT_SECONDS,
             retry=None,
         )
         logger.info("job_enqueued_rq", job_id=job_id, queue="tryon")

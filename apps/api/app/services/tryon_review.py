@@ -125,6 +125,8 @@ async def reconcile(db, job_id: str, reviewer_id: str, provider: FASHNTryOnProvi
         raise ReviewError("this job already has a render held for review — approve or refund it")
     if not job.provider_job_id:
         raise ReviewError("this job never reached FASHN, so there is nothing to reconcile")
+    if job.steps:
+        raise ReviewError("a multi-product try-on is reviewed by hand: refund it, or approve nothing")
 
     try:
         status = await provider.fetch_status(job.provider_job_id)

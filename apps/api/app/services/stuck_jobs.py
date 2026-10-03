@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
+from app.core.config import get_settings
 from app.core.logging import logger
 from app.db.session import AsyncSessionLocal
 from app.models.enums import JobStatus
@@ -26,6 +27,8 @@ from app.services import credit_service
 # never having started is not.
 QUEUED_LIMIT = timedelta(minutes=5)
 RUNNING_LIMIT = timedelta(minutes=20)
+# a multi-product FASHN look is one render per product, several minutes each
+DIRECT_RUNNING_LIMIT = timedelta(minutes=90)
 
 
 def _stuck_for(job: TryOnJob) -> timedelta | None:
@@ -36,7 +39,8 @@ def _stuck_for(job: TryOnJob) -> timedelta | None:
         return waited if waited > QUEUED_LIMIT else None
     if job.status == JobStatus.PROCESSING and job.started_at:
         running = now - _aware(job.started_at)
-        return running if running > RUNNING_LIMIT else None
+        limit = DIRECT_RUNNING_LIMIT if get_settings().TRYON_ENGINE_MODE == "direct" else RUNNING_LIMIT
+        return running if running > limit else None
     return None
 
 

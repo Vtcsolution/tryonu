@@ -79,6 +79,10 @@ class TryOnJob(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # the held render's storage key, QC report and engine metadata, kept
     # outside TryOnResult so the customer's API never serves an unverified result
     review_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # one entry per selected product, in order: its status and provider job id
+    # (saved before the paid call), the raw FASHN output it produced, and whether
+    # it verified
+    steps: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     user: Mapped["User"] = relationship()
     user_photo: Mapped["UserPhoto"] = relationship()

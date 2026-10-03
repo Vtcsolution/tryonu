@@ -8,15 +8,17 @@ failed, with automatic credit refund on failure.
 from __future__ import annotations
 
 import asyncio
+import io
 import base64
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 
 import numpy as np
+from PIL import Image
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.ai.providers.base import OutfitPiece, TryOnInput, TryOnProviderError, VirtualTryOnProvider
+from app.ai.providers.base import OutfitPiece, TryOnInput, TryOnOutput, TryOnProviderError, VirtualTryOnProvider
 from app.ai.providers.gemini_image import GeminiImageTryOnProvider
 from app.ai.providers.openai_image import OpenAIImageTryOnProvider
 from app.ai.providers.registry import direct_engine_active, get_full_look_provider, get_tryon_provider
@@ -41,6 +43,14 @@ from app.services.outfit_slots import (
     worn_on_head,
 )
 from app.services.storage_service import get_storage, new_key
+from app.services.tryon_direct.orchestrate import (
+    OrchestrationRefused,
+    ProductInput,
+    check_plan,
+    credits_per_render,
+    run_sequence,
+    verify_step,
+)
 from app.services.tryon_direct.inputs import (
     DirectInputError,
     fetch_product_image,
@@ -49,7 +59,6 @@ from app.services.tryon_direct.inputs import (
     sniff_mime,
     to_data_uri,
 )
-from app.services.tryon_direct.qc import qc_gate, run_qc
 from app.services.tryon_quality.compose import decode
 from app.services.tryon_quality.debug_capture import DebugCapture
 from app.services.tryon_quality.distractor_rank import log_distractor_rank, rank_against_distractors
@@ -692,111 +701,168 @@ async def run_tryon_job_async(job_id: str) -> None:
             await session.commit()
 
 
+async def _billed(job: TryOnJob) -> bool:  # noqa: ANN001
+    return any((step or {}).get("provider_job_id") for step in (job.steps or []))
+
+
 async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider, layers: list[_Layer]) -> None:  # noqa: ANN001
-    """The direct engine for one job: exactly one FASHN tryon-max render of
-    the customer's stored photo wearing one real product image, stored as
-    FASHN returned it. Every failure refunds; none resubmits a job FASHN has
-    already accepted."""
+    """A look drawn one product at a time on the customer's own photo: one
+    FASHN call per product, in order, each output stored as FASHN returned it
+    and verified before the next product is drawn. Refused before any call if
+    the look is over the limits. Once FASHN has accepted a product, a failure
+    holds the job for review; it is never refunded or resubmitted."""
     try:
         if provider.model != "tryon-max":
             await _fail_job(session, job, "Direct try-on needs FASHN_MODEL=tryon-max.", refund=True)
             return
-        if job.outfit_id is not None or len(layers) != 1:
-            await _fail_job(session, job, "Direct try-on handles one product at a time.", refund=True)
+        if not layers or len(layers) > settings.TRYON_DIRECT_MAX_PRODUCTS:
+            await _fail_job(session, job, "This look has no products, or more than the limit allows.", refund=True)
             return
-        layer = layers[0]
+        cost = credits_per_render(settings.FASHN_RESOLUTION, settings.FASHN_GENERATION_MODE)
 
-        await _progress_writer(session, job)("Preparing your photo and the product")
+        await _progress_writer(session, job)("Preparing your photo and products")
         try:
             person = await asyncio.to_thread(get_storage().read, job.user_photo.storage_key)
-            product_url = hires_product_url(_absolute_url(layer.image_url))
-            product = await fetch_product_image(product_url)
-            require_hires_product(product)
-            person_uri, product_uri = to_data_uri(person), to_data_uri(product)
+            products: list[ProductInput] = []
+            for layer in layers:
+                url = hires_product_url(_absolute_url(layer.image_url))
+                image = await fetch_product_image(url)
+                require_hires_product(image)
+                products.append(ProductInput(name=layer.name, product_id=layer.product_id, image_url=url, image=image))
+            check_plan(
+                products,
+                max_products=settings.TRYON_DIRECT_MAX_PRODUCTS,
+                cost_per_render=cost,
+                max_credits=settings.TRYON_DIRECT_MAX_FASHN_CREDITS,
+            )
+        except OrchestrationRefused as exc:
+            await _fail_job(session, job, f"We couldn't start this try-on: {exc}.", refund=True)
+            return
         except DirectInputError as exc:
             await _fail_job(session, job, f"We couldn't use the images for this try-on: {exc}.", refund=True)
             return
 
-        async def record_provider_job(provider_job_id: str) -> None:
-            job.provider_job_id = provider_job_id
+        storage = get_storage()
+        input_keys: list[str] = []
+        for product in products:
+            mime = sniff_mime(product.image)
+            input_keys.append(
+                new_key("tryon", "direct-inputs", job.user_id, f"{job.id}-{len(input_keys)}.{mime.split('/')[-1]}")
+            )
+            storage.put(input_keys[-1], product.image, mime)  # type: ignore[arg-type]
+
+        async def on_step(steps: list[dict]) -> None:
+            for step in steps:
+                step["input_key"] = input_keys[step["index"]]
+            job.steps = [dict(step) for step in steps]
+            sent = next((step for step in steps if step["status"] == "sent"), None)
+            if sent is not None:
+                job.progress = f"Drawing product {sent['index'] + 1} of {len(steps)}: {sent['name']}"[:160]
+            recorded = [step["provider_job_id"] for step in steps if step.get("provider_job_id")]
+            if recorded:
+                job.provider_job_id = recorded[-1]
             await session.commit()
 
-        await _progress_writer(session, job)("Drawing it on you")
-        try:
-            output = await provider.generate(
+        async def on_raw(step: dict, data: bytes) -> None:
+            key = new_key("tryon", "direct-steps", job.user_id, f"{job.id}-{step['index']}.png")
+            storage.put(key, data, "image/png")
+            step["raw_key"] = key
+
+        async def render(image: bytes, product: ProductInput, on_submitted):  # noqa: ANN001
+            return await provider.generate(
                 TryOnInput(
-                    model_image_url=person_uri,
-                    garment_image_url=product_uri,
+                    model_image_url=to_data_uri(image),
+                    garment_image_url=to_data_uri(product.image),
                     prompt=settings.TRYON_DIRECT_PROMPT,
                     seed=settings.FASHN_SEED,
                 ),
-                on_submitted=record_provider_job,
+                on_submitted=on_submitted,
+            )
+
+        try:
+            sequence = await run_sequence(
+                person, products, render=render, verify=verify_step, on_step=on_step, on_raw=on_raw
             )
         except TryOnProviderError as exc:
             if exc.provider_job_id:
-                # accepted (and billed) by FASHN: keep the id so it can be
-                # looked up there even though this job failed
                 job.provider_job_id = exc.provider_job_id
-            await _handle_provider_error(session, job, exc, provider.name, provider.model)
+            if await _billed(job):
+                await _hold_failure(session, job, f"FASHN stopped the look: {exc}", steps=job.steps)
+            else:
+                await _fail_job(session, job, f"FASHN could not start this try-on: {exc}", refund=True)
             return
 
-        await _progress_writer(session, job)("Checking the result")
-        qc = await run_qc(
-            person,
-            product,
-            output.image_bytes,
-            product_name=layer.name,
-            product_url=product_url,
-            with_vlm=settings.TRYON_DIRECT_VLM_QC and bool(settings.OPENAI_API_KEY),
-        )
-        qc["gate"] = qc_gate(qc)
-        if qc["gate"]["passed"]:
-            await _complete_direct_job(session, job, provider, output, qc, product, product_url, layer)
+        if sequence.passed:
+            await _complete_sequence(session, job, provider, sequence, layers, cost)
         else:
-            await _hold_direct_job(session, job, provider, output, qc, product, product_url, layer)
+            failed = next(step for step in sequence.steps if step["status"] == "failed")
+            await _hold_failure(
+                session,
+                job,
+                f"We couldn't verify {failed['name']} on your photo, so this try-on was not delivered. "
+                "Your credits are on hold while we review it.",
+                steps=sequence.steps,
+                reason=f"product {failed['index'] + 1} ({failed['name']}) failed verification: "
+                + ", ".join(failed["failed_checks"]),
+            )
     except Exception as exc:  # noqa: BLE001 — never strand a job as "processing"
         logger.error("tryon_direct_job_unexpected_error", job_id=job.id, error=str(exc))
-        await _fail_job(session, job, f"Unexpected error: {exc}", refund=True)
+        if await _billed(job):
+            await _hold_failure(session, job, f"Unexpected error after FASHN accepted the try-on: {exc}", steps=job.steps)
+        else:
+            await _fail_job(session, job, f"Unexpected error: {exc}", refund=True)
 
 
-async def _store_direct_render(job: TryOnJob, provider: VirtualTryOnProvider, output, qc: dict, product: bytes, product_url: str, layer: _Layer) -> tuple[str, dict]:  # noqa: ANN001
-    """Writes FASHN's bytes exactly as received — no face restore, no merge,
-    no re-encode — plus the product copy FASHN was given. Returns the storage
-    key and the engine metadata that goes beside it."""
-    content_type = output.content_type
-    ext = "jpg" if content_type == "image/jpeg" else content_type.split("/")[-1]
-    storage = get_storage()
+async def _complete_sequence(session, job: TryOnJob, provider: VirtualTryOnProvider, sequence, layers: list[_Layer], cost: int) -> None:  # noqa: ANN001
+    """Every product verified: deliver the final FASHN output untouched."""
+    output = sequence.output
+    ext = "jpg" if output.content_type == "image/jpeg" else output.content_type.split("/")[-1]
     key = new_key("tryon", "results", job.user_id, f"{job.id}.{ext}")
-    storage.put(key, output.image_bytes, content_type)
-
-    product_mime = sniff_mime(product)
-    product_key: str | None = new_key("tryon", "direct-inputs", job.user_id, f"{job.id}-product.{product_mime.split('/')[-1]}")
-    try:
-        storage.put(product_key, product, product_mime)  # type: ignore[arg-type]
-    except Exception as exc:  # noqa: BLE001 — the audit copy is not worth losing the result over
-        logger.warning("tryon_direct_product_copy_failed", job_id=job.id, error=str(exc)[:200])
-        product_key = None
-
+    storage = get_storage()
+    storage.put(key, sequence.image, output.content_type)
+    with Image.open(io.BytesIO(sequence.image)) as img:
+        width, height = img.size
+    placements = [
+        {
+            "name": step["name"],
+            "product_id": step["product_id"],
+            "slot": (layer.slot or OutfitSlot.TOP).value,
+            "image_url": step["image_url"],
+            "drawn": True,
+            "reason": None,
+            "box": None,
+        }
+        for step, layer in zip(sequence.steps, layers)
+    ]
     engine_meta = {
         **(output.meta or {}),
         "engine_mode": "direct",
         "provider": provider.name,
-        "product_name": layer.name,
-        "product_id": layer.product_id,
-        "product_image_url": product_url,
-        "product_thumbnail_url": layer.image_url,
-        "product_input_key": product_key,
+        "product_count": len(sequence.steps),
+        "credits_per_render": cost,
+        "sequence": [dict(step) for step in sequence.steps],
         "person_photo_id": job.user_photo_id,
         "person_input_size": [job.user_photo.width, job.user_photo.height],
         "job_started_at": job.started_at.isoformat() if job.started_at else None,
     }
-    return key, engine_meta
-
-
-def _record_direct_billing(session, job: TryOnJob, provider: VirtualTryOnProvider, output) -> None:  # noqa: ANN001
+    session.add(
+        TryOnResult(
+            job_id=job.id,
+            storage_key=key,
+            image_url=storage.signed_url(key),
+            width=width,
+            height=height,
+            qc_report={"gate": {"passed": True, "failed_checks": [], "advisory": []}, "products": len(sequence.steps)},
+            engine_meta=engine_meta,
+            placements=placements,
+        )
+    )
+    job.status = JobStatus.COMPLETED
+    job.completed_at = datetime.now(timezone.utc)
     job.provider = provider.name
     job.provider_model = provider.model
     job.provider_job_id = output.provider_job_id
+    job.steps = [dict(step) for step in sequence.steps]
     session.add(
         AIUsage(
             user_id=job.user_id,
@@ -805,60 +871,39 @@ def _record_direct_billing(session, job: TryOnJob, provider: VirtualTryOnProvide
             model=provider.model,
             reference_type="tryon_job",
             reference_id=job.id,
-            success=True,  # FASHN accepted and billed this render, verified or not
+            success=True,
         )
     )
-
-
-async def _complete_direct_job(  # noqa: ANN001
-    session, job: TryOnJob, provider: VirtualTryOnProvider, output, qc: dict, product: bytes, product_url: str, layer: _Layer
-) -> None:
-    key, engine_meta = await _store_direct_render(job, provider, output, qc, product, product_url, layer)
-    storage = get_storage()
-    resolution = qc.get("resolution") or {}
-    session.add(
-        TryOnResult(
-            job_id=job.id,
-            storage_key=key,
-            image_url=storage.signed_url(key),
-            width=resolution.get("output_width"),
-            height=resolution.get("output_height"),
-            qc_report=qc,
-            engine_meta=engine_meta,
-        )
-    )
-    job.status = JobStatus.COMPLETED
-    job.completed_at = datetime.now(timezone.utc)
-    _record_direct_billing(session, job, provider, output)
     await session.commit()
-    logger.info("tryon_job_completed", job_id=job.id)
+    logger.info("tryon_job_completed", job_id=job.id, products=len(sequence.steps))
 
 
-async def _hold_direct_job(  # noqa: ANN001
-    session, job: TryOnJob, provider: VirtualTryOnProvider, output, qc: dict, product: bytes, product_url: str, layer: _Layer
-) -> None:
-    """A render FASHN billed that did not verify. Stored for a reviewer, never
-    shown to the customer as a result, never refunded automatically."""
-    key, engine_meta = await _store_direct_render(job, provider, output, qc, product, product_url, layer)
-    failed = qc.get("gate", {}).get("failed_checks", [])
+async def _hold_failure(session, job: TryOnJob, message: str, *, steps: list | None, reason: str | None = None) -> None:  # noqa: ANN001
+    """FASHN has billed at least one product of this look. Nothing is delivered
+    or refunded automatically; a reviewer decides. The stored steps show which
+    products were drawn and which were not."""
+    job.steps = [dict(step) for step in (steps or [])]
     job.status = JobStatus.FAILED
     job.completed_at = datetime.now(timezone.utc)
-    job.error_message = (
-        "We couldn't verify that this product was applied to your photo, so the result was not delivered. "
-        "Your credits are on hold while we review it."
-    )
+    job.error_message = message
+    job.provider = "fashn"
+    job.provider_model = "tryon-max"
     job.review_state = "pending"
-    job.review_reason = "verification failed: " + ", ".join(failed)
-    job.review_payload = {
-        "storage_key": key,
-        "qc_report": qc,
-        "engine_meta": engine_meta,
-        "width": (qc.get("resolution") or {}).get("output_width"),
-        "height": (qc.get("resolution") or {}).get("output_height"),
-    }
-    _record_direct_billing(session, job, provider, output)
+    job.review_reason = reason or message
+    job.review_payload = {"storage_key": None, "steps": job.steps}
+    session.add(
+        AIUsage(
+            user_id=job.user_id,
+            kind=AIUsageKind.VIRTUAL_TRYON,
+            provider="fashn",
+            model="tryon-max",
+            reference_type="tryon_job",
+            reference_id=job.id,
+            success=True,  # FASHN accepted and billed these products
+        )
+    )
     await session.commit()
-    logger.warning("tryon_job_held_for_review", job_id=job.id, failed_checks=failed)
+    logger.warning("tryon_job_held_for_review", job_id=job.id, reason=job.review_reason)
 
 
 async def _with_original_face(

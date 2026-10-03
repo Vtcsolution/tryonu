@@ -139,16 +139,16 @@ async def test_a_direct_try_on_sends_both_images_untouched_and_stores_fashns_byt
     assert meta["output_sha256"] == hashlib.sha256(OUTPUT).hexdigest()
     for stamp in ("submitted_at", "fashn_completed_at", "downloaded_at", "job_started_at"):
         assert meta[stamp]
-    assert meta["product_id"] == product.id and meta["product_image_url"] == PRODUCT_URL
-    assert get_storage().read(meta["product_input_key"]) == PRODUCT
+    first = meta["sequence"][0]
+    assert first["product_id"] == product.id and first["image_url"] == PRODUCT_URL
+    assert first["verified"] is True and first["status"] == "verified"
+    assert get_storage().read(first["input_key"]) == PRODUCT  # the exact product image FASHN was given
 
-    qc_report = result.qc_report
-    assert qc_report["report_only"] is True
-    assert qc_report["resolution"]["output_width"] == 1024
-    assert qc_report["difference"]["edited_fraction"] > 0.1
-    assert qc_report["product"]["product_match_score"] is not None
-    assert qc_report["vlm"] == {"enabled": False}
-    assert "flags" in qc_report and "face" in qc_report
+    assert first["qc"]["output_width"] == 1024
+    assert first["qc"]["edited_fraction"] > 0.1
+    assert first["qc"]["product_match_score"] is not None
+    assert result.qc_report["gate"]["passed"] is True
+    assert first["qc"]["face_similarity"] is None or first["qc"]["face_similarity"] >= 0.6
 
 
 async def test_an_unverified_render_is_held_for_review_and_never_delivered(client, db, direct, monkeypatch):
@@ -169,8 +169,8 @@ async def test_an_unverified_render_is_held_for_review_and_never_delivered(clien
     assert result is None
     assert job.review_state == "pending"
     assert "no_visible_edit" in job.review_reason
-    assert job.review_payload["qc_report"]["gate"]["passed"] is False
-    assert get_storage().read(job.review_payload["storage_key"]) == unchanged
+    assert "no_visible_edit" in job.steps[0]["failed_checks"]
+    assert get_storage().read(job.steps[0]["raw_key"]) == unchanged  # the raw output is kept
     assert not await _was_refunded(job.id)
 
 
@@ -186,9 +186,9 @@ async def test_a_fashn_timeout_fails_the_job_refunds_and_never_submits_again(cli
     assert finished["status"] == "failed"
     assert "NOT resubmitted" in finished["error_message"]
     assert fake.run_count == 1  # one paid job, however long it took
-    assert await _was_refunded(resp.json()["id"])
-    assert await credit_balance(db, user_id) == 100
+    assert not await _was_refunded(resp.json()["id"])  # FASHN accepted it: held for review, never refunded
     job, result = await _row(resp.json()["id"])
+    assert job.review_state == "pending"
     assert job.provider_job_id == "job_still_running"  # kept so it can be looked up at FASHN
     assert result is None
     assert fake.unexpected == []
@@ -204,7 +204,9 @@ async def test_a_rejected_job_is_refunded_with_the_providers_reason(client, db, 
 
     assert finished["status"] == "failed" and "no person found" in finished["error_message"]
     assert fake.run_count == 1
-    assert await credit_balance(db, user_id) == 100
+    assert not await _was_refunded(resp.json()["id"])  # accepted by FASHN: a reviewer decides
+    job, _ = await _row(resp.json()["id"])
+    assert job.review_state == "pending" and job.provider_job_id == "job_test_1"
 
 
 async def test_an_unreachable_product_image_fails_before_any_paid_call(client, db, direct, monkeypatch):

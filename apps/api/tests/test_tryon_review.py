@@ -124,20 +124,15 @@ async def test_a_held_render_lists_for_review_with_its_failed_checks(client, db,
     assert "no_visible_edit" in row["review_reason"]
 
 
-async def test_approving_delivers_the_held_render_exactly_once(client, db, direct, monkeypatch):  # noqa: F811
+async def test_a_multi_product_hold_cannot_be_delivered_as_a_finished_look(client, db, direct, monkeypatch):  # noqa: F811
+    """Nothing verified was stored as a deliverable render, so approving it is refused."""
     job_id = await _held_job(client, db, monkeypatch, direct)
     await _admin_client(client, db)
 
-    ok = await client.post(f"/api/v1/admin/tryon-reviews/{job_id}/approve")
-    assert ok.status_code == 200 and ok.json()["review_state"] == "approved"
-
+    refused = await client.post(f"/api/v1/admin/tryon-reviews/{job_id}/approve")
+    assert refused.status_code == 409
     job, result = await _row(job_id)
-    assert result is not None
-    assert get_storage().read(result.storage_key) == UNCHANGED
-    assert "approved by reviewer" in result.engine_meta["review"]
-
-    again = await client.post(f"/api/v1/admin/tryon-reviews/{job_id}/approve")
-    assert again.status_code == 409
+    assert result is None and job.review_state == "pending"
 
 
 async def test_refunding_returns_the_credits_once_and_never_twice(client, db, direct, monkeypatch):  # noqa: F811
