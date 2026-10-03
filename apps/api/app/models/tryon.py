@@ -110,5 +110,11 @@ class TryOnResult(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # Null for results from before this existed, or from the plain
     # (non-pipeline) path — the UI falls back to its slot list.
     placements: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # TRYON_ENGINE_MODE=direct audit trail. Null for every other engine.
+    # qc_report: what the report-only checks measured (never altered the image).
+    # engine_meta: model, resolution, mode, format, provider job id and the
+    # FASHN timestamps, plus the sha256 of the stored bytes.
+    qc_report: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    engine_meta: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     job: Mapped["TryOnJob"] = relationship(back_populates="result")

@@ -56,6 +56,10 @@ def get_tryon_provider() -> VirtualTryOnProvider:
             api_key=settings.FASHN_API_KEY,  # type: ignore[arg-type]
             base_url=settings.FASHN_API_BASE_URL,
             model=settings.FASHN_MODEL,
+            resolution=settings.FASHN_RESOLUTION,
+            generation_mode=settings.FASHN_GENERATION_MODE,
+            output_format=settings.FASHN_OUTPUT_FORMAT,
+            poll_timeout=settings.FASHN_POLL_TIMEOUT_SECONDS,
         )
 
     if settings.VIRTUAL_TRYON_PROVIDER == "openai":
@@ -73,6 +77,15 @@ def get_tryon_provider() -> VirtualTryOnProvider:
         )
 
     return MockTryOnProvider()
+
+
+def direct_engine_active() -> bool:
+    """True when try-ons go straight to FASHN tryon-max and come back as-is
+    (TRYON_ENGINE_MODE=direct). Stays False for the mock provider — which is
+    what an unset FASHN key falls back to — so tests and keyless dev never
+    reach a real engine."""
+    settings = get_settings()
+    return settings.TRYON_ENGINE_MODE == "direct" and get_tryon_provider().name == "fashn"
 
 
 @lru_cache

@@ -16,9 +16,13 @@ from dataclasses import dataclass
 class TryOnProviderError(Exception):
     """Raised for both transient (retryable) and permanent provider failures."""
 
-    def __init__(self, message: str, *, retryable: bool = False) -> None:
+    def __init__(self, message: str, *, retryable: bool = False, provider_job_id: str | None = None) -> None:
         super().__init__(message)
         self.retryable = retryable
+        # Set once the provider has ACCEPTED a (paid) job. An error carrying
+        # one must never be retried by resubmitting: the original job may
+        # still complete, and a resubmit would be billed a second time.
+        self.provider_job_id = provider_job_id
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +54,9 @@ class TryOnOutput:
     content_type: str = "image/jpeg"
     provider_job_id: str | None = None
     latency_ms: int | None = None
+    # what the provider was asked and when (resolution, mode, timestamps…),
+    # for the audit trail; engines that have nothing to report leave it None
+    meta: dict | None = None
 
 
 class VirtualTryOnProvider(ABC):

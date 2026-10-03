@@ -109,6 +109,27 @@ class Settings(BaseSettings):
     FASHN_API_KEY: str | None = None
     FASHN_API_BASE_URL: str = "https://api.fashn.ai/v1"
     FASHN_MODEL: Literal["tryon-v1.6", "tryon-max"] = "tryon-v1.6"
+    # tryon-max output options (FASHN credits per image: fast 1/2/3,
+    # balanced 2/3/4, quality 3/4/5 at 1k/2k/4k)
+    FASHN_RESOLUTION: Literal["1k", "2k", "4k"] = "2k"
+    FASHN_GENERATION_MODE: Literal["fast", "balanced", "quality"] = "quality"
+    FASHN_OUTPUT_FORMAT: Literal["png", "jpeg"] = "png"
+    FASHN_SEED: int | None = None  # None: FASHN's own default
+    # FASHN documents 20-120s per render; polling a job never resubmits it
+    FASHN_POLL_TIMEOUT_SECONDS: int = 300
+
+    # How a try-on is produced. "legacy" is the quality pipeline described
+    # below (render -> merge -> inspect -> retry). "direct" is the single
+    # product milestone: ONE person photo + ONE product image go to FASHN
+    # tryon-max once, and FASHN's raw output is stored and returned as-is —
+    # no merge, alignment, face restore or compositing. Quality checks only
+    # REPORT (see app/services/tryon_direct). Needs VIRTUAL_TRYON_PROVIDER=fashn,
+    # FASHN_MODEL=tryon-max and a FASHN_API_KEY; otherwise it stays off.
+    TRYON_ENGINE_MODE: Literal["legacy", "direct"] = "legacy"
+    TRYON_DIRECT_PROMPT: str = ""  # optional free-text instruction for tryon-max
+    # Also score the result with the existing OpenAI vision inspector. That
+    # is a PAID OpenAI call per try-on, so it is opt-in.
+    TRYON_DIRECT_VLM_QC: bool = False
 
     # try-on via Google Gemini image editing, "nano banana"
     # (VIRTUAL_TRYON_PROVIDER=gemini). Measured on the same photo and the

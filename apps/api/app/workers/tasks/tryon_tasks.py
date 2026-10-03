@@ -19,7 +19,7 @@ from sqlalchemy.orm import selectinload
 from app.ai.providers.base import OutfitPiece, TryOnInput, TryOnProviderError, VirtualTryOnProvider
 from app.ai.providers.gemini_image import GeminiImageTryOnProvider
 from app.ai.providers.openai_image import OpenAIImageTryOnProvider
-from app.ai.providers.registry import get_full_look_provider, get_tryon_provider
+from app.ai.providers.registry import direct_engine_active, get_full_look_provider, get_tryon_provider
 from app.core.config import get_settings
 from app.core.logging import logger
 from app.core.runtime_settings import refresh_if_stale
@@ -41,6 +41,8 @@ from app.services.outfit_slots import (
     worn_on_head,
 )
 from app.services.storage_service import get_storage, new_key
+from app.services.tryon_direct.inputs import DirectInputError, fetch_product_image, sniff_mime, to_data_uri
+from app.services.tryon_direct.qc import run_qc
 from app.services.tryon_quality.compose import decode
 from app.services.tryon_quality.debug_capture import DebugCapture
 from app.services.tryon_quality.distractor_rank import log_distractor_rank, rank_against_distractors
@@ -374,6 +376,14 @@ async def run_tryon_job_async(job_id: str) -> None:
         provider = get_tryon_provider()
         layers = await _garment_layers(session, job, provider.model, provider.whole_outfit)
 
+        # TRYON_ENGINE_MODE=direct: one photo + one product -> FASHN -> its
+        # output kept as it is. Checked before every other path so none of the
+        # legacy pipelines (render_look, keep_person, restore_face, …) can
+        # touch the result.
+        if direct_engine_active():
+            await _run_direct_job(session, job, provider, layers)
+            return
+
         # A look the main provider can't fully draw (FASHN: no shoes, bags or
         # jewellery) goes to the whole-outfit provider first; if that fails
         # the job still completes with the main provider below.
@@ -673,6 +683,128 @@ async def run_tryon_job_async(job_id: str) -> None:
                 )
             )
             await session.commit()
+
+
+async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider, layers: list[_Layer]) -> None:  # noqa: ANN001
+    """The direct engine for one job: exactly one FASHN tryon-max render of
+    the customer's stored photo wearing one real product image, stored as
+    FASHN returned it. Every failure refunds; none resubmits a job FASHN has
+    already accepted."""
+    try:
+        if provider.model != "tryon-max":
+            await _fail_job(session, job, "Direct try-on needs FASHN_MODEL=tryon-max.", refund=True)
+            return
+        if job.outfit_id is not None or len(layers) != 1:
+            await _fail_job(session, job, "Direct try-on handles one product at a time.", refund=True)
+            return
+        layer = layers[0]
+
+        await _progress_writer(session, job)("Preparing your photo and the product")
+        try:
+            person = await asyncio.to_thread(get_storage().read, job.user_photo.storage_key)
+            product_url = _absolute_url(layer.image_url)
+            product = await fetch_product_image(product_url)
+            person_uri, product_uri = to_data_uri(person), to_data_uri(product)
+        except DirectInputError as exc:
+            await _fail_job(session, job, f"We couldn't use the images for this try-on: {exc}.", refund=True)
+            return
+
+        await _progress_writer(session, job)("Drawing it on you")
+        try:
+            output = await provider.generate(
+                TryOnInput(
+                    model_image_url=person_uri,
+                    garment_image_url=product_uri,
+                    prompt=settings.TRYON_DIRECT_PROMPT,
+                    seed=settings.FASHN_SEED,
+                )
+            )
+        except TryOnProviderError as exc:
+            if exc.provider_job_id:
+                # accepted (and billed) by FASHN: keep the id so it can be
+                # looked up there even though this job failed
+                job.provider_job_id = exc.provider_job_id
+            await _handle_provider_error(session, job, exc, provider.name, provider.model)
+            return
+
+        await _progress_writer(session, job)("Checking the result")
+        qc = await run_qc(
+            person,
+            product,
+            output.image_bytes,
+            product_name=layer.name,
+            product_url=product_url,
+            with_vlm=settings.TRYON_DIRECT_VLM_QC and bool(settings.OPENAI_API_KEY),
+        )
+        await _complete_direct_job(session, job, provider, output, qc, product, layer)
+    except Exception as exc:  # noqa: BLE001 — never strand a job as "processing"
+        logger.error("tryon_direct_job_unexpected_error", job_id=job.id, error=str(exc))
+        await _fail_job(session, job, f"Unexpected error: {exc}", refund=True)
+
+
+async def _complete_direct_job(  # noqa: ANN001
+    session, job: TryOnJob, provider: VirtualTryOnProvider, output, qc: dict, product: bytes, layer: _Layer
+) -> None:
+    """Stores FASHN's bytes exactly as received — no face restore, no merge,
+    no re-encode — with the audit trail beside them."""
+    content_type = output.content_type
+    ext = "jpg" if content_type == "image/jpeg" else content_type.split("/")[-1]
+    storage = get_storage()
+    key = new_key("tryon", "results", job.user_id, f"{job.id}.{ext}")
+    storage.put(key, output.image_bytes, content_type)
+    url = storage.signed_url(key)
+
+    # the product image FASHN was actually given, for the record
+    product_mime = sniff_mime(product)
+    product_key: str | None = new_key("tryon", "direct-inputs", job.user_id, f"{job.id}-product.{product_mime.split('/')[-1]}")
+    try:
+        storage.put(product_key, product, product_mime)  # type: ignore[arg-type]
+    except Exception as exc:  # noqa: BLE001 — the audit copy is not worth losing the result over
+        logger.warning("tryon_direct_product_copy_failed", job_id=job.id, error=str(exc)[:200])
+        product_key = None
+
+    resolution = qc.get("resolution") or {}
+    engine_meta = {
+        **(output.meta or {}),
+        "engine_mode": "direct",
+        "provider": provider.name,
+        "product_name": layer.name,
+        "product_id": layer.product_id,
+        "product_image_url": layer.image_url,
+        "product_input_key": product_key,
+        "person_photo_id": job.user_photo_id,
+        "person_input_size": [job.user_photo.width, job.user_photo.height],
+        "job_started_at": job.started_at.isoformat() if job.started_at else None,
+    }
+    session.add(
+        TryOnResult(
+            job_id=job.id,
+            storage_key=key,
+            image_url=url,
+            width=resolution.get("output_width"),
+            height=resolution.get("output_height"),
+            qc_report=qc,
+            engine_meta=engine_meta,
+        )
+    )
+    job.status = JobStatus.COMPLETED
+    job.completed_at = datetime.now(timezone.utc)
+    job.provider = provider.name
+    job.provider_model = provider.model
+    job.provider_job_id = output.provider_job_id
+    session.add(
+        AIUsage(
+            user_id=job.user_id,
+            kind=AIUsageKind.VIRTUAL_TRYON,
+            provider=provider.name,
+            model=provider.model,
+            reference_type="tryon_job",
+            reference_id=job.id,
+            success=True,
+        )
+    )
+    await session.commit()
+    logger.info("tryon_direct_job_completed", job_id=job.id, flags=qc.get("flags"))
 
 
 async def _with_original_face(
