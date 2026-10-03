@@ -84,6 +84,34 @@ async def test_output_bytes_come_back_exactly_as_fashn_sent_them(monkeypatch):
     assert out.meta["provider_job_id"] == "job_test_1"
 
 
+async def test_the_job_id_is_handed_over_before_the_first_poll(monkeypatch):
+    """A worker that dies mid-poll must still have the paid job's id on
+    record, so the render can be looked up instead of silently orphaned."""
+    fake = FakeFashn(output=OUTPUT, statuses=["processing", "completed"])
+    fake.install(monkeypatch)
+    handed_over: list[tuple[str, int]] = []
+
+    async def record(job_id: str) -> None:
+        handed_over.append((job_id, len(fake.status_paths)))
+
+    await _provider().generate(PAYLOAD, on_submitted=record)
+    assert handed_over == [("job_test_1", 0)]  # recorded once, before any poll
+    assert len(fake.run_bodies) == 1
+
+
+async def test_nothing_is_handed_over_when_fashn_never_accepts_the_job(monkeypatch):
+    fake = FakeFashn(output=OUTPUT, submit_script=[402])
+    fake.install(monkeypatch)
+    handed_over: list[str] = []
+
+    async def record(job_id: str) -> None:
+        handed_over.append(job_id)
+
+    with pytest.raises(TryOnProviderError):
+        await _provider().generate(PAYLOAD, on_submitted=record)
+    assert handed_over == []
+
+
 # --- polling: never a second paid job --------------------------------------
 
 
@@ -189,6 +217,34 @@ async def test_a_download_that_never_works_is_a_non_retryable_error_carrying_the
 
 
 # --- direct-engine input handling -------------------------------------------
+
+
+def test_an_ebay_thumbnail_is_upgraded_to_the_largest_listing_size():
+    from app.services.tryon_direct.inputs import hires_product_url
+
+    assert (
+        hires_product_url("https://i.ebayimg.com/images/g/abc/s-l225.jpg")
+        == "https://i.ebayimg.com/images/g/abc/s-l1600.jpg"
+    )
+
+
+def test_other_hosts_keep_their_own_image_url():
+    from app.services.tryon_direct.inputs import hires_product_url
+
+    assert hires_product_url("https://cdn.example/s-l225.jpg") == "https://cdn.example/s-l225.jpg"
+
+
+def test_a_thumbnail_is_refused_before_anything_is_sent():
+    from app.services.tryon_direct.inputs import require_hires_product
+
+    with pytest.raises(DirectInputError, match="below the 800px minimum"):
+        require_hires_product(image_bytes((225, 225), (200, 200, 200)))
+
+
+def test_a_full_size_product_is_accepted():
+    from app.services.tryon_direct.inputs import require_hires_product
+
+    require_hires_product(image_bytes((1500, 1500), (200, 200, 200)))
 
 
 def test_inputs_are_sent_as_their_original_bytes():

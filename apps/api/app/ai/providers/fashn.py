@@ -24,6 +24,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import time
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 
 import httpx
@@ -76,7 +77,9 @@ class FASHNTryOnProvider(VirtualTryOnProvider):
         self._poll_timeout = poll_timeout
         self._poll_interval = poll_interval
 
-    async def generate(self, payload: TryOnInput) -> TryOnOutput:
+    async def generate(
+        self, payload: TryOnInput, *, on_submitted: Callable[[str], Awaitable[None]] | None = None
+    ) -> TryOnOutput:
         start = time.perf_counter()
         headers = {"Authorization": f"Bearer {self._api_key}"}
         meta: dict = {
@@ -93,6 +96,11 @@ class FASHNTryOnProvider(VirtualTryOnProvider):
             provider_job_id = submit_resp["id"]
             meta["provider_job_id"] = provider_job_id
             meta["submitted_at"] = _now()
+            # FASHN has accepted and may bill this job from here on. Recording
+            # its id before polling means a worker that dies mid-poll still
+            # leaves a paid render we can look up, instead of an orphan.
+            if on_submitted is not None:
+                await on_submitted(provider_job_id)
 
             output_url = await self._poll(client, headers, provider_job_id, meta)
             meta["fashn_completed_at"] = _now()

@@ -35,6 +35,11 @@ def _stuck_for(job: TryOnJob) -> timedelta | None:
         waited = now - _aware(since)
         return waited if waited > QUEUED_LIMIT else None
     if job.status == JobStatus.PROCESSING and job.started_at:
+        if job.provider_job_id:
+            # FASHN accepted this job and may have billed it and still be
+            # rendering it. A refund here would return the credits while the
+            # render is paid for, so it is left for a person to review.
+            return None
         running = now - _aware(job.started_at)
         return running if running > RUNNING_LIMIT else None
     return None

@@ -23,7 +23,8 @@ from tests.fashn_fakes import PRODUCT_HOST, FakeFashn, image_bytes
 from tests.test_tryon import _poll_until_terminal, _upload_front_photo, _was_refunded
 
 PRODUCT_URL = f"https://{PRODUCT_HOST}/red-top.jpg"
-PRODUCT = image_bytes((300, 300), (255, 255, 255), rect=(40, 40, 260, 260), rect_color=(200, 30, 40), fmt="JPEG")
+# eBay's largest listing size; a 225px thumbnail is refused before FASHN is called
+PRODUCT = image_bytes((1000, 1000), (255, 255, 255), rect=(130, 130, 870, 870), rect_color=(200, 30, 40), fmt="JPEG")
 # the uploaded test photo is 400x500; FASHN hands back 2x with the "garment" drawn on
 OUTPUT = image_bytes((800, 1000), (180, 160, 140), rect=(200, 400, 600, 900), rect_color=(200, 30, 40))
 

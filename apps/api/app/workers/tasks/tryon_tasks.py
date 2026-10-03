@@ -41,7 +41,14 @@ from app.services.outfit_slots import (
     worn_on_head,
 )
 from app.services.storage_service import get_storage, new_key
-from app.services.tryon_direct.inputs import DirectInputError, fetch_product_image, sniff_mime, to_data_uri
+from app.services.tryon_direct.inputs import (
+    DirectInputError,
+    fetch_product_image,
+    hires_product_url,
+    require_hires_product,
+    sniff_mime,
+    to_data_uri,
+)
 from app.services.tryon_direct.qc import run_qc
 from app.services.tryon_quality.compose import decode
 from app.services.tryon_quality.debug_capture import DebugCapture
@@ -702,12 +709,17 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
         await _progress_writer(session, job)("Preparing your photo and the product")
         try:
             person = await asyncio.to_thread(get_storage().read, job.user_photo.storage_key)
-            product_url = _absolute_url(layer.image_url)
+            product_url = hires_product_url(_absolute_url(layer.image_url))
             product = await fetch_product_image(product_url)
+            require_hires_product(product)
             person_uri, product_uri = to_data_uri(person), to_data_uri(product)
         except DirectInputError as exc:
             await _fail_job(session, job, f"We couldn't use the images for this try-on: {exc}.", refund=True)
             return
+
+        async def record_provider_job(provider_job_id: str) -> None:
+            job.provider_job_id = provider_job_id
+            await session.commit()
 
         await _progress_writer(session, job)("Drawing it on you")
         try:
@@ -717,7 +729,8 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
                     garment_image_url=product_uri,
                     prompt=settings.TRYON_DIRECT_PROMPT,
                     seed=settings.FASHN_SEED,
-                )
+                ),
+                on_submitted=record_provider_job,
             )
         except TryOnProviderError as exc:
             if exc.provider_job_id:
@@ -736,14 +749,14 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
             product_url=product_url,
             with_vlm=settings.TRYON_DIRECT_VLM_QC and bool(settings.OPENAI_API_KEY),
         )
-        await _complete_direct_job(session, job, provider, output, qc, product, layer)
+        await _complete_direct_job(session, job, provider, output, qc, product, product_url, layer)
     except Exception as exc:  # noqa: BLE001 — never strand a job as "processing"
         logger.error("tryon_direct_job_unexpected_error", job_id=job.id, error=str(exc))
         await _fail_job(session, job, f"Unexpected error: {exc}", refund=True)
 
 
 async def _complete_direct_job(  # noqa: ANN001
-    session, job: TryOnJob, provider: VirtualTryOnProvider, output, qc: dict, product: bytes, layer: _Layer
+    session, job: TryOnJob, provider: VirtualTryOnProvider, output, qc: dict, product: bytes, product_url: str, layer: _Layer
 ) -> None:
     """Stores FASHN's bytes exactly as received — no face restore, no merge,
     no re-encode — with the audit trail beside them."""
@@ -770,7 +783,8 @@ async def _complete_direct_job(  # noqa: ANN001
         "provider": provider.name,
         "product_name": layer.name,
         "product_id": layer.product_id,
-        "product_image_url": layer.image_url,
+        "product_image_url": product_url,
+        "product_thumbnail_url": layer.image_url,
         "product_input_key": product_key,
         "person_photo_id": job.user_photo_id,
         "person_input_size": [job.user_photo.width, job.user_photo.height],

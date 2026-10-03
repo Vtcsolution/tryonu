@@ -15,7 +15,9 @@ from app.services.stuck_jobs import sweep_stuck_jobs
 from tests.conftest import credit_balance, register_and_login, seed_product
 
 
-async def _queued_job(db, client, *, age_minutes: int, status=JobStatus.QUEUED, cost: int = 8) -> TryOnJob:
+async def _queued_job(
+    db, client, *, age_minutes: int, status=JobStatus.QUEUED, cost: int = 8, provider_job_id: str | None = None
+) -> TryOnJob:
     from tests.test_tryon import _upload_front_photo
 
     await register_and_login(client)
@@ -35,6 +37,7 @@ async def _queued_job(db, client, *, age_minutes: int, status=JobStatus.QUEUED, 
         credit_cost=cost,
         queued_at=when,
         started_at=when if status == JobStatus.PROCESSING else None,
+        provider_job_id=provider_job_id,
     )
     db.add(job)
     await db.flush()
@@ -90,6 +93,23 @@ async def test_a_render_that_stalled_for_twenty_minutes_is_given_up_on(client, d
 
     db.expire_all()
     assert await credit_balance(db, user_id) == before + cost
+
+
+async def test_a_paid_fashn_render_is_never_refunded_by_the_sweeper(client, db):
+    """FASHN accepted and may have billed this job. Refunding it while the
+    render is still running would return credits for a paid render."""
+    job = await _queued_job(
+        db, client, age_minutes=45, status=JobStatus.PROCESSING, provider_job_id="job_paid_1"
+    )
+    user_id = job.user_id
+    before = await credit_balance(db, user_id)
+
+    assert await sweep_stuck_jobs() == 0
+    body = (await client.get(f"/api/v1/tryon/{job.id}")).json()
+    assert body["status"] == "processing"
+
+    db.expire_all()
+    assert await credit_balance(db, user_id) == before
 
 
 async def test_a_long_but_living_render_is_not_interrupted(client, db):

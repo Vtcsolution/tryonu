@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import base64
 import io
+import re
 
 import httpx
 from PIL import Image, UnidentifiedImageError
@@ -47,6 +48,32 @@ def to_data_uri(data: bytes) -> str:
             f"image is {len(data) // (1024 * 1024)} MB; the limit is {MAX_INPUT_BYTES // (1024 * 1024)} MB"
         )
     return f"data:{sniff_mime(data)};base64,{base64.b64encode(data).decode()}"
+
+
+_EBAY_SIZE_RE = re.compile(r"/s-l\d+\.jpg$")
+# Below this a product photo is a thumbnail; FASHN would draw it at a fraction of its detail
+MIN_PRODUCT_SIDE = 800
+
+
+def hires_product_url(url: str) -> str:
+    """eBay's CDN serves the same listing photo at larger fixed sizes; the
+    stored listing URL is the 225px thumbnail. Any other host is left alone."""
+    if "i.ebayimg.com" in url:
+        return _EBAY_SIZE_RE.sub("/s-l1600.jpg", url)
+    return url
+
+
+def require_hires_product(data: bytes) -> None:
+    """Refuses a thumbnail before anything is sent to FASHN, so it never costs a credit."""
+    try:
+        with Image.open(io.BytesIO(data)) as img:
+            width, height = img.size
+    except (UnidentifiedImageError, OSError) as exc:
+        raise DirectInputError("the product file is not a readable image") from exc
+    if min(width, height) < MIN_PRODUCT_SIDE:
+        raise DirectInputError(
+            f"the product image is only {width}x{height}px, below the {MIN_PRODUCT_SIDE}px minimum"
+        )
 
 
 async def fetch_product_image(url: str) -> bytes:
