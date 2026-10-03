@@ -1398,9 +1398,6 @@ function OutfitResultStep({
             {outfit.items.length}-item outfit · {(outfit.total_price_cents / 100).toFixed(2)}{" "}
             {(outfit.items[0]?.product.currency ?? "usd").toUpperCase()}
           </p>
-          {outfit.compatibility_score != null && (
-            <p className="mt-1 text-[13px] text-muted">{outfit.compatibility_score}% style match</p>
-          )}
 
           <div className="mt-4 grid grid-cols-3 gap-2">
             {outfit.items.map((item) => (

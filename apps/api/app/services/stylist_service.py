@@ -128,6 +128,48 @@ _MEN_WORDS = {
 }
 
 
+_COLOUR_WORDS = {
+    "white", "black", "red", "blue", "green", "pink", "yellow", "maroon", "grey", "gray", "gold",
+    "silver", "brown", "navy", "purple", "orange", "beige", "cream", "ivory", "teal", "mint",
+}
+# words that mean one listing is a whole set, and the pieces such a set includes
+_SET_LISTING = re.compile(r"(\d+\s*(piece|pc|pcs)\b|\bsuit\b|\bco-?ord\b|\boutfit\b)")
+_SET_COMPONENTS = {
+    "dupatta", "dupattas", "stole", "shawl", "trouser", "trousers", "pant", "pants", "palazzo",
+    "palazzos", "shalwar", "salwar", "kameez", "kurta", "kurti", "top", "bottom",
+}
+
+
+def _words(text: str) -> set[str]:
+    return set(re.findall(r"[a-z]+", text.lower()))
+
+
+def _colour_conflicts(prompt: str, name: str) -> bool:
+    """True when the listing names a colour the shopper didn't ask for and
+    names none they did. A listing that names no colour at all is kept."""
+    wanted = _words(prompt) & _COLOUR_WORDS
+    named = _words(name) & _COLOUR_WORDS
+    return bool(wanted) and bool(named) and not (named & wanted)
+
+
+def _drop_redundant_candidates(cands: list["_Candidate"]) -> list["_Candidate"]:
+    """A whole set and its own included piece are never both picked as
+    separate items: a "3 piece suit" plus its "dupatta" is the same product
+    twice. Nothing else is dropped, so no real product is skipped silently."""
+    kept = list(cands)
+    set_words = [_words(c.result.raw.name) for c in kept if _SET_LISTING.search(c.result.raw.name.lower())]
+    result: list[_Candidate] = []
+    for c in kept:
+        words = _words(c.result.raw.name)
+        is_component = bool(words & _SET_COMPONENTS)
+        if is_component and any(
+            (words & _SET_COMPONENTS) <= parent and words != parent for parent in set_words
+        ):
+            continue
+        result.append(c)
+    return result
+
+
 def _gender_in_prompt(prompt: str) -> str | None:
     words = re.findall(r"[a-z']+", prompt.lower())
     if any(w in _WOMEN_WORDS for w in words):
@@ -318,6 +360,8 @@ async def _fetch_candidates(
             # offered under a man's boots. Filter each term separately, so
             # one badly-matched item can't leave the shopper without boots.
             for r in keep_for_gender(results, gender, lambda r: r.raw.name):
+                if _colour_conflicts(req.prompt, r.raw.name):
+                    continue
                 key = (r.provider.slug, r.raw.retailer_product_id)
                 if key in seen_ids:
                     continue
@@ -510,6 +554,7 @@ async def ask_stylist(
     chosen = _one_of_each_item(
         [candidates[i] for i in recommendation.chosen_indexes if 0 <= i < len(candidates)], candidates, req.max_items
     )
+    chosen = _drop_redundant_candidates(chosen)
 
     # The one point a live-searched candidate becomes a saved row — only
     # for what the LLM actually chose, never the rest of the pool it saw.

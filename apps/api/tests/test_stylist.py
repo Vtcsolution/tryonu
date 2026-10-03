@@ -723,3 +723,39 @@ async def test_a_failing_stylist_model_is_logged_not_just_swallowed(client, monk
     everything = logged.out + logged.err
     assert "stylist_llm_failed" in everything
     assert "insufficient_quota" in everything  # the actual reason is findable
+
+
+def _pick(name: str, image: str, product_id: str = ""):
+    from types import SimpleNamespace
+
+    from app.services.stylist_service import _Candidate
+
+    raw = SimpleNamespace(name=name, images=[image], retailer_product_id=product_id or name)
+    return _Candidate(result=SimpleNamespace(raw=raw), term="t")
+
+
+def test_a_set_and_its_own_dupatta_are_not_both_picked():
+    """Live: a 3 piece suit and its dupatta were picked as two separate items."""
+    from app.services.stylist_service import _drop_redundant_candidates
+
+    suit = _pick("Pakistani Women 3 Piece Suit Blue White Floral Kameez Shalwar with Dupatta", "https://img/a.jpg")
+    dupatta = _pick("Women Chiffon Dupatta Blue Floral Embroidered", "https://img/b.jpg")
+    kept = _drop_redundant_candidates([suit, dupatta])
+    assert [c.result.raw.name for c in kept] == [suit.result.raw.name]
+
+
+def test_a_standalone_dupatta_is_kept_when_no_set_is_picked():
+    from app.services.stylist_service import _drop_redundant_candidates
+
+    kurti = _pick("White Chikankari Kurti", "https://img/c.jpg")
+    dupatta = _pick("Women Chiffon Dupatta White", "https://img/d.jpg")
+    assert len(_drop_redundant_candidates([kurti, dupatta])) == 2
+
+
+def test_a_colour_the_shopper_did_not_ask_for_is_a_conflict():
+    from app.services.stylist_service import _colour_conflicts
+
+    assert _colour_conflicts("a white shalwar kameez", "Blue Floral Suit")
+    assert not _colour_conflicts("a white shalwar kameez", "White Chikankari Kurti")
+    assert not _colour_conflicts("a white shalwar kameez", "Chikankari Kurti")  # names no colour: kept
+    assert not _colour_conflicts("a shalwar kameez", "Blue Floral Suit")  # no colour asked: nothing to conflict
