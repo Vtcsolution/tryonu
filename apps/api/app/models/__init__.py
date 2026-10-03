@@ -10,6 +10,7 @@ from app.models.analytics import PageView  # noqa: F401
 from app.models.affiliate_network import AffiliateNetwork  # noqa: F401
 from app.models.ai_usage import AIUsage  # noqa: F401
 from app.models.credit import CreditPackage, CreditTransaction  # noqa: F401
+from app.models.fashn_ledger import FashnCreditLedger, FashnLiveAuthorization  # noqa: F401
 from app.models.history import ProductView, SearchHistory  # noqa: F401
 from app.models.outfit import Outfit, OutfitItem, SavedLook  # noqa: F401
 from app.models.photo import UserPhoto  # noqa: F401

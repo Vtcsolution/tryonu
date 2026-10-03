@@ -155,14 +155,14 @@ async def test_connection_test_without_key_reports_mock_mode_without_network(cli
     assert (await client.post("/api/v1/admin/settings/test/database")).status_code == 404
 
 
-@pytest.mark.parametrize(("fashn_status", "ok"), [(400, True), (401, False)])
+@pytest.mark.parametrize(("fashn_status", "ok"), [(200, True), (401, False)])
 async def test_fashn_connection_test_distinguishes_valid_and_rejected_keys(client, db, monkeypatch, fashn_status, ok):
     await _admin(client, db)
     secret = "fa-test-key-for-connection-check"
     await client.put("/api/v1/admin/settings", json={"values": {"FASHN_API_KEY": secret}})
 
     async def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.path.endswith("/run")
+        assert request.method == "GET" and request.url.path.endswith("/credits")  # a free read, never a generation
         assert request.headers["Authorization"] == f"Bearer {secret}"
         return httpx.Response(fashn_status, json={"error": "x", "message": f"echo {secret}"})
 

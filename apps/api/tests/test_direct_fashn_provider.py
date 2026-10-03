@@ -17,13 +17,14 @@ from app.ai.providers.fashn import FASHNTryOnProvider
 from app.services.face_restore import Box
 from app.services.tryon_direct import qc
 from app.services.tryon_direct.inputs import DirectInputError, sniff_mime, to_data_uri
-from tests.fashn_fakes import FakeFashn, image_bytes
+from tests.fashn_fakes import FakeFashn, FakeGuard, image_bytes
 
 OUTPUT = image_bytes((1200, 1800), (120, 140, 160), rect=(300, 500, 900, 1300))
 PAYLOAD = TryOnInput(model_image_url="data:image/jpeg;base64,AAAA", garment_image_url="data:image/jpeg;base64,BBBB")
 
 
 def _provider(**kwargs) -> FASHNTryOnProvider:
+    kwargs.setdefault("guard", FakeGuard())
     return FASHNTryOnProvider(api_key="fa-test", base_url="https://api.fashn.ai/v1", model="tryon-max", **kwargs)
 
 
@@ -166,10 +167,24 @@ async def test_a_failed_job_reports_fashns_reason_and_is_not_retried(monkeypatch
 
 
 async def test_a_connection_that_never_opened_is_retried_then_succeeds(monkeypatch):
-    fake = FakeFashn(output=OUTPUT, submit_script=["connect-error", 503, None])
+    guard = FakeGuard()
+    fake = FakeFashn(output=OUTPUT, submit_script=["connect-error", None])
     fake.install(monkeypatch)
-    out = await _provider().generate(PAYLOAD)
-    assert fake.run_count == 3 and out.image_bytes == OUTPUT
+    out = await _provider(guard=guard).generate(PAYLOAD)
+    assert fake.run_count == 2 and out.image_bytes == OUTPUT
+    assert guard.reservations[0].released == "never connected"  # nothing was billed for it
+    assert guard.reserved == 4  # only the accepted job stays counted
+
+
+async def test_a_server_error_is_never_retried_and_stays_counted(monkeypatch):
+    """FASHN may have created the job before failing: sending again could pay twice."""
+    guard = FakeGuard()
+    fake = FakeFashn(output=OUTPUT, submit_script=[503, None])
+    fake.install(monkeypatch)
+    with pytest.raises(TryOnProviderError, match="not resubmitting"):
+        await _provider(guard=guard).generate(PAYLOAD)
+    assert fake.run_count == 1
+    assert guard.reserved == 4
 
 
 async def test_a_timeout_after_the_request_was_sent_is_not_retried(monkeypatch):
@@ -182,11 +197,27 @@ async def test_a_timeout_after_the_request_was_sent_is_not_retried(monkeypatch):
 
 
 async def test_submit_gives_up_after_three_attempts(monkeypatch):
-    fake = FakeFashn(output=OUTPUT, submit_script=[503, 503, 503, 503])
+    fake = FakeFashn(output=OUTPUT, submit_script=["connect-error"] * 4)
     fake.install(monkeypatch)
     with pytest.raises(TryOnProviderError) as exc:
         await _provider().generate(PAYLOAD)
     assert fake.run_count == 3 and exc.value.retryable is True
+
+
+async def test_nothing_is_sent_without_a_guard(monkeypatch):
+    fake = FakeFashn(output=OUTPUT)
+    fake.install(monkeypatch)
+    with pytest.raises(TryOnProviderError, match="Nothing was sent"):
+        await FASHNTryOnProvider(api_key="fa-test", base_url="https://api.fashn.ai/v1", model="tryon-max").generate(PAYLOAD)
+    assert fake.run_count == 0
+
+
+async def test_nothing_is_sent_when_the_budget_is_exhausted(monkeypatch):
+    fake = FakeFashn(output=OUTPUT)
+    fake.install(monkeypatch)
+    with pytest.raises(TryOnProviderError, match="exhausted"):
+        await _provider(guard=FakeGuard(budget=3)).generate(PAYLOAD)  # 2k quality costs 4
+    assert fake.run_count == 0
 
 
 async def test_out_of_credits_is_not_retried(monkeypatch):

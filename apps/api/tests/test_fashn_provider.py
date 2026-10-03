@@ -11,6 +11,7 @@ import pytest
 
 from app.ai.providers.base import TryOnInput, TryOnProviderError
 from app.ai.providers.fashn import FASHNTryOnProvider
+from tests.fashn_fakes import FakeGuard
 
 
 def _fake_transport(*, submit_payload_check, poll_status: str = "completed"):
@@ -55,7 +56,7 @@ async def test_fashn_submit_uses_model_name_and_inputs_shape(monkeypatch):
     # avoid a real 2s sleep in the poll loop
     monkeypatch.setattr("app.ai.providers.fashn.asyncio.sleep", lambda *_a, **_kw: _noop())
 
-    provider = FASHNTryOnProvider(api_key="fa-test", base_url="https://api.fashn.ai/v1", model="tryon-v1.6")
+    provider = FASHNTryOnProvider(api_key="fa-test", base_url="https://api.fashn.ai/v1", model="tryon-v1.6", guard=FakeGuard())
     output = await provider.generate(
         TryOnInput(model_image_url="https://example.com/model.jpg", garment_image_url="https://example.com/garment.jpg")
     )
@@ -92,7 +93,7 @@ async def test_fashn_max_submit_uses_product_image_not_garment_image(monkeypatch
     monkeypatch.setattr(httpx.AsyncClient, "__init__", patched_init)
     monkeypatch.setattr("app.ai.providers.fashn.asyncio.sleep", lambda *_a, **_kw: _noop())
 
-    provider = FASHNTryOnProvider(api_key="fa-test", base_url="https://api.fashn.ai/v1", model="tryon-max")
+    provider = FASHNTryOnProvider(api_key="fa-test", base_url="https://api.fashn.ai/v1", model="tryon-max", guard=FakeGuard())
     await provider.generate(
         TryOnInput(model_image_url="https://example.com/model.jpg", garment_image_url="https://example.com/garment.jpg")
     )
@@ -120,7 +121,7 @@ async def test_fashn_sends_layer_instructions_in_each_models_own_fields(monkeypa
     monkeypatch.setattr(httpx.AsyncClient, "__init__", patched_init)
     monkeypatch.setattr("app.ai.providers.fashn.asyncio.sleep", lambda *_a, **_kw: _noop())
 
-    provider = FASHNTryOnProvider(api_key="fa-test", base_url="https://api.fashn.ai/v1", model=model)
+    provider = FASHNTryOnProvider(api_key="fa-test", base_url="https://api.fashn.ai/v1", model=model, guard=FakeGuard())
     await provider.generate(
         TryOnInput(
             model_image_url="https://example.com/model.jpg",
@@ -155,7 +156,7 @@ async def test_fashn_failed_status_raises_provider_error(monkeypatch):
 
     monkeypatch.setattr(httpx.AsyncClient, "__init__", patched_init)
 
-    provider = FASHNTryOnProvider(api_key="fa-test", base_url="https://api.fashn.ai/v1", model="tryon-v1.6")
+    provider = FASHNTryOnProvider(api_key="fa-test", base_url="https://api.fashn.ai/v1", model="tryon-v1.6", guard=FakeGuard())
     with pytest.raises(TryOnProviderError, match="face not detected"):
         await provider.generate(
             TryOnInput(model_image_url="https://example.com/model.jpg", garment_image_url="https://example.com/garment.jpg")
@@ -187,7 +188,7 @@ async def test_out_of_credits_is_reported_as_such_and_not_retried(monkeypatch):
         original_init(self, *args, **kwargs)
 
     monkeypatch.setattr(httpx.AsyncClient, "__init__", patched_init)
-    provider = FASHNTryOnProvider(api_key="fa-test", base_url="https://api.fashn.ai/v1", model="tryon-max")
+    provider = FASHNTryOnProvider(api_key="fa-test", base_url="https://api.fashn.ai/v1", model="tryon-max", guard=FakeGuard())
     with pytest.raises(TryOnProviderError) as exc:
         await provider.generate(TryOnInput(model_image_url="https://e.x/m.jpg", garment_image_url="https://e.x/g.jpg"))
     assert "out of credits" in str(exc.value)
@@ -208,7 +209,7 @@ async def test_a_seed_is_sent_so_a_retry_is_a_different_render(monkeypatch, mode
 
     monkeypatch.setattr(httpx.AsyncClient, "__init__", patched_init)
     monkeypatch.setattr("app.ai.providers.fashn.asyncio.sleep", lambda *_a, **_kw: _noop())
-    provider = FASHNTryOnProvider(api_key="fa-test", base_url="https://api.fashn.ai/v1", model=model)
+    provider = FASHNTryOnProvider(api_key="fa-test", base_url="https://api.fashn.ai/v1", model=model, guard=FakeGuard())
     await provider.generate(
         TryOnInput(model_image_url="https://e.x/m.jpg", garment_image_url="https://e.x/g.jpg", seed=8003)
     )

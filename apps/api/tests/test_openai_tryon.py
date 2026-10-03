@@ -238,7 +238,9 @@ def test_full_looks_stay_on_fashn_when_tryon_max_can_draw_them(monkeypatch):
     from app.ai.providers.fashn import FASHNTryOnProvider
     from app.ai.providers.registry import plan_outfit_render
 
-    main = FASHNTryOnProvider(api_key="fa-test", base_url="https://api.fashn.ai/v1", model="tryon-max")
+    from tests.fashn_fakes import FakeGuard
+
+    main = FASHNTryOnProvider(api_key="fa-test", base_url="https://api.fashn.ai/v1", model="tryon-max", guard=FakeGuard())
     full = OpenAIImageTryOnProvider(api_key="sk-test", model="gpt-image-1")
     monkeypatch.setattr("app.ai.providers.registry.get_tryon_provider", lambda: main)
     monkeypatch.setattr("app.ai.providers.registry.get_full_look_provider", lambda: full)

@@ -124,3 +124,42 @@ class FakeFashn:
             await _real_sleep(0)
 
         monkeypatch.setattr("app.ai.providers.fashn.asyncio.sleep", fast_sleep)
+
+
+class FakeReservation:
+    def __init__(self, guard: "FakeGuard", credits: int) -> None:
+        self.guard = guard
+        self.credits = credits
+        self.provider_job_id: str | None = None
+        self.released: str | None = None
+
+    async def mark_submitted(self, provider_job_id: str) -> None:
+        self.provider_job_id = provider_job_id
+
+    async def release(self, reason: str) -> None:
+        self.released = reason
+        self.guard.reserved -= self.credits
+
+
+class FakeGuard:
+    """Stands in for the database credit guard in tests: counts what would be
+    reserved, refuses past `budget`, and never touches FASHN or a database."""
+
+    def __init__(self, budget: int = 1000) -> None:
+        self.budget = budget
+        self.reserved = 0
+        self.reservations: list[FakeReservation] = []
+
+    async def remaining(self) -> int:
+        return self.budget - self.reserved
+
+    async def reserve(self, *, model, resolution, mode, purpose):  # noqa: ANN001
+        from app.services.fashn_guard import GuardRefused, credits_for
+
+        cost = credits_for(model, resolution, mode) if model == "tryon-max" else 1
+        if self.reserved + cost > self.budget:
+            raise GuardRefused("The FASHN credit budget is exhausted. Nothing was sent.")
+        self.reserved += cost
+        reservation = FakeReservation(self, cost)
+        self.reservations.append(reservation)
+        return reservation

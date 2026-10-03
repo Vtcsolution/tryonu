@@ -13,7 +13,7 @@ from app.services import credit_service
 from app.services.storage_service import get_storage
 from app.services.tryon_direct.qc import qc_gate
 from tests.conftest import credit_balance, make_admin, register_and_login, seed_product
-from tests.fashn_fakes import FakeFashn, image_bytes
+from tests.fashn_fakes import FakeFashn, FakeGuard, image_bytes
 from tests.test_direct_fashn_job import OUTPUT, PRODUCT, PRODUCT_URL, _row, _setup, direct  # noqa: F401 — fixture
 from tests.test_tryon import _poll_until_terminal, _upload_front_photo, _was_refunded
 
@@ -247,4 +247,5 @@ def _fashn_provider():
         model="tryon-max",
         poll_interval=0.0,
         poll_timeout=5,
+        guard=FakeGuard(),
     )

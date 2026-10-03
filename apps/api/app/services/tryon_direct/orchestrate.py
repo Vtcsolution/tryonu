@@ -20,23 +20,14 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
 from app.ai.providers.base import TryOnOutput
+from app.services.fashn_guard import credits_per_render  # noqa: F401 — one price table, re-exported
 from app.services.tryon_direct.qc import qc_gate, run_qc
 
-# FASHN's documented credit cost per image (tryon-max): mode -> resolution -> credits
-FASHN_CREDITS = {
-    "fast": {"1k": 1, "2k": 2, "4k": 3},
-    "balanced": {"1k": 2, "2k": 3, "4k": 4},
-    "quality": {"1k": 3, "2k": 4, "4k": 5},
-}
 _IDENTITY_FLAGS = {"face_changed", "head_changed"}
 
 
 class OrchestrationRefused(Exception):
     """A plan that must not start: nothing has been sent to FASHN yet."""
-
-
-def credits_per_render(resolution: str, mode: str) -> int:
-    return FASHN_CREDITS[mode][resolution]
 
 
 @dataclass(frozen=True)
@@ -61,6 +52,7 @@ class SequenceResult:
     image: bytes
     steps: list[dict]
     output: TryOnOutput | None
+    outputs: list[bytes] = field(default_factory=list)
 
 
 def check_plan(products: list[ProductInput], *, max_products: int, cost_per_render: int, max_credits: int) -> None:
@@ -92,6 +84,7 @@ def _qc_summary(verdict: StepVerdict) -> dict:
         "edited_fraction": diff.get("edited_fraction"),
         "product_match_score": product.get("product_match_score"),
         "face_similarity": face.get("face_similarity"),
+        "changed_bbox": diff.get("changed_bbox"),
     }
 
 
@@ -144,6 +137,7 @@ async def run_sequence(
 
     current = person
     last: TryOnOutput | None = None
+    outputs: list[bytes] = []
     for step, product in zip(steps, products):
         step["status"] = "sent"
         await on_step(steps)
@@ -165,10 +159,11 @@ async def run_sequence(
         if not verdict.passed:
             step["status"] = "failed"
             await on_step(steps)
-            return SequenceResult(passed=False, image=output.image_bytes, steps=steps, output=output)
+            return SequenceResult(passed=False, image=output.image_bytes, steps=steps, output=output, outputs=outputs)
 
         step["status"] = "verified"
         await on_step(steps)
+        outputs.append(output.image_bytes)
         current = output.image_bytes
 
-    return SequenceResult(passed=True, image=current, steps=steps, output=last)
+    return SequenceResult(passed=True, image=current, steps=steps, output=last, outputs=outputs)

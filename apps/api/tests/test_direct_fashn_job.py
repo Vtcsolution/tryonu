@@ -48,6 +48,10 @@ def direct(monkeypatch):
         "TRYON_KEEP_ORIGINAL_FACE": True,  # would normally run restore_face
     }.items():
         monkeypatch.setattr(s, name, value)
+    # the real database guard is replaced by a generous fake: no FASHN call can happen here anyway
+    from tests.fashn_fakes import FakeGuard
+
+    monkeypatch.setattr("app.ai.providers.registry.DbCreditGuard", lambda: FakeGuard())
     get_tryon_provider.cache_clear()
     get_full_look_provider.cache_clear()
 

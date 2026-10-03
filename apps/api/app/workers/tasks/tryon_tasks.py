@@ -35,6 +35,8 @@ from app.models.user import User
 from app.services import credit_service
 from app.services.face_restore import restore_face
 from app.services.outfit_slots import (
+    LAYER_ORDER,
+    effective_slot,
     MAX_PROMPT,
     V16_CATEGORY,
     render_plan,
@@ -43,6 +45,7 @@ from app.services.outfit_slots import (
     worn_on_head,
 )
 from app.services.storage_service import get_storage, new_key
+from app.services.tryon_direct.final_check import final_check
 from app.services.tryon_direct.orchestrate import (
     OrchestrationRefused,
     ProductInput,
@@ -122,6 +125,36 @@ async def _garment_layers(session, job: TryOnJob, model: str, whole_outfit: bool
         ]
 
     return []
+
+
+async def _direct_layers(session, job: TryOnJob) -> tuple[list[_Layer], list[str]]:  # noqa: ANN001
+    """Every product the shopper selected, in layering order (base garments,
+    then layers over them, then shoes and accessories). Unlike render_plan,
+    nothing is dropped for sharing a slot with another item: the shopper chose
+    it, so it is sent. Returns (layers, names of selected products that have
+    no image and so cannot be sent at all)."""
+    if job.outfit_id is None:
+        layers = await _garment_layers(session, job, "tryon-max")
+        missing = [] if layers or job.product is None else [job.product.name]
+        return layers, missing
+    result = await session.execute(
+        select(OutfitItem)
+        .where(OutfitItem.outfit_id == job.outfit_id)
+        .options(selectinload(OutfitItem.product).selectinload(Product.images))
+        .order_by(OutfitItem.position)
+    )
+    items = [i for i in result.scalars().all() if i.product is not None]
+    missing = [i.product.name for i in items if not i.product.primary_image_url]
+    usable = [i for i in items if i.product.primary_image_url]
+    ordered = sorted(
+        enumerate(usable),
+        key=lambda pair: (LAYER_ORDER.get(effective_slot(pair[1].slot, pair[1].product.name), 9), pair[0]),
+    )
+    layers = [
+        _Layer(i.product.primary_image_url, effective_slot(i.slot, i.product.name), i.product.name, i.product.id)
+        for _, i in ordered
+    ]
+    return layers, missing
 
 
 def _quality_pipeline_on(provider) -> bool:  # noqa: ANN001
@@ -397,7 +430,18 @@ async def run_tryon_job_async(job_id: str) -> None:
         # legacy pipelines (render_look, keep_person, restore_face, …) can
         # touch the result.
         if direct_engine_active():
-            await _run_direct_job(session, job, provider, layers)
+            direct_layers, missing = await _direct_layers(session, job)
+            if missing:
+                await _fail_job(
+                    session,
+                    job,
+                    "These selected products have no image, so they cannot be tried on: "
+                    + ", ".join(missing)
+                    + ". Nothing was sent to FASHN.",
+                    refund=True,
+                )
+                return
+            await _run_direct_job(session, job, provider, direct_layers)
             return
 
         # A look the main provider can't fully draw (FASHN: no shoes, bags or
@@ -735,8 +779,15 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
                 cost_per_render=cost,
                 max_credits=settings.TRYON_DIRECT_MAX_FASHN_CREDITS,
             )
+            available = await provider.credits_available()
+            needed = cost * len(products)
+            if needed > available:
+                raise OrchestrationRefused(
+                    f"this look needs {needed} FASHN credits ({len(products)} products x {cost}) "
+                    f"but the current authorization allows {available}"
+                )
         except OrchestrationRefused as exc:
-            await _fail_job(session, job, f"We couldn't start this try-on: {exc}.", refund=True)
+            await _fail_job(session, job, f"We couldn't start this try-on: {exc}. Nothing was sent to FASHN.", refund=True)
             return
         except DirectInputError as exc:
             await _fail_job(session, job, f"We couldn't use the images for this try-on: {exc}.", refund=True)
@@ -777,6 +828,7 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
                     seed=settings.FASHN_SEED,
                 ),
                 on_submitted=on_submitted,
+                purpose=f"direct:{job.id}:{product.product_id or product.name}"[:160],
             )
 
         try:
@@ -793,7 +845,22 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
             return
 
         if sequence.passed:
-            await _complete_sequence(session, job, provider, sequence, layers, cost)
+            await _progress_writer(session, job)("Checking every product in the final image")
+            final = await final_check(
+                person,
+                sequence.image,
+                sequence.outputs,
+                [(step.get("qc") or {}).get("changed_bbox") for step in sequence.steps],
+                [p.image for p in products],
+                [p.name for p in products],
+                with_vlm=settings.TRYON_DIRECT_VLM_QC and bool(settings.OPENAI_API_KEY),
+            )
+            for step, row in zip(sequence.steps, final["products"]):
+                step["final_status"] = row["status"]
+            if final["passed"]:
+                await _complete_sequence(session, job, provider, sequence, layers, cost, final)
+            else:
+                await _hold_final(session, job, provider, sequence, cost, final)
         else:
             failed = next(step for step in sequence.steps if step["status"] == "failed")
             await _hold_failure(
@@ -813,7 +880,7 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
             await _fail_job(session, job, f"Unexpected error: {exc}", refund=True)
 
 
-async def _complete_sequence(session, job: TryOnJob, provider: VirtualTryOnProvider, sequence, layers: list[_Layer], cost: int) -> None:  # noqa: ANN001
+async def _complete_sequence(session, job: TryOnJob, provider: VirtualTryOnProvider, sequence, layers: list[_Layer], cost: int, final: dict) -> None:  # noqa: ANN001
     """Every product verified: deliver the final FASHN output untouched."""
     output = sequence.output
     ext = "jpg" if output.content_type == "image/jpeg" else output.content_type.split("/")[-1]
@@ -852,7 +919,11 @@ async def _complete_sequence(session, job: TryOnJob, provider: VirtualTryOnProvi
             image_url=storage.signed_url(key),
             width=width,
             height=height,
-            qc_report={"gate": {"passed": True, "failed_checks": [], "advisory": []}, "products": len(sequence.steps)},
+            qc_report={
+                "gate": {"passed": True, "failed_checks": [], "advisory": []},
+                "products": len(sequence.steps),
+                "final_check": final,
+            },
             engine_meta=engine_meta,
             placements=placements,
         )
@@ -876,6 +947,44 @@ async def _complete_sequence(session, job: TryOnJob, provider: VirtualTryOnProvi
     )
     await session.commit()
     logger.info("tryon_job_completed", job_id=job.id, products=len(sequence.steps))
+
+
+async def _hold_final(session, job: TryOnJob, provider: VirtualTryOnProvider, sequence, cost: int, final: dict) -> None:  # noqa: ANN001
+    """Every product was drawn and verified when drawn, but the final image
+    could not confirm all of them. The final FASHN output is stored for a
+    reviewer, who may approve it; the customer is not told it succeeded."""
+    output = sequence.output
+    ext = "jpg" if output.content_type == "image/jpeg" else output.content_type.split("/")[-1]
+    key = new_key("tryon", "results", job.user_id, f"{job.id}.{ext}")
+    get_storage().put(key, sequence.image, output.content_type)
+    with Image.open(io.BytesIO(sequence.image)) as img:
+        width, height = img.size
+    unconfirmed = [row["name"] for row in final["products"] if row["status"] != "verified"]
+    reason = "final check could not confirm: " + (", ".join(unconfirmed) or "the person's identity")
+    await _hold_failure(
+        session,
+        job,
+        "We couldn't confirm every product in the final image, so it was not delivered. "
+        "Your credits are on hold while we review it.",
+        steps=sequence.steps,
+        reason=reason,
+    )
+    job.review_payload = {
+        "storage_key": key,
+        "qc_report": {"gate": {"passed": False, "failed_checks": ["final_check"]}, "final_check": final},
+        "engine_meta": {
+            **(output.meta or {}),
+            "engine_mode": "direct",
+            "provider": provider.name,
+            "product_count": len(sequence.steps),
+            "credits_per_render": cost,
+            "sequence": [dict(step) for step in sequence.steps],
+        },
+        "width": width,
+        "height": height,
+        "steps": job.steps,
+    }
+    await session.commit()
 
 
 async def _hold_failure(session, job: TryOnJob, message: str, *, steps: list | None, reason: str | None = None) -> None:  # noqa: ANN001

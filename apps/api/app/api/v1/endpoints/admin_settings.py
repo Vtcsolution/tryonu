@@ -224,19 +224,19 @@ def _redact(message: str, settings: Settings) -> str:
 async def _test_fashn(s: Settings) -> ConnectionTestOut:
     if not s.FASHN_API_KEY:
         return ConnectionTestOut(ok=False, message="No FASHN API key set — try-on is running in mock mode.")
-    # An empty "inputs" object is rejected by input validation (400) only
-    # after the key is accepted; a bad key 401s first. No render is started.
+    # A read of the credit balance: it needs a valid key, creates nothing and
+    # bills nothing. This used to POST an empty job to /run; nothing outside
+    # app/ai/providers/fashn.py may touch that endpoint (see the guard test).
     async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.post(
-            f"{s.FASHN_API_BASE_URL.rstrip('/')}/run",
+        resp = await client.get(
+            f"{s.FASHN_API_BASE_URL.rstrip('/')}/credits",
             headers={"Authorization": f"Bearer {s.FASHN_API_KEY}"},
-            json={"model_name": s.FASHN_MODEL, "inputs": {}},
         )
     if resp.status_code in (401, 403):
         return ConnectionTestOut(ok=False, message="FASHN rejected this API key.")
-    if resp.status_code == 400:
+    if resp.status_code == 200:
         mode = "" if s.VIRTUAL_TRYON_PROVIDER == "fashn" else " (but the try-on provider is still set to mock)"
-        return ConnectionTestOut(ok=True, message=f"API key accepted for {s.FASHN_MODEL}{mode}.")
+        return ConnectionTestOut(ok=True, message=f"API key accepted{mode}.")
     return ConnectionTestOut(ok=False, message=f"Unexpected response from FASHN: HTTP {resp.status_code}.")
 
 

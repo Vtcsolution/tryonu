@@ -17,6 +17,7 @@ from app.ai.providers.gemini_image import GeminiImageTryOnProvider
 from app.ai.providers.openai_image import OpenAIImageTryOnProvider
 from app.core.config import get_settings
 from app.models.enums import OutfitSlot
+from app.services.fashn_guard import DbCreditGuard
 from app.services.outfit_slots import render_plan
 
 
@@ -60,6 +61,7 @@ def get_tryon_provider() -> VirtualTryOnProvider:
             generation_mode=settings.FASHN_GENERATION_MODE,
             output_format=settings.FASHN_OUTPUT_FORMAT,
             poll_timeout=settings.FASHN_POLL_TIMEOUT_SECONDS,
+            guard=DbCreditGuard(),
         )
 
     if settings.VIRTUAL_TRYON_PROVIDER == "openai":

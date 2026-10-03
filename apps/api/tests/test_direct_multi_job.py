@@ -45,11 +45,15 @@ class FakeFashnProvider:
     supports_masked_edit = False
     preserves_person = False
 
-    def __init__(self, *, fail_on_call: int | None = None) -> None:
+    def __init__(self, *, fail_on_call: int | None = None, available: int = 1000) -> None:
         self.calls = 0
         self.fail_on_call = fail_on_call
+        self.available = available
 
-    async def generate(self, payload, *, on_submitted=None):  # noqa: ANN001
+    async def credits_available(self) -> int:
+        return self.available
+
+    async def generate(self, payload, *, on_submitted=None, purpose=""):  # noqa: ANN001
         self.calls += 1
         job_id = f"job_{self.calls}"
         if on_submitted is not None:
@@ -62,7 +66,8 @@ class FakeFashnProvider:
         colour = RECT_FOR[self._match(product_bytes)]
         draw = ImageDraw.Draw(model)
         w, h = model.size
-        draw.rectangle([int(w * 0.32), int(h * 0.32), int(w * 0.68), int(h * 0.62)], fill=colour)
+        top = 0.30 if colour == RED else 0.66  # the top in one place, the scarf in another
+        draw.rectangle([int(w * 0.32), int(h * top), int(w * 0.68), int(h * (top + 0.25))], fill=colour)
         buf = io.BytesIO()
         model.save(buf, format="PNG")
         return TryOnOutput(
@@ -168,3 +173,77 @@ async def test_a_look_over_the_product_limit_is_refused_before_any_call(client, 
     assert refused.status == tryon_tasks.JobStatus.FAILED
     assert "FASHN credits" in refused.error_message
     assert refused.review_state is None  # nothing was billed, so nothing is held
+
+
+async def test_a_look_the_authorization_cannot_finish_is_refused_before_any_call(client, db, direct, monkeypatch):  # noqa: F811
+    job_id, layers = await _job_for_two_products(client, db, monkeypatch)
+    fake = FakeFashnProvider(available=5)  # 2 products x 4 credits = 8 needed
+    job = (await db.execute(select(TryOnJob).where(TryOnJob.id == job_id).options(selectinload(TryOnJob.user_photo)))).scalar_one()
+
+    await tryon_tasks._run_direct_job(db, job, fake, layers)
+
+    assert fake.calls == 0
+    refused = await _reload(db, job_id)
+    assert refused.status == tryon_tasks.JobStatus.FAILED
+    assert "needs 8 FASHN credits" in refused.error_message and "allows 5" in refused.error_message
+    assert refused.review_state is None
+
+
+async def test_a_look_whose_final_check_fails_is_held_with_the_image_kept_for_review(client, db, direct, monkeypatch):  # noqa: F811
+    job_id, layers = await _job_for_two_products(client, db, monkeypatch)
+    fake = FakeFashnProvider()
+    job = (await db.execute(select(TryOnJob).where(TryOnJob.id == job_id).options(selectinload(TryOnJob.user_photo)))).scalar_one()
+
+    async def unconfirmed(*_a, **_kw):  # noqa: ANN002, ANN003
+        return {
+            "passed": False,
+            "identity_ok": True,
+            "products": [
+                {"index": 0, "name": "Red Top", "status": "review_required"},
+                {"index": 1, "name": "Blue Scarf", "status": "verified"},
+            ],
+            "vlm": {"enabled": False},
+        }
+
+    monkeypatch.setattr(tryon_tasks, "final_check", unconfirmed)
+    await tryon_tasks._run_direct_job(db, job, fake, layers)
+
+    held = await _reload(db, job_id)
+    assert held.status == tryon_tasks.JobStatus.FAILED and held.result is None
+    assert held.review_state == "pending" and "Red Top" in held.review_reason
+    assert get_storage().read(held.review_payload["storage_key"])  # the final FASHN output is kept for the reviewer
+    assert [s["final_status"] for s in held.steps] == ["review_required", "verified"]
+
+
+async def test_every_selected_product_is_sent_even_when_two_share_a_slot(db):
+    """render_plan keeps one item per slot and lets a dress drop separate
+    trousers. The direct engine sends everything the shopper selected."""
+    from app.models.outfit import Outfit, OutfitItem
+
+    kameez = await seed_product(db, name="White Shalwar Kameez", image_url="https://shop.example/k.jpg")
+    trousers = await seed_product(db, name="White Trousers", image_url="https://shop.example/t.jpg")
+    ring = await seed_product(db, name="Silver Ring", image_url="https://shop.example/r.jpg")
+    bangle = await seed_product(db, name="Gold Bangle", image_url="https://shop.example/b.jpg")
+    owner = (await db.execute(select(TryOnJob.user_id).limit(1))).scalar()
+    if owner is None:
+        from app.models.user import User
+
+        user = User(email="slots@tryonu.app", hashed_password="x", full_name="Slots")
+        db.add(user)
+        await db.flush()
+        owner = user.id
+    outfit = Outfit(user_id=owner)
+    db.add(outfit)
+    await db.flush()
+    for pos, (product, slot) in enumerate(
+        [(kameez, OutfitSlot.DRESS), (trousers, OutfitSlot.BOTTOM), (ring, OutfitSlot.ACCESSORY), (bangle, OutfitSlot.ACCESSORY)]
+    ):
+        db.add(OutfitItem(outfit_id=outfit.id, product_id=product.id, slot=slot, position=pos))
+    await db.commit()
+
+    job = SimpleNamespace(outfit_id=outfit.id, product=None, wardrobe_item=None)
+    layers, missing = await tryon_tasks._direct_layers(db, job)
+
+    assert missing == []
+    assert sorted(layer.name for layer in layers) == ["Gold Bangle", "Silver Ring", "White Shalwar Kameez", "White Trousers"]
+    assert layers[0].name == "White Shalwar Kameez"  # base garment first, accessories last

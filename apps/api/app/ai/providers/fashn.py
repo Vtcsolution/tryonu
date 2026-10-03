@@ -9,10 +9,15 @@ shape — only the `model` field in the request body differs — so one class
 covers both; app.core.config.FASHN_MODEL picks which.
 
 Money rules (every accepted job is billed):
-  * A job is submitted at most once. Only failures that happen BEFORE FASHN
-    accepted it (could not connect, a 5xx/429 answer) are retried; an
-    ambiguous failure (a read timeout after the request was sent) is not,
-    because the job may exist.
+  * Nothing is sent without a credit reservation (app.services.fashn_guard):
+    no authorization, an exhausted budget or an unknown price means the
+    request is refused before any network call. This module is the only
+    place that POSTs a generation to FASHN.
+  * A job is submitted at most once. Only failures that provably created no
+    job (never connected, a plain 429 rate limit) are retried, and each
+    retry reserves its own cost. An ambiguous failure (a read timeout after
+    the request was sent, a 5xx) is never retried and stays counted against
+    the budget, because the job may exist.
   * Once a job id exists, nothing ever resubmits. Polling rides out
     transient errors on the SAME id until a generous deadline; if the
     deadline passes, or the download fails, the error carries the job id and
@@ -30,6 +35,7 @@ from datetime import datetime, timezone
 import httpx
 
 from app.ai.providers.base import TryOnInput, TryOnOutput, TryOnProviderError, VirtualTryOnProvider
+from app.services.fashn_guard import CreditGuard, GuardRefused, Reservation
 
 _TERMINAL_OK = {"completed"}
 _TERMINAL_FAIL = {"failed"}
@@ -67,7 +73,12 @@ class FASHNTryOnProvider(VirtualTryOnProvider):
         output_format: str = "png",
         poll_timeout: float = _POLL_TIMEOUT_SECONDS,
         poll_interval: float = _POLL_INTERVAL_SECONDS,
+        guard: CreditGuard | None = None,
     ) -> None:
+        # Without a guard this provider cannot start a generation at all: the
+        # only code that POSTs to FASHN's /run is below, and it reserves
+        # credits first (app.services.fashn_guard).
+        self._guard = guard
         self.model = model
         self.resolution = resolution
         self.generation_mode = generation_mode
@@ -78,7 +89,11 @@ class FASHNTryOnProvider(VirtualTryOnProvider):
         self._poll_interval = poll_interval
 
     async def generate(
-        self, payload: TryOnInput, *, on_submitted: Callable[[str], Awaitable[None]] | None = None
+        self,
+        payload: TryOnInput,
+        *,
+        on_submitted: Callable[[str], Awaitable[None]] | None = None,
+        purpose: str = "unspecified",
     ) -> TryOnOutput:
         start = time.perf_counter()
         headers = {"Authorization": f"Bearer {self._api_key}"}
@@ -92,7 +107,7 @@ class FASHNTryOnProvider(VirtualTryOnProvider):
         }
 
         async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
-            submit_resp = await self._submit_once_accepted(client, headers, payload, meta)
+            submit_resp = await self._submit_once_accepted(client, headers, payload, meta, purpose)
             provider_job_id = submit_resp["id"]
             meta["provider_job_id"] = provider_job_id
             meta["submitted_at"] = _now()
@@ -152,23 +167,47 @@ class FASHNTryOnProvider(VirtualTryOnProvider):
             inputs["seed"] = payload.seed
         return inputs
 
+    async def _reserve(self, purpose: str) -> Reservation:
+        """Sets this generation's maximum cost aside BEFORE anything is sent.
+        Refused (with nothing sent) when live spending is not authorized or
+        the budget cannot cover it."""
+        if self._guard is None:
+            raise TryOnProviderError("FASHN generation is disabled: no credit guard is configured. Nothing was sent.")
+        try:
+            return await self._guard.reserve(
+                model=self.model,
+                resolution=self.resolution if self.model == "tryon-max" else None,
+                mode=self.generation_mode if self.model == "tryon-max" else None,
+                purpose=purpose,
+            )
+        except GuardRefused as exc:
+            raise TryOnProviderError(str(exc)) from exc
+
     async def _submit_once_accepted(
-        self, client: httpx.AsyncClient, headers: dict, payload: TryOnInput, meta: dict
+        self, client: httpx.AsyncClient, headers: dict, payload: TryOnInput, meta: dict, purpose: str
     ) -> dict:
-        """Submits the job, retrying only what provably never reached FASHN's
-        billing: a connection that could not be made, a 5xx, a rate limit.
-        Returns as soon as FASHN accepts a job — never submits a second."""
+        """Submits the job. Every attempt reserves its own cost first, and an
+        attempt is repeated only when it provably never reached FASHN's
+        billing (never connected, or a plain rate limit). Returns as soon as
+        FASHN accepts a job — never submits a second."""
         for attempt in range(1, _SUBMIT_ATTEMPTS + 1):
             meta["submit_attempts"] = attempt
+            reservation = await self._reserve(purpose)
             try:
-                return await self._submit(client, headers, payload)
+                return await self._submit(client, headers, payload, reservation)
             except TryOnProviderError as exc:
                 if not exc.retryable or attempt == _SUBMIT_ATTEMPTS:
                     raise
                 await asyncio.sleep(min(2.0 * 2**attempt, 30.0))
         raise AssertionError("unreachable")  # pragma: no cover
 
-    async def _submit(self, client: httpx.AsyncClient, headers: dict, payload: TryOnInput) -> dict:
+    async def _submit(
+        self, client: httpx.AsyncClient, headers: dict, payload: TryOnInput, reservation: Reservation
+    ) -> dict:
+        """The one place in the application that POSTs a generation to FASHN.
+
+        The reservation is given back only when the request provably created
+        no billable job; anything ambiguous stays counted against the cap."""
         try:
             resp = await client.post(
                 f"{self._base_url}/run",
@@ -176,32 +215,37 @@ class FASHNTryOnProvider(VirtualTryOnProvider):
                 json={"model_name": self.model, "inputs": self._inputs(payload)},
             )
         except _CONNECT_ERRORS as exc:
-            # never connected, so nothing was submitted: safe to try again
+            # never connected, so nothing was submitted
+            await reservation.release("never connected")
             raise TryOnProviderError(f"FASHN request failed: {exc}", retryable=True) from exc
         except httpx.RequestError as exc:
             # the request may have been delivered before this failed — the job
-            # might exist and be billed. Not resubmitting is the safe answer.
+            # might exist and be billed. The reservation stays counted.
             raise TryOnProviderError(
                 f"FASHN request failed after it was sent ({type(exc).__name__}); not resubmitting, "
                 "because the job may already exist and be billed",
             ) from exc
 
         if resp.status_code >= 500:
-            raise TryOnProviderError(f"FASHN server error {resp.status_code}", retryable=True)
+            # ambiguous: FASHN may have created the job before failing. Counted, never retried.
+            raise TryOnProviderError(f"FASHN server error {resp.status_code}; not resubmitting")
         if resp.status_code == 429:
             # FASHN answers 429 for an empty balance too — that one won't
             # fix itself, and "rate limited" hid it from the admin
+            await reservation.release("rate limited or out of FASHN credits (429)")
             if "OutOfCredits" in resp.text:
                 raise TryOnProviderError(
                     "The FASHN account is out of credits — top up at app.fashn.ai to resume try-ons"
                 )
             raise TryOnProviderError("FASHN rate limited", retryable=True)
         if resp.status_code >= 400:
+            await reservation.release(f"FASHN rejected the request ({resp.status_code})")
             raise TryOnProviderError(f"FASHN rejected request: {resp.status_code} {resp.text}")
 
         data = resp.json()
         if not isinstance(data, dict) or not data.get("id"):
             raise TryOnProviderError(f"FASHN accepted the request but returned no job id: {str(data)[:200]}")
+        await reservation.mark_submitted(data["id"])
         return data
 
     async def _poll(self, client: httpx.AsyncClient, headers: dict, job_id: str, meta: dict) -> str:
@@ -267,6 +311,13 @@ class FASHNTryOnProvider(VirtualTryOnProvider):
         raise TryOnProviderError(
             f"Failed to download the finished FASHN render for job {job_id}: {last}", provider_job_id=job_id
         )
+
+    async def credits_available(self) -> int:
+        """Credits the open authorization still allows. Read-only; 0 without a guard."""
+        if self._guard is None:
+            return 0
+        remaining = getattr(self._guard, "remaining", None)
+        return await remaining() if callable(remaining) else 0
 
     async def fetch_status(self, job_id: str) -> dict:
         """Reads an existing job's status. Read-only: creates nothing and bills nothing."""
