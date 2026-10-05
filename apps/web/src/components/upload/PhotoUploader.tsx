@@ -14,6 +14,14 @@ const SLOTS: { kind: PhotoKind; label: string; required: boolean }[] = [
 ];
 
 const MAX_PHOTOS = SLOTS.length;
+// Below this long side a try-on comes back soft or grainy: the engine has to
+// invent detail, and every extra product redraws the whole image again.
+const LOW_RES_LONG_SIDE = 1200;
+const RECOMMENDED_HEIGHT = 1500;
+
+function isLowRes(photo: UserPhoto): boolean {
+  return photo.width != null && photo.height != null && Math.max(photo.width, photo.height) < LOW_RES_LONG_SIDE;
+}
 export const MIN_PHOTOS = SLOTS.filter((s) => s.required).length; // just the front
 
 type SlotUpload = { status: "uploading" | "error"; error?: string };
@@ -156,6 +164,18 @@ export function PhotoUploader({
         </p>
       </div>
 
+      <div className="mt-4 rounded-2xl border border-line bg-paper-2/60 px-4 py-3 text-left text-[12.5px] leading-relaxed text-muted">
+        <p className="font-semibold text-ink">For the sharpest result</p>
+        <ul className="mt-1 list-disc space-y-0.5 pl-4">
+          <li>One person, full body visible from head to feet, standing straight</li>
+          <li>Sharp and well lit; no filters, no heavy blur</li>
+          <li>
+            At least {RECOMMENDED_HEIGHT}px tall (an original phone photo, not a screenshot or a forwarded
+            WhatsApp copy)
+          </li>
+        </ul>
+      </div>
+
       <div className="mt-5 grid grid-cols-4 gap-2.5">
         {SLOTS.map((slot, i) => {
           const photo = photoForSlot(i, photos);
@@ -173,6 +193,11 @@ export function PhotoUploader({
                     alt={slot.label}
                     className="absolute inset-0 h-full w-full animate-[tu-in-scale_0.35s_ease] object-cover"
                   />
+                  {isLowRes(photo) && (
+                    <span className="absolute inset-x-1.5 bottom-1.5 rounded-md bg-[#a4553f]/90 px-1 py-0.5 text-[9px] font-semibold text-white">
+                      Low resolution
+                    </span>
+                  )}
                   <button
                     type="button"
                     onClick={() => removePhoto(photo)}
@@ -208,6 +233,13 @@ export function PhotoUploader({
         </span>
         <span>{isReady ? "Ready ✓" : "Add a front photo"}</span>
       </div>
+      {photos.filter(isLowRes).map((photo) => (
+        <p key={photo.id} className="mt-2 text-[12px] text-[#a4553f]" role="alert">
+          Your {SLOTS.find((s) => s.kind === photo.kind)?.label.toLowerCase() ?? ""} photo is only {photo.width}×
+          {photo.height}px, so the try-on may look blurry or grainy. For a sharp result, replace it with one at
+          least {RECOMMENDED_HEIGHT}px tall.
+        </p>
+      ))}
       {loadError && (
         <p className="mt-2 text-[12px] text-[#a4553f]" role="alert">
           {loadError}
