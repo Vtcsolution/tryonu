@@ -824,7 +824,7 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
                 TryOnInput(
                     model_image_url=to_data_uri(image),
                     garment_image_url=to_data_uri(product.image),
-                    prompt=settings.TRYON_DIRECT_PROMPT,
+                    prompt=_only_this_product(product.name),
                     seed=settings.FASHN_SEED,
                 ),
                 on_submitted=on_submitted,
@@ -899,6 +899,19 @@ def _plain_reason(step: dict) -> str:
         words.append("a later product may have covered it")
     detail = "; ".join(dict.fromkeys(words)) or "it couldn't be confirmed"
     return f"Not confirmed automatically: {detail}. Check the photo."
+
+
+def _only_this_product(name: str) -> str:
+    """FASHN's prompt for one product. Live: a jhumka earrings photo that also
+    showed long gold chains came back with a gold choker necklace the shopper
+    never selected. Each call is told to add this product and nothing else."""
+    extra = settings.TRYON_DIRECT_PROMPT.strip()
+    base = (
+        f"Put only this product on the person: {name[:120]}. "
+        "Do not add any other jewelry, accessories or clothing that is not in the product image. "
+        "Keep everything else on the person unchanged."
+    )
+    return f"{base} {extra}".strip()
 
 
 def _confirmed(step: dict) -> bool:

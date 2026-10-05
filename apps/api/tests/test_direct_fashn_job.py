@@ -123,7 +123,8 @@ async def test_a_direct_try_on_sends_both_images_untouched_and_stores_fashns_byt
     stored_photo = get_storage().read((await db.get(UserPhoto, photo_id)).storage_key)
     assert _decode_uri(inputs["model_image"]) == stored_photo  # the stored photo, unmodified
     assert (inputs["resolution"], inputs["generation_mode"], inputs["output_format"], inputs["num_images"]) == ("2k", "quality", "png", 1)
-    assert "prompt" not in inputs  # no category logic: nothing invented
+    assert inputs["prompt"].startswith("Put only this product on the person: Red Test Top")
+    assert "Do not add any other jewelry" in inputs["prompt"]
 
     # --- FASHN's output is stored byte for byte (no merge, no face restore) ---
     assert result is not None
