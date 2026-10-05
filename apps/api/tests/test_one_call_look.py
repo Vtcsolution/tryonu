@@ -195,3 +195,15 @@ async def test_a_single_product_still_goes_to_fashn(client, db, direct, monkeypa
 
     await tryon_tasks._run_direct_job(db, job, OneFashn(), layers)
     assert OneFashn.calls == 1 and not FakeGemini.instances
+
+
+def test_the_vision_checks_answer_decides_identity_over_the_pixel_comparison():
+    """Live: all five products verified, vision check "same person: true", and
+    the look was held because the pixel face score was 0.50 behind sunglasses."""
+    assert tryon_tasks._identity_ok(["face_changed"], {"same_person": True}, ["Gucci Oversized Sunglasses"])
+    assert not tryon_tasks._identity_ok([], {"same_person": False}, ["Linen Shirt"])
+
+
+def test_without_a_vision_answer_eyewear_does_not_count_as_a_changed_face():
+    assert tryon_tasks._identity_ok(["face_changed"], {"enabled": False}, ["Square Sunglasses", "Jeans"])
+    assert not tryon_tasks._identity_ok(["face_changed"], {"enabled": False}, ["Linen Shirt", "Jeans"])

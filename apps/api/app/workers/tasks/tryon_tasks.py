@@ -8,6 +8,7 @@ failed, with automatic credit refund on failure.
 from __future__ import annotations
 
 import asyncio
+import re
 from types import SimpleNamespace
 import io
 import base64
@@ -945,6 +946,25 @@ def _confirmed(step: dict) -> bool:
     return bool(step.get("verified")) and step.get("final_status", "verified") == "verified"
 
 
+_COVERS_FACE = re.compile(r"\b(sunglasses|glasses|eyeglasses|spectacles|goggles|mask|veil|niqab)\b", re.IGNORECASE)
+
+
+def _identity_ok(face_flags: list[str], vlm: dict, names: list[str]) -> bool:
+    """Is it still the customer? The vision check looks at the face itself, so
+    when it answered, its answer decides. Live: a correct render with all five
+    products verified and "same person: true" was held because the pixel face
+    comparison scored 0.50 behind a pair of sunglasses. Without a vision answer,
+    the pixel comparison decides, except when the look puts something over the
+    eyes, which that comparison cannot see past."""
+    if vlm.get("same_person") is True:
+        return True
+    if vlm.get("same_person") is False:
+        return False
+    if any(_COVERS_FACE.search(name) for name in names):
+        return True
+    return "face_changed" not in face_flags
+
+
 async def _run_one_call_look(session, job: TryOnJob, person: bytes, products: list[ProductInput], layers: list[_Layer]) -> None:  # noqa: ANN001
     """The whole look in ONE Gemini generation: the customer's photo and every
     product photo in a single request, the output stored exactly as returned.
@@ -1015,7 +1035,7 @@ async def _run_one_call_look(session, job: TryOnJob, person: bytes, products: li
         step["final_status"] = "verified" if step["verified"] else "review_required"
         rows.append({"index": step["index"], "name": step["name"], "status": step["final_status"]})
 
-    identity_ok = "face_changed" not in face_flags and vlm.get("same_person") is not False
+    identity_ok = _identity_ok(face_flags, vlm, [p.name for p in products])
     final = {"passed": identity_ok and all(s["verified"] for s in steps), "identity_ok": identity_ok,
              "products": rows, "vlm": vlm, "face": report.get("face"), "face_flags": face_flags}
     sequence = SimpleNamespace(output=output, image=output.image_bytes, steps=steps)
@@ -1111,12 +1131,17 @@ async def _hold_final(session, job: TryOnJob, provider: VirtualTryOnProvider, se
     with Image.open(io.BytesIO(sequence.image)) as img:
         width, height = img.size
     unconfirmed = [row["name"] for row in final["products"] if row["status"] != "verified"]
-    reason = "final check could not confirm: " + (", ".join(unconfirmed) or "the person's identity")
+    identity = final.get("identity_ok") is False
+    reason = "final check: the person may have changed" if identity else "final check could not confirm: " + ", ".join(unconfirmed)
     await _hold_failure(
         session,
         job,
-        "We couldn't confirm every product in the final image, so it was not delivered. "
-        "Your credits are on hold while we review it.",
+        (
+            "The result may not look like you, so it was not shown. Your credits are on hold while we review it."
+            if identity
+            else "We couldn't confirm every product in the final image, so it was not delivered. "
+            "Your credits are on hold while we review it."
+        ),
         steps=sequence.steps,
         reason=reason,
     )
