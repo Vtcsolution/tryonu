@@ -34,7 +34,7 @@ import numpy as np
 from PIL import Image
 
 from app.core.logging import logger
-from app.services.face_restore import Box, detect_face
+from app.services.face_restore import _CASCADE, Box, detect_face  # noqa: F401
 
 WORK_SIDE = 512  # long side of the comparison grids
 _CHANGE_THRESHOLD = 0.12  # 0..1 per-pixel colour difference counted as "changed"
@@ -53,6 +53,7 @@ HARD_FLAGS = frozenset(
         "face_changed",
         "low_resolution",
         "alignment_failed",
+        "face_check_inconclusive",
         "low_product_colour_match",
     }
 )
@@ -124,19 +125,59 @@ def _changed_fraction(mask: np.ndarray, frac: Frac) -> float | None:
     return round(float(region.mean()), 4) if region.size else None
 
 
+def _face_candidates(img: np.ndarray) -> list[Box]:
+    gray = cv2.equalizeHist(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY))
+    min_side = max(24, min(img.shape[:2]) // 25)
+    faces = _CASCADE.detectMultiScale(gray, scaleFactor=1.08, minNeighbors=6, minSize=(min_side, min_side))
+    return [Box(int(x), int(y), int(w), int(h)) for x, y, w, h in faces]
+
+
+# two detections are the same face when their boxes overlap at least this much
+_FACE_PAIR_MIN_IOU = 0.3
+
+
+def _matched_face(person: np.ndarray, result: np.ndarray) -> tuple[Frac, Frac, float] | None:
+    """The face found in the SAME place in both images. Live: the detector's
+    largest box in a photo was a false hit on a denim top, while the render's
+    was the real face; comparing those two regions reported "face changed" on
+    a correct render. Only a pair of detections that agree is trusted."""
+    ph, pw = person.shape[:2]
+    rh, rw = result.shape[:2]
+    best: tuple[Frac, Frac, float] | None = None
+    for a in _face_candidates(person):
+        fa = _frac_box(a, pw, ph)
+        for b in _face_candidates(result):
+            fb = _frac_box(b, rw, rh)
+            iou = _iou(fa, fb)
+            if iou >= _FACE_PAIR_MIN_IOU and (best is None or iou > best[2]):
+                best = (fa, fb, iou)
+    return best
+
+
 def _face_report(person: np.ndarray, result: np.ndarray, diff_mask: np.ndarray | None) -> dict:
     ph, pw = person.shape[:2]
     rh, rw = result.shape[:2]
-    face_in = detect_face(person)
-    if face_in is None:
-        return {"face_found_in_photo": False, "face_similarity": None, "note": "no frontal face detected in the photo"}
-    frac = _frac_box(face_in, pw, ph)
-    out: dict = {"face_found_in_photo": True, "face_box": [round(v, 4) for v in frac]}
-
-    face_out = detect_face(result)
-    out["face_found_in_result"] = face_out is not None
-    if face_out is not None:
-        out["face_box_iou"] = round(_iou(frac, _frac_box(face_out, rw, rh)), 4)
+    pair = _matched_face(person, result)
+    if pair is None:
+        found_in_photo, found_in_result = bool(_face_candidates(person)), bool(_face_candidates(result))
+        if not found_in_photo and not found_in_result:
+            # no face anywhere (a back view, a cropped torso): nothing to compare
+            return {"face_found_in_photo": False, "face_found_in_result": False, "face_similarity": None,
+                    "note": "no frontal face detected in either image"}
+        return {
+            "face_found_in_photo": found_in_photo,
+            "face_found_in_result": found_in_result,
+            "face_similarity": None,
+            "inconclusive": True,
+            "note": "no face was found in the same place in both images, so identity could not be checked",
+        }
+    frac, _, iou = pair
+    out: dict = {
+        "face_found_in_photo": True,
+        "face_found_in_result": True,
+        "face_box": [round(v, 4) for v in frac],
+        "face_box_iou": round(iou, 4),
+    }
 
     padded = _pad(frac, _FACE_PAD, _FACE_PAD, _FACE_PAD)
     crops = []
@@ -334,7 +375,9 @@ def measure(person_bytes: bytes, product_bytes: bytes, result_bytes: bytes) -> d
     try:
         report["face"] = _face_report(person, result, mask)
         similarity = report["face"].get("face_similarity")
-        if similarity is not None and similarity < THRESHOLDS["min_face_similarity"]:
+        if report["face"].get("inconclusive"):
+            flags.append("face_check_inconclusive")
+        elif similarity is not None and similarity < THRESHOLDS["min_face_similarity"]:
             flags.append("face_changed")
         head = report["face"].get("head_changed_fraction")
         if head is not None and head > THRESHOLDS["max_head_changed_fraction"]:

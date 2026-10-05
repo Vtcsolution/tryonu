@@ -31,7 +31,9 @@ _IDENTITY_FLAGS = {"face_changed"}
 # redraws the whole frame, it rejected correct renders live three times in a
 # row; a failure there marks the product "unconfirmed" but the paid render is
 # kept and the look continues.
-_BLOCKING = {"qc_unreadable_image", "qc_failed", "identity:face_changed"}
+_BLOCKING = {"identity:face_changed"}
+# the checker itself could not run: never a rejection, never hides the render
+_VERIFICATION_ERRORS = {"qc_unreadable_image", "qc_failed"}
 
 
 class OrchestrationRefused(Exception):
@@ -176,7 +178,12 @@ async def run_sequence(
             await on_step(steps)
             return SequenceResult(passed=False, image=output.image_bytes, steps=steps, output=output, outputs=outputs)
 
-        step["status"] = "verified" if verdict.confirmed else "unconfirmed"
+        if verdict.confirmed:
+            step["status"] = "verified"
+        elif any(f in _VERIFICATION_ERRORS for f in verdict.failed_checks):
+            step["status"] = "verification_error"
+        else:
+            step["status"] = "unconfirmed"
         await on_step(steps)
         outputs.append(output.image_bytes)
         current = output.image_bytes

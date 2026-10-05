@@ -202,3 +202,19 @@ async def test_earlier_products_do_not_count_as_a_face_change(monkeypatch):
     monkeypatch.setattr(orchestrate, "run_qc", fake_qc)
     verdict = await verify_step(PERSON, PERSON, PERSON, _product(1))
     assert verdict.passed is True
+
+
+async def test_a_checker_that_cannot_run_is_a_verification_error_not_a_rejection():
+    async def render(image, product, on_submitted):  # noqa: ANN001
+        return TryOnOutput(image_bytes=image + b"x", content_type="image/png", provider_job_id="j")
+
+    async def broken_check(original, previous, result, product):  # noqa: ANN001
+        return StepVerdict(passed=True, failed_checks=["qc_failed"], confirmed=False)
+
+    async def noop(*_a, **_kw):  # noqa: ANN001, ANN002
+        return None
+
+    result = await run_sequence(PERSON, [_product(1)], render=render, verify=broken_check, on_step=noop, on_raw=noop)
+    assert result.passed is True  # the paid render is kept and delivered
+    assert result.steps[0]["status"] == "verification_error"
+    assert result.steps[0]["verified"] is False

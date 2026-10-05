@@ -882,6 +882,25 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
             await _fail_job(session, job, f"Unexpected error: {exc}", refund=True)
 
 
+_CHECK_WORDS = {
+    "no_visible_edit": "the photo looks unchanged where this product should be",
+    "low_product_colour_match": "the colour doesn't clearly match the product photo",
+    "low_resolution": "the result image is small",
+    "alignment_failed": "the result couldn't be lined up with your photo to compare",
+    "face_check_inconclusive": "your face couldn't be found in both images to compare",
+    "qc_failed": "the automatic check could not run",
+    "qc_unreadable_image": "the automatic check could not read an image",
+}
+
+
+def _plain_reason(step: dict) -> str:
+    words = [_CHECK_WORDS.get(c.removeprefix("identity:"), c) for c in step.get("failed_checks") or []]
+    if step.get("final_status") not in (None, "verified"):
+        words.append("a later product may have covered it")
+    detail = "; ".join(dict.fromkeys(words)) or "it couldn't be confirmed"
+    return f"Not confirmed automatically: {detail}. Check the photo."
+
+
 def _confirmed(step: dict) -> bool:
     return bool(step.get("verified")) and step.get("final_status", "verified") == "verified"
 
@@ -902,7 +921,8 @@ async def _complete_sequence(session, job: TryOnJob, provider: VirtualTryOnProvi
             "slot": (layer.slot or OutfitSlot.TOP).value,
             "image_url": step["image_url"],
             "drawn": _confirmed(step),
-            "reason": None if _confirmed(step) else "We couldn't confirm this product automatically, so it isn't marked as applied. Check the photo.",
+            "reason": None if _confirmed(step) else _plain_reason(step),
+            "verification": "PASS" if _confirmed(step) else ("VERIFICATION_ERROR" if step.get("status") == "verification_error" else "REVIEW_REQUIRED"),
             "box": None,
         }
         for step, layer in zip(sequence.steps, layers)

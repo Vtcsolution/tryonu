@@ -395,6 +395,7 @@ def _fake_face(monkeypatch):
         return Box(int(w * 0.35), int(h * 0.08), int(w * 0.25), int(h * 0.2))
 
     monkeypatch.setattr(qc, "detect_face", detect)
+    monkeypatch.setattr(qc, "_face_candidates", lambda img: [detect(img)])
 
 
 def test_qc_face_similarity_is_high_when_the_face_is_untouched(monkeypatch):
@@ -456,3 +457,17 @@ def test_a_tall_narrow_product_photo_is_accepted():
     from app.services.tryon_direct.inputs import require_hires_product
 
     require_hires_product(image_bytes((472, 1024), (200, 200, 200)))
+
+
+def test_a_false_face_detection_is_inconclusive_not_a_changed_face(monkeypatch):
+    """Live: the detector's largest box in the photo was a false hit on a denim
+    top while the render's was the real face; comparing those reported "face
+    changed" on a correct render. Boxes that don't agree are not compared."""
+    from app.services.face_restore import Box
+
+    def candidates(img):  # photo (1308 tall): a false hit on the chest; render (1376 tall): the real face
+        return [Box(250, 430, 230, 230)] if img.shape[0] == 1308 else [Box(330, 140, 110, 110)]
+
+    monkeypatch.setattr(qc, "_face_candidates", candidates)
+    report = qc._face_report(np.full((1308, 736, 3), 120, np.uint8), np.full((1376, 768, 3), 120, np.uint8), None)
+    assert report["inconclusive"] is True and report["face_similarity"] is None

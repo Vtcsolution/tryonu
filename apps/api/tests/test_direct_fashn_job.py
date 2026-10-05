@@ -171,7 +171,9 @@ async def test_an_unconfirmed_render_is_delivered_but_not_claimed_as_applied(cli
     assert get_storage().read(result.storage_key) == unchanged  # the raw FASHN output, untouched
     placement = result.placements[0]
     assert placement["drawn"] is False
-    assert "couldn't confirm" in placement["reason"]
+    assert placement["reason"].startswith("Not confirmed automatically")
+    assert "looks unchanged" in placement["reason"]  # the actual reason, in plain words
+    assert placement["verification"] == "REVIEW_REQUIRED"
     assert "no_visible_edit" in job.steps[0]["failed_checks"]
     assert result.qc_report["gate"]["passed"] is False and result.qc_report["confirmed"] == 0
     assert job.review_state is None
