@@ -51,7 +51,6 @@ HARD_FLAGS = frozenset(
         "qc_unreadable_image",
         "no_visible_edit",
         "face_changed",
-        "head_changed",
         "low_resolution",
         "alignment_failed",
         "low_product_colour_match",

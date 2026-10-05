@@ -23,7 +23,10 @@ from app.ai.providers.base import TryOnOutput
 from app.services.fashn_guard import credits_per_render  # noqa: F401 — one price table, re-exported
 from app.services.tryon_direct.qc import qc_gate, run_qc
 
-_IDENTITY_FLAGS = {"face_changed", "head_changed"}
+# head_changed is measured pixel by pixel: FASHN redraws the whole frame (live:
+# slightly zoomed, from a 459x668 photo), so hair "changes" on a correct render.
+# Identity is decided by the face comparison instead.
+_IDENTITY_FLAGS = {"face_changed"}
 
 
 class OrchestrationRefused(Exception):
