@@ -133,12 +133,14 @@ class Settings(BaseSettings):
     # several products: one FASHN call each, in order. Caps are checked before the
     # first call, so a look over the limit is refused without spending anything
     TRYON_DIRECT_MAX_PRODUCTS: int = 10
-    # How a look of 2+ products is drawn. "gemini_single": ONE Gemini image
-    # generation with the photo and every product photo together (no chain, so
-    # no quality loss that grows with each product; cost does not grow with the
-    # product count). "fashn_chain": one FASHN Try-On Max call per product.
-    # A single product always uses FASHN Try-On Max.
-    TRYON_MULTI_ENGINE: Literal["gemini_single", "fashn_chain"] = "gemini_single"
+    # How a look of 2+ products is drawn. A single product always uses FASHN.
+    # "hybrid": the garments (dress, lehenga, top, bottom, jacket) through FASHN
+    # Try-On Max, then every other product (jewellery, shoes, bags, watches,
+    # eyewear) in ONE Gemini generation on FASHN's image: FASHN's garment
+    # fidelity, two generations in total, FASHN credits only for the garments.
+    # "gemini_single": the whole look in one Gemini generation.
+    # "fashn_chain": one FASHN call per product (costly; quality drops per pass).
+    TRYON_MULTI_ENGINE: Literal["hybrid", "gemini_single", "fashn_chain"] = "hybrid"
     TRYON_DIRECT_MAX_FASHN_CREDITS: int = 20
     # a multi-product render is several minutes long; the queue must not kill it
     TRYON_JOB_TIMEOUT_SECONDS: int = 5400

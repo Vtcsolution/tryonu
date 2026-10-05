@@ -779,8 +779,26 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
                 image = await fetch_product_image(url)
                 require_hires_product(image)
                 products.append(ProductInput(name=layer.name, product_id=layer.product_id, image_url=url, image=image))
-            one_call = len(products) >= 2 and settings.TRYON_MULTI_ENGINE == "gemini_single"
-            if one_call:
+            mode = settings.TRYON_MULTI_ENGINE
+            garment_at = [i for i, layer in enumerate(layers) if layer.slot in _HYBRID_GARMENTS]
+            hybrid = len(products) >= 2 and mode == "hybrid" and 0 < len(garment_at) < len(products)
+            one_call = len(products) >= 2 and (mode == "gemini_single" or (mode == "hybrid" and not garment_at))
+            all_products, all_layers = products, layers
+            if hybrid:
+                # garments first (FASHN), then the rest (one Gemini call)
+                order = garment_at + [i for i in range(len(products)) if i not in garment_at]
+                all_products = [products[i] for i in order]
+                all_layers = [layers[i] for i in order]
+                check_plan(
+                    all_products,
+                    max_products=min(settings.TRYON_DIRECT_MAX_PRODUCTS, GEMINI_MAX_PIECES),
+                    cost_per_render=0,
+                    max_credits=0,
+                )
+                if not settings.GEMINI_API_KEY:
+                    raise OrchestrationRefused("multi-product try-on needs a Gemini API key")
+                products, layers = all_products[: len(garment_at)], all_layers[: len(garment_at)]
+            elif one_call:
                 # one generation for the whole look: no FASHN credits involved
                 check_plan(
                     products,
@@ -874,6 +892,12 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
                 await _fail_job(session, job, f"FASHN could not start this try-on: {exc}", refund=True)
             return
 
+        if sequence.passed and hybrid:
+            # the garments are on: every other product in one Gemini call on top
+            await _run_one_call_look(
+                session, job, person, all_products, all_layers, base=sequence.image, prior_steps=sequence.steps
+            )
+            return
         if sequence.passed:
             await _progress_writer(session, job)("Checking every product in the final image")
             final = await final_check(
@@ -948,6 +972,10 @@ def _confirmed(step: dict) -> bool:
     return bool(step.get("verified")) and step.get("final_status", "verified") == "verified"
 
 
+# drawn by FASHN in a hybrid look; everything else goes to the one Gemini call
+_HYBRID_GARMENTS = {OutfitSlot.DRESS, OutfitSlot.TOP, OutfitSlot.BOTTOM, OutfitSlot.OUTERWEAR}
+
+
 def _bgr(data: bytes) -> np.ndarray:
     return cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
 
@@ -971,19 +999,34 @@ def _identity_ok(face_flags: list[str], vlm: dict, names: list[str]) -> bool:
     return "face_changed" not in face_flags
 
 
-async def _run_one_call_look(session, job: TryOnJob, person: bytes, products: list[ProductInput], layers: list[_Layer]) -> None:  # noqa: ANN001
+async def _run_one_call_look(  # noqa: ANN001
+    session,
+    job: TryOnJob,
+    person: bytes,
+    products: list[ProductInput],
+    layers: list[_Layer],
+    *,
+    base: bytes | None = None,
+    prior_steps: list[dict] | None = None,
+) -> None:
     """The whole look in ONE Gemini generation: the customer's photo and every
     product photo in a single request, the output stored exactly as returned.
     Nothing is chained, merged, restored or re-rendered. The face is compared
     with the original photo (a different person is held, never shown), and each
     product is confirmed by the vision check when TRYON_DIRECT_VLM_QC is on,
-    otherwise honestly left unconfirmed."""
+    otherwise honestly left unconfirmed.
+
+    Hybrid looks pass `base` (FASHN's image with the garments already on) and
+    `prior_steps` (those garments' FASHN steps): only the remaining products
+    are drawn, on that image, and the final check covers every product."""
+    prior = [dict(s) for s in prior_steps or []]
+    first_new = len(prior)
     engine = GeminiImageTryOnProvider(
         api_key=settings.GEMINI_API_KEY,  # type: ignore[arg-type]
         model=settings.GEMINI_IMAGE_MODEL,
         image_size=settings.GEMINI_IMAGE_SIZE,
     )
-    steps = [
+    steps = prior + [
         {
             "index": i,
             "name": p.name,
@@ -996,22 +1039,24 @@ async def _run_one_call_look(session, job: TryOnJob, person: bytes, products: li
             "failed_checks": [],
         }
         for i, p in enumerate(products)
+        if i >= first_new
     ]
+    to_draw, draw_layers = products[first_new:], layers[first_new:]
     job.steps = [dict(s) for s in steps]
-    job.progress = f"Drawing all {len(products)} products in one image"
+    job.progress = f"Drawing {len(to_draw)} products in one image"
     await session.commit()
 
     # A written description of each product beside its photo: live, small
     # jewellery drawn from the photo alone drifted to the "typical" design (a
     # tight diamond nose hoop came back as a large nath on a chain). Cached
     # per product photo; the product name when the vision model is unavailable.
-    descriptions = [p.name for p in products]
+    descriptions = [p.name for p in to_draw]
     if settings.OPENAI_API_KEY:
         await _progress_writer(session, job)("Reading each product's details")
         descriptions = list(
-            await asyncio.gather(*(describe_product(_bgr(p.image), p.image_url, p.name) for p in products))
+            await asyncio.gather(*(describe_product(_bgr(p.image), p.image_url, p.name) for p in to_draw))
         )
-    for step, description in zip(steps, descriptions):
+    for step, description in zip(steps[first_new:], descriptions):
         step["description"] = description
     pieces = [
         OutfitPiece(
@@ -1020,10 +1065,10 @@ async def _run_one_call_look(session, job: TryOnJob, person: bytes, products: li
             name=p.name,
             description=description if description != p.name else "",
         )
-        for p, layer, description in zip(products, layers, descriptions)
+        for p, layer, description in zip(to_draw, draw_layers, descriptions)
     ]
     try:
-        output = await engine.generate_outfit(to_data_uri(person), pieces)
+        output = await engine.generate_outfit(to_data_uri(base or person), pieces)
     except TryOnProviderError as exc:
         await _fail_job(session, job, f"The image generator could not draw this look: {exc}", refund=True)
         return
@@ -1042,18 +1087,22 @@ async def _run_one_call_look(session, job: TryOnJob, person: bytes, products: li
 
     rows = []
     for step in steps:
-        step["status"] = "generated"
-        step["raw_key"] = raw_key
+        is_prior = step["index"] < first_new
+        if not is_prior:
+            step["status"] = "generated"
+            step["raw_key"] = raw_key
         if not with_vlm:
-            step["failed_checks"] = ["not_checked"]
-            step["status"] = "unconfirmed"
+            if not is_prior:
+                step["failed_checks"] = ["not_checked"]
+                step["status"] = "unconfirmed"
         else:
             verdict = next((r for r in vlm.get("products") or [] if isinstance(r, dict) and r.get("index") == step["index"]), None)
             checks = ("present", "color_correct", "details_preserved", "placement_correct")
             missing = ["vision_check_failed"] if verdict is None else [k for k in checks if verdict.get(k) is not True]
-            step["failed_checks"] = missing
-            step["verified"] = not missing
-            step["status"] = "verified" if not missing else "unconfirmed"
+            was_ok = step.get("verified", True) if is_prior else True
+            step["failed_checks"] = (step.get("failed_checks") or []) + missing if is_prior else missing
+            step["verified"] = was_ok and not missing
+            step["status"] = "verified" if step["verified"] else "unconfirmed"
             step["vlm"] = verdict
         step["final_status"] = "verified" if step["verified"] else "review_required"
         rows.append({"index": step["index"], "name": step["name"], "status": step["final_status"]})
@@ -1062,10 +1111,11 @@ async def _run_one_call_look(session, job: TryOnJob, person: bytes, products: li
     final = {"passed": identity_ok and all(s["verified"] for s in steps), "identity_ok": identity_ok,
              "products": rows, "vlm": vlm, "face": report.get("face"), "face_flags": face_flags}
     sequence = SimpleNamespace(output=output, image=output.image_bytes, steps=steps)
+    label = engine if not prior else SimpleNamespace(name="fashn+gemini", model=f"tryon-max+{engine.model}"[:64])
     if identity_ok:
-        await _complete_sequence(session, job, engine, sequence, layers, 0, final)
+        await _complete_sequence(session, job, label, sequence, layers, 0, final)
     else:
-        await _hold_final(session, job, engine, sequence, 0, final)
+        await _hold_final(session, job, label, sequence, 0, final)
 
 
 async def _complete_sequence(session, job: TryOnJob, provider: VirtualTryOnProvider, sequence, layers: list[_Layer], cost: int, final: dict) -> None:  # noqa: ANN001

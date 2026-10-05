@@ -214,3 +214,84 @@ def test_the_vision_checks_answer_decides_identity_over_the_pixel_comparison():
 def test_without_a_vision_answer_eyewear_does_not_count_as_a_changed_face():
     assert tryon_tasks._identity_ok(["face_changed"], {"enabled": False}, ["Square Sunglasses", "Jeans"])
     assert not tryon_tasks._identity_ok(["face_changed"], {"enabled": False}, ["Linen Shirt", "Jeans"])
+
+
+class PaintingFashn:
+    """FASHN stand-in: returns the photo it was given at a 1k size with the
+    garment painted on, and records how much budget it was asked for."""
+
+    name, model = "fashn", "tryon-max"
+
+    def __init__(self, available: int = 100) -> None:
+        self.calls: list[str] = []
+        self.available = available
+        self.outputs: list[bytes] = []
+
+    async def credits_available(self) -> int:
+        return self.available
+
+    async def generate(self, payload, *, on_submitted=None, purpose=""):  # noqa: ANN001
+        from PIL import ImageDraw
+
+        self.calls.append(purpose)
+        if on_submitted is not None:
+            await on_submitted(f"fashn_{len(self.calls)}")
+        data = base64.b64decode(payload.model_image_url.split(",", 1)[1])
+        img = Image.open(io.BytesIO(data)).convert("RGB").resize((1024, 1280))
+        ImageDraw.Draw(img).rectangle([300, 400, 720, 1100], fill=(120, 20, 40))
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        self.outputs.append(buf.getvalue())
+        return TryOnOutput(image_bytes=buf.getvalue(), content_type="image/png", provider_job_id=f"fashn_{len(self.calls)}", latency_ms=1)
+
+
+def _use_hybrid(monkeypatch, direct):  # noqa: ANN001
+    _use_gemini(monkeypatch, direct)
+    monkeypatch.setattr(direct, "TRYON_MULTI_ENGINE", "hybrid")
+
+
+async def test_a_hybrid_look_draws_the_garment_with_fashn_and_the_rest_in_one_gemini_call(client, db, direct, monkeypatch):  # noqa: F811
+    _use_hybrid(monkeypatch, direct)
+    job, layers = await _job(client, db, monkeypatch, n=3)
+    layers[1].slot = OutfitSlot.DRESS  # the lehenga, picked second, is drawn first
+    fashn = PaintingFashn(available=4)  # 2k quality in tests = 4 credits: exactly one garment
+
+    await tryon_tasks._run_direct_job(db, job, fashn, layers)
+
+    assert len(fashn.calls) == 1  # only the garment through FASHN
+    gemini = FakeGemini.instances[0]
+    assert len(gemini.calls) == 1  # every other product in one call
+    base_sent, pieces = gemini.calls[0]
+    assert [p.name for p in pieces] == ["Product 0", "Product 2"]
+    assert base64.b64decode(base_sent.split(",", 1)[1]) == fashn.outputs[0]  # drawn on FASHN's image
+    done = await _reload(db, job.id)
+    assert done.status == tryon_tasks.JobStatus.COMPLETED
+    assert done.provider == "fashn+gemini"
+    assert [s["name"] for s in done.steps] == ["Product 1", "Product 0", "Product 2"]
+    assert done.steps[0]["provider_job_id"] == "fashn_1"
+    assert [p["name"] for p in done.result.placements] == ["Product 1", "Product 0", "Product 2"]
+
+
+async def test_a_hybrid_look_needs_fashn_credits_only_for_the_garments(client, db, direct, monkeypatch):  # noqa: F811
+    _use_hybrid(monkeypatch, direct)
+    job, layers = await _job(client, db, monkeypatch, n=4)
+    layers[0].slot = OutfitSlot.DRESS
+    fashn = PaintingFashn(available=3)  # less than one garment's 4 credits
+
+    await tryon_tasks._run_direct_job(db, job, fashn, layers)
+
+    refused = await _reload(db, job.id)
+    assert refused.status == tryon_tasks.JobStatus.FAILED
+    assert "needs 4 FASHN credits (1 products x 4)" in refused.error_message
+    assert fashn.calls == [] and not FakeGemini.instances
+
+
+async def test_a_hybrid_look_with_no_garment_is_one_gemini_call(client, db, direct, monkeypatch):  # noqa: F811
+    _use_hybrid(monkeypatch, direct)
+    job, layers = await _job(client, db, monkeypatch, n=3)  # all accessories
+    fashn = PaintingFashn()
+
+    await tryon_tasks._run_direct_job(db, job, fashn, layers)
+
+    assert fashn.calls == []
+    assert len(FakeGemini.instances[0].calls) == 1
