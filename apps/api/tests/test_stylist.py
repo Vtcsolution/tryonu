@@ -759,3 +759,23 @@ def test_a_colour_the_shopper_did_not_ask_for_is_a_conflict():
     assert not _colour_conflicts("a white shalwar kameez", "White Chikankari Kurti")
     assert not _colour_conflicts("a white shalwar kameez", "Chikankari Kurti")  # names no colour: kept
     assert not _colour_conflicts("a shalwar kameez", "Blue Floral Suit")  # no colour asked: nothing to conflict
+
+
+def test_a_jewellery_set_overlapping_a_separate_piece_is_dropped():
+    """Live: a necklace+earrings+tikka set was picked with separate earrings, and
+    the two earring designs were blended in the image."""
+    from app.services.stylist_service import _drop_redundant_candidates
+
+    earrings = _pick("Bollywood South India Gold Plated Jhumka Earrings", "https://img/e.jpg")
+    the_set = _pick("Choker Gold Plated Bridal Necklace Set Earrings Maang Tikka", "https://img/s.jpg")
+    ring = _pick("Natural Emerald Ring 18K Gold Plated", "https://img/r.jpg")
+    kept = [c.result.raw.name for c in _drop_redundant_candidates([earrings, the_set, ring])]
+    assert kept == [earrings.result.raw.name, ring.result.raw.name]
+
+
+def test_a_jewellery_set_that_overlaps_nothing_is_kept():
+    from app.services.stylist_service import _drop_redundant_candidates
+
+    the_set = _pick("Gold Necklace Set with Earrings", "https://img/s.jpg")
+    ring = _pick("Emerald Ring", "https://img/r.jpg")
+    assert len(_drop_redundant_candidates([the_set, ring])) == 2

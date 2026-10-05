@@ -26,12 +26,17 @@ _INSTRUCTIONS = (
     'Reply with JSON only: {"description": "one sentence: item type, then every detail that must be reproduced '
     "exactly — colours, pattern, material, logo/print, buttons, zips, hardware, strap/bracelet, sole, dial. "
     'Describe the product the listing sells, not other items in the photo (packaging, the model\'s other clothes). '
-    'Colours as they APPEAR in the photo — listing titles are often wrong (an "espresso" bag that is black)."}'
+    'Colours as they APPEAR in the photo — listing titles are often wrong (an "espresso" bag that is black). '
+    "For jewellery, also state: the exact type (stud, nose pin, small tight huggie hoop, large hoop, hoop with a "
+    "jhumka hanging from it, stud-top jhumka, chandbali, maang tikka on a chain, choker, ring), its size relative "
+    "to the body, whether it hangs from a chain, the number, shape and colour of its stones, and for a ring how "
+    'many bands and stones it has. If the photo shows a SET of several pieces, list each piece."}'
 )
 
 
 def _cache_key(image_url: str) -> str:
-    return "tryon/described/" + hashlib.sha256(image_url.encode()).hexdigest()[:32] + ".json"
+    # v2: descriptions now spell out jewellery type and stones; older ones are not reused
+    return "tryon/described/v2-" + hashlib.sha256(image_url.encode()).hexdigest()[:32] + ".json"
 
 
 async def describe_product(image: np.ndarray, image_url: str, name: str) -> str:

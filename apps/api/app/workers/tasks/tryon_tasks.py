@@ -15,6 +15,7 @@ import base64
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 
+import cv2
 import numpy as np
 from PIL import Image
 from sqlalchemy import select
@@ -49,6 +50,7 @@ from app.services.outfit_slots import (
 from app.services.storage_service import get_storage, new_key
 from app.ai.providers.openai_image import MAX_PIECES as GEMINI_MAX_PIECES
 from app.services.tryon_direct.final_check import final_check, vlm_final_check
+from app.services.tryon_quality.product_prep import describe_product
 from app.services.tryon_direct.qc import run_qc
 from app.services.tryon_direct.orchestrate import (
     OrchestrationRefused,
@@ -946,6 +948,10 @@ def _confirmed(step: dict) -> bool:
     return bool(step.get("verified")) and step.get("final_status", "verified") == "verified"
 
 
+def _bgr(data: bytes) -> np.ndarray:
+    return cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+
+
 _COVERS_FACE = re.compile(r"\b(sunglasses|glasses|eyeglasses|spectacles|goggles|mask|veil|niqab)\b", re.IGNORECASE)
 
 
@@ -995,9 +1001,26 @@ async def _run_one_call_look(session, job: TryOnJob, person: bytes, products: li
     job.progress = f"Drawing all {len(products)} products in one image"
     await session.commit()
 
+    # A written description of each product beside its photo: live, small
+    # jewellery drawn from the photo alone drifted to the "typical" design (a
+    # tight diamond nose hoop came back as a large nath on a chain). Cached
+    # per product photo; the product name when the vision model is unavailable.
+    descriptions = [p.name for p in products]
+    if settings.OPENAI_API_KEY:
+        await _progress_writer(session, job)("Reading each product's details")
+        descriptions = list(
+            await asyncio.gather(*(describe_product(_bgr(p.image), p.image_url, p.name) for p in products))
+        )
+    for step, description in zip(steps, descriptions):
+        step["description"] = description
     pieces = [
-        OutfitPiece(image_url=to_data_uri(p.image), slot=(layer.slot or OutfitSlot.OTHER).value, name=p.name)
-        for p, layer in zip(products, layers)
+        OutfitPiece(
+            image_url=to_data_uri(p.image),
+            slot=(layer.slot or OutfitSlot.OTHER).value,
+            name=p.name,
+            description=description if description != p.name else "",
+        )
+        for p, layer, description in zip(products, layers, descriptions)
     ]
     try:
         output = await engine.generate_outfit(to_data_uri(person), pieces)

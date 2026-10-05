@@ -101,6 +101,11 @@ def _use_gemini(monkeypatch, direct, **kw):  # noqa: ANN001
     monkeypatch.setattr(direct, "GEMINI_API_KEY", "g-test-not-real")
     monkeypatch.setattr(tryon_tasks, "GeminiImageTryOnProvider", lambda **a: FakeGemini(**a, **kw))
 
+    async def describe(image, url, name):  # noqa: ANN001 — never the real (paid) vision call
+        return f"exact details of {name}"
+
+    monkeypatch.setattr(tryon_tasks, "describe_product", describe)
+
 
 async def test_two_products_are_drawn_in_one_gemini_call_and_never_through_fashn(client, db, direct, monkeypatch):  # noqa: F811
     _use_gemini(monkeypatch, direct)
@@ -135,6 +140,8 @@ async def test_the_vision_check_confirms_each_product_it_can_see(client, db, dir
 
     done = await _reload(db, job.id)
     assert done.status == tryon_tasks.JobStatus.COMPLETED
+    sent = FakeGemini.instances[0].calls[0][1]
+    assert [p.description for p in sent] == ["exact details of Product 0", "exact details of Product 1"]
     assert [p["drawn"] for p in done.result.placements] == [True, False]
     assert done.result.placements[1]["verification"] == "REVIEW_REQUIRED"
 

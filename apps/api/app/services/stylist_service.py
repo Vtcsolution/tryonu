@@ -167,7 +167,38 @@ def _drop_redundant_candidates(cands: list["_Candidate"]) -> list["_Candidate"]:
         ):
             continue
         result.append(c)
-    return result
+    return _drop_overlapping_jewellery_sets(result)
+
+
+# jewellery pieces as they appear in listing titles, folded to one name each
+_JEWEL_PIECES = {
+    "earring": "earring", "earrings": "earring", "jhumka": "earring", "jhumkas": "earring", "jhumki": "earring",
+    "tikka": "tikka", "maang": "tikka", "necklace": "necklace", "choker": "necklace", "haar": "necklace",
+    "bangle": "bangle", "bangles": "bangle", "bracelet": "bangle", "kada": "bangle",
+    "ring": "ring", "rings": "ring", "nath": "nose", "nose": "nose",
+}
+
+
+def _jewel_pieces(name: str) -> set[str]:
+    return {_JEWEL_PIECES[w] for w in _words(name) if w in _JEWEL_PIECES}
+
+
+def _drop_overlapping_jewellery_sets(cands: list["_Candidate"]) -> list["_Candidate"]:
+    """A jewellery SET that contains a piece also picked on its own is dropped,
+    keeping the separately chosen piece. Live: a "choker necklace set earrings
+    maang tikka" listing was picked alongside separate jhumka earrings and a
+    separate choker, and the image came back with the two earring designs
+    blended and an extra necklace. A set that overlaps nothing is kept."""
+    singles = [_jewel_pieces(c.result.raw.name) for c in cands]
+    is_set = [("set" in _words(c.result.raw.name) and len(p) >= 2) for c, p in zip(cands, singles)]
+    kept = []
+    for i, c in enumerate(cands):
+        if is_set[i]:
+            others = set().union(*(p for j, p in enumerate(singles) if j != i and not is_set[j]))
+            if singles[i] & others:
+                continue
+        kept.append(c)
+    return kept
 
 
 def _gender_in_prompt(prompt: str) -> str | None:
