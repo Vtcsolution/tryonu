@@ -241,13 +241,15 @@ async def test_the_wrong_fashn_model_fails_before_any_paid_call(client, db, dire
     assert await credit_balance(db, user_id) == 100
 
 
-async def test_an_outfit_is_refused_up_front_without_charging(client, db, direct, monkeypatch):
+async def test_an_outfit_is_no_longer_limited_to_one_product(client, db, direct, monkeypatch):
+    """The direct engine draws several products one FASHN call each, so an
+    outfit reaches the normal checks instead of a one-product refusal."""
     fake = FakeFashn(output=OUTPUT, product=PRODUCT)
     fake.install(monkeypatch)
     photo_id, _product, user_id = await _setup(client, db)
 
     resp = await client.post("/api/v1/tryon", json={"user_photo_id": photo_id, "outfit_id": "any-outfit"})
 
-    assert resp.status_code == 400 and "one product" in resp.json()["detail"]
+    assert resp.status_code == 404 and "Outfit not found" in resp.json()["detail"]
     assert await credit_balance(db, user_id) == 100
     assert fake.run_count == 0

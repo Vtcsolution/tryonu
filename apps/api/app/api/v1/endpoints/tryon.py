@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.ai.providers.registry import direct_engine_active, get_tryon_provider
+from app.ai.providers.registry import get_tryon_provider
 from app.core.config import get_settings
 from app.core.deps import CurrentUser, DbSession
 from app.core.rate_limit import rate_limiter
@@ -57,13 +57,6 @@ async def _resolve_target(
         if product is None or not product.is_active:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
         return settings.TRYON_CREDIT_COST
-
-    if outfit_id and direct_engine_active():
-        # reject before charging: the direct engine renders one product only
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This try-on engine renders one product at a time — pick a single product.",
-        )
 
     if outfit_id:
         outfit = await db.get(Outfit, outfit_id)
