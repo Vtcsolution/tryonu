@@ -254,3 +254,26 @@ async def test_an_outfit_is_no_longer_limited_to_one_product(client, db, direct,
     assert resp.status_code == 404 and "Outfit not found" in resp.json()["detail"]
     assert await credit_balance(db, user_id) == 100
     assert fake.run_count == 0
+
+
+async def test_a_look_over_the_product_limit_is_refused_before_any_charge(client, db, direct, monkeypatch):
+    from app.models.outfit import Outfit, OutfitItem
+    from app.models.enums import OutfitSlot
+
+    monkeypatch.setattr(direct, "TRYON_DIRECT_MAX_PRODUCTS", 1)
+    fake = FakeFashn(output=OUTPUT, product=PRODUCT)
+    fake.install(monkeypatch)
+    photo_id, product, user_id = await _setup(client, db)
+    other = await seed_product(db, name="Gold Bangles", image_url=PRODUCT_URL)
+    outfit = Outfit(user_id=user_id)
+    db.add(outfit)
+    await db.flush()
+    db.add(OutfitItem(outfit_id=outfit.id, product_id=product.id, slot=OutfitSlot.TOP, position=0))
+    db.add(OutfitItem(outfit_id=outfit.id, product_id=other.id, slot=OutfitSlot.ACCESSORY, position=1))
+    await db.commit()
+
+    resp = await client.post("/api/v1/tryon", json={"user_photo_id": photo_id, "outfit_id": outfit.id})
+
+    assert resp.status_code == 400 and "one product at a time" in resp.json()["detail"]
+    assert await credit_balance(db, user_id) == 100
+    assert fake.run_count == 0

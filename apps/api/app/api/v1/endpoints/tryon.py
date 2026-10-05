@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.ai.providers.registry import get_tryon_provider
+from app.ai.providers.registry import direct_engine_active, get_tryon_provider
 from app.core.config import get_settings
 from app.core.deps import CurrentUser, DbSession
 from app.core.rate_limit import rate_limiter
@@ -62,6 +62,20 @@ async def _resolve_target(
         outfit = await db.get(Outfit, outfit_id)
         if outfit is None or outfit.user_id != user.id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Outfit not found")
+        if direct_engine_active():
+            # refused before any charge or FASHN call: each product is its own
+            # paid FASHN render, so the number per look is capped by setting
+            count = len((await db.execute(select(OutfitItem.id).where(OutfitItem.outfit_id == outfit_id))).all())
+            limit = settings.TRYON_DIRECT_MAX_PRODUCTS
+            if count > limit:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        "Try-on currently applies one product at a time. Pick a single product and press Try on."
+                        if limit == 1
+                        else f"Try-on currently applies up to {limit} products at a time; this look has {count}."
+                    ),
+                )
         return settings.OUTFIT_TRYON_CREDIT_COST
 
     item = await db.get(WardrobeItem, wardrobe_item_id)
