@@ -199,6 +199,8 @@ def build_prompt(pieces: list[OutfitPiece]) -> str:
         " piercing, or change of makeup.",
         "- Do not retouch the person: no smoothing, slimming, reshaping or beautifying the face or body. Keep her"
         " own skin texture, eyebrows, eye shape, nose, lips and jawline exactly as in image 1.",
+        "- Keep her facial expression exactly as in image 1: the same mouth, the same smile or lack of one. Do not"
+        " open her mouth or show teeth unless image 1 does; do not change where she is looking.",
         "- The result must be a single realistic photograph, not a collage.",
     ]
     return "\n".join(lines)
