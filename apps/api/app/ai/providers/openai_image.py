@@ -191,6 +191,14 @@ def build_prompt(pieces: list[OutfitPiece]) -> str:
         " itself, and do not turn one listed product into a different one.",
         "- If nothing above says to add or change something, leave that part of the person exactly as it already"
         " was in image 1 — a natural-looking gap is correct; filling it with something nobody asked for is not.",
+        "- Jewellery is copied exactly as photographed, never replaced by the usual or traditional version of that"
+        " item: a nose stud or pin stays a stud or pin (not a hoop nath), a hoop stays a hoop, a maang tikka keeps"
+        " its own pendant shape, stones and stone colours, an earring keeps its own top and drops. Same size,"
+        " shape, stone colours and metal as its product photo.",
+        "- Add nothing to the face or skin that is not a listed product: no bindi, tilak, henna, tattoo, extra"
+        " piercing, or change of makeup.",
+        "- Do not retouch the person: no smoothing, slimming, reshaping or beautifying the face or body. Keep her"
+        " own skin texture, eyebrows, eye shape, nose, lips and jawline exactly as in image 1.",
         "- The result must be a single realistic photograph, not a collage.",
     ]
     return "\n".join(lines)
