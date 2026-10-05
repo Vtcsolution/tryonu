@@ -11,16 +11,14 @@ async def test_list_products_returns_only_real_seeded_products(client, db):
     p1 = await seed_product(db, name="Cream Poncho", price_cents=3200)
     p2 = await seed_product(db, name="Rust Bomber Jacket", price_cents=9900)
 
-    # High limit — the DB is shared across the whole test session, so by
-    # the time this runs there may be more than the default page size (24)
-    # of other tests' products already in it.
-    resp = await client.get("/api/v1/products", params={"limit": 100})
-    assert resp.status_code == 200
-    body = resp.json()
-    names = {item["name"] for item in body["items"]}
-    assert {"Cream Poncho", "Rust Bomber Jacket"} <= names
-    ids = {item["id"] for item in body["items"]}
-    assert p1.id in ids and p2.id in ids
+    # The DB is shared across the whole test session, so a plain first page can
+    # already be full of other tests' products: look each one up by name.
+    for product in (p1, p2):
+        resp = await client.get("/api/v1/products", params={"q": product.name, "limit": 100})
+        assert resp.status_code == 200
+        items = resp.json()["items"]
+        assert product.name in {item["name"] for item in items}
+        assert product.id in {item["id"] for item in items}
 
 
 async def test_price_filter_excludes_out_of_range_products(client, db):
