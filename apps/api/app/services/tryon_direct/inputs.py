@@ -51,8 +51,9 @@ def to_data_uri(data: bytes) -> str:
 
 
 _EBAY_SIZE_RE = re.compile(r"/s-l\d+\.jpg$")
-# Below this a product photo is a thumbnail; FASHN would draw it at a fraction of its detail
-MIN_PRODUCT_SIDE = 800
+# Only a real thumbnail is refused (eBay's stored s-l225 is 225px). Live, a usable
+# 472x1024 product photo was refused when this checked the SHORT side at 800px.
+MIN_PRODUCT_LONG_SIDE = 300
 
 
 def hires_product_url(url: str) -> str:
@@ -70,9 +71,9 @@ def require_hires_product(data: bytes) -> None:
             width, height = img.size
     except (UnidentifiedImageError, OSError) as exc:
         raise DirectInputError("the product file is not a readable image") from exc
-    if min(width, height) < MIN_PRODUCT_SIDE:
+    if max(width, height) < MIN_PRODUCT_LONG_SIDE:
         raise DirectInputError(
-            f"the product image is only {width}x{height}px, below the {MIN_PRODUCT_SIDE}px minimum"
+            f"the product image is only {width}x{height}px, a thumbnail too small to try on"
         )
 
 

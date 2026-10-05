@@ -269,7 +269,7 @@ def test_other_hosts_keep_their_own_image_url():
 def test_a_thumbnail_is_refused_before_anything_is_sent():
     from app.services.tryon_direct.inputs import require_hires_product
 
-    with pytest.raises(DirectInputError, match="below the 800px minimum"):
+    with pytest.raises(DirectInputError, match="thumbnail too small"):
         require_hires_product(image_bytes((225, 225), (200, 200, 200)))
 
 
@@ -449,3 +449,10 @@ async def test_the_paid_vlm_score_runs_only_when_asked(monkeypatch):
     monkeypatch.setattr(qc, "_vlm_report", vlm_down)
     report = await qc.run_qc(PERSON, RED_PRODUCT, EDITED, with_vlm=True)
     assert "error" in report["vlm"] and report["flags"] is not None  # an optional score never fails QC
+
+
+def test_a_tall_narrow_product_photo_is_accepted():
+    """Live: a usable 472x1024 product photo was refused by a short-side 800px rule."""
+    from app.services.tryon_direct.inputs import require_hires_product
+
+    require_hires_product(image_bytes((472, 1024), (200, 200, 200)))

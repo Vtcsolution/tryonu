@@ -24,6 +24,13 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
+try:  # iPhone photos arrive as HEIC/HEIF
+    from pillow_heif import register_heif_opener
+
+    register_heif_opener()
+except ImportError:  # pragma: no cover — decoder not installed: HEIC uploads fail as "not a valid image"
+    pass
+
 MAX_DIMENSION = 2048
 
 
@@ -39,12 +46,10 @@ class ProcessedImage:
 
 
 async def validate_and_optimize(file: UploadFile) -> ProcessedImage:
-    if file.content_type not in settings.ALLOWED_IMAGE_CONTENT_TYPES:
-        raise HTTPException(
-            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail=f"Unsupported file type: {file.content_type}",
-        )
-
+    # The browser's declared type is not trusted either way: live, a normal JPEG
+    # was refused with 415 because the browser labelled it differently. Any file
+    # Pillow can actually decode is accepted; anything else fails below as
+    # "not a valid image".
     raw = await file.read()
     if len(raw) > settings.MAX_UPLOAD_BYTES:
         raise HTTPException(
