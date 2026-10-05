@@ -63,6 +63,14 @@ async def _admin_client(client, db) -> str:
 
 
 async def _held_job(client, db, monkeypatch, direct_fixture) -> str:  # noqa: ANN001
+    """A look stopped by the one check that still blocks: the person's face changed."""
+    from app.services.tryon_direct.orchestrate import StepVerdict
+    from app.workers.tasks import tryon_tasks
+
+    async def face_changed(*_a, **_kw):  # noqa: ANN002, ANN003
+        return StepVerdict(passed=False, failed_checks=["identity:face_changed"], confirmed=False)
+
+    monkeypatch.setattr(tryon_tasks, "verify_step", face_changed)
     fake = FakeFashn(output=UNCHANGED, product=PRODUCT)
     fake.install(monkeypatch)
     photo_id, product, _ = await _setup(client, db)
@@ -121,7 +129,7 @@ async def test_a_held_render_lists_for_review_with_its_failed_checks(client, db,
     rows = (await client.get("/api/v1/admin/tryon-reviews")).json()
     row = next(r for r in rows if r["id"] == job_id)
     assert row["review_state"] == "pending"
-    assert "no_visible_edit" in row["review_reason"]
+    assert "face_changed" in row["review_reason"]
 
 
 async def test_a_multi_product_hold_cannot_be_delivered_as_a_finished_look(client, db, direct, monkeypatch):  # noqa: F811

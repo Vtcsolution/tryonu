@@ -171,7 +171,8 @@ async def test_an_unchanged_result_fails_the_edit_check(monkeypatch):
 
     monkeypatch.setattr(orchestrate, "run_qc", fake_qc)
     verdict = await verify_step(PERSON, PERSON, PERSON, _product(1))
-    assert verdict.passed is False
+    assert verdict.passed is True  # a pixel check never stops the look on its own
+    assert verdict.confirmed is False  # but the product is not claimed as applied
     assert verdict.failed_checks == ["no_visible_edit"]
 
 

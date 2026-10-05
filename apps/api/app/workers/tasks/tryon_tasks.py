@@ -857,7 +857,9 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
             )
             for step, row in zip(sequence.steps, final["products"]):
                 step["final_status"] = row["status"]
-            if final["passed"]:
+            if final["identity_ok"]:
+                # the paid render is always delivered; each product is labelled
+                # by what the checks could confirm, never claimed beyond that
                 await _complete_sequence(session, job, provider, sequence, layers, cost, final)
             else:
                 await _hold_final(session, job, provider, sequence, cost, final)
@@ -880,6 +882,10 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
             await _fail_job(session, job, f"Unexpected error: {exc}", refund=True)
 
 
+def _confirmed(step: dict) -> bool:
+    return bool(step.get("verified")) and step.get("final_status", "verified") == "verified"
+
+
 async def _complete_sequence(session, job: TryOnJob, provider: VirtualTryOnProvider, sequence, layers: list[_Layer], cost: int, final: dict) -> None:  # noqa: ANN001
     """Every product verified: deliver the final FASHN output untouched."""
     output = sequence.output
@@ -895,8 +901,8 @@ async def _complete_sequence(session, job: TryOnJob, provider: VirtualTryOnProvi
             "product_id": step["product_id"],
             "slot": (layer.slot or OutfitSlot.TOP).value,
             "image_url": step["image_url"],
-            "drawn": True,
-            "reason": None,
+            "drawn": _confirmed(step),
+            "reason": None if _confirmed(step) else "We couldn't confirm this product automatically, so it isn't marked as applied. Check the photo.",
             "box": None,
         }
         for step, layer in zip(sequence.steps, layers)
@@ -920,8 +926,13 @@ async def _complete_sequence(session, job: TryOnJob, provider: VirtualTryOnProvi
             width=width,
             height=height,
             qc_report={
-                "gate": {"passed": True, "failed_checks": [], "advisory": []},
+                "gate": {
+                    "passed": all(_confirmed(step) for step in sequence.steps),
+                    "failed_checks": sorted({c for step in sequence.steps for c in step.get("failed_checks") or []}),
+                    "advisory": [],
+                },
                 "products": len(sequence.steps),
+                "confirmed": sum(_confirmed(step) for step in sequence.steps),
                 "final_check": final,
             },
             engine_meta=engine_meta,

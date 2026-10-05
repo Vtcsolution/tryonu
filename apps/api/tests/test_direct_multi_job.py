@@ -189,7 +189,7 @@ async def test_a_look_the_authorization_cannot_finish_is_refused_before_any_call
     assert refused.review_state is None
 
 
-async def test_a_look_whose_final_check_fails_is_held_with_the_image_kept_for_review(client, db, direct, monkeypatch):  # noqa: F811
+async def test_a_product_the_final_check_cannot_confirm_is_delivered_but_not_claimed(client, db, direct, monkeypatch):  # noqa: F811
     job_id, layers = await _job_for_two_products(client, db, monkeypatch)
     fake = FakeFashnProvider()
     job = (await db.execute(select(TryOnJob).where(TryOnJob.id == job_id).options(selectinload(TryOnJob.user_photo)))).scalar_one()
@@ -208,11 +208,30 @@ async def test_a_look_whose_final_check_fails_is_held_with_the_image_kept_for_re
     monkeypatch.setattr(tryon_tasks, "final_check", unconfirmed)
     await tryon_tasks._run_direct_job(db, job, fake, layers)
 
+    done = await _reload(db, job_id)
+    assert done.status == tryon_tasks.JobStatus.COMPLETED
+    assert [p["drawn"] for p in done.result.placements] == [False, True]
+    assert done.result.qc_report["confirmed"] == 1
+
+
+async def test_a_changed_person_in_the_final_image_is_held_not_delivered(client, db, direct, monkeypatch):  # noqa: F811
+    job_id, layers = await _job_for_two_products(client, db, monkeypatch)
+    fake = FakeFashnProvider()
+    job = (await db.execute(select(TryOnJob).where(TryOnJob.id == job_id).options(selectinload(TryOnJob.user_photo)))).scalar_one()
+
+    async def other_person(*_a, **_kw):  # noqa: ANN002, ANN003
+        return {"passed": False, "identity_ok": False, "products": [
+            {"index": 0, "name": "Red Top", "status": "verified"},
+            {"index": 1, "name": "Blue Scarf", "status": "verified"},
+        ], "vlm": {"enabled": True, "same_person": False}}
+
+    monkeypatch.setattr(tryon_tasks, "final_check", other_person)
+    await tryon_tasks._run_direct_job(db, job, fake, layers)
+
     held = await _reload(db, job_id)
     assert held.status == tryon_tasks.JobStatus.FAILED and held.result is None
-    assert held.review_state == "pending" and "Red Top" in held.review_reason
-    assert get_storage().read(held.review_payload["storage_key"])  # the final FASHN output is kept for the reviewer
-    assert [s["final_status"] for s in held.steps] == ["review_required", "verified"]
+    assert held.review_state == "pending"
+    assert get_storage().read(held.review_payload["storage_key"])  # kept for the reviewer
 
 
 async def test_every_selected_product_is_sent_even_when_two_share_a_slot(db):

@@ -27,6 +27,11 @@ from app.services.tryon_direct.qc import qc_gate, run_qc
 # slightly zoomed, from a 459x668 photo), so hair "changes" on a correct render.
 # Identity is decided by the face comparison instead.
 _IDENTITY_FLAGS = {"face_changed"}
+# Only these stop a look. Every other check is pixel-based and, because FASHN
+# redraws the whole frame, it rejected correct renders live three times in a
+# row; a failure there marks the product "unconfirmed" but the paid render is
+# kept and the look continues.
+_BLOCKING = {"qc_unreadable_image", "qc_failed", "identity:face_changed"}
 
 
 class OrchestrationRefused(Exception):
@@ -46,6 +51,7 @@ class StepVerdict:
     passed: bool
     failed_checks: list[str] = field(default_factory=list)
     edit_report: dict = field(default_factory=dict)
+    confirmed: bool = True  # every check, blocking or not, passed
     identity_report: dict = field(default_factory=dict)
 
 
@@ -104,7 +110,13 @@ async def verify_step(
     failed = list(qc_gate(edit)["failed_checks"])
     identity = await run_qc(original, product.image, result, product_name=product.name, product_url=product.image_url)
     failed += [f"identity:{flag}" for flag in identity.get("flags", []) if flag in _IDENTITY_FLAGS]
-    return StepVerdict(passed=not failed, failed_checks=failed, edit_report=edit, identity_report=identity)
+    return StepVerdict(
+        passed=not any(f in _BLOCKING for f in failed),
+        failed_checks=failed,
+        edit_report=edit,
+        identity_report=identity,
+        confirmed=not failed,
+    )
 
 
 Render = Callable[[bytes, ProductInput, Callable[[str], Awaitable[None]]], Awaitable[TryOnOutput]]
@@ -156,7 +168,7 @@ async def run_sequence(
         await on_step(steps)
 
         verdict = await verify(person, current, output.image_bytes, product)
-        step["verified"] = verdict.passed
+        step["verified"] = verdict.passed and verdict.confirmed
         step["failed_checks"] = verdict.failed_checks
         step["qc"] = _qc_summary(verdict)
         if not verdict.passed:
@@ -164,7 +176,7 @@ async def run_sequence(
             await on_step(steps)
             return SequenceResult(passed=False, image=output.image_bytes, steps=steps, output=output, outputs=outputs)
 
-        step["status"] = "verified"
+        step["status"] = "verified" if verdict.confirmed else "unconfirmed"
         await on_step(steps)
         outputs.append(output.image_bytes)
         current = output.image_bytes

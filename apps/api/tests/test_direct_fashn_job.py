@@ -155,9 +155,9 @@ async def test_a_direct_try_on_sends_both_images_untouched_and_stores_fashns_byt
     assert first["qc"]["face_similarity"] is None or first["qc"]["face_similarity"] >= 0.6
 
 
-async def test_an_unverified_render_is_held_for_review_and_never_delivered(client, db, direct, monkeypatch):
-    """FASHN sent the photo back unchanged: the product was never applied.
-    That render is held for review, not delivered, and not refunded."""
+async def test_an_unconfirmed_render_is_delivered_but_not_claimed_as_applied(client, db, direct, monkeypatch):
+    """FASHN sent the photo back unchanged. The paid render is still shown, but
+    the product is not marked as on the photo, and the reason is given."""
     unchanged = image_bytes((400, 500), (180, 160, 140))
     fake = FakeFashn(output=unchanged, product=PRODUCT)
     fake.install(monkeypatch)
@@ -166,16 +166,15 @@ async def test_an_unverified_render_is_held_for_review_and_never_delivered(clien
     resp = await client.post("/api/v1/tryon", json={"user_photo_id": photo_id, "product_id": product.id})
     finished = await _poll_until_terminal(client, resp.json()["id"])
 
-    assert finished["status"] == "failed"
-    assert finished["result"] is None
-    assert "not delivered" in finished["error_message"]
+    assert finished["status"] == "completed"
     job, result = await _row(resp.json()["id"])
-    assert result is None
-    assert job.review_state == "pending"
-    assert "no_visible_edit" in job.review_reason
+    assert get_storage().read(result.storage_key) == unchanged  # the raw FASHN output, untouched
+    placement = result.placements[0]
+    assert placement["drawn"] is False
+    assert "couldn't confirm" in placement["reason"]
     assert "no_visible_edit" in job.steps[0]["failed_checks"]
-    assert get_storage().read(job.steps[0]["raw_key"]) == unchanged  # the raw output is kept
-    assert not await _was_refunded(job.id)
+    assert result.qc_report["gate"]["passed"] is False and result.qc_report["confirmed"] == 0
+    assert job.review_state is None
 
 
 async def test_a_fashn_timeout_fails_the_job_refunds_and_never_submits_again(client, db, direct, monkeypatch):
