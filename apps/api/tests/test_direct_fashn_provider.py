@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import hashlib
 
+import cv2
 import numpy as np
 import pytest
 
@@ -329,10 +330,44 @@ def test_qc_flags_a_result_that_is_just_the_photo_back():
     assert report["product"]["product_match_score"] is None
 
 
-def test_qc_notes_a_changed_aspect_ratio_and_skips_the_pixel_comparison():
-    square = image_bytes((1000, 1000), (90, 120, 150))
-    report = qc.measure(PERSON, RED_PRODUCT, square)
-    assert "aspect_ratio_changed" in report["flags"] and "skipped" in report["difference"]
+def _scene(size: tuple[int, int]) -> np.ndarray:
+    """A photo-like frame: a gradient background with a few fixed shapes."""
+    w, h = size
+    img = np.zeros((h, w, 3), np.uint8)
+    img[..., 0] = np.linspace(40, 200, w, dtype=np.uint8)[None, :]
+    img[..., 1] = np.linspace(60, 180, h, dtype=np.uint8)[:, None]
+    img[..., 2] = 120
+    for i, (x, y) in enumerate([(0.2, 0.15), (0.7, 0.3), (0.4, 0.8)]):
+        cv2.circle(img, (int(x * w), int(y * h)), max(4, w // 12), (30 * i, 200, 90), -1)
+    return img
+
+
+def _png(img: np.ndarray) -> bytes:
+    ok, buf = cv2.imencode(".png", img)
+    assert ok
+    return buf.tobytes()
+
+
+def test_fashns_own_frame_size_is_lined_up_before_comparing():
+    """Live: FASHN returned 848x1264 for a photo of another shape, and the step
+    failed on shape alone although the render was right."""
+    person = _scene((900, 1600))
+    taller = 900 / (848 / 1264)
+    top = int((1600 - taller) / 2)
+    render = cv2.resize(person[top : top + int(taller)], (848, 1264), interpolation=cv2.INTER_AREA)
+    cv2.rectangle(render, (300, 500), (560, 900), (20, 20, 220), -1)  # the product FASHN drew
+    report = qc.measure(_png(person), RED_PRODUCT, _png(render))
+    assert report["alignment"]["method"] == "center_crop"
+    assert "aspect_ratio_changed" in report["flags"]  # recorded, but advisory
+    assert report["difference"]["edited_fraction"] > 0.05
+    assert "alignment_failed" not in qc.qc_gate(report)["failed_checks"]
+
+
+def test_a_render_that_cannot_be_lined_up_fails_instead_of_being_guessed():
+    unrelated = np.full((1264, 848, 3), (200, 30, 220), np.uint8)
+    report = qc.measure(_png(_scene((900, 1600))), RED_PRODUCT, _png(unrelated))
+    assert "alignment_failed" in report["flags"] and "skipped" in report["difference"]
+    assert "alignment_failed" in qc.qc_gate(report)["failed_checks"]
 
 
 def test_qc_flags_a_low_resolution_result():

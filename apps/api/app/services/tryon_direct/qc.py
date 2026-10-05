@@ -53,7 +53,7 @@ HARD_FLAGS = frozenset(
         "face_changed",
         "head_changed",
         "low_resolution",
-        "aspect_ratio_changed",
+        "alignment_failed",
         "low_product_colour_match",
     }
 )
@@ -220,6 +220,46 @@ def _resolution_report(person_bytes: bytes, result_bytes: bytes) -> dict:
     }
 
 
+# below this median per-pixel difference (0..1), a candidate framing is taken
+# to line the photo up with the render: most of a try-on frame (background,
+# floor, face) is unchanged, so a correct framing leaves a small median
+_ALIGN_MAX_MEDIAN = 0.06
+
+
+def _align_person(person: np.ndarray, result: np.ndarray) -> tuple[np.ndarray | None, dict]:
+    """FASHN returns its own standard frame size (live: a photo came back as
+    848x1264), so the photo is reframed to the render's shape before any
+    pixel comparison. Each plausible framing is tried and the one that best
+    matches the render's unchanged background is used. None when no framing
+    lines up, so a misaligned comparison never passes or fails a product."""
+    ph, pw = person.shape[:2]
+    rh, rw = result.shape[:2]
+    target = rw / rh
+    candidates: dict[str, np.ndarray] = {"stretch": person}
+    if pw / ph > target:  # photo is wider: crop its sides
+        cw = max(1, round(ph * target))
+        candidates["center_crop"] = person[:, (pw - cw) // 2 : (pw - cw) // 2 + cw]
+        candidates["left_crop"] = person[:, :cw]
+        candidates["right_crop"] = person[:, pw - cw :]
+    else:  # photo is taller: crop top/bottom
+        ch = max(1, round(pw / target))
+        candidates["center_crop"] = person[(ph - ch) // 2 : (ph - ch) // 2 + ch, :]
+        candidates["top_crop"] = person[:ch, :]
+        candidates["bottom_crop"] = person[ph - ch :, :]
+
+    small = (max(1, round(128 * target)), 128) if target < 1 else (128, max(1, round(128 / target)))
+    reference = cv2.resize(result, small, interpolation=cv2.INTER_AREA).astype(np.float32) / 255.0
+    scores = {}
+    for name, img in candidates.items():
+        trial = cv2.resize(img, small, interpolation=cv2.INTER_AREA).astype(np.float32) / 255.0
+        scores[name] = float(np.median(np.abs(trial - reference).mean(axis=2)))
+    best = min(scores, key=scores.get)
+    info = {"method": best, "median_difference": round(scores[best], 4), "tried": {k: round(v, 4) for k, v in scores.items()}}
+    if scores[best] > _ALIGN_MAX_MEDIAN:
+        return None, info
+    return cv2.resize(candidates[best], (rw, rh), interpolation=cv2.INTER_AREA), info
+
+
 def _difference_report(person: np.ndarray, result: np.ndarray) -> tuple[dict, np.ndarray, np.ndarray, list[str]]:
     ph, pw = person.shape[:2]
     ww, wh = _work_size(pw, ph)
@@ -272,7 +312,13 @@ def measure(person_bytes: bytes, product_bytes: bytes, result_bytes: bytes) -> d
         flags.append("low_resolution")
     aspect_ok = res["aspect_difference"] <= THRESHOLDS["max_aspect_difference"]
     if not aspect_ok:
-        flags.append("aspect_ratio_changed")
+        aligned, report["alignment"] = _align_person(person, result)
+        if aligned is None:
+            flags.append("alignment_failed")
+        else:
+            person = aligned
+            aspect_ok = True
+            flags.append("aspect_ratio_changed")  # advisory: FASHN's own frame size, lined up before comparing
 
     mask: np.ndarray | None = None
     after_work: np.ndarray | None = None
@@ -284,7 +330,7 @@ def measure(person_bytes: bytes, product_bytes: bytes, result_bytes: bytes) -> d
             report["difference"] = {"error": str(exc)[:200]}
             mask = after_work = None
     else:
-        report["difference"] = {"skipped": "the result's aspect ratio differs from the photo's, so a pixel comparison would be meaningless"}
+        report["difference"] = {"skipped": "the photo could not be lined up with the render, so a pixel comparison would be meaningless"}
 
     try:
         report["face"] = _face_report(person, result, mask)
