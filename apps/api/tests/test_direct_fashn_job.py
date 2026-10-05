@@ -45,6 +45,7 @@ def direct(monkeypatch):
         "FASHN_OUTPUT_FORMAT": "png",
         "FASHN_POLL_TIMEOUT_SECONDS": 5,
         "TRYON_DIRECT_VLM_QC": False,
+        "TRYON_MULTI_ENGINE": "fashn_chain",  # the one-call path has its own tests
         "TRYON_KEEP_ORIGINAL_FACE": True,  # would normally run restore_face
     }.items():
         monkeypatch.setattr(s, name, value)

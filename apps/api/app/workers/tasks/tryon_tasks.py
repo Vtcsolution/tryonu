@@ -8,6 +8,7 @@ failed, with automatic credit refund on failure.
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 import io
 import base64
 from dataclasses import dataclass, replace
@@ -45,7 +46,9 @@ from app.services.outfit_slots import (
     worn_on_head,
 )
 from app.services.storage_service import get_storage, new_key
-from app.services.tryon_direct.final_check import final_check
+from app.ai.providers.openai_image import MAX_PIECES as GEMINI_MAX_PIECES
+from app.services.tryon_direct.final_check import final_check, vlm_final_check
+from app.services.tryon_direct.qc import run_qc
 from app.services.tryon_direct.orchestrate import (
     OrchestrationRefused,
     ProductInput,
@@ -773,12 +776,36 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
                 image = await fetch_product_image(url)
                 require_hires_product(image)
                 products.append(ProductInput(name=layer.name, product_id=layer.product_id, image_url=url, image=image))
-            check_plan(
-                products,
-                max_products=settings.TRYON_DIRECT_MAX_PRODUCTS,
-                cost_per_render=cost,
-                max_credits=settings.TRYON_DIRECT_MAX_FASHN_CREDITS,
-            )
+            one_call = len(products) >= 2 and settings.TRYON_MULTI_ENGINE == "gemini_single"
+            if one_call:
+                # one generation for the whole look: no FASHN credits involved
+                check_plan(
+                    products,
+                    max_products=min(settings.TRYON_DIRECT_MAX_PRODUCTS, GEMINI_MAX_PIECES),
+                    cost_per_render=0,
+                    max_credits=0,
+                )
+                if not settings.GEMINI_API_KEY:
+                    raise OrchestrationRefused("multi-product try-on needs a Gemini API key")
+            else:
+                check_plan(
+                    products,
+                    max_products=settings.TRYON_DIRECT_MAX_PRODUCTS,
+                    cost_per_render=cost,
+                    max_credits=settings.TRYON_DIRECT_MAX_FASHN_CREDITS,
+                )
+        except OrchestrationRefused as exc:
+            await _fail_job(session, job, f"We couldn't start this try-on: {exc}. Nothing was sent.", refund=True)
+            return
+        except DirectInputError as exc:
+            await _fail_job(session, job, f"We couldn't use the images for this try-on: {exc}.", refund=True)
+            return
+
+        if one_call:
+            await _run_one_call_look(session, job, person, products, layers)
+            return
+
+        try:
             available = await provider.credits_available()
             needed = cost * len(products)
             if needed > available:
@@ -918,6 +945,86 @@ def _confirmed(step: dict) -> bool:
     return bool(step.get("verified")) and step.get("final_status", "verified") == "verified"
 
 
+async def _run_one_call_look(session, job: TryOnJob, person: bytes, products: list[ProductInput], layers: list[_Layer]) -> None:  # noqa: ANN001
+    """The whole look in ONE Gemini generation: the customer's photo and every
+    product photo in a single request, the output stored exactly as returned.
+    Nothing is chained, merged, restored or re-rendered. The face is compared
+    with the original photo (a different person is held, never shown), and each
+    product is confirmed by the vision check when TRYON_DIRECT_VLM_QC is on,
+    otherwise honestly left unconfirmed."""
+    engine = GeminiImageTryOnProvider(
+        api_key=settings.GEMINI_API_KEY,  # type: ignore[arg-type]
+        model=settings.GEMINI_IMAGE_MODEL,
+        image_size=settings.GEMINI_IMAGE_SIZE,
+    )
+    steps = [
+        {
+            "index": i,
+            "name": p.name,
+            "product_id": p.product_id,
+            "image_url": p.image_url,
+            "status": "sent",
+            "provider_job_id": None,
+            "raw_key": None,
+            "verified": False,
+            "failed_checks": [],
+        }
+        for i, p in enumerate(products)
+    ]
+    job.steps = [dict(s) for s in steps]
+    job.progress = f"Drawing all {len(products)} products in one image"
+    await session.commit()
+
+    pieces = [
+        OutfitPiece(image_url=to_data_uri(p.image), slot=(layer.slot or OutfitSlot.OTHER).value, name=p.name)
+        for p, layer in zip(products, layers)
+    ]
+    try:
+        output = await engine.generate_outfit(to_data_uri(person), pieces)
+    except TryOnProviderError as exc:
+        await _fail_job(session, job, f"The image generator could not draw this look: {exc}", refund=True)
+        return
+
+    storage = get_storage()
+    raw_key = new_key("tryon", "direct-steps", job.user_id, f"{job.id}-all.png")
+    storage.put(raw_key, output.image_bytes, output.content_type)
+
+    await _progress_writer(session, job)("Checking every product in the final image")
+    report = await run_qc(person, products[0].image, output.image_bytes)
+    face_flags = [f for f in report.get("flags", []) if f in ("face_changed", "face_check_inconclusive")]
+    with_vlm = settings.TRYON_DIRECT_VLM_QC and bool(settings.OPENAI_API_KEY)
+    vlm: dict = {"enabled": False}
+    if with_vlm:
+        vlm = await vlm_final_check(person, output.image_bytes, [p.image for p in products], [p.name for p in products])
+
+    rows = []
+    for step in steps:
+        step["status"] = "generated"
+        step["raw_key"] = raw_key
+        if not with_vlm:
+            step["failed_checks"] = ["not_checked"]
+            step["status"] = "unconfirmed"
+        else:
+            verdict = next((r for r in vlm.get("products") or [] if isinstance(r, dict) and r.get("index") == step["index"]), None)
+            checks = ("present", "color_correct", "details_preserved", "placement_correct")
+            missing = ["vision_check_failed"] if verdict is None else [k for k in checks if verdict.get(k) is not True]
+            step["failed_checks"] = missing
+            step["verified"] = not missing
+            step["status"] = "verified" if not missing else "unconfirmed"
+            step["vlm"] = verdict
+        step["final_status"] = "verified" if step["verified"] else "review_required"
+        rows.append({"index": step["index"], "name": step["name"], "status": step["final_status"]})
+
+    identity_ok = "face_changed" not in face_flags and vlm.get("same_person") is not False
+    final = {"passed": identity_ok and all(s["verified"] for s in steps), "identity_ok": identity_ok,
+             "products": rows, "vlm": vlm, "face": report.get("face"), "face_flags": face_flags}
+    sequence = SimpleNamespace(output=output, image=output.image_bytes, steps=steps)
+    if identity_ok:
+        await _complete_sequence(session, job, engine, sequence, layers, 0, final)
+    else:
+        await _hold_final(session, job, engine, sequence, 0, final)
+
+
 async def _complete_sequence(session, job: TryOnJob, provider: VirtualTryOnProvider, sequence, layers: list[_Layer], cost: int, final: dict) -> None:  # noqa: ANN001
     """Every product verified: deliver the final FASHN output untouched."""
     output = sequence.output
@@ -1028,6 +1135,8 @@ async def _hold_final(session, job: TryOnJob, provider: VirtualTryOnProvider, se
         "height": height,
         "steps": job.steps,
     }
+    job.provider = provider.name
+    job.provider_model = provider.model
     await session.commit()
 
 
