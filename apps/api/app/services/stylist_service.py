@@ -181,6 +181,25 @@ _ITEM_FOLD = {
 }
 # a word in the request that narrows the item: a "nose ring" is not any ring
 _QUALIFIERS = {"nose": {"nose", "nath", "nathni", "septum"}}
+# listings that carry the item's name but are a different piece. Live:
+# "gold maang tikka" picked a silver "Hairband Maang Tikka Headband", and it
+# came out as a crown.
+_LOOKALIKES = {
+    "tikka": re.compile(r"\b(head ?bands?|hair ?bands?|tiaras?|crowns?|head ?chains?|headpieces?|matha ?patti|sheeshpatti)\b"),
+}
+
+
+def _fit(term: str, name: str) -> int:
+    """How well a listing fits the ask, for ordering only: the colour asked
+    for named in the title first, a look-alike piece last. Nothing is dropped,
+    so an item never disappears for want of a perfect listing."""
+    words = _words(name)
+    asked_colours = _words(term) & _COLOUR_WORDS
+    score = 2 if asked_colours & words else 0
+    for item, lookalike in _LOOKALIKES.items():
+        if item in _words(term) and lookalike.search(name.lower()) and not lookalike.search(term.lower()):
+            score -= 3
+    return score
 _COSTUME = re.compile(
     r"\b(costume|cosplay|halloween|belly ?danc\w*|fancy dress|toys?|dolls?|kids?|children|child|toddlers?|infants?)\b"
 )
@@ -484,7 +503,7 @@ async def _fetch_pool(
             results = [r for r in results if not _unsuitable(term, r.raw.name, req.prompt)]
             # only listings that are the item asked for, while any are
             exact = [r for r in results if _is_the_item(term, r.raw.name)]
-            results = exact or results
+            results = sorted(exact or results, key=lambda r: -_fit(term, r.raw.name))
             # Retailers match words, not shoppers: "men leather ankle boots"
             # still returns women's heels, and those became the alternatives
             # offered under a man's boots. Filter each term separately, so

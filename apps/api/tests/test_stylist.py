@@ -830,3 +830,19 @@ def test_items_beyond_the_look_limit_are_named_not_dropped_silently():
     note = _left_out_note(terms[5:], 5, "women")
     assert "up to 5 products" in note and "gold ring, gold watch" in note and "women" not in note
     assert _left_out_note([], 5, "women") == ""
+
+
+def test_the_colour_asked_for_ranks_first_and_a_lookalike_piece_last():
+    # Live: "gold maang tikka" picked a silver "Hairband Maang Tikka Headband"; it came out as a crown.
+    from app.services.stylist_service import _fit
+
+    term = "women gold maang tikka"
+    names = [
+        "Assyrian Style Flag Leaves Tassel Hairband Maang Tikka Headband",
+        "Kundan Pearl Maang Tikka",
+        "Maang Tikka Indian Gold Plated Red Kundan",
+    ]
+    ranked = sorted(names, key=lambda n: -_fit(term, n))
+    assert ranked == ["Maang Tikka Indian Gold Plated Red Kundan", "Kundan Pearl Maang Tikka", ranked[-1]]
+    assert "Headband" in ranked[-1]
+    assert _fit("women gold tikka headband", names[0]) == 0  # asked for a headband: no penalty
