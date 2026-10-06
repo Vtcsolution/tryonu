@@ -132,7 +132,8 @@ class Settings(BaseSettings):
     TRYON_DIRECT_VLM_QC: bool = False
     # several products: one FASHN call each, in order. Caps are checked before the
     # first call, so a look over the limit is refused without spending anything
-    TRYON_DIRECT_MAX_PRODUCTS: int = 10
+    # more products than this in one look and quality drops (skin tone, held items); 2026-10-06
+    TRYON_DIRECT_MAX_PRODUCTS: int = 5
     # How a look of 2+ products is drawn. A single product always uses FASHN.
     # "hybrid": the garments (dress, lehenga, top, bottom, jacket) through FASHN
     # Try-On Max, then every other product (jewellery, shoes, bags, watches,

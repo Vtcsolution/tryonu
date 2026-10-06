@@ -455,7 +455,9 @@ async def _fetch_pool(
     WHERE/ORDER BY. Each candidate keeps the term that found it, so
     ask_stylist can offer real alternatives at other price points for
     whichever ones the LLM ends up choosing."""
-    terms = _extract_search_terms(req.prompt, gender)
+    # only the first max_items things named are searched: a look applies at
+    # most that many products, and ask_stylist tells the shopper which were left out
+    terms = _extract_search_terms(req.prompt, gender)[: req.max_items]
     if terms:
         # One short search per distinct item mentioned (see
         # _extract_search_terms) — a multi-item outfit prompt otherwise
@@ -599,6 +601,17 @@ async def _shopper_gender(db: AsyncSession, user_id: str, prompt: str) -> str | 
     return audience if audience in ("men", "women") else None
 
 
+def _left_out_note(left_out: list[str], max_items: int, gender: str | None) -> str:
+    """Said plainly, never dropped silently: which named items aren't in this look."""
+    if not left_out:
+        return ""
+    names = [t.removeprefix(f"{gender} ") if gender else t for t in left_out]
+    return (
+        f" A look can have up to {max_items} products, so I used the first {max_items} you named. "
+        f"Not included: {', '.join(names)}. Ask for them in a separate look."
+    )
+
+
 async def ask_stylist(
     db: AsyncSession, *, user_id: str, req: StylistAskRequest
 ) -> tuple[StylistRequest, dict[str, tuple[str, list[LiveSearchResult]]]]:
@@ -609,7 +622,9 @@ async def ask_stylist(
     # An explicit "build around this" anchor takes priority over general
     # taste — the user asked for something specific, not just a good match.
     profile = _wardrobe_anchor_profile(wardrobe_item) if wardrobe_item else await build_taste_profile(db, user_id)
-    pool = await _fetch_pool(req, profile, await _shopper_gender(db, user_id, req.prompt))
+    gender = await _shopper_gender(db, user_id, req.prompt)
+    pool = await _fetch_pool(req, profile, gender)
+    left_out = _extract_search_terms(req.prompt, gender)[req.max_items :]
     candidates = _trim_pool(pool)
     llm_candidates = [
         StylistCandidate(
@@ -728,7 +743,7 @@ async def ask_stylist(
         budget_min_cents=req.budget_min_cents,
         budget_max_cents=req.budget_max_cents,
         style=req.style,
-        response_summary=recommendation.summary,
+        response_summary=recommendation.summary + _left_out_note(left_out, req.max_items, gender),
         recommended_product_ids=[p.id for p in chosen_products],
         recommended_outfit_id=outfit.id if outfit else None,
     )

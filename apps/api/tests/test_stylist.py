@@ -820,3 +820,13 @@ def test_each_listing_must_be_the_item_asked_for_and_one_real_product():
     assert not _unsuitable("women belly dance head chain", "Belly Dance Coin Head Chain", "a belly dance costume")
     assert not _unsuitable("women pink lehenga", "3 Piece Lehenga Suit", "pink lehenga")  # a set is one outfit
     assert not _unsuitable("women pink lehenga", "Customized Baby Pink Lehenga Choli", "pink lehenga")
+
+
+def test_items_beyond_the_look_limit_are_named_not_dropped_silently():
+    from app.services.stylist_service import _extract_search_terms, _left_out_note
+
+    prompt = "pink lehenga, gold maang tikka, jhumka earrings, gold necklace, nose ring, gold ring, gold watch"
+    terms = _extract_search_terms(prompt, "women")
+    note = _left_out_note(terms[5:], 5, "women")
+    assert "up to 5 products" in note and "gold ring, gold watch" in note and "women" not in note
+    assert _left_out_note([], 5, "women") == ""

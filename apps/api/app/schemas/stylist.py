@@ -15,7 +15,7 @@ class StylistAskRequest(BaseModel):
     budget_min_cents: int | None = None
     budget_max_cents: int | None = None
     style: str | None = None
-    max_items: int = 6
+    max_items: int = 5  # the most products one try-on look applies
     # "Build an outfit around my black trousers" — a wardrobe item the
     # stylist should treat as a fixed anchor when picking real catalog
     # products to complement it. Never recommended itself (it's not a
