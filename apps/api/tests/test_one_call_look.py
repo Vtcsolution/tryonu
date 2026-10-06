@@ -295,3 +295,56 @@ async def test_a_hybrid_look_with_no_garment_is_one_gemini_call(client, db, dire
 
     assert fashn.calls == []
     assert len(FakeGemini.instances[0].calls) == 1
+
+
+class RecordingFashn(PaintingFashn):
+    def __init__(self, available: int = 100) -> None:
+        super().__init__(available)
+        self.payloads = []
+
+    async def generate(self, payload, *, on_submitted=None, purpose=""):  # noqa: ANN001
+        self.payloads.append(payload)
+        return await super().generate(payload, on_submitted=on_submitted, purpose=purpose)
+
+
+def _use_board(monkeypatch, direct):  # noqa: ANN001
+    _use_gemini(monkeypatch, direct)
+    monkeypatch.setattr(direct, "TRYON_MULTI_ENGINE", "fashn_board")
+
+    def no_cutout(*_a, **_kw):  # noqa: ANN002, ANN003 — the board keeps the plain photo
+        raise RuntimeError("cutout disabled in tests")
+
+    monkeypatch.setattr("app.services.tryon_quality.cutout.product_cutout_mask", no_cutout)
+
+
+async def test_a_board_look_is_one_fashn_call_with_every_product_in_one_image(client, db, direct, monkeypatch):  # noqa: F811
+    _use_board(monkeypatch, direct)
+    job, layers = await _job(client, db, monkeypatch, n=4)
+    layers[0].slot = OutfitSlot.DRESS
+    layers[0].name = "Pink Bridal Dress"
+    layers[1].name = "Gold Jhumka Earrings"
+    fashn = RecordingFashn(available=4)  # exactly one 2k-quality render in tests
+
+    await tryon_tasks._run_direct_job(db, job, fashn, layers)
+
+    assert len(fashn.calls) == 1 and not FakeGemini.instances  # one FASHN call, no Gemini
+    payload = fashn.payloads[0]
+    board = Image.open(io.BytesIO(base64.b64decode(payload.garment_image_url.split(",", 1)[1])))
+    assert board.size == (1536, 2048)  # the composed look, not one product photo
+    assert "Earrings" in payload.prompt and "Outfit" in payload.prompt
+    done = await _reload(db, job.id)
+    assert done.status == tryon_tasks.JobStatus.COMPLETED and done.provider == "fashn"
+    assert len(done.result.placements) == 4
+    assert all(s["board_key"] and s["provider_job_id"] == "fashn_1" for s in done.steps)
+
+
+async def test_a_board_look_the_authorization_cannot_cover_is_refused_before_any_call(client, db, direct, monkeypatch):  # noqa: F811
+    _use_board(monkeypatch, direct)
+    job, layers = await _job(client, db, monkeypatch, n=3)
+    fashn = RecordingFashn(available=3)  # one render costs 4 here
+
+    await tryon_tasks._run_direct_job(db, job, fashn, layers)
+
+    refused = await _reload(db, job.id)
+    assert refused.status == tryon_tasks.JobStatus.FAILED and "needs 4 FASHN credits" in refused.error_message
+    assert fashn.calls == []

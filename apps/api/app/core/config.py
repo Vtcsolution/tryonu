@@ -140,7 +140,10 @@ class Settings(BaseSettings):
     # fidelity, two generations in total, FASHN credits only for the garments.
     # "gemini_single": the whole look in one Gemini generation.
     # "fashn_chain": one FASHN call per product (costly; quality drops per pass).
-    TRYON_MULTI_ENGINE: Literal["hybrid", "gemini_single", "fashn_chain"] = "hybrid"
+    # "fashn_board": every product composed into ONE look image (cut out,
+    # labelled) and sent as the product image of ONE FASHN Try-On Max call: 2
+    # credits per look at 1k balanced, whatever the number of products.
+    TRYON_MULTI_ENGINE: Literal["hybrid", "gemini_single", "fashn_chain", "fashn_board"] = "hybrid"
     TRYON_DIRECT_MAX_FASHN_CREDITS: int = 20
     # a multi-product render is several minutes long; the queue must not kill it
     TRYON_JOB_TIMEOUT_SECONDS: int = 5400

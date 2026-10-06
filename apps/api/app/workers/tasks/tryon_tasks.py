@@ -50,6 +50,7 @@ from app.services.outfit_slots import (
 from app.services.storage_service import get_storage, new_key
 from app.ai.providers.openai_image import MAX_PIECES as GEMINI_MAX_PIECES
 from app.services.tryon_direct.final_check import final_check, vlm_final_check
+from app.services.tryon_direct.look_board import BoardItem, build_look_board
 from app.services.tryon_quality.product_prep import describe_product
 from app.services.tryon_direct.qc import run_qc
 from app.services.tryon_direct.orchestrate import (
@@ -784,7 +785,15 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
             hybrid = len(products) >= 2 and mode == "hybrid" and 0 < len(garment_at) < len(products)
             one_call = len(products) >= 2 and (mode == "gemini_single" or (mode == "hybrid" and not garment_at))
             all_products, all_layers = products, layers
-            if hybrid:
+            board = len(products) >= 2 and mode == "fashn_board"
+            if board:
+                check_plan(
+                    products,
+                    max_products=min(settings.TRYON_DIRECT_MAX_PRODUCTS, GEMINI_MAX_PIECES),
+                    cost_per_render=0,
+                    max_credits=0,
+                )
+            elif hybrid:
                 # garments first (FASHN), then the rest (one Gemini call)
                 order = garment_at + [i for i in range(len(products)) if i not in garment_at]
                 all_products = [products[i] for i in order]
@@ -824,6 +833,19 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
 
         if one_call:
             await _run_one_call_look(session, job, person, products, layers)
+            return
+        if board:
+            available = await provider.credits_available()
+            if cost > available:
+                await _fail_job(
+                    session,
+                    job,
+                    f"We couldn't start this try-on: this look needs {cost} FASHN credits but the current "
+                    f"authorization allows {available}. Nothing was sent.",
+                    refund=True,
+                )
+                return
+            await _run_one_call_look(session, job, person, products, layers, board_engine=provider)
             return
 
         try:
@@ -980,6 +1002,54 @@ def _bgr(data: bytes) -> np.ndarray:
     return cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
 
 
+async def _draw_look_board(session, job: TryOnJob, fashn: VirtualTryOnProvider, person: bytes, products: list[ProductInput], layers: list[_Layer], steps: list[dict]):  # noqa: ANN001, ANN202
+    """Every product composed into one labelled look image, sent as the product
+    image of ONE FASHN Try-On Max call. Returns FASHN's output, or None once the
+    job has been failed (refunded) or held (FASHN accepted and billed it)."""
+    items = [
+        BoardItem(p.image, p.image_url, p.name, (layer.slot or OutfitSlot.OTHER) in _HYBRID_GARMENTS)
+        for p, layer in zip(products, layers)
+    ]
+    try:
+        board, labels = await asyncio.to_thread(build_look_board, items)
+    except Exception as exc:  # noqa: BLE001 — nothing was sent
+        await _fail_job(session, job, f"We couldn't prepare this look: {exc}. Nothing was sent.", refund=True)
+        return None
+    board_key = new_key("tryon", "direct-inputs", job.user_id, f"{job.id}-board.png")
+    get_storage().put(board_key, board, "image/png")
+    for step, label in zip(steps, labels):
+        step["board_key"] = board_key
+        step["board_label"] = label
+
+    async def submitted(provider_job_id: str) -> None:
+        job.provider_job_id = provider_job_id
+        for step in steps:
+            step["provider_job_id"] = provider_job_id
+        job.steps = [dict(s) for s in steps]
+        await session.commit()
+
+    prompt = (
+        "Dress the person in every item shown in the product image, each exactly as shown: "
+        + ", ".join(dict.fromkeys(labels))
+        + ". Keep the person's face, expression, skin tone, hair, body, pose and background unchanged. "
+        "Do not add anything that is not shown."
+    )
+    job.progress = f"Drawing all {len(products)} products in one image"
+    await session.commit()
+    try:
+        return await fashn.generate(
+            TryOnInput(model_image_url=to_data_uri(person), garment_image_url=to_data_uri(board), prompt=prompt),
+            on_submitted=submitted,
+            purpose=f"board:{job.id}"[:160],
+        )
+    except TryOnProviderError as exc:
+        if exc.provider_job_id or job.provider_job_id:
+            await _hold_failure(session, job, f"FASHN stopped the look: {exc}", steps=steps)
+        else:
+            await _fail_job(session, job, f"FASHN could not start this try-on: {exc}", refund=True)
+        return None
+
+
 _COVERS_FACE = re.compile(r"\b(sunglasses|glasses|eyeglasses|spectacles|goggles|mask|veil|niqab)\b", re.IGNORECASE)
 
 
@@ -1008,6 +1078,7 @@ async def _run_one_call_look(  # noqa: ANN001
     *,
     base: bytes | None = None,
     prior_steps: list[dict] | None = None,
+    board_engine: VirtualTryOnProvider | None = None,
 ) -> None:
     """The whole look in ONE Gemini generation: the customer's photo and every
     product photo in a single request, the output stored exactly as returned.
@@ -1021,7 +1092,7 @@ async def _run_one_call_look(  # noqa: ANN001
     are drawn, on that image, and the final check covers every product."""
     prior = [dict(s) for s in prior_steps or []]
     first_new = len(prior)
-    engine = GeminiImageTryOnProvider(
+    engine = board_engine or GeminiImageTryOnProvider(
         api_key=settings.GEMINI_API_KEY,  # type: ignore[arg-type]
         model=settings.GEMINI_IMAGE_MODEL,
         image_size=settings.GEMINI_IMAGE_SIZE,
@@ -1051,7 +1122,7 @@ async def _run_one_call_look(  # noqa: ANN001
     # tight diamond nose hoop came back as a large nath on a chain). Cached
     # per product photo; the product name when the vision model is unavailable.
     descriptions = [p.name for p in to_draw]
-    if settings.OPENAI_API_KEY:
+    if settings.OPENAI_API_KEY and board_engine is None:
         await _progress_writer(session, job)("Reading each product's details")
         descriptions = list(
             await asyncio.gather(*(describe_product(_bgr(p.image), p.image_url, p.name) for p in to_draw))
@@ -1067,11 +1138,16 @@ async def _run_one_call_look(  # noqa: ANN001
         )
         for p, layer, description in zip(to_draw, draw_layers, descriptions)
     ]
-    try:
-        output = await engine.generate_outfit(to_data_uri(base or person), pieces)
-    except TryOnProviderError as exc:
-        await _fail_job(session, job, f"The image generator could not draw this look: {exc}", refund=True)
-        return
+    if board_engine is not None:
+        output = await _draw_look_board(session, job, board_engine, base or person, to_draw, draw_layers, steps)
+        if output is None:
+            return
+    else:
+        try:
+            output = await engine.generate_outfit(to_data_uri(base or person), pieces)
+        except TryOnProviderError as exc:
+            await _fail_job(session, job, f"The image generator could not draw this look: {exc}", refund=True)
+            return
 
     storage = get_storage()
     raw_key = new_key("tryon", "direct-steps", job.user_id, f"{job.id}-all.png")
@@ -1111,7 +1187,9 @@ async def _run_one_call_look(  # noqa: ANN001
     final = {"passed": identity_ok and all(s["verified"] for s in steps), "identity_ok": identity_ok,
              "products": rows, "vlm": vlm, "face": report.get("face"), "face_flags": face_flags}
     sequence = SimpleNamespace(output=output, image=output.image_bytes, steps=steps)
-    label = engine if not prior else SimpleNamespace(name="fashn+gemini", model=f"tryon-max+{engine.model}"[:64])
+    label = engine if not prior or board_engine is not None else SimpleNamespace(
+        name="fashn+gemini", model=f"tryon-max+{engine.model}"[:64]
+    )
     if identity_ok:
         await _complete_sequence(session, job, label, sequence, layers, 0, final)
     else:
