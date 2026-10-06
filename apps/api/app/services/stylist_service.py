@@ -40,6 +40,10 @@ from app.services.product_ingestion_service import persist_single_product
 
 _CANDIDATE_POOL_SIZE = 40
 _LIVE_FETCH_POOL_SIZE = 60  # widened before personalized re-ranking trims to _CANDIDATE_POOL_SIZE
+# results fetched for EACH item of a multi-item ask, so its "other options"
+# row offers a real choice. Live: 9 items shared 60 results, then a 40-result
+# trim, and each item showed only 3 options.
+_PER_ITEM_RESULTS = 24
 _RECENT_TURNS = 3
 
 # Real, live-confirmed bug: eBay indexes individual product listings, not
@@ -387,6 +391,12 @@ def _narrow_term(term: str) -> str | None:
 async def _fetch_candidates(
     req: StylistAskRequest, profile: TasteProfile | None, gender: str | None = None
 ) -> list[_Candidate]:
+    return _trim_pool(await _fetch_pool(req, profile, gender))
+
+
+async def _fetch_pool(
+    req: StylistAskRequest, profile: TasteProfile | None, gender: str | None = None
+) -> list[_Candidate]:
     """Every candidate is fetched fresh from retailer APIs for this exact
     prompt — nothing here is a pre-synced local row. Budget filtering and
     personalized re-ranking both happen over that live pool in Python
@@ -400,7 +410,7 @@ async def _fetch_candidates(
         # _extract_search_terms) — a multi-item outfit prompt otherwise
         # returns zero results, since no single real listing's title
         # contains every item type at once.
-        per_term_limit = max(4, _LIVE_FETCH_POOL_SIZE // len(terms))
+        per_term_limit = max(_PER_ITEM_RESULTS, _LIVE_FETCH_POOL_SIZE // len(terms))
         term_results = list(await asyncio.gather(*(live_search(t, limit=per_term_limit) for t in terms)))
 
         # A term that found nothing doesn't mean the item isn't out
@@ -448,7 +458,12 @@ async def _fetch_candidates(
         # RawProduct with the same names, so this works unmodified even
         # though its signature says Product.
         pool.sort(key=lambda c: affinity_score(c.result.raw, profile), reverse=True)  # type: ignore[arg-type]
+    return pool
 
+
+def _trim_pool(pool: list[_Candidate]) -> list[_Candidate]:
+    """The shortlist the model chooses from. Alternatives come from the
+    whole pool, so trimming here never hides an option from the shopper."""
     # trim without dropping any item entirely: take from each item's
     # (already taste-ranked) results in turn
     by_term: dict[str, list[_Candidate]] = {}
@@ -463,7 +478,7 @@ async def _fetch_candidates(
     return trimmed
 
 
-_MAX_ALTERNATIVES = 8
+_MAX_ALTERNATIVES = _PER_ITEM_RESULTS
 
 
 def _one_of_each_item(chosen: list[_Candidate], pool: list[_Candidate], max_items: int) -> list[_Candidate]:
@@ -539,7 +554,8 @@ async def ask_stylist(
     # An explicit "build around this" anchor takes priority over general
     # taste — the user asked for something specific, not just a good match.
     profile = _wardrobe_anchor_profile(wardrobe_item) if wardrobe_item else await build_taste_profile(db, user_id)
-    candidates = await _fetch_candidates(req, profile, await _shopper_gender(db, user_id, req.prompt))
+    pool = await _fetch_pool(req, profile, await _shopper_gender(db, user_id, req.prompt))
+    candidates = _trim_pool(pool)
     llm_candidates = [
         StylistCandidate(
             index=i,
@@ -631,7 +647,7 @@ async def ask_stylist(
     # re-locate and persist one via POST /products/select-live if picked.
     picked_ids = {c.result.raw.retailer_product_id for c in chosen}
     alternatives_by_product_id = {
-        product.id: (c.term, _alternatives_for(c, candidates, picked_ids)) for product, c in zip(chosen_products, chosen)
+        product.id: (c.term, _alternatives_for(c, pool, picked_ids)) for product, c in zip(chosen_products, chosen)
     }
 
     outfit: Outfit | None = None

@@ -1291,7 +1291,9 @@ function AlternativesRow({
   const busy = busyId !== undefined;
   return (
     <div>
-      <p className="truncate text-[11px] text-faint">Other options for &ldquo;{label}&rdquo;</p>
+      <p className="truncate text-[11px] text-faint">
+        {alternatives.length} other options for &ldquo;{label}&rdquo;{alternatives.length > 3 ? " · scroll for more" : ""}
+      </p>
       <div className="mt-1.5 flex gap-2.5 overflow-x-auto pb-1.5">
         {alternatives.map((alt) => {
           const thumb = thumbnailUrl(alt.images[0]);
