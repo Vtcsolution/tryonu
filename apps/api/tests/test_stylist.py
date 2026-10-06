@@ -801,3 +801,22 @@ def test_a_dupatta_search_never_brings_back_a_whole_outfit():
     assert _whole_outfit_for_a_piece("women dupatta", "DESIGNER NET LEHENGA CHOLI WITH DUPATTA FOR INDIAN")
     assert not _whole_outfit_for_a_piece("women dupatta", "Pink Net Embroidered Dupatta With Gold Border")
     assert not _whole_outfit_for_a_piece("pink bridal lehenga dress", "Pink Lehenga Choli With Dupatta")
+
+
+def test_each_listing_must_be_the_item_asked_for_and_one_real_product():
+    # Live: a bridal look came back like a costume. "maang tikka" found a
+    # belly-dance head chain, "nose ring" an 8-pack, "nose ring" a finger ring.
+    from app.services.stylist_service import _is_the_item, _unsuitable
+
+    assert not _is_the_item("women gold maang tikka", "Silver Gold Coin Tassel Belly Dance Head Chain")
+    assert _is_the_item("women gold maang tikka", "Kundan Gold Maang Tikka With Pearls")
+    assert not _is_the_item("women small gold nose ring", "2Ct Round Diamond Bridal Engagement Ring")
+    assert _is_the_item("women small gold nose ring", "Small Thin Gold Nose Ring Hoop")
+    assert _is_the_item("women elegant gold wristwatch", "Vintage Gold Bracelet Watch Women")
+    assert _is_the_item("women embellished pink khussa", "Handmade Jutti Flats Women Pink")
+
+    assert _unsuitable("women small gold nose ring", "Tucnoeu 8 Pcs Dangle Nose Rings Hoop", "a nose ring")
+    assert _unsuitable("women gold maang tikka", "Belly Dance Coin Head Chain", "bridal look")
+    assert not _unsuitable("women belly dance head chain", "Belly Dance Coin Head Chain", "a belly dance costume")
+    assert not _unsuitable("women pink lehenga", "3 Piece Lehenga Suit", "pink lehenga")  # a set is one outfit
+    assert not _unsuitable("women pink lehenga", "Customized Baby Pink Lehenga Choli", "pink lehenga")

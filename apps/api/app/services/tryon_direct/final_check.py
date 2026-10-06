@@ -39,7 +39,9 @@ _VLM_INSTRUCTIONS = (
     '"present": true|false, "color_correct": true|false, "details_preserved": true|false, '
     '"placement_correct": true|false, "note": "short, concrete"}]}. '
     "present = this exact product is visibly worn or carried, not a similar one. If you cannot see it clearly, "
-    "answer false. Do not guess."
+    "answer false. Do not guess. placement_correct = worn or carried naturally on the right body part, at real "
+    "scale and perspective, behind or under what should cover it; a product that looks pasted on like a flat "
+    "sticker, floats, or sits in front of a floor-length outfit instead of on the feet is false."
 )
 
 

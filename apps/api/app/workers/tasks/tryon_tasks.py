@@ -1033,7 +1033,10 @@ async def _draw_look_board(session, job: TryOnJob, fashn: VirtualTryOnProvider, 
         + ", ".join(dict.fromkeys(labels))
         + ". Copy each product's exact shape, colour and pattern, including a watch's face shape and strap. "
         "Use only the labelled products: ignore any hand, mannequin or jewellery that merely appears in a "
-        "product's photo. Keep the person's face, expression, skin tone, hair, body, pose and background "
+        "product's photo. Shoes go on the feet: when the outfit reaches the floor, show at most the shoe "
+        "tips at the hem, never the shoes placed in front of the outfit. Every product must be worn or carried "
+        "naturally, with real scale, perspective and shadows, never as a flat cut-out laid over the photo. "
+        "Keep the person's face, expression, skin tone, hair, body, pose and background "
         "unchanged. Do not add anything that is not shown."
     )
     job.progress = f"Drawing all {len(products)} products in one image"

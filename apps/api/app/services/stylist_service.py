@@ -137,6 +137,7 @@ _MEN_WORDS = {
 _COLOUR_WORDS = {
     "white", "black", "red", "blue", "green", "pink", "yellow", "maroon", "grey", "gray", "gold",
     "silver", "brown", "navy", "purple", "orange", "beige", "cream", "ivory", "teal", "mint",
+    "multicolor", "multicolour", "multicolored", "multicoloured", "rainbow", "aurora",
 }
 # words that mean one listing is a whole set, and the pieces such a set includes
 _SET_LISTING = re.compile(r"(\d+\s*(piece|pc|pcs)\b|\bsuit\b|\bco-?ord\b|\boutfit\b)")
@@ -163,6 +164,56 @@ def _whole_outfit_for_a_piece(term: str, name: str) -> bool:
 
 def _words(text: str) -> set[str]:
     return set(re.findall(r"[a-z]+", text.lower()))
+
+
+# Live, a bridal look came back looking like a costume: "gold maang tikka"
+# found a belly-dance coin head chain, "nose ring" an 8-pack of different
+# nose rings, "gold bridal necklace" a rainbow crystal set. Each listing must
+# now actually be the item asked for, and be one product, not a costume.
+_ITEM_FOLD = {
+    "wristwatch": "watch", "wristwatches": "watch", "smartwatch": "watch", "watches": "watch",
+    "jutti": "khussa", "juttis": "khussa", "mojari": "khussa", "mojaris": "khussa", "khussas": "khussa",
+    "jhumka": "earring", "jhumkas": "earring", "jhumki": "earring", "earrings": "earring",
+    "lehnga": "lehenga", "lehengas": "lehenga", "sari": "saree", "sarees": "saree",
+    "clutch": "bag", "clutches": "bag", "purse": "bag", "handbag": "bag", "handbags": "bag", "bags": "bag",
+    "choker": "necklace", "necklaces": "necklace", "haar": "necklace",
+    "bracelet": "bangle", "bracelets": "bangle", "bangles": "bangle", "kada": "bangle",
+}
+# a word in the request that narrows the item: a "nose ring" is not any ring
+_QUALIFIERS = {"nose": {"nose", "nath", "nathni", "septum"}}
+_COSTUME = re.compile(
+    r"\b(costume|cosplay|halloween|belly ?danc\w*|fancy dress|toys?|dolls?|kids?|children|child|toddlers?|infants?)\b"
+)
+_MULTI_PACK = re.compile(r"\b\d+\s*(pcs|pc|pieces|pairs)\b|\b(set|pack|lot) of \d+|\b\d+\s*-?\s*pack\b")
+_ONE_PIECE_ITEMS = {
+    "watch", "bag", "khussa", "earring", "necklace", "bangle", "ring", "rings", "tikka", "pendant", "anklet",
+    "anklets", "payal", "shoe", "shoes", "heels", "sandals", "flats", "chappal", "chappals", "sunglasses",
+}
+
+
+def _fold(word: str) -> str:
+    return _ITEM_FOLD.get(word, word)
+
+
+def _is_the_item(term: str, name: str) -> bool:
+    """The listing names the item the shopper asked for (any of its item
+    words, folded so a "jutti" counts as a "khussa"), and any qualifier."""
+    asked = {_fold(w) for w in _words(term) & _ITEM_CATEGORY_WORDS}
+    have = {_fold(w) for w in _words(name)}
+    if asked and not asked & have:
+        return False
+    return all(_words(name) & alts for q, alts in _QUALIFIERS.items() if q in _words(term))
+
+
+def _unsuitable(term: str, name: str, prompt: str) -> bool:
+    """A costume the shopper didn't ask for, or a multi-pack offered for an
+    item worn singly: its photo shows many different designs, so the try-on
+    can only guess which one was meant."""
+    lowered = name.lower()
+    if _COSTUME.search(lowered) and not _COSTUME.search(prompt.lower()):
+        return True
+    one_piece = {_fold(w) for w in _words(term) & _ITEM_CATEGORY_WORDS} & _ONE_PIECE_ITEMS
+    return bool(one_piece) and bool(_MULTI_PACK.search(lowered))
 
 
 def _colour_conflicts(prompt: str, name: str) -> bool:
@@ -428,6 +479,10 @@ async def _fetch_pool(
         pool: list[_Candidate] = []
         seen_ids: set[tuple[str, str]] = set()
         for term, results in zip(terms, term_results):
+            results = [r for r in results if not _unsuitable(term, r.raw.name, req.prompt)]
+            # only listings that are the item asked for, while any are
+            exact = [r for r in results if _is_the_item(term, r.raw.name)]
+            results = exact or results
             # Retailers match words, not shoppers: "men leather ankle boots"
             # still returns women's heels, and those became the alternatives
             # offered under a man's boots. Filter each term separately, so
