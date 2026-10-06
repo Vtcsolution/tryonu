@@ -18,6 +18,7 @@ def test_labels_name_what_each_product_is():
     assert label_for("Kundan Gold Maang Tikka", False) == "Maang tikka"
     assert label_for("Gold Black Rhinestone Choker Necklace", False) == "Necklace"
     assert label_for("Size 7 Multi Strand Dome Statement Ring", False) == "Ring"
+    assert label_for("Gold Glitter Evening Clutch Bag Sparkly Bridal Purse", False) == "Clutch"
     assert label_for("Designer Georgette Lehenga Choli", True) == "Outfit"
     assert label_for("Pink Embroidered Lehenga Choli with Dupatta", True) == "Outfit"
 

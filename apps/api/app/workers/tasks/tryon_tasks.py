@@ -1128,6 +1128,9 @@ async def _draw_look_board(session, job: TryOnJob, fashn: VirtualTryOnProvider, 
         + replacing
         + " Copy each product's exact shape, colour and pattern, including a watch's face shape and strap, "
         "and add nothing a product does not have: no chain on a plain nose ring, no extra pieces. "
+        "Every item is shown enlarged to the same size in the product image; on the person draw each at its "
+        "real-life size, worn or held naturally: a clutch fits in one hand, earrings, a nose ring and a ring "
+        "are small. "
         "Use only the labelled products: ignore any hand, mannequin or jewellery that merely appears in a "
         "product's photo, and never take a model's face, skin tone, hair or body from it. The person's skin "
         "tone must stay exactly as in their own photo on the face, neck, arms and hands. Shoes go on the feet: when the outfit reaches the floor, show at most the shoe "

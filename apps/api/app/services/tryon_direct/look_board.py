@@ -41,6 +41,7 @@ _LABELS = [
     (re.compile(r"\b(rings?)\b", re.I), "Ring"),
     (re.compile(r"\b(sunglasses|glasses|eyeglasses)\b", re.I), "Sunglasses"),
     (re.compile(r"\b(khussa|jutti|heels|sandals?|shoes|sneakers|flats|boots|loafers)\b", re.I), "Shoes"),
+    (re.compile(r"\b(clutch|clutches)\b", re.I), "Clutch"),
     (re.compile(r"\b(clutch|handbag|bag|tote|purse|potli)\b", re.I), "Bag"),
     (re.compile(r"\b(dupatta|stole|shawl|scarf)\b", re.I), "Dupatta"),
 ]
