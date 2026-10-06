@@ -53,11 +53,14 @@ class BoardItem:
 
 
 def label_for(name: str, garment: bool) -> str:
+    # A garment is always the whole outfit, whatever its title mentions.
+    # Live: "Pink Embroidered Lehenga Choli with Dupatta" was labelled
+    # "Dupatta", and FASHN drew only the dupatta over an invented plain suit.
+    if garment:
+        return "Outfit"
     for pattern, label in _LABELS:
         if pattern.search(name):
             return label
-    if garment:
-        return "Outfit"
     words = re.findall(r"[A-Za-z]+", name)
     return " ".join(words[:3]) or "Product"
 

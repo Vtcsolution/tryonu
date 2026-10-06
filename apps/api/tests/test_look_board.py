@@ -17,6 +17,7 @@ def test_labels_name_what_each_product_is():
     assert label_for("Gold Black Rhinestone Choker Necklace", False) == "Necklace"
     assert label_for("Size 7 Multi Strand Dome Statement Ring", False) == "Ring"
     assert label_for("Designer Georgette Lehenga Choli", True) == "Outfit"
+    assert label_for("Pink Embroidered Lehenga Choli with Dupatta", True) == "Outfit"
 
 
 def test_every_product_is_on_the_board_even_when_cutout_fails(monkeypatch):
