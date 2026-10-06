@@ -56,3 +56,29 @@ def test_a_garment_worn_by_a_model_goes_on_the_board_without_her_head(monkeypatc
     jewel = look_board._cut_out(BoardItem(photo, "u2", "Gold Earrings", False))
     assert worn.size == (600, 600)  # rows above the chin dropped
     assert jewel.size == (600, 900)  # jewellery photos are never cut
+
+
+def test_a_hand_holding_an_accessory_is_left_off_the_board(monkeypatch):
+    # Live: the clutch photo's red-nailed hand came back holding the clutch.
+    import numpy as np
+
+    from app.services.tryon_direct import look_board
+
+    bgr = np.full((400, 600, 3), 255, np.uint8)
+    bgr[100:300, 100:500] = (40, 180, 220)  # the bag
+    bgr[250:400, 0:180] = (120, 150, 220)  # a hand over its lower-left corner, off the frame
+    mask = np.zeros((400, 600), np.uint8)
+    mask[100:300, 100:500] = 255
+    mask[250:400, 0:180] = 255
+    hand = np.zeros((400, 600), np.uint8)
+    hand[250:400, 0:180] = 255
+    monkeypatch.setattr("app.services.tryon_quality.cutout.person_mask", lambda img, url: hand)
+
+    out, cut = look_board._without_people(bgr, BoardItem(b"", "u", "Gold Clutch Bag", False), mask, 0)
+    assert cut[390, 10] == 0  # the hand outside the bag is gone
+    assert cut[255, 175] == 255 and tuple(out[255, 175]) == (40, 180, 220)  # the covered corner is bag again
+
+    earring_on_ear = np.full((400, 600), 255, np.uint8)  # the person would take everything with them
+    monkeypatch.setattr("app.services.tryon_quality.cutout.person_mask", lambda img, url: earring_on_ear)
+    _, untouched = look_board._without_people(bgr, BoardItem(b"", "u", "Gold Earrings", False), mask, 0)
+    assert (untouched == mask).all()

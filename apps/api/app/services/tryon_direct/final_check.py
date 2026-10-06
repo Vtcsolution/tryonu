@@ -41,7 +41,9 @@ _VLM_INSTRUCTIONS = (
     "present = this exact product is visibly worn or carried, not a similar one. If you cannot see it clearly, "
     "answer false. Do not guess. placement_correct = worn or carried naturally on the right body part, at real "
     "scale and perspective, behind or under what should cover it; a product that looks pasted on like a flat "
-    "sticker, floats, or sits in front of a floor-length outfit instead of on the feet is false."
+    "sticker, floats, or sits in front of a floor-length outfit instead of on the feet is false; so is a product held by an extra hand "
+    "or arm that is not the customer's own, or one given parts it does not have (a chain added to a plain nose "
+    "ring)."
 )
 
 

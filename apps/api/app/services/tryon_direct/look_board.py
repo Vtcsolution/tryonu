@@ -91,6 +91,47 @@ def _below_the_head(bgr: np.ndarray) -> int:
     return min(h - 1, int(face.y + face.h * 1.35))  # past the chin, into the neckline
 
 
+def _without_people(bgr: np.ndarray, item: BoardItem, mask: np.ndarray, top: int) -> tuple[np.ndarray, np.ndarray]:
+    """An accessory's photo and mask without any hand, arm or face holding or
+    wearing it. Where the hand covered the product (fingers over a clutch's
+    corner), the gap inside the product's own outline is filled from the
+    product around it, so the board shows no bite out of it. Kept as is when
+    the person would take most of the product with them (earrings
+    photographed on an ear are found as part of the person)."""
+    from app.services.tryon_quality.cutout import person_mask
+
+    person = (person_mask(bgr if top == 0 else _decode(item.image), item.image_url)[top:] > 127).astype(np.uint8)
+    person = cv2.dilate(person, np.ones((9, 9), np.uint8))
+    product = mask > 127
+    kept = product & (person == 0)
+    if not person.any() or product.sum() == 0 or kept.sum() < 0.5 * product.sum():
+        return bgr, mask
+    hull = np.zeros(mask.shape, np.uint8)
+    points = cv2.findNonZero(kept.astype(np.uint8))
+    cv2.fillConvexPoly(hull, cv2.convexHull(points), 1)
+    gap = ((person > 0) & (hull > 0)).astype(np.uint8)
+    filled = bgr
+    if gap.any():
+        # Bags, watches and jewellery are close to symmetric left to right:
+        # the gap takes the mirrored pixels from the clean side, real texture
+        # rather than a smear. What has no clean mirror is inpainted from the
+        # product only (hand and backdrop first set to the product's colour).
+        filled = bgr.copy()
+        x0, _, w, _ = cv2.boundingRect(points)
+        ys, xs = np.nonzero(gap)
+        mx = np.clip(2 * x0 + w - 1 - xs, 0, bgr.shape[1] - 1)
+        clean = kept[ys, mx] & (gap[ys, mx] == 0)
+        filled[ys[clean], xs[clean]] = bgr[ys[clean], mx[clean]]
+        rest = gap.copy()
+        rest[ys[clean], xs[clean]] = 0
+        if rest.any():
+            filled[~kept & (gap == 0)] = np.median(bgr[kept], axis=0).astype(np.uint8)
+            filled = cv2.inpaint(filled, rest, 7, cv2.INPAINT_TELEA)
+    out = np.where(person > 0, 0, mask).astype(mask.dtype)
+    out[gap > 0] = 255
+    return filled, out
+
+
 def _cut_out(item: BoardItem) -> Image.Image:
     """The product on white, cropped to itself. The original photo, uncut,
     when background removal fails: a product is never dropped from the board.
@@ -108,6 +149,8 @@ def _cut_out(item: BoardItem) -> Image.Image:
         from app.services.tryon_quality.cutout import product_cutout_mask
 
         mask = product_cutout_mask(whole, item.image_url)[top:]  # cached for the whole photo
+        if not item.garment:
+            bgr, mask = _without_people(bgr, item, mask, top)
         keep = mask > 127
         if keep.mean() < 0.01:  # nothing found: keep the whole photo
             raise ValueError("empty cutout")

@@ -32,7 +32,7 @@ def test_real_cutout_is_cached_on_the_second_call(monkeypatch):
 
     calls = []
     orig_get_session = cutout_module._get_session
-    monkeypatch.setattr(cutout_module, "_get_session", lambda: (calls.append(1), orig_get_session())[1])
+    monkeypatch.setattr(cutout_module, "_get_session", lambda model="u2netp": (calls.append(1), orig_get_session(model))[1])
 
     img = _studio_photo((40, 160, 40))
     url = "https://img.example/real-cutout-test-green-cache.jpg"

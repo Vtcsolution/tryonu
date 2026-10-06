@@ -31,28 +31,43 @@ from app.core.logging import logger
 from app.services.storage_service import get_storage
 
 _MODEL_NAME = "u2netp"
-_session = None
+# People (a model's hand, arm or face) in a product photo. u2net_human_seg,
+# U-2-Net weights, Apache 2.0, commercial-use safe like u2netp.
+_PERSON_MODEL = "u2net_human_seg"
+_sessions: dict[str, object] = {}
 
 
-def _get_session():  # noqa: ANN202
-    global _session
-    if _session is None:
+def _get_session(model: str = _MODEL_NAME):  # noqa: ANN202
+    if model not in _sessions:
         from rembg import new_session
 
-        _session = new_session(_MODEL_NAME)
-    return _session
+        _sessions[model] = new_session(model)
+    return _sessions[model]
 
 
-def _cache_key(image_url: str) -> str:
-    return "tryon/cutout/" + hashlib.sha256(image_url.encode()).hexdigest()[:32] + ".png"
+def _cache_key(image_url: str, kind: str = "cutout") -> str:
+    return f"tryon/{kind}/" + hashlib.sha256(image_url.encode()).hexdigest()[:32] + ".png"
 
 
 def product_cutout_mask(image: np.ndarray, image_url: str) -> np.ndarray:
     """A 0..255 alpha mask, same height/width as `image`: ~255 where the
     product is, ~0 where the studio backdrop is. Cached forever per
     product image URL — this never runs twice for the same product."""
+    # fall back to "the whole photo is product"
+    return _cached_mask(image, image_url, _MODEL_NAME, "cutout", fallback=255)
+
+
+def person_mask(image: np.ndarray, image_url: str) -> np.ndarray:
+    """~255 where a person (hand, arm, face, body) is in a product photo.
+    Live: a clutch photo held in a model's hand went on the look board hand
+    and all, and the customer came back with a second, red-nailed hand.
+    Cached per product image URL; no person found, or a failure, is all 0."""
+    return _cached_mask(image, image_url, _PERSON_MODEL, "person", fallback=0)
+
+
+def _cached_mask(image: np.ndarray, image_url: str, model: str, kind: str, *, fallback: int) -> np.ndarray:
     storage = get_storage()
-    key = _cache_key(image_url)
+    key = _cache_key(image_url, kind)
     try:
         cached = storage.read(key)
         mask = cv2.imdecode(np.frombuffer(cached, np.uint8), cv2.IMREAD_GRAYSCALE)
@@ -67,7 +82,7 @@ def product_cutout_mask(image: np.ndarray, image_url: str) -> np.ndarray:
         ok, buf = cv2.imencode(".png", image)
         if not ok:
             raise ValueError("could not encode product image")
-        cut = remove(buf.tobytes(), session=_get_session())
+        cut = remove(buf.tobytes(), session=_get_session(model))
         rgba = cv2.imdecode(np.frombuffer(cut, np.uint8), cv2.IMREAD_UNCHANGED)
         if rgba is None or rgba.shape[2] != 4:
             raise ValueError("cutout did not return an alpha channel")
@@ -75,8 +90,8 @@ def product_cutout_mask(image: np.ndarray, image_url: str) -> np.ndarray:
         if mask.shape[:2] != image.shape[:2]:
             mask = cv2.resize(mask, (image.shape[1], image.shape[0]), interpolation=cv2.INTER_NEAREST)
     except Exception as exc:  # noqa: BLE001 — a broken cutout must not break verification
-        logger.warning("tryon_cutout_failed", error=str(exc)[:200])
-        return np.full(image.shape[:2], 255, dtype=np.uint8)  # fall back to "the whole photo is product"
+        logger.warning("tryon_cutout_failed", model=model, error=str(exc)[:200])
+        return np.full(image.shape[:2], fallback, dtype=np.uint8)
 
     try:
         ok, encoded = cv2.imencode(".png", mask)
