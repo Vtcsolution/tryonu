@@ -52,6 +52,12 @@ class TryOnJob(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # send this (an older client, or a wardrobe item with no search behind
     # it at all).
     distractor_options: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # "Add more to this look": the finished look this job draws its new
+    # products onto, and which round of that look it is (1 = a fresh look).
+    base_job_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("tryon_jobs.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    look_round: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
 
     provider: Mapped[str] = mapped_column(String(32), nullable=False)
     provider_model: Mapped[str] = mapped_column(String(64), nullable=False)

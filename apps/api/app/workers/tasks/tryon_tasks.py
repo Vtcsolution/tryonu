@@ -50,7 +50,7 @@ from app.services.outfit_slots import (
 from app.services.storage_service import get_storage, new_key
 from app.ai.providers.openai_image import MAX_PIECES as GEMINI_MAX_PIECES
 from app.services.tryon_direct.final_check import final_check, vlm_final_check
-from app.services.tryon_direct.look_board import BoardItem, build_look_board
+from app.services.tryon_direct.look_board import KNOWN_LABELS, BoardItem, build_look_board, label_for
 from app.services.tryon_quality.product_prep import describe_product
 from app.services.tryon_direct.qc import run_qc
 from app.services.tryon_direct.orchestrate import (
@@ -785,7 +785,7 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
             hybrid = len(products) >= 2 and mode == "hybrid" and 0 < len(garment_at) < len(products)
             one_call = len(products) >= 2 and (mode == "gemini_single" or (mode == "hybrid" and not garment_at))
             all_products, all_layers = products, layers
-            board = len(products) >= 2 and mode == "fashn_board"
+            board = mode == "fashn_board" and (len(products) >= 2 or job.base_job_id is not None)
             if board:
                 check_plan(
                     products,
@@ -845,7 +845,24 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
                     refund=True,
                 )
                 return
-            await _run_one_call_look(session, job, person, products, layers, board_engine=provider)
+            if job.base_job_id is None:
+                await _run_one_call_look(session, job, person, products, layers, board_engine=provider)
+                return
+            carried = await _carry_forward(session, job, layers)
+            if carried is None:
+                return
+            base_image, prior_products, prior_layers, prior_steps, replaced = carried
+            await _run_one_call_look(
+                session,
+                job,
+                person,
+                prior_products + products,
+                prior_layers + layers,
+                base=base_image,
+                prior_steps=prior_steps,
+                board_engine=provider,
+                replaced=replaced,
+            )
             return
 
         try:
@@ -998,11 +1015,73 @@ def _confirmed(step: dict) -> bool:
 _HYBRID_GARMENTS = {OutfitSlot.DRESS, OutfitSlot.TOP, OutfitSlot.BOTTOM, OutfitSlot.OUTERWEAR}
 
 
+_GARMENT_SLOTS = {OutfitSlot.DRESS, OutfitSlot.TOP, OutfitSlot.BOTTOM}
+
+
+def _replaces(new: _Layer, old: _Layer) -> bool:
+    """Whether a product added in a later round takes the place of one already
+    in the look: new earrings replace the earrings, a dress replaces the dress
+    (or the top and bottom), a watch the watch. Different jewellery pieces
+    (earrings and a necklace) sit together."""
+    a, b = new.slot or OutfitSlot.OTHER, old.slot or OutfitSlot.OTHER
+    if OutfitSlot.DRESS in (a, b):
+        return a in _GARMENT_SLOTS and b in _GARMENT_SLOTS
+    if a in _HYBRID_GARMENTS or b in _HYBRID_GARMENTS:
+        return a == b
+    if a == b and a in (OutfitSlot.SHOES, OutfitSlot.WATCH, OutfitSlot.BAG):
+        return True
+    kind = label_for(new.name, False)
+    return kind in KNOWN_LABELS and kind == label_for(old.name, False)
+
+
+async def _carry_forward(session, job: TryOnJob, layers: list[_Layer]):  # noqa: ANN001, ANN202
+    """For a further round of a look: the finished image to draw on, and the
+    products already in it that stay (each re-checked on the new image), minus
+    those a new product replaces. None once the job has been failed and
+    refunded: nothing is sent when the earlier look can't be read."""
+    base = (
+        await session.execute(select(TryOnJob).where(TryOnJob.id == job.base_job_id).options(selectinload(TryOnJob.result)))
+    ).scalar_one_or_none()
+    if base is None or base.result is None or base.status != JobStatus.COMPLETED:
+        await _fail_job(session, job, "The look to add to is no longer available. Nothing was sent.", refund=True)
+        return None
+    with_vlm = settings.TRYON_DIRECT_VLM_QC and bool(settings.OPENAI_API_KEY)
+    try:
+        base_image = await asyncio.to_thread(get_storage().read, base.result.storage_key)
+        prior_products: list[ProductInput] = []
+        prior_layers: list[_Layer] = []
+        prior_steps: list[dict] = []
+        replaced: list[str] = []
+        for step, placement in zip(base.steps or [], base.result.placements or []):
+            old = _Layer(placement["image_url"], OutfitSlot(placement["slot"]), placement["name"], placement.get("product_id"))
+            if any(_replaces(new, old) for new in layers):
+                replaced.append(old.name)
+                continue
+            image = await fetch_product_image(step["image_url"])
+            prior_products.append(ProductInput(name=old.name, product_id=old.product_id, image_url=step["image_url"], image=image))
+            prior_layers.append(old)
+            prior_steps.append(
+                {
+                    **step,
+                    "index": len(prior_steps),
+                    "round": step.get("round", 1),
+                    # judged again on the new image, never carried over as passed
+                    "verified": with_vlm,
+                    "failed_checks": [] if with_vlm else ["not_checked"],
+                    "status": "carried" if with_vlm else "unconfirmed",
+                }
+            )
+    except (DirectInputError, KeyError, ValueError, OSError) as exc:
+        await _fail_job(session, job, f"We couldn't read the earlier look to add to: {exc}. Nothing was sent.", refund=True)
+        return None
+    return base_image, prior_products, prior_layers, prior_steps, replaced
+
+
 def _bgr(data: bytes) -> np.ndarray:
     return cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
 
 
-async def _draw_look_board(session, job: TryOnJob, fashn: VirtualTryOnProvider, person: bytes, products: list[ProductInput], layers: list[_Layer], steps: list[dict]):  # noqa: ANN001, ANN202
+async def _draw_look_board(session, job: TryOnJob, fashn: VirtualTryOnProvider, person: bytes, products: list[ProductInput], layers: list[_Layer], steps: list[dict], *, adding: bool = False):  # noqa: ANN001, ANN202
     """Every product composed into one labelled look image, sent as the product
     image of ONE FASHN Try-On Max call. Returns FASHN's output, or None once the
     job has been failed (refunded) or held (FASHN accepted and billed it)."""
@@ -1017,7 +1096,7 @@ async def _draw_look_board(session, job: TryOnJob, fashn: VirtualTryOnProvider, 
         return None
     board_key = new_key("tryon", "direct-inputs", job.user_id, f"{job.id}-board.png")
     get_storage().put(board_key, board, "image/png")
-    for step, label in zip(steps, labels):
+    for step, label in zip(steps[len(steps) - len(products) :], labels):
         step["board_key"] = board_key
         step["board_label"] = label
 
@@ -1028,10 +1107,23 @@ async def _draw_look_board(session, job: TryOnJob, fashn: VirtualTryOnProvider, 
         job.steps = [dict(s) for s in steps]
         await session.commit()
 
+    opening = (
+        "The person is already dressed. Keep everything they are already wearing or carrying exactly as it "
+        "is, and add every item shown in the product image, each exactly as shown: "
+        if adding
+        else "Dress the person in every item shown in the product image, each exactly as shown: "
+    )
+    replacing = (
+        " If an item shown is the same kind as one already worn (for example earrings), it replaces that one."
+        if adding
+        else ""
+    )
     prompt = (
-        "Dress the person in every item shown in the product image, each exactly as shown: "
+        opening
         + ", ".join(dict.fromkeys(labels))
-        + ". Copy each product's exact shape, colour and pattern, including a watch's face shape and strap. "
+        + "."
+        + replacing
+        + " Copy each product's exact shape, colour and pattern, including a watch's face shape and strap. "
         "Use only the labelled products: ignore any hand, mannequin or jewellery that merely appears in a "
         "product's photo. Shoes go on the feet: when the outfit reaches the floor, show at most the shoe "
         "tips at the hem, never the shoes placed in front of the outfit. Every product must be worn or carried "
@@ -1084,6 +1176,7 @@ async def _run_one_call_look(  # noqa: ANN001
     base: bytes | None = None,
     prior_steps: list[dict] | None = None,
     board_engine: VirtualTryOnProvider | None = None,
+    replaced: list[str] | None = None,
 ) -> None:
     """The whole look in ONE Gemini generation: the customer's photo and every
     product photo in a single request, the output stored exactly as returned.
@@ -1113,6 +1206,7 @@ async def _run_one_call_look(  # noqa: ANN001
             "raw_key": None,
             "verified": False,
             "failed_checks": [],
+            "round": job.look_round,
         }
         for i, p in enumerate(products)
         if i >= first_new
@@ -1144,7 +1238,9 @@ async def _run_one_call_look(  # noqa: ANN001
         for p, layer, description in zip(to_draw, draw_layers, descriptions)
     ]
     if board_engine is not None:
-        output = await _draw_look_board(session, job, board_engine, base or person, to_draw, draw_layers, steps)
+        output = await _draw_look_board(
+            session, job, board_engine, base or person, to_draw, draw_layers, steps, adding=base is not None
+        )
         if output is None:
             return
     else:
@@ -1190,7 +1286,8 @@ async def _run_one_call_look(  # noqa: ANN001
 
     identity_ok = _identity_ok(face_flags, vlm, [p.name for p in products])
     final = {"passed": identity_ok and all(s["verified"] for s in steps), "identity_ok": identity_ok,
-             "products": rows, "vlm": vlm, "face": report.get("face"), "face_flags": face_flags}
+             "products": rows, "vlm": vlm, "face": report.get("face"), "face_flags": face_flags,
+             "look_round": job.look_round, "replaced": replaced or []}
     sequence = SimpleNamespace(output=output, image=output.image_bytes, steps=steps)
     label = engine if not prior or board_engine is not None else SimpleNamespace(
         name="fashn+gemini", model=f"tryon-max+{engine.model}"[:64]

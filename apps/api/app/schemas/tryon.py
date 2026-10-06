@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
+
+from app.core.config import get_settings
 
 from app.models.enums import JobStatus
 from app.schemas.common import ORMModel
@@ -30,6 +32,8 @@ class CreateTryOnRequest(BaseModel):
     # shopper saw alongside it, newest first). Optional — an older client
     # or a wardrobe item with no search behind it simply sends nothing.
     distractor_options: dict[str, list[DistractorOption]] | None = None
+    # add these products onto this finished look of the shopper's
+    base_job_id: str | None = None
 
 
 class CreateMultiTryOnRequest(BaseModel):
@@ -84,6 +88,9 @@ class TryOnJobOut(ORMModel):
     wardrobe_item: WardrobeItemOut | None
     result: TryOnResultOut | None
     user_photo: UserPhotoOut
+    base_job_id: str | None = None
+    look_round: int = 1
+    max_look_rounds: int = Field(default_factory=lambda: get_settings().TRYON_LOOK_MAX_ROUNDS)
     queued_at: datetime | None
     started_at: datetime | None
     completed_at: datetime | None

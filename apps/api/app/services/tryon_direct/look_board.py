@@ -45,6 +45,8 @@ _LABELS = [
     (re.compile(r"\b(dupatta|stole|shawl|scarf)\b", re.I), "Dupatta"),
 ]
 
+KNOWN_LABELS = frozenset(label for _, label in _LABELS)
+
 
 @dataclass(frozen=True)
 class BoardItem:

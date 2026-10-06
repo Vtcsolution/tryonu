@@ -307,6 +307,8 @@ export const tryon = {
     // The "other options" shown alongside each selected item, keyed by
     // that item's product id — see DistractorOption's own comment.
     distractor_options?: Record<string, DistractorOption[]>;
+    // add these products onto this finished look (a further round)
+    base_job_id?: string;
   }) => apiFetch<TryOnJob>("/api/v1/tryon", { method: "POST", body: input }),
 
   // One job per photo angle (e.g. front + back) — same product/outfit,

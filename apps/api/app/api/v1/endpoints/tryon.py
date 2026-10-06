@@ -103,6 +103,7 @@ async def _create_one_job(
     wardrobe_item_id: str | None,
     cost: int,
     distractor_options: dict[str, list] | None = None,
+    base: TryOnJob | None = None,
 ) -> str:
     provider = get_tryon_provider()
     job_id = new_uuid()
@@ -130,6 +131,8 @@ async def _create_one_job(
         provider_model=provider.model,
         status=JobStatus.QUEUED,
         credit_cost=cost,
+        base_job_id=base.id if base else None,
+        look_round=base.look_round + 1 if base else 1,
         queued_at=datetime.now(timezone.utc),
         distractor_options=(
             {pid: [o.model_dump() for o in options] for pid, options in distractor_options.items()}
@@ -143,6 +146,28 @@ async def _create_one_job(
     return job_id
 
 
+async def _load_base_look(db: DbSession, user: CurrentUser, base_job_id: str, has_products: bool) -> TryOnJob:
+    """The finished look a new round adds products onto, checked before any
+    charge: the shopper's own, completed with an image, and under the round limit."""
+    base = (
+        await db.execute(select(TryOnJob).where(TryOnJob.id == base_job_id).options(selectinload(TryOnJob.result)))
+    ).scalar_one_or_none()
+    if base is None or base.user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Look not found")
+    if not (direct_engine_active() and settings.TRYON_MULTI_ENGINE == "fashn_board"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Adding to a finished look isn't available right now.")
+    if base.status != JobStatus.COMPLETED or base.result is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only a finished look can have more products added.")
+    if base.look_round >= settings.TRYON_LOOK_MAX_ROUNDS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"This look already has {settings.TRYON_LOOK_MAX_ROUNDS} rounds, the most one look can have. Start a new look to add more.",
+        )
+    if not has_products:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Choose the products to add to this look.")
+    return base
+
+
 async def _load_job(db: DbSession, job_id: str) -> TryOnJob:
     result = await db.execute(select(TryOnJob).where(TryOnJob.id == job_id).options(*_LOAD_OPTS))
     return result.scalar_one()
@@ -153,7 +178,11 @@ async def create_tryon(payload: CreateTryOnRequest, user: CurrentUser, db: DbSes
     cost = await _resolve_target(
         db, user, product_id=payload.product_id, outfit_id=payload.outfit_id, wardrobe_item_id=payload.wardrobe_item_id
     )
-    photo = await _load_owned_photo(db, user, payload.user_photo_id)
+    base = None
+    if payload.base_job_id:
+        base = await _load_base_look(db, user, payload.base_job_id, bool(payload.product_id or payload.outfit_id))
+    # a further round is always on the same customer photo as the look it adds to
+    photo = await _load_owned_photo(db, user, base.user_photo_id if base else payload.user_photo_id)
     job_id = await _create_one_job(
         db,
         user,
@@ -163,6 +192,7 @@ async def create_tryon(payload: CreateTryOnRequest, user: CurrentUser, db: DbSes
         wardrobe_item_id=payload.wardrobe_item_id,
         cost=cost,
         distractor_options=payload.distractor_options,
+        base=base,
     )
     return await _load_job(db, job_id)
 

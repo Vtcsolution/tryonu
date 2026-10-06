@@ -162,6 +162,11 @@ export type TryOnJob = {
   wardrobe_item: WardrobeItem | null;
   result: TryOnResult | null;
   user_photo: UserPhoto;
+  /** The finished look this job added products onto, and which round of
+   *  that look it is (1 = a fresh look). */
+  base_job_id: string | null;
+  look_round: number;
+  max_look_rounds: number;
   queued_at: string | null;
   started_at: string | null;
   completed_at: string | null;

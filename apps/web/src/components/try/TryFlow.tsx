@@ -30,6 +30,7 @@ import type {
   OutfitSlot,
   PhotoKind,
   Product,
+  ResultPlacement,
   StylistResponse,
   TryOnJob,
   UserPhoto,
@@ -122,6 +123,8 @@ export function TryFlow() {
   const [jobIds, setJobIds] = useState<string[]>([]);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [multiAngle, setMultiAngle] = useState(false);
+  // "Add more to this look": the finished look the next try-on adds onto
+  const [baseLook, setBaseLook] = useState<TryOnJob | null>(null);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -343,6 +346,16 @@ export function TryFlow() {
       const withDistractors = distractor_options && Object.keys(distractor_options).length
         ? { distractor_options }
         : {};
+      if (baseLook) {
+        // a further round: same photo as the look, drawn onto its finished image
+        const job = await tryonApi.create({
+          user_photo_id: baseLook.user_photo.id,
+          ...target,
+          ...withDistractors,
+          base_job_id: baseLook.id,
+        });
+        return [job];
+      }
       if (multiAngle && canMultiAngle) {
         return tryonApi.createMulti({
           user_photo_ids: [primaryPhoto!.id, secondaryPhoto!.id],
@@ -389,6 +402,16 @@ export function TryFlow() {
   }, [step, allTerminal, anyCompleted, qc]);
 
   const activeStepIndex = Math.min(step, 2);
+
+  const addMoreTo = (job: TryOnJob) => {
+    setBaseLook(job);
+    setProduct(null);
+    setOutfit(null);
+    setCustomItem(null);
+    setJobIds([]);
+    setMultiAngle(false);
+    setStep(1);
+  };
 
   if (sessionLoading || !user) {
     return (
@@ -466,6 +489,30 @@ export function TryFlow() {
       {/* STEP 1 — pick a product */}
       {step === 1 && (
         <div key="s1" className="animate-[tu-in-right_0.4s_cubic-bezier(0.22,1,0.36,1)]">
+          {baseLook && (
+            <div className="mb-5 flex flex-wrap items-center gap-3 rounded-[18px] border border-sage/40 bg-sage/10 p-3">
+              {baseLook.result && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={resolveMediaUrl(baseLook.result.image_url)}
+                  alt="Your look so far"
+                  className="h-16 w-12 shrink-0 rounded-[10px] object-cover object-top"
+                />
+              )}
+              <p className="min-w-0 flex-1 text-[13px] leading-snug text-ink-soft">
+                Adding to your look · round {baseLook.look_round + 1} of {baseLook.max_look_rounds}.
+                Choose up to 5 more products; they&rsquo;re drawn onto your finished image, and a new item of
+                the same kind (earrings, a watch, a dress) replaces the one you have.
+              </p>
+              <button
+                type="button"
+                onClick={() => setBaseLook(null)}
+                className="shrink-0 text-[12px] font-medium text-muted underline-offset-2 hover:text-ink hover:underline"
+              >
+                Start a new look instead
+              </button>
+            </div>
+          )}
           <h1 className="font-display text-[clamp(26px,4vw,40px)] leading-tight text-ink">
             Choose a <em>product</em>
           </h1>
@@ -1050,12 +1097,14 @@ export function TryFlow() {
           <OutfitResultStep
             jobs={completedJobs}
             outfit={completedJobs[0].outfit}
+            onAddMore={addMoreTo}
             onTryAnother={() => {
               setProduct(null);
               setOutfit(null);
               setCustomItem(null);
               setJobIds([]);
               setMultiAngle(false);
+              setBaseLook(null);
               setStep(1);
             }}
             onStartOver={() => {
@@ -1064,6 +1113,7 @@ export function TryFlow() {
               setCustomItem(null);
               setJobIds([]);
               setMultiAngle(false);
+              setBaseLook(null);
               setStep(0);
             }}
           />
@@ -1077,6 +1127,7 @@ export function TryFlow() {
               setCustomItem(null);
               setJobIds([]);
               setMultiAngle(false);
+              setBaseLook(null);
               setStep(1);
             }}
             onStartOver={() => {
@@ -1085,6 +1136,7 @@ export function TryFlow() {
               setCustomItem(null);
               setJobIds([]);
               setMultiAngle(false);
+              setBaseLook(null);
               setStep(0);
             }}
           />
@@ -1093,12 +1145,14 @@ export function TryFlow() {
             <ResultStep
               jobs={completedJobs}
               product={product || completedJobs[0].product!}
+              onAddMore={addMoreTo}
               onTryAnother={() => {
                 setProduct(null);
                 setOutfit(null);
                 setCustomItem(null);
                 setJobIds([]);
                 setMultiAngle(false);
+                setBaseLook(null);
                 setStep(1);
               }}
               onStartOver={() => {
@@ -1107,6 +1161,7 @@ export function TryFlow() {
                 setCustomItem(null);
                 setJobIds([]);
                 setMultiAngle(false);
+                setBaseLook(null);
                 setStep(0);
               }}
             />
@@ -1147,11 +1202,13 @@ function AngleGallery({
 function ResultStep({
   jobs,
   product,
+  onAddMore,
   onTryAnother,
   onStartOver,
 }: {
   jobs: TryOnJob[];
   product: Product;
+  onAddMore: (job: TryOnJob) => void;
   onTryAnother: () => void;
   onStartOver: () => void;
 }) {
@@ -1214,6 +1271,7 @@ function ResultStep({
               Shop now <span aria-hidden="true">→</span>
             </Button>
             <SaveLookButton tryonResultId={job.result!.id} />
+            <AddMoreButton jobs={jobs} job={job} onAddMore={onAddMore} />
             <Button variant="outline" size="md" className="w-full" onClick={onTryAnother}>
               Try another product
             </Button>
@@ -1346,11 +1404,13 @@ function AlternativesRow({
 function OutfitResultStep({
   jobs,
   outfit,
+  onAddMore,
   onTryAnother,
   onStartOver,
 }: {
   jobs: TryOnJob[];
   outfit: Outfit;
+  onAddMore: (job: TryOnJob) => void;
   onTryAnother: () => void;
   onStartOver: () => void;
 }) {
@@ -1376,9 +1436,11 @@ function OutfitResultStep({
             placements={job.result!.placements}
             caption={
               <p className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
-            {renderedCount === outfit.items.length
-              ? "Every item in this outfit is on the photo."
-              : `${renderedCount} of ${outfit.items.length} items drawn on the photo — the items marked “matched” are shown alongside with their own shop links.`}
+            {job.look_round > 1
+              ? lookCaption(job.result?.placements)
+              : renderedCount === outfit.items.length
+                ? "Every item in this outfit is on the photo."
+                : `${renderedCount} of ${outfit.items.length} items drawn on the photo — the items marked “matched” are shown alongside with their own shop links.`}
           </p>
             }
           >
@@ -1430,6 +1492,8 @@ function OutfitResultStep({
             ))}
           </div>
 
+          <EarlierRounds job={job} outfit={outfit} />
+
           <div className="mt-5 space-y-2 text-[13px] text-muted">
             <p className="flex items-center gap-2">
               <span className="h-1.5 w-1.5 rounded-full bg-sage" /> {totalCredits} credit
@@ -1442,6 +1506,7 @@ function OutfitResultStep({
 
           <div className="mt-auto space-y-3 pt-6">
             <SaveLookButton tryonResultId={job.result!.id} />
+            <AddMoreButton jobs={jobs} job={job} onAddMore={onAddMore} />
             <Button variant="outline" size="md" className="w-full" onClick={onTryAnother}>
               Try another look
             </Button>
@@ -1536,6 +1601,73 @@ function WardrobeResultStep({
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function lookCaption(placements: ResultPlacement[] | null | undefined): string {
+  const all = placements ?? [];
+  const drawn = all.filter((p) => p.drawn).length;
+  return drawn === all.length
+    ? "Every item in this look is on the photo."
+    : `${drawn} of ${all.length} items in this look are on the photo — the items marked “matched” are shown with their own shop links.`;
+}
+
+/** "Add more to this look": a further round, drawn onto this finished image.
+ *  Only for a single-angle look that still has rounds left. */
+function AddMoreButton({
+  jobs,
+  job,
+  onAddMore,
+}: {
+  jobs: TryOnJob[];
+  job: TryOnJob;
+  onAddMore: (job: TryOnJob) => void;
+}) {
+  if (jobs.length !== 1 || !job.result) return null;
+  if (job.look_round >= job.max_look_rounds) {
+    return (
+      <p className="text-center text-[12px] text-faint">
+        This look has its {job.max_look_rounds} rounds. Start a new look to add more.
+      </p>
+    );
+  }
+  return (
+    <Button size="md" className="w-full" onClick={() => onAddMore(job)}>
+      Add more to this look · round {job.look_round + 1} of {job.max_look_rounds}
+    </Button>
+  );
+}
+
+/** Products from earlier rounds that are still in this look. */
+function EarlierRounds({ job, outfit }: { job: TryOnJob; outfit: Outfit }) {
+  if (job.look_round <= 1) return null;
+  const thisRound = new Set(outfit.items.map((i) => i.product.id));
+  const earlier = (job.result?.placements ?? []).filter((p) => !p.product_id || !thisRound.has(p.product_id));
+  if (earlier.length === 0) return null;
+  return (
+    <div className="mt-5 border-t border-line pt-4">
+      <p className="text-[11px] uppercase tracking-[0.14em] text-faint">From earlier rounds</p>
+      <div className="mt-2 space-y-2">
+        {earlier.map((p, i) => (
+          <div key={`${p.product_id ?? p.name}-${i}`} className="flex items-center justify-between gap-2 text-[12.5px]">
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-ink-soft">{p.name}</span>
+              <span className="block text-[11px] text-faint">{p.drawn ? "on photo" : "matched"}</span>
+            </span>
+            {p.product_id && (
+              <Button
+                href={affiliateGoUrl(p.product_id, "tryon_result")}
+                size="sm"
+                variant="outline"
+                className="!h-7 shrink-0 !px-2.5 !text-[11px]"
+              >
+                Shop now
+              </Button>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );
