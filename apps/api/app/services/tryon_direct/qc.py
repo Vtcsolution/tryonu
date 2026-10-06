@@ -154,6 +154,29 @@ def _matched_face(person: np.ndarray, result: np.ndarray) -> tuple[Frac, Frac, f
     return best
 
 
+def _skin_tone_shift(person: np.ndarray, result: np.ndarray, frac: Frac) -> dict:
+    """How far the skin of the face moved in colour: the middle of the face
+    (cheeks, nose, no hair or background) in Lab, original vs result. Report
+    only. lightness_shift > 0 means the result is lighter."""
+    inner = (frac[0] + (frac[2] - frac[0]) * 0.25, frac[1] + (frac[3] - frac[1]) * 0.35,
+             frac[2] - (frac[2] - frac[0]) * 0.25, frac[3] - (frac[3] - frac[1]) * 0.15)
+    means = []
+    for img in (person, result):
+        h, w = img.shape[:2]
+        x0, y0, x1, y1 = _px(inner, w, h)
+        crop = img[y0:y1, x0:x1]
+        if crop.size == 0:
+            return {}
+        means.append(cv2.cvtColor(crop, cv2.COLOR_BGR2LAB).reshape(-1, 3).astype(np.float32).mean(axis=0))
+    # OpenCV 8-bit Lab: L is 0..255 for 0..100
+    shift = means[1] - means[0]
+    d_l, d_a, d_b = float(shift[0]) * 100 / 255, float(shift[1]), float(shift[2])
+    return {
+        "skin_delta_e": round((d_l**2 + d_a**2 + d_b**2) ** 0.5, 2),
+        "skin_lightness_shift": round(d_l, 2),
+    }
+
+
 def _face_report(person: np.ndarray, result: np.ndarray, diff_mask: np.ndarray | None) -> dict:
     ph, pw = person.shape[:2]
     rh, rw = result.shape[:2]
@@ -188,6 +211,7 @@ def _face_report(person: np.ndarray, result: np.ndarray, diff_mask: np.ndarray |
         if crop.size == 0:
             return {**out, "face_similarity": None, "note": "face region is empty"}
         crops.append(cv2.cvtColor(cv2.resize(crop, (96, 96), interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2GRAY))
+    out.update(_skin_tone_shift(person, result, frac))
     a, b = crops
     if float(a.std()) < 1.0 or float(b.std()) < 1.0:
         return {**out, "face_similarity": None, "note": "face region is flat"}

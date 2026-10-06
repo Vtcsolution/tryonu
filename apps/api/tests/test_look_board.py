@@ -39,3 +39,20 @@ def test_every_product_is_on_the_board_even_when_cutout_fails(monkeypatch):
     colours = set(img.getdata())
     for colour in ((200, 30, 40), (20, 20, 200), (20, 160, 20)):
         assert any(all(abs(a - b) <= 4 for a, b in zip(px, colour)) for px in colours)  # each product is drawn
+
+
+def test_a_garment_worn_by_a_model_goes_on_the_board_without_her_head(monkeypatch):
+    # Live: the model's face and skin on the board shifted the customer's skin tone.
+    from app.services.tryon_direct import look_board
+
+    monkeypatch.setattr(look_board, "_below_the_head", lambda bgr: 300)
+
+    def no_cutout(*_a, **_kw):  # noqa: ANN002, ANN003
+        raise RuntimeError("cutout unavailable")
+
+    monkeypatch.setattr("app.services.tryon_quality.cutout.product_cutout_mask", no_cutout)
+    photo = image_bytes((600, 900), (200, 30, 40))
+    worn = look_board._cut_out(BoardItem(photo, "u1", "Pink Lehenga", True))
+    jewel = look_board._cut_out(BoardItem(photo, "u2", "Gold Earrings", False))
+    assert worn.size == (600, 600)  # rows above the chin dropped
+    assert jewel.size == (600, 900)  # jewellery photos are never cut

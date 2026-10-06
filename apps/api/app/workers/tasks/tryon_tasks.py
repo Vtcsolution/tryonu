@@ -1125,7 +1125,8 @@ async def _draw_look_board(session, job: TryOnJob, fashn: VirtualTryOnProvider, 
         + replacing
         + " Copy each product's exact shape, colour and pattern, including a watch's face shape and strap. "
         "Use only the labelled products: ignore any hand, mannequin or jewellery that merely appears in a "
-        "product's photo. Shoes go on the feet: when the outfit reaches the floor, show at most the shoe "
+        "product's photo, and never take a model's face, skin tone, hair or body from it. The person's skin "
+        "tone must stay exactly as in their own photo on the face, neck, arms and hands. Shoes go on the feet: when the outfit reaches the floor, show at most the shoe "
         "tips at the hem, never the shoes placed in front of the outfit. Every product must be worn or carried "
         "naturally, with real scale, perspective and shadows, never as a flat cut-out laid over the photo. "
         "Keep the person's face, expression, skin tone, hair, body, pose and background "

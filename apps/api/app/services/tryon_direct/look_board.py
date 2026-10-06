@@ -76,14 +76,38 @@ def _decode(data: bytes) -> np.ndarray:
     return img
 
 
+def _below_the_head(bgr: np.ndarray) -> int:
+    """The first row under a model's head in a clothing photo, or 0 when no
+    face is found in its upper half. Live: a lehenga worn by a fair-skinned
+    model went onto the board with her face and arms, and the customer came
+    back with a lighter skin tone; the mannequin-photo looks kept theirs."""
+    from app.services.tryon_direct.qc import _face_candidates
+
+    h = bgr.shape[0]
+    faces = [f for f in _face_candidates(bgr) if f.y + f.h / 2 < h * 0.5]
+    if not faces:
+        return 0
+    face = max(faces, key=lambda f: f.w * f.h)
+    return min(h - 1, int(face.y + face.h * 1.35))  # past the chin, into the neckline
+
+
 def _cut_out(item: BoardItem) -> Image.Image:
     """The product on white, cropped to itself. The original photo, uncut,
-    when background removal fails: a product is never dropped from the board."""
-    bgr = _decode(item.image)
+    when background removal fails: a product is never dropped from the board.
+    A garment worn by a model loses the model's head, so only the clothing
+    is shown, never another person's face or skin."""
+    whole = _decode(item.image)
+    top = 0
+    if item.garment:
+        try:
+            top = _below_the_head(whole)
+        except Exception as exc:  # noqa: BLE001 — keep the whole photo
+            logger.info("look_board_face_check_skipped", product=item.name[:60], error=str(exc)[:120])
+    bgr = whole[top:]
     try:
         from app.services.tryon_quality.cutout import product_cutout_mask
 
-        mask = product_cutout_mask(bgr, item.image_url)
+        mask = product_cutout_mask(whole, item.image_url)[top:]  # cached for the whole photo
         keep = mask > 127
         if keep.mean() < 0.01:  # nothing found: keep the whole photo
             raise ValueError("empty cutout")
