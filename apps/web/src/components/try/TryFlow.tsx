@@ -405,6 +405,11 @@ export function TryFlow() {
 
   const addMoreTo = (job: TryOnJob) => {
     setBaseLook(job);
+    // a fresh ask for this round: the last round's prompt and stylist reply
+    // left in place read as if this round were already done
+    setPrompt("");
+    setLastStylistReply(null);
+    setBrowseQuery("");
     setProduct(null);
     setOutfit(null);
     setCustomItem(null);
@@ -618,7 +623,11 @@ export function TryFlow() {
                 type="text"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Ask your stylist — e.g. shalwar kameez with bangles and khussa"
+                placeholder={
+                  baseLook
+                    ? "What to add — e.g. gold necklace, gold ring, gold watch and pink khussa"
+                    : "Ask your stylist — e.g. shalwar kameez with bangles and khussa"
+                }
                 className="h-11 flex-1 rounded-full bg-transparent px-2.5 text-[14px] text-ink outline-none placeholder:text-faint"
               />
               <VoiceInputButton
@@ -887,7 +896,27 @@ export function TryFlow() {
 
             {!liveSearchQuery.isFetching && liveSearchQuery.data && liveSearchQuery.data.length === 0 && (
               <div className="rounded-[20px] border border-line bg-surface p-8 text-center text-[14px] text-muted">
-                No real matches for that search — try different words.
+                {/[,]| and /i.test(browseQuery) ? (
+                  <>
+                    <p>This search looks for one product at a time. To find several at once, ask the stylist.</p>
+                    <Button
+                      size="sm"
+                      className="mt-4"
+                      disabled={askStylist.isPending}
+                      onClick={() => {
+                        const text = browseQuery;
+                        setPrompt(text);
+                        setBrowseQuery("");
+                        askStylist.mutate(text);
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }}
+                    >
+                      Ask the stylist for these
+                    </Button>
+                  </>
+                ) : (
+                  "No real matches for that search — try different words."
+                )}
               </div>
             )}
 
