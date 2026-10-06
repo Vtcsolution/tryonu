@@ -71,7 +71,7 @@ _ITEM_CATEGORY_WORDS = {
     # the rest of the onboarding taxonomy's items (app/core/taxonomy.py), so
     # a preference-built suggestion searches for every item it names
     "jilbab", "shawl", "shawls", "blouse", "blouses", "top", "tops", "activewear", "pin",
-    "smartwatch", "chinos", "tuxedo", "wallet", "wallets", "cufflinks", "accessories",
+    "smartwatch", "wristwatch", "wristwatches", "chinos", "tuxedo", "wallet", "wallets", "cufflinks", "accessories",
     "backpack", "backpacks", "payal", "chappal", "purse", "tote", "romper", "rompers", "set", "sets",
 }
 # Generic umbrella words, each mapped to the specific items it's a mere
@@ -117,6 +117,8 @@ _TERM_STOPWORDS = {
     # not the item itself, and have no business being an eBay search word.
     "matching", "coordinating",
 }
+# words that turn the item after them into something NOT wanted
+_NEGATIONS = {"no", "not", "without", "except", "excluding", "skip", "avoid", "don't", "dont", "never"}
 # who the ask is for — said outright, or through who it's being bought for
 _WOMEN_WORDS = {
     "women", "women's", "womens", "woman", "woman's", "ladies", "lady", "girls", "girl's", "female",
@@ -226,6 +228,18 @@ def _extract_search_terms(prompt: str, gender: str | None = None) -> list[str]:
         # the two tokens are separated by plain spaces only — no comma etc.
         return prompt[tokens[a][2] : tokens[b][1]].strip() == ""
 
+    def _negated(i: int) -> bool:
+        # "no separate dupatta", "without a dupatta": a "no"/"not"/"without"
+        # up to three words before the item, with no comma between, means
+        # the shopper does NOT want it. Live: "No second dress and no
+        # separate dupatta" fetched a bandhani dupatta and put it on her.
+        k = i
+        while k > 0 and i - k < 3 and joined(k - 1, k):
+            k -= 1
+            if words[k] in _NEGATIONS:
+                return True
+        return False
+
     terms: list[str] = []
     seen: set[str] = set()
     i = 0
@@ -236,6 +250,9 @@ def _extract_search_terms(prompt: str, gender: str | None = None) -> list[str]:
         j = i
         while j + 1 < len(words) and words[j + 1] in _ITEM_CATEGORY_WORDS and joined(j, j + 1):
             j += 1
+        if _negated(i):
+            i = j + 1
+            continue
         parts = words[i : j + 1]
         specific = _GENERIC_UMBRELLA_WORDS.get(parts[0]) if len(parts) == 1 else None
         if specific is not None and any(w in specific for w in words):

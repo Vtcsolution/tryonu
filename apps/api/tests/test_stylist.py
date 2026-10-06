@@ -779,3 +779,16 @@ def test_a_jewellery_set_that_overlaps_nothing_is_kept():
     the_set = _pick("Gold Necklace Set with Earrings", "https://img/s.jpg")
     ring = _pick("Emerald Ring", "https://img/r.jpg")
     assert len(_drop_redundant_candidates([the_set, ring])) == 2
+
+
+def test_extract_search_terms_leaves_out_items_the_shopper_says_no_to():
+    # Live: "No second dress and no separate dupatta" fetched a bandhani dupatta.
+    from app.services.stylist_service import _extract_search_terms
+
+    terms = _extract_search_terms(
+        "ONE pink bridal lehenga dress only, gold nose ring, elegant gold wristwatch, pink khussa. "
+        "No second dress and no separate dupatta."
+    )
+    assert terms == ["pink bridal lehenga dress", "gold nose ring", "elegant gold wristwatch", "pink khussa"]
+    assert _extract_search_terms("red dress without a dupatta, black heels") == ["red dress", "black heels"]
+    assert _extract_search_terms("red dress with matching dupatta") == ["red dress", "dupatta"]
