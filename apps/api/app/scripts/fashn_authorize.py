@@ -2,10 +2,11 @@
 
     python -m app.scripts.fashn_authorize --status
     python -m app.scripts.fashn_authorize --credits 2 --phrase "AUTHORIZE 2 FASHN CREDITS"
+    python -m app.scripts.fashn_authorize --credits 20 --hours 24 --phrase "AUTHORIZE 20 FASHN CREDITS"
     python -m app.scripts.fashn_authorize --close
 
 Authorizing creates ONE row in the database that lets the application reserve
-FASHN credits, up to the amount named in the phrase, for two hours. Nothing about it lives in .env or in an
+FASHN credits, up to the amount named in the phrase, for two hours (or --hours, at most 72). Nothing about it lives in .env or in an
 environment variable, so a server cannot spend simply because FASHN_API_KEY
 exists. Prints no secrets and calls FASHN not at all.
 """
@@ -30,7 +31,7 @@ async def _run(args: argparse.Namespace) -> int:
                     print("REFUSED: --credits is required with --phrase")
                     return 1
                 authorization = await create_authorization(
-                    db, args.credits, args.phrase, created_by=args.by, note=args.note
+                    db, args.credits, args.phrase, created_by=args.by, note=args.note, ttl_minutes=round(args.hours * 60)
                 )
             except GuardRefused as exc:
                 print(f"REFUSED: {exc}")
@@ -45,6 +46,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--credits", type=int, help="the most real FASHN credits this authorization allows")
     parser.add_argument("--phrase", help='the exact approval phrase, e.g. "AUTHORIZE 20 FASHN CREDITS"')
+    parser.add_argument("--hours", type=float, default=2, help="how long it stays open, 2 by default, at most 72")
     parser.add_argument("--close", action="store_true", help="close every open authorization")
     parser.add_argument("--status", action="store_true", help="only show the guard's state")
     parser.add_argument("--by", default="operator")

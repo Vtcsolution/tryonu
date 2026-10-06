@@ -43,6 +43,8 @@ from app.models.fashn_ledger import RELEASED, RESERVED, SUBMITTED, FashnCreditLe
 # The most one authorization may ever allow. Raising it is a deliberate code change.
 MAX_CREDITS_PER_AUTHORIZATION = 100
 AUTHORIZATION_TTL_MINUTES = 120
+# the longest one approval may stay open (fashn_authorize --hours)
+MAX_AUTHORIZATION_HOURS = 72
 
 
 def authorization_phrase(credits: int) -> str:
@@ -230,6 +232,8 @@ async def create_authorization(
     """Opens a one-time authorization for exactly `credits`. Refused unless the
     phrase names that same amount, when the amount is out of range, or while
     another authorization still has budget to spend."""
+    if not 1 <= ttl_minutes <= MAX_AUTHORIZATION_HOURS * 60:
+        raise GuardRefused(f"An authorization can stay open between 1 minute and {MAX_AUTHORIZATION_HOURS} hours. Nothing authorized.")
     if not 1 <= credits <= MAX_CREDITS_PER_AUTHORIZATION:
         raise GuardRefused(
             f"An authorization must be between 1 and {MAX_CREDITS_PER_AUTHORIZATION} credits. Nothing authorized."

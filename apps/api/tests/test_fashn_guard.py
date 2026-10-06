@@ -81,3 +81,14 @@ async def test_a_second_authorization_is_refused_while_one_has_budget(clean):
     await create_authorization(clean, 4, authorization_phrase(4))
     with pytest.raises(GuardRefused, match="still open"):
         await create_authorization(clean, 2, authorization_phrase(2))
+
+
+async def test_one_approval_can_stay_open_for_a_day_but_not_longer_than_72_hours(clean):
+    from datetime import datetime, timedelta, timezone
+
+    day = await create_authorization(clean, 20, authorization_phrase(20), ttl_minutes=24 * 60)
+    left = day.expires_at.replace(tzinfo=day.expires_at.tzinfo or timezone.utc) - datetime.now(timezone.utc)
+    assert timedelta(hours=23, minutes=59) < left <= timedelta(hours=24)
+    await close_authorizations(clean)
+    with pytest.raises(GuardRefused, match="72 hours"):
+        await create_authorization(clean, 20, authorization_phrase(20), ttl_minutes=73 * 60)

@@ -282,7 +282,7 @@ async def test_a_hybrid_look_needs_fashn_credits_only_for_the_garments(client, d
 
     refused = await _reload(db, job.id)
     assert refused.status == tryon_tasks.JobStatus.FAILED
-    assert "needs 4 FASHN credits (1 products x 4)" in refused.error_message
+    assert refused.error_message == tryon_tasks.PAUSED_MESSAGE
     assert fashn.calls == [] and not FakeGemini.instances
 
 
@@ -346,5 +346,5 @@ async def test_a_board_look_the_authorization_cannot_cover_is_refused_before_any
     await tryon_tasks._run_direct_job(db, job, fashn, layers)
 
     refused = await _reload(db, job.id)
-    assert refused.status == tryon_tasks.JobStatus.FAILED and "needs 4 FASHN credits" in refused.error_message
+    assert refused.status == tryon_tasks.JobStatus.FAILED and refused.error_message == tryon_tasks.PAUSED_MESSAGE
     assert fashn.calls == []

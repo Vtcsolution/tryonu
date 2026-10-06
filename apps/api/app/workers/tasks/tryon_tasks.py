@@ -752,6 +752,17 @@ async def run_tryon_job_async(job_id: str) -> None:
             await session.commit()
 
 
+PAUSED_MESSAGE = "Try-on is paused for a moment. Nothing was charged: your credits are back. Please try again shortly."
+
+
+async def _paused_for_budget(session, job: TryOnJob, needed: int, available: int) -> None:  # noqa: ANN001
+    """The operator's FASHN approval can't cover this look: refused before
+    anything is sent, credits refunded. The shopper sees a plain message; the
+    numbers are for the operator (server log, fashn_authorize --status)."""
+    logger.warning("tryon_fashn_budget_refused", job_id=job.id, needed=needed, available=available)
+    await _fail_job(session, job, PAUSED_MESSAGE, refund=True)
+
+
 async def _billed(job: TryOnJob) -> bool:  # noqa: ANN001
     return any((step or {}).get("provider_job_id") for step in (job.steps or []))
 
@@ -837,13 +848,7 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
         if board:
             available = await provider.credits_available()
             if cost > available:
-                await _fail_job(
-                    session,
-                    job,
-                    f"We couldn't start this try-on: this look needs {cost} FASHN credits but the current "
-                    f"authorization allows {available}. Nothing was sent.",
-                    refund=True,
-                )
+                await _paused_for_budget(session, job, cost, available)
                 return
             if job.base_job_id is None:
                 await _run_one_call_look(session, job, person, products, layers, board_engine=provider)
@@ -869,10 +874,8 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
             available = await provider.credits_available()
             needed = cost * len(products)
             if needed > available:
-                raise OrchestrationRefused(
-                    f"this look needs {needed} FASHN credits ({len(products)} products x {cost}) "
-                    f"but the current authorization allows {available}"
-                )
+                await _paused_for_budget(session, job, needed, available)
+                return
         except OrchestrationRefused as exc:
             await _fail_job(session, job, f"We couldn't start this try-on: {exc}. Nothing was sent to FASHN.", refund=True)
             return

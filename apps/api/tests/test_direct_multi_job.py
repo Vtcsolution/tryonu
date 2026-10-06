@@ -185,7 +185,7 @@ async def test_a_look_the_authorization_cannot_finish_is_refused_before_any_call
     assert fake.calls == 0
     refused = await _reload(db, job_id)
     assert refused.status == tryon_tasks.JobStatus.FAILED
-    assert "needs 8 FASHN credits" in refused.error_message and "allows 5" in refused.error_message
+    assert refused.error_message == tryon_tasks.PAUSED_MESSAGE
     assert refused.review_state is None
 
 
