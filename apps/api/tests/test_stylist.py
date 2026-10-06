@@ -846,3 +846,13 @@ def test_the_colour_asked_for_ranks_first_and_a_lookalike_piece_last():
     assert ranked == ["Maang Tikka Indian Gold Plated Red Kundan", "Kundan Pearl Maang Tikka", ranked[-1]]
     assert "Headband" in ranked[-1]
     assert _fit("women gold tikka headband", names[0]) == 0  # asked for a headband: no penalty
+
+
+def test_a_bottom_on_its_own_never_brings_back_a_whole_suit():
+    # Live: "cream shalwar" under a sherwani picked a whole black "Shalwar Kameez" suit.
+    from app.services.stylist_service import _whole_outfit_for_a_piece
+
+    assert _whole_outfit_for_a_piece("men cream shalwar", "PAKISTANI MEN SHALWAR KAMEEZ SUIT")
+    assert not _whole_outfit_for_a_piece("men cream shalwar", "Men Cream Cotton Shalwar Trouser")
+    assert not _whole_outfit_for_a_piece("men black trousers", "Men's Slim Fit Suit Trousers")
+    assert not _whole_outfit_for_a_piece("men cream shalwar kameez", "Shalwar Kameez Suit")  # asked for the suit
