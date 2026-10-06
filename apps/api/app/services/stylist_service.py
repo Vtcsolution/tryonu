@@ -142,6 +142,21 @@ _SET_COMPONENTS = {
 }
 
 
+# A search for just a dupatta must not bring back a whole outfit. Live:
+# "with matching dupatta" picked a "Lehenga Choli with Dupatta" set, and the
+# look had two dresses.
+_PIECE_ONLY = {"dupatta", "dupattas", "stole", "stoles", "shawl", "shawls"}
+_WHOLE_OUTFIT = {
+    "lehenga", "lehnga", "choli", "suit", "kameez", "saree", "sari", "gown", "dress", "anarkali",
+    "sharara", "gharara", "frock", "maxi",
+}
+
+
+def _whole_outfit_for_a_piece(term: str, name: str) -> bool:
+    asked = _words(term) & _ITEM_CATEGORY_WORDS
+    return bool(asked) and asked <= _PIECE_ONLY and bool(_words(name) & _WHOLE_OUTFIT)
+
+
 def _words(text: str) -> set[str]:
     return set(re.findall(r"[a-z]+", text.lower()))
 
@@ -409,6 +424,8 @@ async def _fetch_candidates(
             # one badly-matched item can't leave the shopper without boots.
             for r in keep_for_gender(results, gender, lambda r: r.raw.name):
                 if _colour_conflicts(req.prompt, r.raw.name):
+                    continue
+                if _whole_outfit_for_a_piece(term, r.raw.name):
                     continue
                 key = (r.provider.slug, r.raw.retailer_product_id)
                 if key in seen_ids:

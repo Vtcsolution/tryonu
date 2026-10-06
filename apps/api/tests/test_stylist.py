@@ -792,3 +792,12 @@ def test_extract_search_terms_leaves_out_items_the_shopper_says_no_to():
     assert terms == ["pink bridal lehenga dress", "gold nose ring", "elegant gold wristwatch", "pink khussa"]
     assert _extract_search_terms("red dress without a dupatta, black heels") == ["red dress", "black heels"]
     assert _extract_search_terms("red dress with matching dupatta") == ["red dress", "dupatta"]
+
+
+def test_a_dupatta_search_never_brings_back_a_whole_outfit():
+    # Live: "with matching dupatta" picked a lehenga set, and the look had two dresses.
+    from app.services.stylist_service import _whole_outfit_for_a_piece
+
+    assert _whole_outfit_for_a_piece("women dupatta", "DESIGNER NET LEHENGA CHOLI WITH DUPATTA FOR INDIAN")
+    assert not _whole_outfit_for_a_piece("women dupatta", "Pink Net Embroidered Dupatta With Gold Border")
+    assert not _whole_outfit_for_a_piece("pink bridal lehenga dress", "Pink Lehenga Choli With Dupatta")

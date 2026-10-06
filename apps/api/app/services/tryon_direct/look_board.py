@@ -30,13 +30,15 @@ _LABEL_H = 54
 _GARMENT_SHARE = 0.58  # of the width, when there are other products beside them
 
 _LABELS = [
-    (re.compile(r"\b(nose ?(ring|pin|stud)|nath|nathni)\b", re.I), "Nose ring"),
+    # watch before bangles: a "Gold Bracelet Watch" is a watch (live, it was
+    # labelled Bangles and came out as gold bangles nobody selected)
+    (re.compile(r"\b(watch|watches|wristwatch)\b", re.I), "Watch"),
+    (re.compile(r"\b(nose ?(rings?|pins?|studs?)|nath|nathni)\b", re.I), "Nose ring"),
     (re.compile(r"\b(maang ?tikka|tikka|matha ?patti|head ?chain)\b", re.I), "Maang tikka"),
     (re.compile(r"\b(earrings?|jhumkas?|jhumki|studs?|chandbali)\b", re.I), "Earrings"),
     (re.compile(r"\b(choker|necklace|haar|pendant)\b", re.I), "Necklace"),
     (re.compile(r"\b(bangles?|bracelets?|kada|cuff)\b", re.I), "Bangles"),
     (re.compile(r"\b(rings?)\b", re.I), "Ring"),
-    (re.compile(r"\b(watch|wristwatch)\b", re.I), "Watch"),
     (re.compile(r"\b(sunglasses|glasses|eyeglasses)\b", re.I), "Sunglasses"),
     (re.compile(r"\b(khussa|jutti|heels|sandals?|shoes|sneakers|flats|boots|loafers)\b", re.I), "Shoes"),
     (re.compile(r"\b(clutch|handbag|bag|tote|purse|potli)\b", re.I), "Bag"),
