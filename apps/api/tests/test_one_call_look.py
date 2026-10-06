@@ -348,3 +348,24 @@ async def test_a_board_look_the_authorization_cannot_cover_is_refused_before_any
     refused = await _reload(db, job.id)
     assert refused.status == tryon_tasks.JobStatus.FAILED and refused.error_message == tryon_tasks.PAUSED_MESSAGE
     assert fashn.calls == []
+
+
+async def test_small_jewellery_on_a_board_is_also_described_in_words(client, db, direct, monkeypatch):  # noqa: F811
+    # Live: a plain nose hoop photographed on a nose came out as a nath on a chain.
+    _use_board(monkeypatch, direct)
+    monkeypatch.setattr(direct, "OPENAI_API_KEY", "sk-test-not-real")
+
+    async def describe(image, url, name):  # noqa: ANN001 — never the real (paid) vision call
+        return "thin plain gold hoop nose ring, no chain" if "Nose" in name else f"details of {name}"
+
+    monkeypatch.setattr(tryon_tasks, "describe_product", describe)
+    job, layers = await _job(client, db, monkeypatch, n=2)
+    layers[0].slot, layers[0].name = OutfitSlot.DRESS, "Pink Bridal Lehenga"
+    layers[1].name = "14k Gold Nose Hoop Ring"
+    fashn = RecordingFashn(available=4)
+
+    await tryon_tasks._run_direct_job(db, job, fashn, layers)
+
+    prompt = fashn.payloads[0].prompt
+    assert "Nose ring: thin plain gold hoop nose ring, no chain." in prompt
+    assert "Pink Bridal Lehenga" not in prompt  # clothing is not described, only the small pieces

@@ -13,6 +13,7 @@ from tests.fashn_fakes import image_bytes
 def test_labels_name_what_each_product_is():
     assert label_for("Indian Gold Plated Jhumka Earrings Pearl", False) == "Earrings"
     assert label_for("Opal Flower Nose Pin 18k", False) == "Nose ring"
+    assert label_for("14k Gold Nose Hoop | Ring Real Gold Thin", False) == "Nose ring"
     assert label_for("Tucnoeu 8 Pcs Dangle Nose Rings Hoop for Women", False) == "Nose ring"
     assert label_for("Vintage Style Gold Bracelet Watch Women Square", False) == "Watch"
     assert label_for("Kundan Gold Maang Tikka", False) == "Maang tikka"

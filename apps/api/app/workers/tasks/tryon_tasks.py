@@ -1019,6 +1019,8 @@ _HYBRID_GARMENTS = {OutfitSlot.DRESS, OutfitSlot.TOP, OutfitSlot.BOTTOM, OutfitS
 
 
 _GARMENT_SLOTS = {OutfitSlot.DRESS, OutfitSlot.TOP, OutfitSlot.BOTTOM}
+# board labels whose product is also described in words in the FASHN prompt
+_DESCRIBED_ON_BOARD = {"Nose ring", "Earrings", "Ring", "Maang tikka", "Necklace"}
 
 
 def _replaces(new: _Layer, old: _Layer) -> bool:
@@ -1103,6 +1105,21 @@ async def _draw_look_board(session, job: TryOnJob, fashn: VirtualTryOnProvider, 
         step["board_key"] = board_key
         step["board_label"] = label
 
+    # Small jewellery in words as well: live, a plain thin nose hoop shown as a
+    # close-up of a nose came out as a bridal nath on a chain. The cached
+    # description says "thin plain gold hoop, no chain"; one vision call per
+    # new product photo, never per look.
+    details = []
+    if settings.OPENAI_API_KEY:
+        small = [(p, label) for p, label in zip(products, labels) if label in _DESCRIBED_ON_BOARD]
+        described = await asyncio.gather(*(describe_product(_bgr(p.image), p.image_url, p.name) for p, _ in small))
+        for (p, label), description in zip(small, described):
+            if description and description != p.name:
+                details.append(f"{label}: {description.rstrip('.')}.")
+                for step in steps:
+                    if step.get("name") == p.name:
+                        step["description"] = description
+
     async def submitted(provider_job_id: str) -> None:
         job.provider_job_id = provider_job_id
         for step in steps:
@@ -1126,6 +1143,7 @@ async def _draw_look_board(session, job: TryOnJob, fashn: VirtualTryOnProvider, 
         + ", ".join(dict.fromkeys(labels))
         + "."
         + replacing
+        + (" Exactly what the small pieces are: " + " ".join(details) if details else "")
         + " Copy each product's exact shape, colour and pattern, including a watch's face shape and strap, "
         "and add nothing a product does not have: no chain on a plain nose ring, no extra pieces. "
         "Every item is shown enlarged to the same size in the product image; on the person draw each at its "

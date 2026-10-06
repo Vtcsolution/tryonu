@@ -33,7 +33,7 @@ _LABELS = [
     # watch before bangles: a "Gold Bracelet Watch" is a watch (live, it was
     # labelled Bangles and came out as gold bangles nobody selected)
     (re.compile(r"\b(watch|watches|wristwatch)\b", re.I), "Watch"),
-    (re.compile(r"\b(nose ?(rings?|pins?|studs?)|nath|nathni)\b", re.I), "Nose ring"),
+    (re.compile(r"\b(nose ?(rings?|pins?|studs?|hoops?)|nath|nathni)\b", re.I), "Nose ring"),
     (re.compile(r"\b(maang ?tikka|tikka|matha ?patti|head ?chain)\b", re.I), "Maang tikka"),
     (re.compile(r"\b(earrings?|jhumkas?|jhumki|studs?|chandbali)\b", re.I), "Earrings"),
     (re.compile(r"\b(choker|necklace|haar|pendant)\b", re.I), "Necklace"),
