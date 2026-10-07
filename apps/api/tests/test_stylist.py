@@ -856,3 +856,14 @@ def test_a_bottom_on_its_own_never_brings_back_a_whole_suit():
     assert not _whole_outfit_for_a_piece("men cream shalwar", "Men Cream Cotton Shalwar Trouser")
     assert not _whole_outfit_for_a_piece("men black trousers", "Men's Slim Fit Suit Trousers")
     assert not _whole_outfit_for_a_piece("men cream shalwar kameez", "Shalwar Kameez Suit")  # asked for the suit
+
+
+def test_a_single_aliexpress_item_titled_1pc_is_not_a_multipack():
+    # AliExpress titles single items "1PC ..." / "1 Pair ..."; they were being dropped as packs.
+    from app.services.stylist_service import _unsuitable
+
+    assert not _unsuitable("women small gold nose ring", "1PC Gold Color Nose Ring Hoop For Women", "nose ring")
+    assert not _unsuitable("women gold jhumka earrings", "1 Pair Indian Gold Jhumka Earrings", "jhumka")
+    assert _unsuitable("women gold maang tikka", "2Pcs Indian Maang Tikka Gold Color", "tikka")
+    assert _unsuitable("women small gold nose ring", "Tucnoeu 8 Pcs Dangle Nose Rings Hoop", "nose ring")
+    assert _unsuitable("women gold ring", "Set of 6 Gold Stacking Rings", "ring")

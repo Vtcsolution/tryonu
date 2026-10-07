@@ -219,7 +219,11 @@ def _fit(term: str, name: str) -> int:
 _COSTUME = re.compile(
     r"\b(costume|cosplay|halloween|belly ?danc\w*|fancy dress|toys?|dolls?|kids?|children|child|toddlers?|infants?)\b"
 )
-_MULTI_PACK = re.compile(r"\b\d+\s*(pcs|pc|pieces|pairs)\b|\b(set|pack|lot) of \d+|\b\d+\s*-?\s*pack\b")
+# two or more of something; "1PC" / "1 Pair" is how AliExpress titles a single
+# item, and counting it as a pack dropped their single nose rings and tikkas
+_MULTI_PACK = re.compile(
+    r"\b([2-9]|\d{2,})\s*-?\s*(pcs|pc|pieces|pairs|pack)\b|\b(set|pack|lot) of ([2-9]|\d{2,})\b"
+)
 _ONE_PIECE_ITEMS = {
     "watch", "bag", "khussa", "earring", "necklace", "bangle", "ring", "rings", "tikka", "pendant", "anklet",
     "anklets", "payal", "shoe", "shoes", "heels", "sandals", "flats", "chappal", "chappals", "sunglasses",
