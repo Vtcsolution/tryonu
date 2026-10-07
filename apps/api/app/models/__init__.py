@@ -4,6 +4,7 @@ configuration time."""
 
 from app.db.base import Base  # noqa: F401
 from app.models.admin_audit import AdminAuditLog  # noqa: F401
+from app.models.admitad_feed import AdmitadFeedItem  # noqa: F401
 from app.models.app_setting import AppSetting  # noqa: F401
 from app.models.affiliate import AffiliateClick  # noqa: F401
 from app.models.analytics import PageView  # noqa: F401

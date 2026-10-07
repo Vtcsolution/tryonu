@@ -7,6 +7,7 @@ retailer by adding one adapter class + one line here.
 from __future__ import annotations
 
 from app.core.config import get_settings
+from app.retailers.admitad import AdmitadFeedProvider
 from app.retailers.aliexpress import AliExpressProductProvider
 from app.retailers.amazon import AmazonProductProvider
 from app.retailers.base import ProductProvider
@@ -74,4 +75,6 @@ def get_all_providers() -> list[ProductProvider]:
             currency=settings.ALIEXPRESS_CURRENCY,
         ),
         get_rakuten_provider(),
+        # approved Admitad programmes, searched from their imported feeds
+        AdmitadFeedProvider(),
     ]

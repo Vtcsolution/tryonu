@@ -323,6 +323,11 @@ class Settings(BaseSettings):
         default=None, validation_alias=AliasChoices("ADMITAD_BASE64_HEADER", "base64_header")
     )
     ADMITAD_API_BASE_URL: str = "https://api.admitad.com"
+    # feed import (app/scripts/admitad_import.py): the most rows kept per
+    # programme, and feeds the advertiser hasn't updated for longer than this
+    # are skipped (live: Alibaba WW's feeds were last updated in 2022)
+    ADMITAD_FEED_MAX_ROWS: int = 100_000
+    ADMITAD_FEED_MAX_AGE_DAYS: int = 180
 
     RAKUTEN_ENABLED: bool = False
     RAKUTEN_CLIENT_ID: str | None = None
