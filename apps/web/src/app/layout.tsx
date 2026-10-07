@@ -46,6 +46,10 @@ export const metadata: Metadata = {
     title: "TryOnU — Try It. See You. Shop It.",
     description: "Try real fashion on you before you buy.",
   },
+  // Mitgo (Admitad) affiliate ad-space ownership check; a public token, not a secret
+  other: {
+    "mitgo-verification": "794de6ff-f7d7-4405-8164-728c91d75317",
+  },
 };
 
 export const viewport: Viewport = {
