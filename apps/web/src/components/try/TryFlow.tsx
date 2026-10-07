@@ -1346,6 +1346,7 @@ function OutfitItemThumb({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={thumb} alt={item.product.name} className="h-full w-full object-cover object-top" />
         )}
+        <RetailerTag name={item.product.retailer?.name} className="absolute left-1 top-1" />
         <span
           className={`absolute bottom-1 left-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
             rendered ? "bg-sage text-white" : "bg-surface/95 text-ink-soft"
@@ -1402,6 +1403,7 @@ function AlternativesRow({
                 <p className="text-[12px] font-semibold text-ink">
                   {(alt.price_cents / 100).toFixed(2)} {alt.currency.toUpperCase()}
                 </p>
+                <RetailerTag name={alt.retailer_name} className="mt-1 self-start" />
                 <p className="line-clamp-2 text-[10.5px] leading-snug text-muted">{alt.name}</p>
                 <div className="mt-auto grid grid-cols-2 gap-1.5 pt-2">
                   <button
@@ -1507,6 +1509,7 @@ function OutfitResultStep({
                   <span className="block truncate text-ink-soft">{item.product.name}</span>
                   <span className="block text-[11px] text-faint">
                     {(item.product.price_cents / 100).toFixed(2)} {item.product.currency.toUpperCase()}
+                    {item.product.retailer?.name ? ` · ${item.product.retailer.name}` : ""}
                   </span>
                 </span>
                 <Button
@@ -1669,6 +1672,27 @@ function AddMoreButton({
   );
 }
 
+/** Which shop a product comes from, as a small tag on its card. */
+function RetailerTag({ name, className = "" }: { name?: string | null; className?: string }) {
+  if (!name) return null;
+  return (
+    <span
+      className={`rounded-full bg-surface/95 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-ink-soft shadow-sm ${className}`}
+    >
+      {name}
+    </span>
+  );
+}
+
+/** The shop behind a product photo, from where the photo is hosted: used for
+ *  earlier-round items, whose saved placement keeps the photo but not the shop. */
+function retailerFromImage(url?: string | null): string | null {
+  if (!url) return null;
+  if (/ebayimg\.com/.test(url)) return "eBay";
+  if (/alicdn\.com|aliexpress/.test(url)) return "AliExpress";
+  return null;
+}
+
 /** Products from earlier rounds that are still in this look. */
 function EarlierRounds({ job, outfit }: { job: TryOnJob; outfit: Outfit }) {
   if (job.look_round <= 1) return null;
@@ -1683,7 +1707,10 @@ function EarlierRounds({ job, outfit }: { job: TryOnJob; outfit: Outfit }) {
           <div key={`${p.product_id ?? p.name}-${i}`} className="flex items-center justify-between gap-2 text-[12.5px]">
             <span className="min-w-0 flex-1">
               <span className="block truncate text-ink-soft">{p.name}</span>
-              <span className="block text-[11px] text-faint">{p.drawn ? "on photo" : "matched"}</span>
+              <span className="block text-[11px] text-faint">
+                {p.drawn ? "on photo" : "matched"}
+                {retailerFromImage(p.image_url) ? ` · ${retailerFromImage(p.image_url)}` : ""}
+              </span>
             </span>
             {p.product_id && (
               <Button

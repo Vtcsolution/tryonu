@@ -215,6 +215,11 @@ def _fit(term: str, name: str) -> int:
     for item, lookalike in _LOOKALIKES.items():
         if item in _words(term) and lookalike.search(name.lower()) and not lookalike.search(term.lower()):
             score -= 3
+    # one piece asked for, a set of several offered: live, "gold maang tikka"
+    # picked a "Choker Necklace Earrings Maang Tikka Bridal Jewelry Set"
+    asked_pieces, named_pieces = _jewel_pieces(term), _jewel_pieces(name)
+    if len(asked_pieces) == 1 and len(named_pieces) >= 2 and "set" not in _words(term):
+        score -= 2
     return score
 _COSTUME = re.compile(
     r"\b(costume|cosplay|halloween|belly ?danc\w*|fancy dress|toys?|dolls?|kids?|children|child|toddlers?|infants?)\b"

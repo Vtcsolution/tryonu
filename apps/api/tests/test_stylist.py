@@ -867,3 +867,14 @@ def test_a_single_aliexpress_item_titled_1pc_is_not_a_multipack():
     assert _unsuitable("women gold maang tikka", "2Pcs Indian Maang Tikka Gold Color", "tikka")
     assert _unsuitable("women small gold nose ring", "Tucnoeu 8 Pcs Dangle Nose Rings Hoop", "nose ring")
     assert _unsuitable("women gold ring", "Set of 6 Gold Stacking Rings", "ring")
+
+
+def test_one_piece_asked_for_ranks_single_pieces_above_sets():
+    # Live: "gold maang tikka" picked a choker + earrings + tikka bridal set.
+    from app.services.stylist_service import _fit
+
+    term = "women gold maang tikka"
+    one_set = "Indian Bollywood Kundan Choker Necklace Earrings Maang Tikka Bridal Jewelry Set"
+    single = "Kundan Pearl Maang Tikka"
+    assert _fit(term, single) > _fit(term, one_set)
+    assert _fit("women gold jewellery set", one_set) >= 0  # asked for a set: no penalty
