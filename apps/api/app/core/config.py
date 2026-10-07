@@ -308,6 +308,22 @@ class Settings(BaseSettings):
     # since this integration hasn't been live-verified yet (see
     # app/retailers/rakuten.py). Flip on only once real credentials are
     # confirmed working end-to-end.
+    # --- Admitad (Mitgo) affiliate network ---
+    # OAuth client credentials from the Admitad publisher account. The names
+    # the .env was written with (client_id, client_secret, base64_header) are
+    # read as they are; ADMITAD_-prefixed names work too. base64_header is
+    # base64("client_id:client_secret"), the token request's Basic auth.
+    ADMITAD_CLIENT_ID: str | None = Field(
+        default=None, validation_alias=AliasChoices("ADMITAD_CLIENT_ID", "client_id")
+    )
+    ADMITAD_CLIENT_SECRET: str | None = Field(
+        default=None, validation_alias=AliasChoices("ADMITAD_CLIENT_SECRET", "client_secret")
+    )
+    ADMITAD_BASE64_HEADER: str | None = Field(
+        default=None, validation_alias=AliasChoices("ADMITAD_BASE64_HEADER", "base64_header")
+    )
+    ADMITAD_API_BASE_URL: str = "https://api.admitad.com"
+
     RAKUTEN_ENABLED: bool = False
     RAKUTEN_CLIENT_ID: str | None = None
     RAKUTEN_CLIENT_SECRET: str | None = None
