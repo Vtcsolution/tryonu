@@ -22,6 +22,9 @@ _LIVE_STATUSES = (SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING, Subscr
 
 @router.get("/plans", response_model=list[PlanOut])
 async def list_plans():
+    # nothing to subscribe to when the payment provider sells one-off packages only (PayPal)
+    if not get_payment_provider().supports_subscriptions:
+        return []
     return [
         PlanOut(plan=p.plan, name=p.name, price_cents=p.price_cents, currency=p.currency, credits_per_cycle=p.credits_per_cycle)
         for p in PLAN_DEFINITIONS.values()
@@ -54,6 +57,11 @@ async def subscribe(payload: SubscribeRequest, user: CurrentUser, db: DbSession)
         )
 
     provider = get_payment_provider()
+    if not provider.supports_subscriptions:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Monthly plans aren't available right now. Please buy a credit package instead.",
+        )
     checkout = await provider.create_subscription(
         price_cents=plan_def.price_cents,
         currency=plan_def.currency,

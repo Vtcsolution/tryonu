@@ -39,6 +39,9 @@ export function BuyCreditsPanel() {
       if (res.status === "succeeded") {
         qc.invalidateQueries({ queryKey: SESSION_QUERY_KEY });
         qc.invalidateQueries({ queryKey: ["credit-history"] });
+      } else if (res.checkout_url) {
+        // PayPal: pay on PayPal's page; it sends the shopper back to /credits/paypal
+        window.location.assign(res.checkout_url);
       } else {
         // Real card payments (Stripe requires_action) need client-side
         // confirmation via Stripe.js/Elements, not yet wired on the
@@ -129,8 +132,15 @@ export function BuyCreditsPanel() {
           disabled={!selected || purchase.isPending}
           onClick={() => selected && purchase.mutate(selected)}
         >
-          {purchase.isPending ? "Processing…" : selected ? `Buy ${selected.credits} credits` : "Select a package"}
+          {purchase.isPending
+            ? "Opening checkout…"
+            : purchase.isSuccess && purchase.data.checkout_url
+              ? "Redirecting to PayPal…"
+              : selected
+                ? `Buy ${selected.credits} credits`
+                : "Select a package"}
         </Button>
+        <p className="text-[12px] text-faint">Payments are processed securely by PayPal. You can pay with a PayPal account or a card.</p>
       </div>
 
       {historyQuery.data && historyQuery.data.length > 0 && (

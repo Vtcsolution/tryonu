@@ -358,7 +358,14 @@ class Settings(BaseSettings):
     IMPACT_AUTH_TOKEN: str | None = None
 
     # --- payments ---
-    PAYMENT_PROVIDER: Literal["stripe", "mock"] = "mock"
+    PAYMENT_PROVIDER: Literal["stripe", "paypal", "mock"] = "mock"
+    # PayPal Checkout: both key pairs live in .env, PAYPAL_MODE picks one.
+    # "sandbox" takes test money from PayPal sandbox accounts; "live" is real.
+    PAYPAL_MODE: Literal["sandbox", "live"] = "sandbox"
+    PAYPAL_CLIENT_ID: str | None = None
+    PAYPAL_CLIENT_SECRET: str | None = None
+    PAYPAL_SANDBOX_CLIENT_ID: str | None = None
+    PAYPAL_SANDBOX_CLIENT_SECRET: str | None = None
     STRIPE_SECRET_KEY: str | None = None
     STRIPE_WEBHOOK_SECRET: str | None = None
 

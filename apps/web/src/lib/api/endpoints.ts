@@ -142,6 +142,14 @@ export const credits = {
       credits_granted: number | null;
       new_balance: number | null;
     }>("/api/v1/credits/purchase", { method: "POST", body: input }),
+  // back from PayPal: the API confirms the payment with PayPal and grants the credits once
+  capturePurchase: (paymentId: string) =>
+    apiFetch<{
+      payment_id: string;
+      status: string;
+      credits_granted: number | null;
+      new_balance: number | null;
+    }>(`/api/v1/credits/purchase/${paymentId}/capture`, { method: "POST" }),
   purchaseStatus: (paymentId: string) =>
     apiFetch<{ payment_id: string; status: string; new_balance: number | null }>(
       `/api/v1/credits/purchase/${paymentId}`,

@@ -17,6 +17,21 @@ class CheckoutResult:
 
 
 @dataclass(frozen=True, slots=True)
+class CaptureResult:
+    # "completed" (money taken) | "pending" (PayPal holding it) | "not_approved"
+    # (shopper never approved) | "failed"
+    status: str
+    amount_cents: int | None = None
+    currency: str | None = None
+    capture_id: str | None = None
+
+
+class PaymentsUnavailableError(Exception):
+    """Purchases can't be taken right now (no usable payment provider).
+    Never grant credits on this; tell the shopper to try later."""
+
+
+@dataclass(frozen=True, slots=True)
 class SubscriptionCheckoutResult:
     external_subscription_id: str
     status: str  # "active" (instant, e.g. mock) | "requires_action" (real Stripe — first invoice needs confirming)
@@ -38,6 +53,8 @@ class WebhookEvent:
 
 class PaymentProvider(ABC):
     name: str
+    #: whether recurring plans can be sold through this provider
+    supports_subscriptions: bool = True
 
     @abstractmethod
     async def create_checkout(
@@ -58,6 +75,11 @@ class PaymentProvider(ABC):
         raise NotImplementedError
 
     async def cancel_subscription(self, external_subscription_id: str) -> None:
+        raise NotImplementedError
+
+    async def capture(self, external_payment_id: str, *, idempotency_key: str) -> CaptureResult:
+        """Take the money for an order the shopper approved (redirect providers
+        such as PayPal). Providers that confirm on their own don't need it."""
         raise NotImplementedError
 
     def verify_webhook(self, payload: bytes, signature: str | None) -> WebhookEvent:
