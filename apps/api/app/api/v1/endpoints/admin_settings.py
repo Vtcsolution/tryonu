@@ -281,6 +281,25 @@ def _smtp_check(s: Settings) -> ConnectionTestOut:
     return ConnectionTestOut(ok=True, message=f"Connected to {s.SMTP_HOST}:{s.SMTP_PORT} and signed in.")
 
 
+async def _test_paypal(s: Settings) -> ConnectionTestOut:
+    """Signs in to PayPal with the keys for the selected mode: proves the keys
+    work, creates no order and moves no money."""
+    from app.payments.paypal_provider import PayPalPaymentProvider
+
+    live = s.PAYPAL_MODE == "live"
+    client_id = s.PAYPAL_CLIENT_ID if live else s.PAYPAL_SANDBOX_CLIENT_ID
+    secret = s.PAYPAL_CLIENT_SECRET if live else s.PAYPAL_SANDBOX_CLIENT_SECRET
+    if not (client_id and secret):
+        return ConnectionTestOut(ok=False, message=f"PayPal {s.PAYPAL_MODE} client ID and secret aren't both set.")
+    provider = PayPalPaymentProvider(
+        client_id=client_id, client_secret=secret, mode=s.PAYPAL_MODE, return_url="", cancel_url=""
+    )
+    async with provider._client() as client:  # noqa: SLF001 — sign-in only
+        await provider._access_token(client)  # noqa: SLF001
+    where = "LIVE — real payments" if live else "sandbox — test payments only"
+    return ConnectionTestOut(ok=True, message=f"PayPal accepted the {s.PAYPAL_MODE} keys ({where}).")
+
+
 async def _test_smtp(s: Settings) -> ConnectionTestOut:
     if not s.SMTP_HOST:
         return ConnectionTestOut(ok=False, message="No SMTP host set — emails are only logged (mock mode).")
@@ -323,7 +342,7 @@ async def test_connection(group: str, _: AdminUser):
         elif group == "ai_stylist":
             result = await _test_openai(s)
         elif group == "payments":
-            result = await _test_stripe(s)
+            result = await (_test_paypal(s) if s.PAYMENT_PROVIDER == "paypal" else _test_stripe(s))
         elif group == "email":
             result = await _test_smtp(s)
         else:

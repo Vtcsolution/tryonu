@@ -210,3 +210,34 @@ async def test_best_of_falls_back_to_the_engine_that_still_has_a_key(client, db)
     field = _field(resp.json(), "VIRTUAL_TRYON_PROVIDER")
     assert field["value"] == "openai"  # only one of the two keys is set
     assert "missing" in field["warning"]
+
+
+async def test_paypal_keys_set_in_the_admin_panel_drive_checkout_without_a_restart(client, db, monkeypatch):
+    from app.payments.paypal_provider import PayPalPaymentProvider
+    from app.payments.registry import get_payment_provider
+
+    await _admin(client, db)
+    secret = "pp-sandbox-secret-not-real-4321"
+    resp = await client.put(
+        "/api/v1/admin/settings",
+        json={"values": {"PAYMENT_PROVIDER": "paypal", "PAYPAL_MODE": "sandbox",
+                         "PAYPAL_SANDBOX_CLIENT_ID": "sandbox-client-id", "PAYPAL_SANDBOX_CLIENT_SECRET": secret}},
+    )
+    assert resp.status_code == 200, resp.text
+    assert secret not in resp.text and _field(resp.json(), "PAYPAL_SANDBOX_CLIENT_SECRET")["value"] == "••••4321"
+    row = (await db.execute(select(AppSetting).where(AppSetting.key == "PAYPAL_SANDBOX_CLIENT_SECRET"))).scalar_one()
+    assert secret not in row.value_encrypted
+
+    provider = get_payment_provider()  # picked up live: the registry cache was cleared
+    assert isinstance(provider, PayPalPaymentProvider) and provider.mode == "sandbox"
+
+    signed_in = []
+
+    async def fake_sign_in(self, client):  # noqa: ANN001, ANN202 — no real PayPal call
+        signed_in.append(self._client_secret == secret)
+        return "token"
+
+    monkeypatch.setattr(PayPalPaymentProvider, "_access_token", fake_sign_in)
+    test = (await client.post("/api/v1/admin/settings/test/payments")).json()
+    assert test["ok"] is True and "sandbox" in test["message"] and signed_in == [True]
+    assert secret not in str(test)

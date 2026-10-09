@@ -121,8 +121,16 @@ SPECS: tuple[SettingSpec, ...] = (
     SettingSpec("FLIPKART_AFFILIATE_TOKEN", "Affiliate token", "flipkart", "secret"),
     SettingSpec("DARAZ_API_KEY", "API key", "daraz", "secret"),
     # --- payments ---
-    SettingSpec("PAYMENT_PROVIDER", "Payment provider", "payments", "choice", ("stripe", "mock"),
-                "“mock” completes purchases without charging anyone — never leave it on in production."),
+    SettingSpec("PAYMENT_PROVIDER", "Payment provider", "payments", "choice", ("paypal", "stripe", "mock"),
+                "“paypal” sells the credit packages through PayPal Checkout. “mock” completes purchases without "
+                "charging anyone; on the production server it refuses purchases instead."),
+    SettingSpec("PAYPAL_MODE", "PayPal mode", "payments", "choice", ("sandbox", "live"),
+                "“sandbox” takes test money from PayPal sandbox accounts; “live” charges real money. "
+                "Switch to live only after a sandbox purchase worked."),
+    SettingSpec("PAYPAL_SANDBOX_CLIENT_ID", "PayPal sandbox client ID", "payments", "text"),
+    SettingSpec("PAYPAL_SANDBOX_CLIENT_SECRET", "PayPal sandbox secret", "payments", "secret"),
+    SettingSpec("PAYPAL_CLIENT_ID", "PayPal live client ID", "payments", "text"),
+    SettingSpec("PAYPAL_CLIENT_SECRET", "PayPal live secret", "payments", "secret"),
     SettingSpec("STRIPE_SECRET_KEY", "Stripe secret key", "payments", "secret"),
     SettingSpec("STRIPE_WEBHOOK_SECRET", "Stripe webhook signing secret", "payments", "secret"),
     # --- email ---
@@ -149,7 +157,7 @@ GROUPS: tuple[tuple[str, str], ...] = (
     ("amazon", "Amazon Associates"),
     ("flipkart", "Flipkart"),
     ("daraz", "Daraz"),
-    ("payments", "Payments (Stripe)"),
+    ("payments", "Payments (PayPal / Stripe)"),
     ("email", "Email (SMTP)"),
     ("credits", "Credits & pricing"),
 )
