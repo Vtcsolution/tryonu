@@ -10,7 +10,9 @@ import { ZoomableImage } from "@/components/try/ZoomableImage";
 import { LookBoard } from "@/components/try/LookBoard";
 import { markerNumber } from "@/components/try/ResultMarkers";
 import { PhotoUploader } from "@/components/upload/PhotoUploader";
-import { ApiError, affiliateGoUrl, resolveMediaUrl, thumbnailUrl } from "@/lib/api/client";
+import { ApiError, affiliateGoUrl, resolveMediaUrl } from "@/lib/api/client";
+import { StyledPicks } from "@/components/try/StyledPicks";
+import { RetailerTag, retailerFromImage, shopName } from "@/components/try/shop";
 import {
   liveSearch as liveSearchApi,
   outfits as outfitsApi,
@@ -736,102 +738,40 @@ export function TryFlow() {
           )}
 
           {(outfit || (product && lastStylistReply?.products.length === 1 && lastStylistReply.products[0].id === product.id)) && (
-            <div ref={pickRef} className="mt-4 scroll-mt-24 animate-[tu-in-scale_0.35s_ease] rounded-[20px] border border-sage bg-sage-tint/30 p-4">
-              <div className="flex items-center justify-between">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-sage-deep">
-                  {outfit ? `AI-styled outfit · ${outfit.items.length} items` : "AI-styled pick"}
-                </p>
-                <div className="flex items-center gap-3">
-                  {beforeSwap && (
-                    <button
-                      type="button"
-                      onClick={undoSwap}
-                      className="tu-fade text-[12px] text-sage-deep underline-offset-2 hover:underline"
-                    >
-                      ↺ Undo swap
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOutfit(null);
-                      setProduct(null);
-                      setLastStylistReply(null);
-                      setBeforeSwap(null);
-                      setSwappedInId(null);
-                    }}
-                    className="text-[12px] text-faint underline-offset-2 hover:text-ink hover:underline"
-                  >
-                    Clear
-                  </button>
-                </div>
-              </div>
-
-              {outfit ? (
-                <>
-                  <div className="mt-3 grid grid-cols-3 gap-2.5 sm:grid-cols-4">
-                    {outfit.items.map((item) => (
-                      <OutfitItemThumb
-                        key={item.id}
-                        item={item}
-                        rendered={outfit.rendered_item_ids.includes(item.id)}
-                        highlight={item.product.id === swappedInId}
-                      />
-                    ))}
-                  </div>
-                  <p className="mt-3 text-[12px] text-muted">
-                    Items marked &ldquo;on photo&rdquo; are drawn onto your photo; items marked
-                    &ldquo;matched&rdquo; are shown alongside the result with their own shop link.
-                  </p>
-                  <div className="mt-4 space-y-3 border-t border-line/70 pt-3">
-                    {outfit.items.map((item) => {
-                      const alts = lastStylistReply?.alternatives[item.product.id] ?? [];
-                      if (alts.length === 0) return null;
-                      return (
-                        <AlternativesRow
-                          key={item.id}
-                          label={item.product.name}
-                          alternatives={alts}
-                          onBuy={buyAlternative}
-                          onTryOn={(a) => applyAlternative.mutate({ alt: a, replaceId: item.product.id })}
-                          busyId={applyAlternative.isPending ? applyAlternative.variables?.alt.retailer_product_id : shopAlternative.isPending ? shopAlternative.variables?.retailer_product_id : undefined}
-                        />
-                      );
-                    })}
-                  </div>
-                </>
-              ) : (
-                product && (
-                  <>
-                    <div className="mt-3 flex items-center gap-3">
-                      {(() => {
-                        const thumb = resolveMediaUrl(product.images[0]?.url);
-                        return thumb ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={thumb} alt={product.name} className="h-16 w-12 rounded-lg object-cover object-top" />
-                        ) : null;
-                      })()}
-                      <div>
-                        <p className="text-[13px] font-semibold text-ink">{product.name}</p>
-                        <p className="text-[12px] text-muted">
-                          {(product.price_cents / 100).toFixed(2)} {product.currency.toUpperCase()}
-                        </p>
-                      </div>
-                    </div>
-                    {(lastStylistReply?.alternatives[product.id] ?? []).length > 0 && (
-                      <div className="mt-4 border-t border-line/70 pt-3">
-                        <AlternativesRow
-                          label={product.name}
-                          alternatives={lastStylistReply!.alternatives[product.id]}
-                          onBuy={buyAlternative}
-                          onTryOn={(a) => applyAlternative.mutate({ alt: a, replaceId: product.id })}
-                          busyId={applyAlternative.isPending ? applyAlternative.variables?.alt.retailer_product_id : shopAlternative.isPending ? shopAlternative.variables?.retailer_product_id : undefined}
-                        />
-                      </div>
-                    )}
-                  </>
-                )
-              )}
+            <div ref={pickRef} className="scroll-mt-24">
+              <StyledPicks
+                items={
+                  outfit
+                    ? outfit.items.map((item) => ({
+                        key: item.id,
+                        product: item.product,
+                        slot: item.slot,
+                        rendered: outfit.rendered_item_ids.includes(item.id),
+                        highlight: item.product.id === swappedInId,
+                      }))
+                    : [{ key: product!.id, product: product!, rendered: true, highlight: product!.id === swappedInId }]
+                }
+                alternatives={lastStylistReply?.alternatives ?? {}}
+                summary={lastStylistReply?.summary}
+                onUse={(alt, replaceId) => applyAlternative.mutate({ alt, replaceId })}
+                onBuy={buyAlternative}
+                busyId={
+                  applyAlternative.isPending
+                    ? applyAlternative.variables?.alt.retailer_product_id
+                    : shopAlternative.isPending
+                      ? shopAlternative.variables?.retailer_product_id
+                      : undefined
+                }
+                onUndo={beforeSwap ? undoSwap : undefined}
+                onClear={() => {
+                  setOutfit(null);
+                  setProduct(null);
+                  setLastStylistReply(null);
+                  setBeforeSwap(null);
+                  setSwappedInId(null);
+                }}
+                defaultOpenKey={outfit ? null : product!.id}
+              />
             </div>
           )}
 
@@ -1360,78 +1300,6 @@ function OutfitItemThumb({
   );
 }
 
-function AlternativesRow({
-  label,
-  alternatives,
-  onBuy,
-  onTryOn,
-  busyId,
-}: {
-  label: string;
-  alternatives: LiveProduct[];
-  onBuy: (item: LiveProduct) => void;
-  onTryOn: (item: LiveProduct) => void;
-  busyId?: string;
-}) {
-  const busy = busyId !== undefined;
-  return (
-    <div>
-      <p className="truncate text-[11px] text-faint">
-        {alternatives.length} other options for &ldquo;{label}&rdquo;{alternatives.length > 3 ? " · scroll for more" : ""}
-      </p>
-      <div className="mt-1.5 flex gap-2.5 overflow-x-auto pb-1.5">
-        {alternatives.map((alt) => {
-          const thumb = thumbnailUrl(alt.images[0]);
-          const working = busyId === alt.retailer_product_id;
-          return (
-            <div
-              key={`${alt.retailer_slug}:${alt.retailer_product_id}`}
-              className="flex w-[132px] shrink-0 flex-col overflow-hidden rounded-[14px] border border-line bg-surface"
-            >
-              <div className="relative aspect-square bg-paper-2" title={alt.name}>
-                {thumb && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={thumb} alt={alt.name} loading="lazy" className="h-full w-full object-cover object-top" />
-                )}
-                {working && (
-                  <span className="absolute inset-0 grid place-items-center bg-surface/60">
-                    <span className="h-6 w-6 animate-spin rounded-full border-2 border-line-strong border-t-sage" />
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-1 flex-col p-2">
-                <p className="text-[12px] font-semibold text-ink">
-                  {(alt.price_cents / 100).toFixed(2)} {alt.currency.toUpperCase()}
-                </p>
-                <RetailerTag name={shopName(alt.merchant_name, alt.retailer_name)} className="mt-1 self-start" />
-                <p className="line-clamp-2 text-[10.5px] leading-snug text-muted">{alt.name}</p>
-                <div className="mt-auto grid grid-cols-2 gap-1.5 pt-2">
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => onTryOn(alt)}
-                    className="tu-press h-7 rounded-full bg-sage text-[11px] font-medium text-white hover:bg-sage-deep disabled:opacity-50"
-                  >
-                    Try on
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => onBuy(alt)}
-                    className="tu-press h-7 rounded-full border border-line-strong text-[11px] font-medium text-ink hover:border-ink/40 disabled:opacity-50"
-                  >
-                    Buy
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function OutfitResultStep({
   jobs,
   outfit,
@@ -1672,33 +1540,8 @@ function AddMoreButton({
   );
 }
 
-/** The shop to name: an affiliate network's product (Admitad) names the
- *  programme that sells it, shortened ("Allegra K Many GEOs" -> "Allegra K"). */
-function shopName(merchant?: string | null, retailer?: string | null): string | null {
-  const shop = merchant?.replace(/\s+(Many GEOs|Many Geos|WW|[A-Z]{2}(,\s*[A-Z]{2})*)$/, "").trim();
-  return shop || retailer || null;
-}
 
-/** Which shop a product comes from, as a small tag on its card. */
-function RetailerTag({ name, className = "" }: { name?: string | null; className?: string }) {
-  if (!name) return null;
-  return (
-    <span
-      className={`rounded-full bg-surface/95 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-ink-soft shadow-sm ${className}`}
-    >
-      {name}
-    </span>
-  );
-}
 
-/** The shop behind a product photo, from where the photo is hosted: used for
- *  earlier-round items, whose saved placement keeps the photo but not the shop. */
-function retailerFromImage(url?: string | null): string | null {
-  if (!url) return null;
-  if (/ebayimg\.com/.test(url)) return "eBay";
-  if (/alicdn\.com|aliexpress/.test(url)) return "AliExpress";
-  return null;
-}
 
 /** Products from earlier rounds that are still in this look. */
 function EarlierRounds({ job, outfit }: { job: TryOnJob; outfit: Outfit }) {
