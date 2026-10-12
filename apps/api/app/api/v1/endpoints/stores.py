@@ -40,6 +40,8 @@ from app.schemas.store import (
     StoreProductOut,
     StoreProductUpdate,
     StoreUpdate,
+    SubscriptionStartOut,
+    SubscriptionSyncOut,
 )
 from app.services import store_service as svc
 from app.services.image_service import validate_and_optimize
@@ -74,6 +76,9 @@ async def _out(db: DbSession, store: Store) -> StoreOut:
         feed_url=store.feed_url,
         feed_last_run_at=store.feed_last_run_at,
         feed_last_result=store.feed_last_result,
+        auto_renew=store.auto_renew,
+        subscription_status=store.subscription_status,
+        subscription_plan_code=store.subscription_plan_code,
     )
 
 
@@ -499,10 +504,12 @@ async def public_store(slug: str, db: DbSession):
             .limit(1000)
         )
     ).scalars()
+    shown = [p for p in products if p.images]
+    await svc.record_views(db, [p.id for p in shown])
     return PublicStoreOut(
         name=store.name, slug=store.slug, country=store.country, description=store.description,
         website_url=store.website_url, logo_url=svc.image_url(store.logo_key) if store.logo_key else None,
-        products=[_product_out(p) for p in products if p.images],
+        products=[_product_out(p) for p in shown],
     )
 
 
@@ -611,3 +618,99 @@ async def admin_delete_product(store_id: str, product_id: str, _: AdminUser, db:
     await db.delete(product)
     await db.commit()
     return await _admin_detail(db, store)
+
+
+
+# ------------------------------------------------------- auto-renew (PayPal)
+
+
+def _paypal():  # noqa: ANN202
+    from app.payments.paypal_provider import PayPalPaymentProvider
+
+    provider = get_payment_provider()
+    if not isinstance(provider, PayPalPaymentProvider):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Auto-renew needs PayPal to be the payment provider. Unlock the plan for 30 days instead.",
+        )
+    return provider
+
+
+@router.post("/me/plans/{code}/subscribe", response_model=SubscriptionStartOut)
+async def subscribe_plan(code: str, user: CurrentUser, db: DbSession):
+    """Auto-renew: a PayPal subscription that pays for the plan every period.
+    The plan unlocks when PayPal confirms the first payment (subscription/sync)."""
+    from app.core.config import get_settings
+
+    store = await _my_store(db, user)
+    if store.auto_renew and store.subscription_status == "ACTIVE":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Auto-renew is already on. Turn it off first to switch plans.",
+        )
+    plan = await db.scalar(select(StorePlan).where(StorePlan.code == code, StorePlan.is_active.is_(True)))
+    if plan is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
+    provider = _paypal()
+    site = str(get_settings().FRONTEND_URL).rstrip("/")
+    try:
+        product_id, plan_id, key = await provider.store_billing_plan(
+            name=plan.name, price_cents=plan.price_cents, currency=plan.currency, days=plan.duration_days,
+            product_id=plan.paypal_product_id, plan_id=plan.paypal_plan_id, plan_key=plan.paypal_plan_key,
+        )
+        plan.paypal_product_id, plan.paypal_plan_id, plan.paypal_plan_key = product_id, plan_id, key
+        subscription_id, approve = await provider.start_store_subscription(
+            plan_id=plan_id,
+            custom_id=store.id,
+            return_url=f"{site}/business?subscription=done",
+            cancel_url=f"{site}/business?subscription=cancelled",
+        )
+    except PaymentsUnavailableError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Payments are not available right now.") from exc
+    except Exception as exc:  # noqa: BLE001
+        await db.rollback()
+        logger.warning("store_subscription_start_failed", error=str(exc)[:200])
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="We couldn't start auto-renew with PayPal. Nothing was charged.") from exc
+    store.subscription_id = subscription_id
+    store.subscription_plan_code = plan.code
+    store.subscription_status = "APPROVAL_PENDING"
+    store.subscription_last_paid_at = None
+    await db.commit()
+    return SubscriptionStartOut(checkout_url=approve)
+
+
+@router.post("/me/subscription/sync", response_model=SubscriptionSyncOut)
+async def sync_my_subscription(user: CurrentUser, db: DbSession):
+    """Back from PayPal (or 'check now'): PayPal is asked what was paid; the
+    browser's word counts for nothing."""
+    store = await _my_store(db, user)
+    if not store.subscription_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No auto-renew set up")
+    try:
+        result = await svc.sync_subscription(db, store, _paypal())
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("store_subscription_sync_failed", store_id=store.id, error=str(exc)[:200])
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="We couldn't check with PayPal. Try again in a moment.") from exc
+    await db.refresh(store)
+    return SubscriptionSyncOut(result=result, store=await _out(db, store))
+
+
+@router.post("/me/subscription/cancel", response_model=StoreOut)
+async def cancel_my_subscription(user: CurrentUser, db: DbSession):
+    """Turns auto-renew off. The plan stays active until its end date."""
+    store = await _my_store(db, user)
+    if not store.subscription_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No auto-renew set up")
+    try:
+        await _paypal().cancel_store_subscription(store.subscription_id, "Turned off by the store owner on TryOnU")
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="PayPal couldn't turn auto-renew off. Try again.") from exc
+    store.auto_renew = False
+    store.subscription_status = "CANCELLED"
+    await db.commit()
+    await db.refresh(store)
+    return await _out(db, store)

@@ -25,6 +25,9 @@ _LINK = "https://8.8.8.8/shop/item"  # a public address: no DNS needed offline
 async def _clean(db):  # noqa: ANN001, ANN202
     await db.execute(delete(StoreProduct))
     await db.execute(delete(Store))
+    for plan in (await db.execute(select(StorePlan))).scalars():
+        plan.paypal_product_id = plan.paypal_plan_id = plan.paypal_plan_key = None
+        plan.price_cents = {"basic": 1000, "standard": 2500}.get(plan.code, plan.price_cents)
     if not (await db.execute(select(StorePlan))).scalars().first():
         db.add_all([
             StorePlan(code="basic", name="Basic", price_cents=1000, currency="usd", product_limit=50, duration_days=30, position=1),
@@ -305,3 +308,132 @@ async def test_plan_reminders_go_out_once_per_expiry(client, db, monkeypatch):  
     await svc.send_plan_reminders(db)
     await svc.send_plan_reminders(db)
     assert sent[-1] == "Your TryOnU store plan has ended" and len(sent) == 2
+
+
+class FakePayPalSubscriptions:
+    """PayPal's catalog, billing-plan and subscription calls, in memory."""
+
+    def __init__(self) -> None:
+        self.plans_made = 0
+        self.status = "APPROVAL_PENDING"
+        self.custom_id: str | None = None
+        self.last_payment: str | None = None
+        self.cancelled = False
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        import json as _json
+
+        path = request.url.path
+        if path == "/v1/oauth2/token":
+            return httpx.Response(200, json={"access_token": "fake", "expires_in": 3600})
+        if path == "/v1/catalogs/products":
+            return httpx.Response(201, json={"id": "PROD-1"})
+        if path == "/v1/billing/plans":
+            self.plans_made += 1
+            return httpx.Response(201, json={"id": f"P-{self.plans_made}", "status": "ACTIVE"})
+        if path == "/v1/billing/subscriptions" and request.method == "POST":
+            self.custom_id = _json.loads(request.content)["custom_id"]
+            return httpx.Response(
+                201, json={"id": "I-SUB1", "status": "APPROVAL_PENDING", "links": [{"rel": "approve", "href": "https://paypal.test/approve/I-SUB1"}]}
+            )
+        if path == "/v1/billing/subscriptions/I-SUB1/cancel":
+            self.cancelled = True
+            self.status = "CANCELLED"
+            return httpx.Response(204)
+        if path == "/v1/billing/subscriptions/I-SUB1":
+            billing = {"last_payment": {"amount": {"currency_code": "USD", "value": "10.00"}, "time": self.last_payment}} if self.last_payment else {}
+            return httpx.Response(200, json={"id": "I-SUB1", "status": self.status, "plan_id": "P-1", "custom_id": self.custom_id, "billing_info": billing})
+        return httpx.Response(404, json={"name": "RESOURCE_NOT_FOUND"})
+
+
+@pytest.fixture
+def paypal_subs(monkeypatch):  # noqa: ANN001, ANN201
+    fake = FakePayPalSubscriptions()
+    provider = PayPalPaymentProvider(
+        client_id="sandbox-id-not-real", client_secret="sandbox-secret-not-real", mode="sandbox",
+        return_url="https://tryonu.test/credits/paypal", cancel_url="https://tryonu.test/credits/paypal",
+        transport=httpx.MockTransport(fake),
+    )
+    monkeypatch.setattr("app.api.v1.endpoints.stores.get_payment_provider", lambda: provider)
+    return fake
+
+
+async def test_auto_renew_unlocks_on_the_first_payment_and_extends_once_per_payment(client, db, paypal_subs):  # noqa: ANN001
+    store = await _company(client)
+    started = await client.post("/api/v1/stores/me/plans/basic/subscribe")
+    assert started.json()["checkout_url"] == "https://paypal.test/approve/I-SUB1"
+    assert paypal_subs.custom_id == store["id"]
+
+    paypal_subs.status = "ACTIVE"  # approved, first payment not taken yet
+    waiting = (await client.post("/api/v1/stores/me/subscription/sync")).json()
+    assert waiting["result"] == "active" and waiting["store"]["plan_active"] is False
+
+    paypal_subs.last_payment = "2026-10-12T10:00:00Z"
+    first = (await client.post("/api/v1/stores/me/subscription/sync")).json()
+    assert first["result"] == "renewed" and first["store"]["plan_active"] is True and first["store"]["auto_renew"] is True
+    expiry = first["store"]["plan_expires_at"]
+    again = (await client.post("/api/v1/stores/me/subscription/sync")).json()
+    assert again["result"] == "active" and again["store"]["plan_expires_at"] == expiry  # the same payment, not twice
+
+    paypal_subs.last_payment = "2026-11-11T10:00:00Z"  # next month's charge
+    renewed = (await client.post("/api/v1/stores/me/subscription/sync")).json()
+    assert renewed["result"] == "renewed" and renewed["store"]["plan_expires_at"] > expiry
+    payments = (await client.get("/api/v1/stores/me/payments")).json()
+    assert [p["status"] for p in payments] == ["succeeded", "succeeded"]
+
+
+async def test_the_paypal_billing_plan_is_reused_until_the_price_changes(client, db, paypal_subs):  # noqa: ANN001
+    await _company(client)
+    await client.post("/api/v1/stores/me/plans/basic/subscribe")
+    await client.post("/api/v1/stores/me/plans/basic/subscribe")
+    assert paypal_subs.plans_made == 1
+    plan = await db.scalar(select(StorePlan).where(StorePlan.code == "basic"))
+    plan.price_cents = 1200
+    await db.commit()
+    await client.post("/api/v1/stores/me/plans/basic/subscribe")
+    assert paypal_subs.plans_made == 2
+
+
+async def test_turning_auto_renew_off_keeps_the_paid_time(client, db, paypal_subs):  # noqa: ANN001
+    await _company(client)
+    await client.post("/api/v1/stores/me/plans/basic/subscribe")
+    paypal_subs.status, paypal_subs.last_payment = "ACTIVE", "2026-10-12T10:00:00Z"
+    await client.post("/api/v1/stores/me/subscription/sync")
+
+    off = (await client.post("/api/v1/stores/me/subscription/cancel")).json()
+    assert paypal_subs.cancelled and off["auto_renew"] is False and off["plan_active"] is True
+
+
+async def test_a_subscription_cancelled_on_paypal_turns_auto_renew_off(client, db, paypal_subs):  # noqa: ANN001
+    await _company(client)
+    await client.post("/api/v1/stores/me/plans/basic/subscribe")
+    paypal_subs.status, paypal_subs.last_payment = "ACTIVE", "2026-10-12T10:00:00Z"
+    await client.post("/api/v1/stores/me/subscription/sync")
+    paypal_subs.status = "CANCELLED"
+    stopped = (await client.post("/api/v1/stores/me/subscription/sync")).json()
+    assert stopped["result"] == "stopped" and stopped["store"]["auto_renew"] is False and stopped["store"]["plan_active"] is True
+
+
+async def test_a_subscription_made_for_another_store_is_never_counted(client, db, paypal_subs):  # noqa: ANN001
+    await _company(client)
+    await client.post("/api/v1/stores/me/plans/basic/subscribe")
+    paypal_subs.custom_id = "someone-else"
+    paypal_subs.status, paypal_subs.last_payment = "ACTIVE", "2026-10-12T10:00:00Z"
+    result = (await client.post("/api/v1/stores/me/subscription/sync")).json()
+    assert result["result"] == "mismatch" and result["store"]["plan_active"] is False
+
+
+async def test_auto_renew_needs_paypal(client, db):  # noqa: ANN001
+    await _company(client)  # the mock payment provider in tests
+    resp = await client.post("/api/v1/stores/me/plans/basic/subscribe")
+    assert resp.status_code == 400 and "PayPal" in resp.json()["detail"]
+
+
+async def test_views_are_counted_when_products_are_shown(client, db):  # noqa: ANN001
+    store, product = await _live_store_with_product(client, db)
+    await client.get(f"/api/v1/stores/public/{store['slug']}")  # the public page shows it once
+    await svc.record_views(db, [product["id"], product["id"], "not-a-product"])  # e.g. search results
+
+    stats = (await client.get("/api/v1/stores/me/stats")).json()
+    assert stats["views"] == 2  # one per product per page shown; duplicates in one page count once
+    assert stats["top"][0]["views"] == 2 and stats["top"][0]["name"] == "Pink Bridal Lehenga"

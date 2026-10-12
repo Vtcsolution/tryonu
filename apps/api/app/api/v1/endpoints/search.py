@@ -33,6 +33,9 @@ async def search_live(
 
     await use_profile_country(db, user.id if user else None)  # local stores first
     results = await live_search(q.strip(), limit=limit)
+    from app.services.store_service import record_views
+
+    await record_views(db, [r.raw.retailer_product_id for r in results if r.provider.slug == "stores"])
     return [to_live_product_out(r) for r in results]
 
 

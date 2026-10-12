@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from datetime import datetime
 
 import httpx
 
@@ -162,3 +163,119 @@ class PayPalPaymentProvider(PaymentProvider):
             currency=(amount.get("currency_code") or "").lower() or None,
             capture_id=cap.get("id"),
         )
+
+
+    # ------------------------------------------------- subscriptions (store plans)
+    # PayPal Subscriptions: a billing plan (price every N days) on a catalog
+    # product; a subscription to it is approved once by the payer, then PayPal
+    # charges them every period until it's cancelled.
+
+    async def store_billing_plan(
+        self, *, name: str, price_cents: int, currency: str, days: int,
+        product_id: str | None, plan_id: str | None, plan_key: str | None,
+    ) -> tuple[str, str, str]:
+        """(product_id, plan_id, key) of a PayPal billing plan charging this price
+        every `days` days, made only when nothing made earlier still matches."""
+        key = f"{self.mode}|{price_cents}|{currency.lower()}|{days}"
+        if product_id and plan_id and plan_key == key:
+            return product_id, plan_id, key
+        async with self._client() as client:
+            token = await self._access_token(client)
+            headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+            if not product_id or not (plan_key or "").startswith(f"{self.mode}|"):
+                resp = await client.post(
+                    "/v1/catalogs/products",
+                    headers={**headers, "PayPal-Request-Id": f"product-{name}-{key}"[:100]},
+                    json={"name": f"TryOnU {name} store plan"[:127], "type": "SERVICE", "category": "SOFTWARE"},
+                )
+                if resp.status_code not in (200, 201):
+                    raise PayPalError(f"PayPal could not create the product: {_error_text(resp)}")
+                product_id = resp.json()["id"]
+            resp = await client.post(
+                "/v1/billing/plans",
+                headers={**headers, "PayPal-Request-Id": f"plan-{product_id}-{key}"[:100], "Prefer": "return=representation"},
+                json={
+                    "product_id": product_id,
+                    "name": f"TryOnU {name}: every {days} days"[:127],
+                    "status": "ACTIVE",
+                    "billing_cycles": [
+                        {
+                            "frequency": {"interval_unit": "DAY", "interval_count": days},
+                            "tenure_type": "REGULAR",
+                            "sequence": 1,
+                            "total_cycles": 0,
+                            "pricing_scheme": {"fixed_price": {"value": _money(price_cents), "currency_code": currency.upper()}},
+                        }
+                    ],
+                    "payment_preferences": {"auto_bill_outstanding": True, "payment_failure_threshold": 1},
+                },
+            )
+        if resp.status_code not in (200, 201):
+            raise PayPalError(f"PayPal could not create the billing plan: {_error_text(resp)}")
+        return product_id, resp.json()["id"], key
+
+    async def start_store_subscription(
+        self, *, plan_id: str, custom_id: str, return_url: str, cancel_url: str
+    ) -> tuple[str, str]:
+        """(subscription_id, approval link) for a new subscription to plan_id."""
+        async with self._client() as client:
+            token = await self._access_token(client)
+            resp = await client.post(
+                "/v1/billing/subscriptions",
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                json={
+                    "plan_id": plan_id,
+                    "custom_id": custom_id,
+                    "application_context": {
+                        "brand_name": "TryOnU",
+                        "user_action": "SUBSCRIBE_NOW",
+                        "shipping_preference": "NO_SHIPPING",
+                        "return_url": return_url,
+                        "cancel_url": cancel_url,
+                    },
+                },
+            )
+        if resp.status_code not in (200, 201):
+            raise PayPalError(f"PayPal could not start the subscription: {_error_text(resp)}")
+        body = resp.json()
+        approve = next((link["href"] for link in body.get("links") or [] if link.get("rel") == "approve"), None)
+        if not approve:
+            raise PayPalError("PayPal returned no approval link")
+        return body["id"], approve
+
+    async def store_subscription(self, subscription_id: str) -> dict:
+        """What PayPal says about a subscription now: status, plan, owner
+        reference and its latest payment (time, cents, currency)."""
+        async with self._client() as client:
+            token = await self._access_token(client)
+            resp = await client.get(
+                f"/v1/billing/subscriptions/{subscription_id}", headers={"Authorization": f"Bearer {token}"}
+            )
+        if resp.status_code != 200:
+            raise PayPalError(f"PayPal could not read the subscription: {_error_text(resp)}")
+        body = resp.json()
+        last = (body.get("billing_info") or {}).get("last_payment") or {}
+        amount = last.get("amount") or {}
+        paid_at = None
+        if last.get("time"):
+            paid_at = datetime.fromisoformat(str(last["time"]).replace("Z", "+00:00"))
+        return {
+            "status": body.get("status"),
+            "plan_id": body.get("plan_id"),
+            "custom_id": body.get("custom_id"),
+            "last_paid_at": paid_at,
+            "last_paid_cents": _cents(amount["value"]) if amount.get("value") else None,
+            "last_paid_currency": (amount.get("currency_code") or "").lower() or None,
+        }
+
+    async def cancel_store_subscription(self, subscription_id: str, reason: str) -> None:
+        async with self._client() as client:
+            token = await self._access_token(client)
+            resp = await client.post(
+                f"/v1/billing/subscriptions/{subscription_id}/cancel",
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                json={"reason": reason[:127]},
+            )
+        # 422 SUBSCRIPTION_STATUS_INVALID: already cancelled; nothing left to stop
+        if resp.status_code not in (200, 204) and not (resp.status_code == 422 and "STATUS_INVALID" in resp.text):
+            raise PayPalError(f"PayPal could not cancel the subscription: {_error_text(resp)}")

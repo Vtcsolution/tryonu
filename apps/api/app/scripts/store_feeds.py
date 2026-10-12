@@ -1,4 +1,4 @@
-"""Import every live company store's product feed and email plan reminders. Run daily (cron).
+"""Import every live company store's product feed check auto-renew payments with PayPal, and email plan reminders. Run daily (cron).
 
     python -m app.scripts.store_feeds
 
@@ -26,6 +26,12 @@ async def main() -> int:
         for store in live:
             print(f"{store.name}: {await svc.import_store_feed(db, store)}")
         print(f"{len(live)} store feed(s) imported")
+        from app.payments.paypal_provider import PayPalPaymentProvider
+        from app.payments.registry import get_payment_provider
+
+        provider = get_payment_provider()
+        if isinstance(provider, PayPalPaymentProvider):
+            print(f"auto-renew checked with PayPal: {await svc.sync_all_subscriptions(db, provider)}")
         reminders = await svc.send_plan_reminders(db)
     print(f"plan reminders sent: {reminders['ending_soon']} ending soon, {reminders['ended']} ended")
     return 0

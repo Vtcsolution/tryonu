@@ -15,7 +15,7 @@ from sqlalchemy import and_, case, delete, func, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.models.store import Store, StorePlan, StoreProduct
+from app.models.store import Store, StorePlan, StoreProduct, StoreProductView
 from app.services.admitad_feeds import parse_price
 from app.services.safe_fetch import UnsafeURLError, check_public_url, fetch_limited
 
@@ -280,10 +280,24 @@ async def store_stats(db: AsyncSession, store_id: str, days: int = 30) -> dict:
             .where(Retailer.slug == "stores", StoreProduct.store_id == store_id)
         )
     ).all()
+    views = await views_by_product(db, store_id, days)
+    names = dict((await db.execute(select(StoreProduct.id, StoreProduct.name).where(StoreProduct.id.in_(views)))).all()) if views else {}
     if not saved:
-        return {"days": days, "clicks": 0, "tryons": 0, "top": []}
+        top = sorted(
+            ({"store_product_id": k, "name": names.get(k, ""), "views": v, "clicks": 0, "tryons": 0} for k, v in views.items()),
+            key=lambda r: r["views"], reverse=True,
+        )[:10]
+        return {"days": days, "views": sum(views.values()), "clicks": 0, "tryons": 0, "top": top}
     product_ids = [row[0] for row in saved]
-    by_product = {row[0]: {"store_product_id": row[1], "name": row[2], "clicks": 0, "tryons": 0} for row in saved}
+    by_product = {row[0]: {"store_product_id": row[1], "name": row[2], "views": 0, "clicks": 0, "tryons": 0} for row in saved}
+    for row in by_product.values():
+        row["views"] = views.get(row["store_product_id"], 0)
+    seen = {row["store_product_id"] for row in by_product.values()}
+    for store_product_id, count in views.items():  # shown but never picked yet
+        if store_product_id not in seen:
+            by_product[f"view-{store_product_id}"] = {
+                "store_product_id": store_product_id, "name": names.get(store_product_id, ""), "views": count, "clicks": 0, "tryons": 0,
+            }
 
     for product_id, count in (
         await db.execute(
@@ -312,12 +326,13 @@ async def store_stats(db: AsyncSession, store_id: str, days: int = 30) -> dict:
     for product_id, count in [*single, *in_outfits]:
         by_product[product_id]["tryons"] += int(count)
 
-    rows = sorted(by_product.values(), key=lambda r: (r["clicks"] + r["tryons"]), reverse=True)
+    rows = sorted(by_product.values(), key=lambda r: (r["clicks"] + r["tryons"], r["views"]), reverse=True)
     return {
         "days": days,
+        "views": sum(views.values()),
         "clicks": sum(r["clicks"] for r in rows),
         "tryons": sum(r["tryons"] for r in rows),
-        "top": [r for r in rows if r["clicks"] or r["tryons"]][:10],
+        "top": [r for r in rows if r["views"] or r["clicks"] or r["tryons"]][:10],
     }
 
 
@@ -430,3 +445,121 @@ async def import_store_file(db: AsyncSession, store: Store, data: bytes) -> str:
         + (f"; {skipped} rows skipped (missing name, price, link or photo)" if skipped else "")
         + "."
     )
+
+
+# ------------------------------------------------------- auto-renew (PayPal)
+
+STOPPED = {"CANCELLED", "SUSPENDED", "EXPIRED"}
+
+
+async def sync_subscription(db: AsyncSession, store: Store, provider) -> str:  # noqa: ANN001
+    """Brings a store's auto-renew in line with what PayPal says.
+
+    Each new PayPal payment (a later `last_payment` time than the one already
+    counted) adds one plan period and is recorded as a payment, so a payment
+    is never counted twice however often this runs. A cancelled, suspended or
+    expired subscription turns auto-renew off; the time already paid stays."""
+    from app.models.enums import PaymentStatus
+    from app.models.subscription import Payment
+
+    if not store.subscription_id:
+        return "none"
+    info = await provider.store_subscription(store.subscription_id)
+    if info.get("custom_id") not in (None, store.id):
+        return "mismatch"  # never a subscription made for another store
+    status = str(info.get("status") or "")
+    store.subscription_status = status
+    result = "pending"
+    if status == "ACTIVE":
+        store.auto_renew = True
+        paid_at = _aware(info.get("last_paid_at"))
+        counted = _aware(store.subscription_last_paid_at)
+        plan = await db.scalar(select(StorePlan).where(StorePlan.code == store.subscription_plan_code))
+        if paid_at and (counted is None or paid_at > counted) and plan is not None:
+            activate_plan(store, plan)
+            store.subscription_last_paid_at = paid_at
+            db.add(
+                Payment(
+                    user_id=store.owner_user_id,
+                    amount_cents=info.get("last_paid_cents") or plan.price_cents,
+                    currency=info.get("last_paid_currency") or plan.currency,
+                    status=PaymentStatus.SUCCEEDED,
+                    provider="paypal",
+                    external_payment_id=f"{store.subscription_id}:{paid_at.isoformat()}"[:255],
+                    store_plan_id=plan.id,
+                    store_id=store.id,
+                )
+            )
+            result = "renewed"
+        else:
+            result = "active"
+    elif status in STOPPED:
+        store.auto_renew = False
+        result = "stopped"
+    await db.commit()
+    return result
+
+
+async def sync_all_subscriptions(db: AsyncSession, provider) -> dict:  # noqa: ANN001
+    from app.core.logging import logger
+
+    counts: dict[str, int] = {}
+    stores = (await db.execute(select(Store).where(Store.subscription_id.is_not(None)))).scalars().all()
+    for store in stores:
+        if store.subscription_status in STOPPED:
+            continue
+        try:
+            outcome = await sync_subscription(db, store, provider)
+        except Exception as exc:  # noqa: BLE001 — one store must not stop the others
+            await db.rollback()
+            logger.warning("store_subscription_sync_failed", store_id=store.id, error=str(exc)[:200])
+            outcome = "error"
+        counts[outcome] = counts.get(outcome, 0) + 1
+    return counts
+
+
+# ---------------------------------------------------------------- product views
+
+
+async def record_views(db: AsyncSession, store_product_ids: list[str]) -> None:
+    """One view per store product shown to a shopper, counted per day.
+    Never raises: counting must not break the page that shows the products."""
+    from app.core.logging import logger
+
+    ids = [i for i in dict.fromkeys(store_product_ids) if i]
+    if not ids:
+        return
+    try:
+        today = utcnow().date()
+        owners = dict((await db.execute(select(StoreProduct.id, StoreProduct.store_id).where(StoreProduct.id.in_(ids)))).all())
+        rows = {
+            v.store_product_id: v
+            for v in (
+                await db.execute(
+                    select(StoreProductView).where(StoreProductView.store_product_id.in_(owners), StoreProductView.day == today)
+                )
+            ).scalars()
+        }
+        for product_id, store_id in owners.items():
+            if product_id in rows:
+                rows[product_id].views += 1
+            else:
+                db.add(StoreProductView(store_id=store_id, store_product_id=product_id, day=today, views=1))
+        await db.commit()
+    except Exception as exc:  # noqa: BLE001
+        await db.rollback()
+        logger.warning("store_views_not_counted", error=str(exc)[:200])
+
+
+async def views_by_product(db: AsyncSession, store_id: str, days: int) -> dict[str, int]:
+    since = (utcnow() - timedelta(days=days)).date()
+    return {
+        pid: int(total or 0)
+        for pid, total in (
+            await db.execute(
+                select(StoreProductView.store_product_id, func.sum(StoreProductView.views))
+                .where(StoreProductView.store_id == store_id, StoreProductView.day >= since)
+                .group_by(StoreProductView.store_product_id)
+            )
+        ).all()
+    }

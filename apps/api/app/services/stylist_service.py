@@ -796,4 +796,16 @@ async def ask_stylist(
     db.add(stylist_request)
     await db.commit()
     await db.refresh(stylist_request)
+    from app.services.store_service import record_views
+
+    await record_views(
+        db,
+        [c.result.raw.retailer_product_id for c in chosen if c.result.provider.slug == "stores"]
+        + [
+            r.raw.retailer_product_id
+            for _, options in alternatives_by_product_id.values()
+            for r in options
+            if r.provider.slug == "stores"
+        ],
+    )
     return stylist_request, alternatives_by_product_id

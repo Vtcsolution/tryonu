@@ -55,6 +55,9 @@ class StoreOut(BaseModel):
     feed_url: str | None
     feed_last_run_at: datetime | None
     feed_last_result: str | None
+    auto_renew: bool = False
+    subscription_status: str | None = None
+    subscription_plan_code: str | None = None
 
 
 class StoreProductIn(BaseModel):
@@ -126,12 +129,14 @@ class AdminStorePlanUpdate(BaseModel):
 class StoreStatsTop(BaseModel):
     store_product_id: str
     name: str
+    views: int = 0
     clicks: int
     tryons: int
 
 
 class StoreStatsOut(BaseModel):
     days: int
+    views: int = 0
     clicks: int
     tryons: int
     top: list[StoreStatsTop]
@@ -180,3 +185,12 @@ class AdminStoreSummaryOut(BaseModel):
     live: int
     products: int
     plan_revenue: dict[str, int]  # currency -> cents, succeeded store plan payments
+
+
+class SubscriptionStartOut(BaseModel):
+    checkout_url: str
+
+
+class SubscriptionSyncOut(BaseModel):
+    result: str
+    store: StoreOut

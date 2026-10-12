@@ -9,9 +9,9 @@ photos uploaded) and/or a feed link (CSV/JSON) imported daily.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -30,6 +30,12 @@ class StorePlan(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     duration_days: Mapped[int] = mapped_column(Integer, nullable=False, default=30)
     position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # the PayPal product + billing plan used for auto-renewing subscriptions to
+    # this plan, and the "mode|price|currency|days" they were made for: a change
+    # (admin edits the price, sandbox -> live) makes a fresh PayPal plan
+    paypal_product_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    paypal_plan_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    paypal_plan_key: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
 
 class Store(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -57,6 +63,13 @@ class Store(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # the plan expiry a reminder / an expired notice was emailed for (never twice)
     reminded_for_expiry: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     expired_notice_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # auto-renew: the PayPal subscription paying for the plan every period
+    subscription_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    subscription_plan_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    subscription_status: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    auto_renew: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # the last renewal payment already turned into plan time (never counted twice)
+    subscription_last_paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class StoreProduct(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -83,3 +96,20 @@ class StoreProduct(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     gender: Mapped[str] = mapped_column(String(16), nullable=False, default="unisex")
     color: Mapped[str | None] = mapped_column(String(60), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class StoreProductView(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """How many times a store product was shown to shoppers on one day."""
+
+    __tablename__ = "store_product_views"
+    __table_args__ = (
+        UniqueConstraint("store_product_id", "day", name="uq_store_product_views_day"),
+        Index("ix_store_product_views_store_day", "store_id", "day"),
+    )
+
+    store_id: Mapped[str] = mapped_column(String(36), ForeignKey("stores.id", ondelete="CASCADE"), nullable=False)
+    store_product_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("store_products.id", ondelete="CASCADE"), nullable=False
+    )
+    day: Mapped[date] = mapped_column(Date, nullable=False)
+    views: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
