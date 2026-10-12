@@ -18,6 +18,7 @@ import { AdminShell, type NavGroup } from "./AdminShell";
 import { AnalyticsTab } from "./AnalyticsTab";
 import { ProductsTab, RetailersTab } from "./CatalogTabs";
 import { CreditPackagesTab } from "./CreditPackagesTab";
+import { StoresTab } from "./StoresTab";
 import { SettingsTab } from "./SettingsTab";
 import { TryOnsTab } from "./TryOnsTab";
 import { UsersTab } from "./UsersTab";
@@ -30,6 +31,7 @@ type Tab =
   | "products"
   | "retailers"
   | "packs"
+  | "stores"
   | "settings"
   | "system"
   | "payments"
@@ -54,6 +56,7 @@ const NAV: readonly NavGroup<Tab>[] = [
       { id: "products", label: "Products", icon: "products" },
       { id: "retailers", label: "Retailers", icon: "retailers" },
       { id: "packs", label: "Credit packs", icon: "packs" },
+      { id: "stores", label: "Company stores", icon: "retailers" },
     ],
   },
   {
@@ -156,6 +159,7 @@ export function AdminDashboard() {
         {tab === "products" && <ProductsTab />}
         {tab === "retailers" && <RetailersTab />}
         {tab === "packs" && <CreditPackagesTab />}
+        {tab === "stores" && <StoresTab />}
         {tab === "settings" && <SettingsTab />}
         {tab === "system" && <SystemTab />}
         {tab === "payments" && <PaymentsTab />}

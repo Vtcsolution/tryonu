@@ -11,7 +11,7 @@ import { SESSION_QUERY_KEY } from "@/lib/auth/useSession";
 
 type State =
   | { kind: "working" }
-  | { kind: "succeeded"; credits: number | null; balance: number | null }
+  | { kind: "succeeded"; credits: number | null; balance: number | null; plan: string | null; planUntil: string | null }
   | { kind: "pending" }
   | { kind: "failed"; message: string }
   | { kind: "cancelled" };
@@ -36,7 +36,13 @@ export function PayPalReturn() {
     try {
       const res = await creditsApi.capturePurchase(paymentId);
       if (res.status === "succeeded") {
-        setState({ kind: "succeeded", credits: res.credits_granted, balance: res.new_balance });
+        setState({
+          kind: "succeeded",
+          credits: res.credits_granted,
+          balance: res.new_balance,
+          plan: res.plan_name ?? null,
+          planUntil: res.plan_expires_at ?? null,
+        });
         qc.invalidateQueries({ queryKey: SESSION_QUERY_KEY });
         qc.invalidateQueries({ queryKey: ["credit-history"] });
       } else if (res.status === "pending") {
@@ -67,14 +73,28 @@ export function PayPalReturn() {
       {state.kind === "succeeded" && (
         <>
           <h1 className="font-display text-[clamp(26px,4vw,36px)] text-ink">Payment complete</h1>
-          <p className="mt-3 text-[15px] text-muted">
-            {state.credits ? `${state.credits} credits were added. ` : "Your credits were added. "}
-            {state.balance !== null ? `Your balance is now ${state.balance} credits.` : ""}
-          </p>
-          <div className="mt-7 flex justify-center gap-3">
-            <Button href="/try" size="md">Try something on</Button>
-            <Button href="/credits" size="md" variant="outline">Back to credits</Button>
-          </div>
+          {state.plan ? (
+            <>
+              <p className="mt-3 text-[15px] text-muted">
+                Your {state.plan} plan is unlocked
+                {state.planUntil ? ` until ${new Date(state.planUntil).toLocaleDateString()}` : ""}.
+              </p>
+              <div className="mt-7 flex justify-center gap-3">
+                <Button href="/business" size="md">Go to my store</Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="mt-3 text-[15px] text-muted">
+                {state.credits ? `${state.credits} credits were added. ` : "Your credits were added. "}
+                {state.balance !== null ? `Your balance is now ${state.balance} credits.` : ""}
+              </p>
+              <div className="mt-7 flex justify-center gap-3">
+                <Button href="/try" size="md">Try something on</Button>
+                <Button href="/credits" size="md" variant="outline">Back to credits</Button>
+              </div>
+            </>
+          )}
         </>
       )}
       {state.kind === "pending" && (

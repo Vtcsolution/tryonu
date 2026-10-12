@@ -282,6 +282,8 @@ export type UserPreference = {
   favorite_retailers: string[] | null;
   budget_min_cents: number | null;
   budget_max_cents: number | null;
+  /** ISO alpha-2: stores from this country are shown first */
+  country?: string | null;
 };
 
 export type CreditPackage = {
@@ -540,4 +542,70 @@ export type ProductSearchParams = {
   sort?: "relevance" | "price_asc" | "price_desc" | "rating" | "newest";
   limit?: number;
   offset?: number;
+};
+
+/* ------------------------------------------------------------ company stores */
+
+export type StorePlan = {
+  id: string;
+  code: string;
+  name: string;
+  price_cents: number;
+  currency: string;
+  product_limit: number;
+  duration_days: number;
+  is_active: boolean;
+};
+
+export type Store = {
+  id: string;
+  name: string;
+  slug: string;
+  country: string;
+  description: string | null;
+  website_url: string | null;
+  contact_email: string | null;
+  logo_url: string | null;
+  /** pending | approved | rejected | suspended */
+  status: string;
+  status_note: string | null;
+  plan_code: string | null;
+  plan_product_limit: number;
+  plan_expires_at: string | null;
+  plan_active: boolean;
+  live: boolean;
+  product_count: number;
+  feed_url: string | null;
+  feed_last_run_at: string | null;
+  feed_last_result: string | null;
+};
+
+export type AdminStore = Store & { owner_email: string; created_at: string };
+
+export type StoreProduct = {
+  id: string;
+  source: "manual" | "feed";
+  name: string;
+  description: string | null;
+  price_cents: number;
+  currency: string;
+  images: string[];
+  product_url: string;
+  category: string | null;
+  gender: string;
+  color: string | null;
+  is_active: boolean;
+  updated_at: string;
+};
+
+export type StoreProductInput = {
+  name: string;
+  description?: string | null;
+  price_cents: number;
+  currency: string;
+  product_url: string;
+  category?: string | null;
+  gender: string;
+  color?: string | null;
+  is_active?: boolean;
 };

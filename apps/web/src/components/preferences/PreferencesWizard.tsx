@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CountrySelect } from "@/components/business/BusinessDashboard";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/Button";
@@ -117,6 +118,7 @@ export function PreferencesWizard() {
   const [brands, setBrands] = useState<string[]>([]);
   const [budgetMin, setBudgetMin] = useState("");
   const [budgetMax, setBudgetMax] = useState("");
+  const [country, setCountry] = useState("");
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -128,6 +130,7 @@ export function PreferencesWizard() {
     setBrands(p.preferred_brands ?? []);
     setBudgetMin(p.budget_min_cents != null ? String(p.budget_min_cents / 100) : "");
     setBudgetMax(p.budget_max_cents != null ? String(p.budget_max_cents / 100) : "");
+    setCountry(p.country ?? "");
     setLoaded(true);
   }, [prefQuery.data, loaded]);
 
@@ -178,6 +181,7 @@ export function PreferencesWizard() {
         preferred_brands: brands,
         budget_min_cents: Number.isFinite(min) ? min : null,
         budget_max_cents: Number.isFinite(max) ? max : null,
+        country: country || null,
       },
       { onSuccess: () => router.push(next) },
     );
@@ -295,6 +299,10 @@ export function PreferencesWizard() {
               </Field>
               <Field label="Favourite brands">
                 <TagInput values={brands} onChange={setBrands} suggestions={brandSuggestions(picked)} placeholder="Type another brand and press Enter" />
+              </Field>
+              <Field label="Your country">
+                <CountrySelect value={country} onChange={setCountry} />
+                <p className="mt-1.5 text-[12px] text-faint">Stores from your country are shown to you first.</p>
               </Field>
               <Field label="Budget per item (USD)">
                 <div className="mb-3 flex flex-wrap gap-1.5">

@@ -12,6 +12,7 @@ const COLS: { heading: string; links: { label: string; href: string }[] }[] = [
   {
     heading: "Company",
     links: [
+      { label: "Sell on TryOnU", href: "/business" },
       { label: "About", href: "#" },
       { label: "Careers", href: "#" },
       { label: "Blog", href: "#" },

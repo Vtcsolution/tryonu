@@ -8,6 +8,7 @@ import type {
   AdminProduct,
   AdminRetailer,
   AdminSettings,
+  AdminStore,
   AdminSystemStatus,
   AdminTryOnJob,
   AdminUser,
@@ -29,10 +30,14 @@ import type {
   Product,
   ProductSearchParams,
   SavedLook,
+  Store,
+  StorePlan,
+  StoreProduct,
+  StoreProductInput,
   StylistAskInput,
   StylistResponse,
-  Subscription,
   SubscribeResponse,
+  Subscription,
   SubscriptionPlanId,
   SubscriptionPlanOut,
   TaxonomyNode,
@@ -151,6 +156,8 @@ export const credits = {
       status: string;
       credits_granted: number | null;
       new_balance: number | null;
+      plan_name?: string | null;
+      plan_expires_at?: string | null;
     }>(`/api/v1/credits/purchase/${paymentId}/capture`, { method: "POST" }),
   purchaseStatus: (paymentId: string) =>
     apiFetch<{ payment_id: string; status: string; new_balance: number | null }>(
@@ -346,3 +353,46 @@ export const affiliate = {
 };
 
 export type { Product, TryOnJob, User };
+
+/* ------------------------------------------------------------ company stores */
+
+type PlanPurchase = { payment_id: string; status: string; checkout_url: string | null };
+
+export const stores = {
+  plans: () => apiFetch<StorePlan[]>("/api/v1/stores/plans"),
+  mine: () => apiFetch<Store>("/api/v1/stores/me"),
+  create: (input: { name: string; country: string; description?: string; website_url?: string; contact_email?: string }) =>
+    apiFetch<Store>("/api/v1/stores", { method: "POST", body: input }),
+  update: (input: Partial<Pick<Store, "name" | "country" | "description" | "website_url" | "contact_email">>) =>
+    apiFetch<Store>("/api/v1/stores/me", { method: "PATCH", body: input }),
+  uploadLogo: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return apiFetch<Store>("/api/v1/stores/me/logo", { method: "POST", body: form, isFormData: true });
+  },
+  buyPlan: (code: string) => apiFetch<PlanPurchase>(`/api/v1/stores/me/plans/${code}/purchase`, { method: "POST" }),
+  products: () => apiFetch<StoreProduct[]>("/api/v1/stores/me/products"),
+  addProduct: (input: StoreProductInput) => apiFetch<StoreProduct>("/api/v1/stores/me/products", { method: "POST", body: input }),
+  editProduct: (id: string, input: Partial<StoreProductInput>) =>
+    apiFetch<StoreProduct>(`/api/v1/stores/me/products/${id}`, { method: "PATCH", body: input }),
+  deleteProduct: (id: string) => apiFetch<void>(`/api/v1/stores/me/products/${id}`, { method: "DELETE" }),
+  addImage: (id: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return apiFetch<StoreProduct>(`/api/v1/stores/me/products/${id}/images`, { method: "POST", body: form, isFormData: true });
+  },
+  removeImage: (id: string, index: number) =>
+    apiFetch<StoreProduct>(`/api/v1/stores/me/products/${id}/images/${index}`, { method: "DELETE" }),
+  setFeed: (feed_url: string | null) => apiFetch<Store>("/api/v1/stores/me/feed", { method: "PUT", body: { feed_url } }),
+  importFeed: () => apiFetch<{ result: string }>("/api/v1/stores/me/feed/import", { method: "POST" }),
+};
+
+export const adminStores = {
+  list: (status?: string) =>
+    apiFetch<AdminStore[]>(`/api/v1/admin/stores${status ? `?status_filter=${encodeURIComponent(status)}` : ""}`),
+  setStatus: (id: string, status: string, note?: string) =>
+    apiFetch<AdminStore>(`/api/v1/admin/stores/${id}/status`, { method: "POST", body: { status, note: note || null } }),
+  plans: () => apiFetch<StorePlan[]>("/api/v1/admin/stores/plans"),
+  updatePlan: (id: string, input: Partial<Pick<StorePlan, "name" | "price_cents" | "product_limit" | "duration_days" | "is_active">>) =>
+    apiFetch<StorePlan>(`/api/v1/admin/stores/plans/${id}`, { method: "PATCH", body: input }),
+};
