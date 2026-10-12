@@ -46,15 +46,16 @@ async def register_user(db: AsyncSession, *, email: str, password: str, full_nam
     )
     db.add(user)
     await db.flush()
-    await credit_service.grant(
-        db,
-        user_id=user.id,
-        amount=settings.SIGNUP_FREE_CREDITS,
-        reason=CreditReason.SIGNUP_BONUS,
-        reference_type="user",
-        reference_id=user.id,
-        note="Welcome bonus",
-    )
+    if settings.SIGNUP_FREE_CREDITS > 0:  # 0: new users start at 0 and buy a plan
+        await credit_service.grant(
+            db,
+            user_id=user.id,
+            amount=settings.SIGNUP_FREE_CREDITS,
+            reason=CreditReason.SIGNUP_BONUS,
+            reference_type="user",
+            reference_id=user.id,
+            note="Welcome bonus",
+        )
     await _send_verification_email(db, user)
     await db.commit()
     await db.refresh(user)
@@ -161,15 +162,16 @@ async def find_or_create_google_user(
     )
     db.add(user)
     await db.flush()
-    await credit_service.grant(
-        db,
-        user_id=user.id,
-        amount=settings.SIGNUP_FREE_CREDITS,
-        reason=CreditReason.SIGNUP_BONUS,
-        reference_type="user",
-        reference_id=user.id,
-        note="Welcome bonus",
-    )
+    if settings.SIGNUP_FREE_CREDITS > 0:  # 0: new users start at 0 and buy a plan
+        await credit_service.grant(
+            db,
+            user_id=user.id,
+            amount=settings.SIGNUP_FREE_CREDITS,
+            reason=CreditReason.SIGNUP_BONUS,
+            reference_type="user",
+            reference_id=user.id,
+            note="Welcome bonus",
+        )
     await db.commit()
     await db.refresh(user)
     return user

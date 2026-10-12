@@ -27,6 +27,11 @@ export function BuyCreditsPanel() {
     enabled: !!user,
   });
 
+  const pricingQuery = useQuery({ queryKey: ["credit-pricing"], queryFn: creditsApi.pricing });
+  const tryOnCost = pricingQuery.data
+    ? Math.max(pricingQuery.data.tryon_cost, pricingQuery.data.outfit_tryon_cost)
+    : null;
+
   const historyQuery = useQuery({
     queryKey: ["credit-history"],
     queryFn: creditsApi.history,
@@ -66,8 +71,8 @@ export function BuyCreditsPanel() {
         Buy <em>credits</em>
       </h1>
       <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-muted">
-        You currently have <b className="text-ink">{user.credits_balance} credits</b>. Each try-on uses a
-        few credits depending on the request.
+        You currently have <b className="text-ink">{user.credits_balance} credits</b>.
+        {tryOnCost !== null ? ` Each try-on uses ${tryOnCost} credits.` : " Each try-on uses a few credits."}
       </p>
 
       <div className="mt-8">
@@ -99,6 +104,11 @@ export function BuyCreditsPanel() {
               <p className="mt-1 text-[15px] text-muted">
                 {(pkg.price_cents / 100).toFixed(2)} {pkg.currency.toUpperCase()}
               </p>
+              {tryOnCost !== null && (
+                <p className="mt-2 text-[13px] font-medium text-sage-deep">
+                  {Math.floor(pkg.credits / tryOnCost)} try-on{Math.floor(pkg.credits / tryOnCost) === 1 ? "" : "s"}
+                </p>
+              )}
               <p className="mt-3 text-[12px] text-faint">{pkg.name}</p>
             </button>
           ))}

@@ -133,6 +133,8 @@ export const credits = {
   balance: () => apiFetch<CreditBalance>("/api/v1/credits/balance"),
   history: () => apiFetch<CreditTransaction[]>("/api/v1/credits/history"),
   packages: () => apiFetch<CreditPackage[]>("/api/v1/credits/packages"),
+  // credits per try-on right now (admin-editable)
+  pricing: () => apiFetch<{ tryon_cost: number; outfit_tryon_cost: number }>("/api/v1/credits/pricing"),
   purchase: (input: { credit_package_id: string }) =>
     apiFetch<{
       payment_id: string;

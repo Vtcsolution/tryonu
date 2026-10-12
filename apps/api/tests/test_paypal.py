@@ -155,3 +155,21 @@ async def test_missing_paypal_keys_refuse_instead_of_failing_open(client, db, mo
     resp = await client.post("/api/v1/credits/purchase", json={"credit_package_id": package.id})
     assert resp.status_code == 503
     assert await credit_balance(db, me["id"]) == before
+
+
+async def test_a_new_user_with_no_free_credits_can_sign_up_and_must_buy(client, db, monkeypatch):  # noqa: ANN001
+    # Live plan: new users start at 0 and buy a plan; a 0 grant used to crash signup.
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "SIGNUP_FREE_CREDITS", 0)
+    me = await _me(client)
+    assert await credit_balance(db, me["id"]) == 0
+
+
+async def test_the_shop_can_ask_what_a_try_on_costs_without_an_account(client, monkeypatch):  # noqa: ANN001
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "TRYON_CREDIT_COST", 10)
+    monkeypatch.setattr(get_settings(), "OUTFIT_TRYON_CREDIT_COST", 10)
+    resp = await client.get("/api/v1/credits/pricing")
+    assert resp.status_code == 200 and resp.json() == {"tryon_cost": 10, "outfit_tryon_cost": 10}

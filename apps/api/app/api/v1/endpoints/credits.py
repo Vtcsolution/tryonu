@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
+from app.core.config import get_settings
 from app.core.deps import CurrentUser, DbSession
 from app.models.credit import CreditPackage
 from app.models.enums import CreditReason, PaymentStatus
@@ -13,6 +14,7 @@ from app.payments.registry import get_payment_provider
 from app.schemas.credit import (
     CreditBalanceOut,
     CreditPackageOut,
+    CreditPricingOut,
     CreditTransactionOut,
     PurchaseCreditsRequest,
     PurchaseCreditsResponse,
@@ -39,6 +41,13 @@ async def history(user: CurrentUser, db: DbSession, limit: int = 50, offset: int
         .offset(offset)
     )
     return list(result.scalars().all())
+
+
+@router.get("/pricing", response_model=CreditPricingOut)
+async def pricing():
+    """Credits per try-on, for the shop and try-on pages (public: no account needed)."""
+    s = get_settings()
+    return CreditPricingOut(tryon_cost=s.TRYON_CREDIT_COST, outfit_tryon_cost=s.OUTFIT_TRYON_CREDIT_COST)
 
 
 @router.get("/packages", response_model=list[CreditPackageOut])

@@ -23,7 +23,7 @@ class InsufficientCreditsError(HTTPException):
     def __init__(self, required: int, available: int) -> None:
         super().__init__(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail=f"Insufficient credits: need {required}, have {available}",
+            detail=f"This try-on needs {required} credits and you have {available}. Buy a plan to continue.",
         )
 
 

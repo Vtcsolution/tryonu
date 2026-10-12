@@ -31,6 +31,13 @@ class CreditPackageOut(ORMModel):
     currency: str
 
 
+class CreditPricingOut(BaseModel):
+    """What a try-on costs in credits right now (admin-editable)."""
+
+    tryon_cost: int
+    outfit_tryon_cost: int
+
+
 class PurchaseCreditsRequest(BaseModel):
     credit_package_id: str
 

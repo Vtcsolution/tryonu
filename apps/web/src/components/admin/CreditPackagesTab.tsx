@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
-import { admin as adminApi } from "@/lib/api/endpoints";
+import { admin as adminApi, credits as creditsApi } from "@/lib/api/endpoints";
 import type { AdminCreditPackage } from "@/lib/api/types";
 import { Badge, ErrorNote, SectionHeader, SmallButton, Table, TableSkeleton, errorText, inputClass, money } from "./ui";
 
@@ -10,6 +10,8 @@ export function CreditPackagesTab() {
   const qc = useQueryClient();
   const query = useQuery({ queryKey: ["admin", "credit-packages"], queryFn: adminApi.creditPackages });
   const [editing, setEditing] = useState<AdminCreditPackage | null>(null);
+  const pricing = useQuery({ queryKey: ["credit-pricing"], queryFn: creditsApi.pricing });
+  const tryOnCost = pricing.data ? Math.max(pricing.data.tryon_cost, pricing.data.outfit_tryon_cost) : null;
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["admin", "credit-packages"] });
@@ -23,7 +25,12 @@ export function CreditPackagesTab() {
 
   return (
     <div>
-      <SectionHeader title="Credit packages" hint="What users can buy on the credits page. Inactive packages are hidden from the shop." />
+      <SectionHeader
+        title="Credit packages"
+        hint={`What users can buy on the credits page. Inactive packages are hidden from the shop.${
+          tryOnCost ? ` One try-on costs ${tryOnCost} credits (change it in Settings → Credits).` : ""
+        }`}
+      />
 
       <PackageForm
         key={editing?.id ?? "new"}
@@ -43,12 +50,15 @@ export function CreditPackagesTab() {
         <ErrorNote>{errorText(query.error, "Couldn't load credit packages.")}</ErrorNote>
       ) : (
         <Table
-          columns={["Name", "Credits", "Price", "Per credit", "Status", ""]}
+          columns={["Name", "Credits", "Price", "Try-ons", "Per try-on", "Status", ""]}
           rows={query.data.map((p) => [
             p.name,
             p.credits,
             money(p.price_cents, p.currency),
-            `${(p.price_cents / 100 / p.credits).toFixed(3)} ${p.currency.toUpperCase()}`,
+            tryOnCost ? Math.floor(p.credits / tryOnCost) : "—",
+            tryOnCost && p.credits >= tryOnCost
+              ? `${(p.price_cents / 100 / Math.floor(p.credits / tryOnCost)).toFixed(2)} ${p.currency.toUpperCase()}`
+              : "—",
             p.is_active ? <Badge key="s" tone="good">On sale</Badge> : <Badge key="s">Hidden</Badge>,
             <div key="a" className="flex gap-1.5">
               <SmallButton onClick={() => setEditing(p)}>Edit</SmallButton>

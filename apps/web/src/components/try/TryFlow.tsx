@@ -14,6 +14,7 @@ import { ApiError, affiliateGoUrl, resolveMediaUrl } from "@/lib/api/client";
 import { StyledPicks } from "@/components/try/StyledPicks";
 import { RetailerTag, retailerFromImage, shopName } from "@/components/try/shop";
 import {
+  credits as creditsApi,
   liveSearch as liveSearchApi,
   outfits as outfitsApi,
   preferences as preferencesApi,
@@ -404,6 +405,15 @@ export function TryFlow() {
   }, [step, allTerminal, anyCompleted, qc]);
 
   const activeStepIndex = Math.min(step, 2);
+
+  // what this try-on will cost, against the shopper's balance
+  const pricingQuery = useQuery({ queryKey: ["credit-pricing"], queryFn: creditsApi.pricing, staleTime: 60_000 });
+  const tryOnCost = pricingQuery.data
+    ? (outfit || baseLook ? pricingQuery.data.outfit_tryon_cost : pricingQuery.data.tryon_cost) *
+      (multiAngle && canMultiAngle && !baseLook ? 2 : 1)
+    : null;
+  const balance = user?.credits_balance ?? 0;
+  const shortOfCredits = tryOnCost !== null && balance < tryOnCost;
 
   const addMoreTo = (job: TryOnJob) => {
     setBaseLook(job);
@@ -937,6 +947,11 @@ export function TryFlow() {
               {createJob.error instanceof ApiError
                 ? createJob.error.detail
                 : "Couldn't start the try-on. Please try again."}
+              {createJob.error instanceof ApiError && createJob.error.status === 402 && (
+                <a href="/credits" className="ml-2 font-semibold text-sage-deep underline underline-offset-2">
+                  Buy credits
+                </a>
+              )}
             </p>
           )}
 
@@ -961,6 +976,11 @@ export function TryFlow() {
           )}
 
           <div className="mt-8 flex flex-wrap items-center gap-4">
+            {shortOfCredits && (product || outfit || customItem) ? (
+              <Button size="md" href="/credits">
+                Buy credits to try this on <span aria-hidden="true">→</span>
+              </Button>
+            ) : (
             <Button
               size="md"
               disabled={(!product && !outfit && !customItem) || createJob.isPending || selectLive.isPending}
@@ -973,6 +993,12 @@ export function TryFlow() {
                   : "Generate try-on"}{" "}
               {!createJob.isPending && <span aria-hidden="true">→</span>}
             </Button>
+            )}
+            {tryOnCost !== null && (product || outfit || customItem) && (
+              <span className={`text-[12.5px] ${shortOfCredits ? "text-[#a4553f]" : "text-muted"}`}>
+                Uses {tryOnCost} credits · you have {balance}
+              </span>
+            )}
             <button
               type="button"
               onClick={() => setStep(0)}
