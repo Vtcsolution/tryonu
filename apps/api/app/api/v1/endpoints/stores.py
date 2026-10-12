@@ -7,9 +7,9 @@ import mimetypes
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 
-from app.core.deps import AdminUser, CurrentUser, DbSession
+from app.core.deps import AdminUser, CurrentUser, DbSession, OptionalUser
 from app.core.logging import logger
 from app.core.rate_limit import rate_limiter
 from app.models.enums import PaymentStatus
@@ -20,6 +20,14 @@ from app.payments.base import PaymentsUnavailableError
 from app.payments.registry import get_payment_provider
 from app.schemas.credit import PurchaseCreditsResponse
 from app.schemas.store import (
+    AdminGrantPlanIn,
+    AdminProductToggleIn,
+    AdminStoreDetailOut,
+    AdminStoreSummaryOut,
+    PublicStoreOut,
+    SelectedProductOut,
+    StorePaymentOut,
+    StoreStatsOut,
     AdminStoreOut,
     AdminStorePlanUpdate,
     AdminStoreStatusIn,
@@ -385,11 +393,16 @@ async def admin_set_status(store_id: str, payload: AdminStoreStatusIn, admin: Ad
     store = await db.get(Store, store_id)
     if store is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Store not found")
+    changed = store.status != payload.status
     store.status = payload.status
     store.status_note = payload.note
     await db.commit()
     await db.refresh(store)
     logger.info("store_status_changed", store_id=store.id, status=store.status, admin_id=admin.id)
+    if changed and payload.status in svc.STATUS_EMAILS:
+        subject, body = svc.STATUS_EMAILS[payload.status]
+        note = f" Reason: {payload.note}" if payload.note else ""
+        await svc.notify_owner(db, store, subject, body.format(name=store.name, note=note))
     owner_email = await db.scalar(select(User.email).where(User.id == store.owner_user_id))
     base = await _out(db, store)
     return AdminStoreOut(**base.model_dump(), owner_email=owner_email or "", created_at=store.created_at)
@@ -412,3 +425,189 @@ async def admin_update_plan(plan_id: str, payload: AdminStorePlanUpdate, _: Admi
     await db.refresh(plan)
     return StorePlanOut.model_validate(plan, from_attributes=True)
 
+
+
+
+# ------------------------------------------------- company: stats, payments, file
+
+
+async def _payments(db, store_id: str) -> list[StorePaymentOut]:  # noqa: ANN001
+    rows = (
+        await db.execute(
+            select(Payment, StorePlan.name)
+            .outerjoin(StorePlan, StorePlan.id == Payment.store_plan_id)
+            .where(Payment.store_id == store_id)
+            .order_by(Payment.created_at.desc())
+            .limit(100)
+        )
+    ).all()
+    return [
+        StorePaymentOut(
+            id=p.id, amount_cents=p.amount_cents, currency=p.currency, status=p.status.value,
+            plan_name=name, created_at=p.created_at,
+        )
+        for p, name in rows
+    ]
+
+
+@router.get("/me/stats", response_model=StoreStatsOut)
+async def my_stats(user: CurrentUser, db: DbSession, days: int = 30):
+    store = await _my_store(db, user)
+    return await svc.store_stats(db, store.id, days=max(1, min(days, 365)))
+
+
+@router.get("/me/payments", response_model=list[StorePaymentOut])
+async def my_payments(user: CurrentUser, db: DbSession):
+    store = await _my_store(db, user)
+    return await _payments(db, store.id)
+
+
+@router.post(
+    "/me/products/import-file",
+    response_model=StoreFeedResult,
+    dependencies=[Depends(rate_limiter("store_file_import", limit=20, window_seconds=3600))],
+)
+async def import_file(user: CurrentUser, db: DbSession, file: UploadFile = File(...)):
+    """Many products at once from a CSV or JSON file (same columns as a feed)."""
+    store = await _my_store(db, user)
+    if not svc.plan_active(store):
+        raise HTTPException(status_code=status.HTTP_402_PAYMENT_REQUIRED, detail="Unlock a plan to add products.")
+    data = await file.read(10 * 1024 * 1024 + 1)
+    if len(data) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Files up to 10 MB, please.")
+    return StoreFeedResult(result=await svc.import_store_file(db, store, data))
+
+
+# ----------------------------------------------------------- public store page
+
+
+async def _live_store(db, slug: str) -> Store:  # noqa: ANN001
+    store = await db.scalar(select(Store).where(Store.slug == slug))
+    if store is None or not svc.is_live(store):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Store not found")
+    return store
+
+
+@router.get("/public/{slug}", response_model=PublicStoreOut)
+async def public_store(slug: str, db: DbSession):
+    store = await _live_store(db, slug)
+    products = (
+        await db.execute(
+            select(StoreProduct)
+            .where(StoreProduct.store_id == store.id, StoreProduct.is_active.is_(True))
+            .order_by(StoreProduct.updated_at.desc())
+            .limit(1000)
+        )
+    ).scalars()
+    return PublicStoreOut(
+        name=store.name, slug=store.slug, country=store.country, description=store.description,
+        website_url=store.website_url, logo_url=svc.image_url(store.logo_key) if store.logo_key else None,
+        products=[_product_out(p) for p in products if p.images],
+    )
+
+
+@router.post(
+    "/public/{slug}/products/{product_id}/select",
+    response_model=SelectedProductOut,
+    dependencies=[Depends(rate_limiter("store_product_select", limit=120, window_seconds=3600))],
+)
+async def select_store_product(slug: str, product_id: str, db: DbSession, _: OptionalUser):
+    """A store product as a saved product, for Try on and Buy (the shop link
+    and the try-on both work on saved products)."""
+    from app.retailers.stores import StoreProductProvider
+    from app.services.product_ingestion_service import persist_single_product
+
+    store = await _live_store(db, slug)
+    provider = StoreProductProvider()
+    raw = await provider.fetch_by_id(product_id)
+    if raw is None or raw.merchant_id != store.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+    product = await persist_single_product(db, provider, raw)
+    return SelectedProductOut(product_id=product.id)
+
+
+# ------------------------------------------------- admin: summary, detail, actions
+
+
+@admin_router.get("/summary", response_model=AdminStoreSummaryOut)
+async def admin_summary(_: AdminUser, db: DbSession):
+    by_status = {k: int(v) for k, v in (await db.execute(select(Store.status, func.count()).group_by(Store.status))).all()}
+    stores = (await db.execute(select(Store))).scalars().all()
+    products = int(await db.scalar(select(func.count()).select_from(StoreProduct).where(StoreProduct.is_active.is_(True))) or 0)
+    revenue = {
+        cur: int(total or 0)
+        for cur, total in (
+            await db.execute(
+                select(Payment.currency, func.sum(Payment.amount_cents))
+                .where(Payment.store_plan_id.is_not(None), Payment.status == PaymentStatus.SUCCEEDED)
+                .group_by(Payment.currency)
+            )
+        ).all()
+    }
+    return AdminStoreSummaryOut(by_status=by_status, live=sum(1 for s in stores if svc.is_live(s)), products=products, plan_revenue=revenue)
+
+
+async def _admin_store(db, store_id: str) -> Store:  # noqa: ANN001
+    store = await db.get(Store, store_id)
+    if store is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Store not found")
+    return store
+
+
+async def _admin_detail(db, store: Store) -> AdminStoreDetailOut:  # noqa: ANN001
+    owner_email = await db.scalar(select(User.email).where(User.id == store.owner_user_id))
+    base = await _out(db, store)
+    products = (
+        await db.execute(select(StoreProduct).where(StoreProduct.store_id == store.id).order_by(StoreProduct.updated_at.desc()).limit(2000))
+    ).scalars()
+    return AdminStoreDetailOut(
+        **base.model_dump(),
+        owner_email=owner_email or "",
+        created_at=store.created_at,
+        stats=StoreStatsOut(**await svc.store_stats(db, store.id)),
+        payments=await _payments(db, store.id),
+        products=[_product_out(p) for p in products],
+    )
+
+
+@admin_router.get("/{store_id}", response_model=AdminStoreDetailOut)
+async def admin_store_detail(store_id: str, _: AdminUser, db: DbSession):
+    return await _admin_detail(db, await _admin_store(db, store_id))
+
+
+@admin_router.post("/{store_id}/plan", response_model=AdminStoreDetailOut)
+async def admin_grant_plan(store_id: str, payload: AdminGrantPlanIn, admin: AdminUser, db: DbSession):
+    """Give or extend a plan without payment (a partner, a refund, a fix)."""
+    store = await _admin_store(db, store_id)
+    plan = await db.scalar(select(StorePlan).where(StorePlan.code == payload.plan_code))
+    if plan is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
+    granted = StorePlan(code=plan.code, name=plan.name, price_cents=plan.price_cents, currency=plan.currency,
+                        product_limit=plan.product_limit, duration_days=payload.days)
+    svc.activate_plan(store, granted)
+    await db.commit()
+    await db.refresh(store)
+    logger.info("store_plan_granted", store_id=store.id, plan=plan.code, days=payload.days, admin_id=admin.id)
+    return await _admin_detail(db, store)
+
+
+@admin_router.patch("/{store_id}/products/{product_id}", response_model=AdminStoreDetailOut)
+async def admin_toggle_product(store_id: str, product_id: str, payload: AdminProductToggleIn, _: AdminUser, db: DbSession):
+    store = await _admin_store(db, store_id)
+    product = await _my_product(db, store, product_id)
+    product.is_active = payload.is_active
+    await db.commit()
+    return await _admin_detail(db, store)
+
+
+@admin_router.delete("/{store_id}/products/{product_id}", response_model=AdminStoreDetailOut)
+async def admin_delete_product(store_id: str, product_id: str, _: AdminUser, db: DbSession):
+    store = await _admin_store(db, store_id)
+    product = await _my_product(db, store, product_id)
+    storage = get_storage()
+    for entry in product.images or []:
+        if entry.startswith("stores/"):
+            storage.delete(entry)
+    await db.delete(product)
+    await db.commit()
+    return await _admin_detail(db, store)

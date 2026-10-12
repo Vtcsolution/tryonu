@@ -1,4 +1,4 @@
-"""Import every live company store's product feed. Run daily (cron).
+"""Import every live company store's product feed and email plan reminders. Run daily (cron).
 
     python -m app.scripts.store_feeds
 
@@ -25,7 +25,9 @@ async def main() -> int:
         live = [s for s in stores if svc.is_live(s)]
         for store in live:
             print(f"{store.name}: {await svc.import_store_feed(db, store)}")
-    print(f"{len(live)} store feed(s) imported")
+        print(f"{len(live)} store feed(s) imported")
+        reminders = await svc.send_plan_reminders(db)
+    print(f"plan reminders sent: {reminders['ending_soon']} ending soon, {reminders['ended']} ended")
     return 0
 
 

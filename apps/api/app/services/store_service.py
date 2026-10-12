@@ -254,3 +254,179 @@ async def import_store_feed(db: AsyncSession, store: Store) -> str:
     )
     await db.commit()
     return store.feed_last_result
+
+
+# ------------------------------------------------------------------ statistics
+
+
+async def store_stats(db: AsyncSession, store_id: str, days: int = 30) -> dict:
+    """Shop clicks and try-ons of a store's products over the last `days`.
+
+    A store product becomes a saved Product (retailer "stores", its id as the
+    retailer product id) the moment a shopper picks it; clicks and try-ons
+    are recorded against that Product."""
+    from app.models.affiliate import AffiliateClick
+    from app.models.outfit import OutfitItem
+    from app.models.product import Product
+    from app.models.retailer import Retailer
+    from app.models.tryon import TryOnJob
+
+    since = utcnow() - timedelta(days=days)
+    saved = (
+        await db.execute(
+            select(Product.id, StoreProduct.id, StoreProduct.name)
+            .join(Retailer, Retailer.id == Product.retailer_id)
+            .join(StoreProduct, StoreProduct.id == Product.retailer_product_id)
+            .where(Retailer.slug == "stores", StoreProduct.store_id == store_id)
+        )
+    ).all()
+    if not saved:
+        return {"days": days, "clicks": 0, "tryons": 0, "top": []}
+    product_ids = [row[0] for row in saved]
+    by_product = {row[0]: {"store_product_id": row[1], "name": row[2], "clicks": 0, "tryons": 0} for row in saved}
+
+    for product_id, count in (
+        await db.execute(
+            select(AffiliateClick.product_id, func.count())
+            .where(AffiliateClick.product_id.in_(product_ids), AffiliateClick.created_at >= since)
+            .group_by(AffiliateClick.product_id)
+        )
+    ).all():
+        by_product[product_id]["clicks"] = int(count)
+
+    single = (
+        await db.execute(
+            select(TryOnJob.product_id, func.count())
+            .where(TryOnJob.product_id.in_(product_ids), TryOnJob.created_at >= since)
+            .group_by(TryOnJob.product_id)
+        )
+    ).all()
+    in_outfits = (
+        await db.execute(
+            select(OutfitItem.product_id, func.count(func.distinct(TryOnJob.id)))
+            .join(TryOnJob, TryOnJob.outfit_id == OutfitItem.outfit_id)
+            .where(OutfitItem.product_id.in_(product_ids), TryOnJob.created_at >= since)
+            .group_by(OutfitItem.product_id)
+        )
+    ).all()
+    for product_id, count in [*single, *in_outfits]:
+        by_product[product_id]["tryons"] += int(count)
+
+    rows = sorted(by_product.values(), key=lambda r: (r["clicks"] + r["tryons"]), reverse=True)
+    return {
+        "days": days,
+        "clicks": sum(r["clicks"] for r in rows),
+        "tryons": sum(r["tryons"] for r in rows),
+        "top": [r for r in rows if r["clicks"] or r["tryons"]][:10],
+    }
+
+
+# ---------------------------------------------------------------------- emails
+
+
+async def notify_owner(db: AsyncSession, store: Store, subject: str, body: str) -> None:
+    """One email to the store's contact address (or its owner's). Never raises:
+    an email that couldn't be sent must not undo what the admin did."""
+    from app.core.logging import logger
+    from app.email.registry import get_email_provider
+    from app.models.user import User
+
+    to = store.contact_email or await db.scalar(select(User.email).where(User.id == store.owner_user_id))
+    if not to:
+        return
+    site = str(get_settings().FRONTEND_URL).rstrip("/")
+    try:
+        await get_email_provider().send(
+            to=to,
+            subject=subject,
+            text_body=f"{body}\n\nYour store dashboard: {site}/business\n\nTryOnU",
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("store_email_failed", store_id=store.id, error=str(exc)[:200])
+
+
+STATUS_EMAILS = {
+    "approved": (
+        "Your TryOnU store is approved",
+        "Good news: {name} is approved. Once your plan is active, shoppers see your products, and shoppers in your country see them first.",
+    ),
+    "rejected": ("Your TryOnU store wasn't approved", "{name} wasn't approved.{note}"),
+    "suspended": ("Your TryOnU store is suspended", "{name} is suspended and its products are hidden from shoppers.{note}"),
+}
+
+
+async def send_plan_reminders(db: AsyncSession) -> dict:
+    """Emails stores whose plan ends within 3 days, and stores whose plan has
+    just ended; each expiry is emailed about once."""
+    now = utcnow()
+    soon, ended = 0, 0
+    stores = (await db.execute(select(Store).where(Store.plan_expires_at.is_not(None)))).scalars().all()
+    for store in stores:
+        expires = _aware(store.plan_expires_at)
+        if now < expires <= now + timedelta(days=3) and _aware(store.reminded_for_expiry) != expires:
+            await notify_owner(
+                db, store, "Your TryOnU store plan ends soon",
+                f"The plan for {store.name} ends on {expires:%d %b %Y}. Renew it to keep your products in front of shoppers.",
+            )
+            store.reminded_for_expiry = expires
+            soon += 1
+        elif expires <= now and now - expires < timedelta(days=7) and _aware(store.expired_notice_for) != expires:
+            await notify_owner(
+                db, store, "Your TryOnU store plan has ended",
+                f"The plan for {store.name} ended on {expires:%d %b %Y}, so shoppers no longer see your products. "
+                "Renew it any time to bring them back.",
+            )
+            store.expired_notice_for = expires
+            ended += 1
+    await db.commit()
+    return {"ending_soon": soon, "ended": ended}
+
+
+# ------------------------------------------------------------------ file import
+
+
+async def import_store_file(db: AsyncSession, store: Store, data: bytes) -> str:
+    """Products from an uploaded CSV/JSON file, added like typed-in ones (kept
+    by feed imports). A row whose id matches an earlier upload updates it."""
+    try:
+        rows = await asyncio.to_thread(parse_feed, data)
+    except Exception as exc:  # noqa: BLE001
+        return f"Couldn't read the file: {str(exc)[:160]}"
+    host_ok = _host_checker()
+    items: dict[str, dict] = {}
+    skipped = 0
+    for row in rows:
+        item = await asyncio.to_thread(normalize_feed_row, row, host_ok)
+        if item is None:
+            skipped += 1
+            continue
+        items.setdefault(f"f-{item['external_id']}"[:128], item)
+
+    existing = {
+        p.external_id: p
+        for p in (
+            await db.execute(select(StoreProduct).where(StoreProduct.store_id == store.id, StoreProduct.source == "manual"))
+        ).scalars()
+    }
+    room = max(0, store.plan_product_limit - await active_product_count(db, store.id))
+    added = updated = over = 0
+    for external_id, item in items.items():
+        current = existing.get(external_id)
+        if current is not None:
+            for field, value in item.items():
+                if field != "external_id":
+                    setattr(current, field, value)
+            updated += 1
+        elif room > 0:
+            db.add(StoreProduct(store_id=store.id, source="manual", **{**item, "external_id": external_id}))
+            room -= 1
+            added += 1
+        else:
+            over += 1
+    await db.commit()
+    return (
+        f"Added {added} and updated {updated} products"
+        + (f"; {over} more didn't fit your plan's limit of {store.plan_product_limit}" if over else "")
+        + (f"; {skipped} rows skipped (missing name, price, link or photo)" if skipped else "")
+        + "."
+    )

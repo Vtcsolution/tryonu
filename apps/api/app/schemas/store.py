@@ -121,3 +121,62 @@ class AdminStorePlanUpdate(BaseModel):
     product_limit: int | None = Field(default=None, gt=0, le=1_000_000)
     duration_days: int | None = Field(default=None, gt=0, le=3650)
     is_active: bool | None = None
+
+
+class StoreStatsTop(BaseModel):
+    store_product_id: str
+    name: str
+    clicks: int
+    tryons: int
+
+
+class StoreStatsOut(BaseModel):
+    days: int
+    clicks: int
+    tryons: int
+    top: list[StoreStatsTop]
+
+
+class StorePaymentOut(BaseModel):
+    id: str
+    amount_cents: int
+    currency: str
+    status: str
+    plan_name: str | None
+    created_at: datetime
+
+
+class PublicStoreOut(BaseModel):
+    name: str
+    slug: str
+    country: str
+    description: str | None
+    website_url: str | None
+    logo_url: str | None
+    products: list[StoreProductOut]
+
+
+class SelectedProductOut(BaseModel):
+    product_id: str
+
+
+class AdminStoreDetailOut(AdminStoreOut):
+    stats: StoreStatsOut
+    payments: list[StorePaymentOut]
+    products: list[StoreProductOut]
+
+
+class AdminGrantPlanIn(BaseModel):
+    plan_code: str = Field(min_length=1, max_length=32)
+    days: int = Field(gt=0, le=3650)
+
+
+class AdminProductToggleIn(BaseModel):
+    is_active: bool
+
+
+class AdminStoreSummaryOut(BaseModel):
+    by_status: dict[str, int]
+    live: int
+    products: int
+    plan_revenue: dict[str, int]  # currency -> cents, succeeded store plan payments

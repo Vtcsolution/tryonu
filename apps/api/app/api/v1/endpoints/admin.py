@@ -226,6 +226,7 @@ async def list_payments(_: AdminUser, db: DbSession, limit: int = 50, offset: in
             "currency": p.currency,
             "status": p.status.value,
             "provider": p.provider,
+            "purpose": "store plan" if p.store_plan_id else "credits" if p.credit_package_id else "subscription" if p.subscription_id else "other",
             "external_payment_id": p.external_payment_id,
             "created_at": p.created_at,
         }

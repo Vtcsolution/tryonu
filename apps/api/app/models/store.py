@@ -54,6 +54,9 @@ class Store(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     feed_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     feed_last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     feed_last_result: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # the plan expiry a reminder / an expired notice was emailed for (never twice)
+    reminded_for_expiry: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expired_notice_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class StoreProduct(UUIDPrimaryKeyMixin, TimestampMixin, Base):

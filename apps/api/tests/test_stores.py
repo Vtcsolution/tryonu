@@ -186,3 +186,122 @@ async def test_only_admins_approve_stores_and_set_plan_prices(client, db):  # no
 
 async def test_the_media_route_serves_store_photos_only(client):  # noqa: ANN001
     assert (await client.get("/api/v1/stores/media/users/someone/photo.jpg")).status_code == 404
+
+
+async def _live_store_with_product(client, db, name="Lahore Couture", country="PK"):  # noqa: ANN001, ANN202
+    store = await _company(client, name=name, country=country)
+    await client.post("/api/v1/stores/me/plans/basic/purchase")
+    product = (await _product(client)).json()
+    await _with_photo(db, product["id"])
+    await _approve(db, store["id"])
+    return store, product
+
+
+async def test_the_public_store_page_shows_live_stores_and_saves_a_product_for_try_on(client, db):  # noqa: ANN001
+    store, product = await _live_store_with_product(client, db)
+    page = (await client.get(f"/api/v1/stores/public/{store['slug']}")).json()
+    assert page["name"] == "Lahore Couture" and [p["id"] for p in page["products"]] == [product["id"]]
+
+    picked = await client.post(f"/api/v1/stores/public/{store['slug']}/products/{product['id']}/select")
+    assert picked.status_code == 200
+    saved = (await client.get(f"/api/v1/products/{picked.json()['product_id']}")).json()
+    assert saved["merchant_name"] == "Lahore Couture" and saved["product_url"] == _LINK
+
+    row = await db.get(Store, store["id"])
+    row.status = "suspended"
+    await db.commit()
+    assert (await client.get(f"/api/v1/stores/public/{store['slug']}")).status_code == 404
+
+
+async def test_a_company_sees_shop_clicks_on_its_products(client, db):  # noqa: ANN001
+    from app.models.affiliate import AffiliateClick
+    from app.models.enums import AffiliateSource
+    from app.models.product import Product
+
+    store, product = await _live_store_with_product(client, db)
+    picked = (await client.post(f"/api/v1/stores/public/{store['slug']}/products/{product['id']}/select")).json()
+    saved = await db.get(Product, picked["product_id"])
+    db.add(AffiliateClick(product_id=saved.id, retailer_id=saved.retailer_id, source=AffiliateSource.STYLIST))
+    await db.commit()
+
+    stats = (await client.get("/api/v1/stores/me/stats")).json()
+    assert stats["clicks"] == 1 and stats["top"][0]["name"] == "Pink Bridal Lehenga"
+
+
+async def test_a_file_upload_adds_many_products_within_the_plan(client, db):  # noqa: ANN001
+    store = await _company(client)
+    await client.post("/api/v1/stores/me/plans/basic/purchase")
+    row = await db.get(Store, store["id"])
+    row.plan_product_limit = 2
+    await db.commit()
+    csv_text = (
+        "id,name,price,image,url\n"
+        "1,Pink Lehenga,120,https://8.8.8.8/a.jpg,https://8.8.8.8/p/1\n"
+        "2,Gold Jhumka,25,https://8.8.8.8/b.jpg,https://8.8.8.8/p/2\n"
+        "3,Red Khussa,30,https://8.8.8.8/c.jpg,https://8.8.8.8/p/3\n"
+    )
+    resp = await client.post(
+        "/api/v1/stores/me/products/import-file", files={"file": ("products.csv", csv_text.encode(), "text/csv")}
+    )
+    assert "Added 2" in resp.json()["result"] and "1 more didn't fit" in resp.json()["result"]
+    again = await client.post(
+        "/api/v1/stores/me/products/import-file", files={"file": ("products.csv", csv_text.encode(), "text/csv")}
+    )
+    assert "updated 2" in again.json()["result"]  # same ids: updated, not duplicated
+
+
+async def test_admins_see_a_store_in_detail_moderate_products_and_grant_a_plan(client, db, monkeypatch):  # noqa: ANN001
+    sent = []
+
+    async def capture(db, store, subject, body):  # noqa: ANN001, ANN202
+        sent.append(subject)
+
+    monkeypatch.setattr(svc, "notify_owner", capture)
+    store, product = await _live_store_with_product(client, db)
+    row = await db.get(Store, store["id"])
+    row.status = "pending"
+    await db.commit()
+    data = await register_and_login(client)
+    await make_admin(db, data["user"]["id"])
+
+    await client.post(f"/api/v1/admin/stores/{store['id']}/status", json={"status": "approved"})
+    assert sent == ["Your TryOnU store is approved"]
+
+    detail = (await client.get(f"/api/v1/admin/stores/{store['id']}")).json()
+    assert detail["owner_email"] and [p["id"] for p in detail["products"]] == [product["id"]]
+    assert detail["payments"][0]["plan_name"] == "Basic" and detail["stats"]["clicks"] == 0
+
+    hidden = (await client.patch(f"/api/v1/admin/stores/{store['id']}/products/{product['id']}", json={"is_active": False})).json()
+    assert hidden["products"][0]["is_active"] is False
+
+    before = (await db.get(Store, store["id"])).plan_expires_at
+    granted = (await client.post(f"/api/v1/admin/stores/{store['id']}/plan", json={"plan_code": "standard", "days": 30})).json()
+    assert granted["plan_code"] == "standard" and granted["plan_product_limit"] == 200
+    await db.refresh(await db.get(Store, store["id"]))
+    assert (await db.get(Store, store["id"])).plan_expires_at > before
+
+    summary = (await client.get("/api/v1/admin/stores/summary")).json()
+    assert summary["by_status"]["approved"] >= 1 and summary["live"] >= 1 and summary["plan_revenue"]
+
+
+async def test_plan_reminders_go_out_once_per_expiry(client, db, monkeypatch):  # noqa: ANN001
+    sent = []
+
+    async def capture(db, store, subject, body):  # noqa: ANN001, ANN202
+        sent.append(subject)
+
+    monkeypatch.setattr(svc, "notify_owner", capture)
+    store, _ = await _live_store_with_product(client, db)
+    row = await db.get(Store, store["id"])
+    row.plan_expires_at = svc.utcnow() + timedelta(days=2)
+    await db.commit()
+
+    await svc.send_plan_reminders(db)
+    await svc.send_plan_reminders(db)
+    assert sent == ["Your TryOnU store plan ends soon"]
+
+    row.plan_expires_at = svc.utcnow() - timedelta(hours=1)
+    await db.commit()
+    await svc.send_plan_reminders(db)
+    await svc.send_plan_reminders(db)
+    assert sent[-1] == "Your TryOnU store plan has ended" and len(sent) == 2
