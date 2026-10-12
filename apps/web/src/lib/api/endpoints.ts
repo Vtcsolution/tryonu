@@ -376,6 +376,10 @@ export const stores = {
     return apiFetch<Store>("/api/v1/stores/me/logo", { method: "POST", body: form, isFormData: true });
   },
   buyPlan: (code: string) => apiFetch<PlanPurchase>(`/api/v1/stores/me/plans/${code}/purchase`, { method: "POST" }),
+  subscribePlan: (code: string) =>
+    apiFetch<{ checkout_url: string }>(`/api/v1/stores/me/plans/${code}/subscribe`, { method: "POST" }),
+  syncSubscription: () => apiFetch<{ result: string; store: Store }>("/api/v1/stores/me/subscription/sync", { method: "POST" }),
+  cancelSubscription: () => apiFetch<Store>("/api/v1/stores/me/subscription/cancel", { method: "POST" }),
   products: () => apiFetch<StoreProduct[]>("/api/v1/stores/me/products"),
   addProduct: (input: StoreProductInput) => apiFetch<StoreProduct>("/api/v1/stores/me/products", { method: "POST", body: input }),
   editProduct: (id: string, input: Partial<StoreProductInput>) =>

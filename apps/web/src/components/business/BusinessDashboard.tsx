@@ -215,8 +215,65 @@ function PlansSection({ store }: { store: Store }) {
       else qc.invalidateQueries({ queryKey: STORE_KEY });
     },
   });
+  const subscribe = useMutation({
+    mutationFn: (plan: StorePlan) => storesApi.subscribePlan(plan.code),
+    onSuccess: (res) => window.location.assign(res.checkout_url),
+  });
+  const sync = useMutation({
+    mutationFn: storesApi.syncSubscription,
+    onSuccess: (res) => {
+      qc.setQueryData(STORE_KEY, res.store);
+      qc.invalidateQueries({ queryKey: ["business", "payments"] });
+    },
+  });
+  const cancel = useMutation({ mutationFn: storesApi.cancelSubscription, onSuccess: (s) => qc.setQueryData(STORE_KEY, s) });
+
+  // back from PayPal's subscription page: ask our server to confirm with PayPal
+  const [returned, setReturned] = useState<string | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const flag = params.get("subscription");
+    if (!flag) return;
+    setReturned(flag);
+    window.history.replaceState(null, "", window.location.pathname);
+    if (flag === "done") sync.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const subscribed = !!store.subscription_status && !["CANCELLED", "SUSPENDED", "EXPIRED"].includes(store.subscription_status);
+  const busy = buy.isPending || subscribe.isPending;
   return (
-    <Section title={store.plan_active ? "Your plan" : "Unlock a plan"} hint="Each plan is a 30-day pass. Renewing early adds the days on; nothing is charged automatically.">
+    <Section
+      title={store.plan_active ? "Your plan" : "Unlock a plan"}
+      hint="Unlock a plan for 30 days, or turn on auto-renew and PayPal renews it every period until you turn it off."
+    >
+      {returned === "cancelled" && (
+        <p className="mb-3 rounded-[14px] border border-line bg-paper-2/60 px-4 py-2.5 text-[13px] text-ink-soft">
+          You left PayPal before confirming auto-renew. Nothing was charged.
+        </p>
+      )}
+      {subscribed && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-sage/40 bg-sage-tint/40 px-4 py-3 text-[13.5px]">
+          <span className="text-ink-soft">
+            {store.auto_renew && store.plan_active
+              ? `Auto-renew is on: PayPal renews your ${store.subscription_plan_code ?? ""} plan every period.`
+              : sync.isPending
+                ? "Checking with PayPal…"
+                : "Auto-renew is waiting for PayPal to confirm the first payment. This can take a minute."}
+          </span>
+          <span className="flex gap-2">
+            <SmallButton disabled={sync.isPending} onClick={() => sync.mutate()}>
+              {sync.isPending ? "Checking…" : "Check now"}
+            </SmallButton>
+            <SmallButton tone="danger" disabled={cancel.isPending} onClick={() => cancel.mutate()}>
+              {cancel.isPending ? "Turning off…" : "Turn off auto-renew"}
+            </SmallButton>
+          </span>
+        </div>
+      )}
+      {!subscribed && store.subscription_status === "CANCELLED" && store.plan_active && (
+        <p className="mb-3 text-[13px] text-muted">Auto-renew is off. Your plan stays active until it ends.</p>
+      )}
       {plans.data && (
         <div className="grid gap-4 sm:grid-cols-3">
           {plans.data.map((plan) => {
@@ -232,29 +289,36 @@ function PlansSection({ store }: { store: Store }) {
                   <span className="text-[13px] font-normal text-muted"> / {plan.duration_days} days</span>
                 </p>
                 <p className="mt-2 text-[14px] text-ink-soft">Up to {plan.product_limit.toLocaleString()} products</p>
-                <div className="mt-auto pt-5">
+                <div className="mt-auto space-y-2 pt-5">
                   <Button
                     size="md"
                     variant={current ? "outline" : "primary"}
                     className="w-full"
-                    disabled={buy.isPending}
+                    disabled={busy}
                     onClick={() => buy.mutate(plan)}
                   >
                     {buy.isPending && buy.variables?.id === plan.id
                       ? "Opening PayPal…"
                       : current
-                        ? "Renew 30 days"
+                        ? `Renew ${plan.duration_days} days`
                         : store.plan_active
                           ? `Switch to ${plan.name}`
-                          : `Unlock ${plan.name}`}
+                          : `Unlock ${plan.duration_days} days`}
                   </Button>
+                  {!subscribed && (
+                    <Button size="md" variant="outline" className="w-full" disabled={busy} onClick={() => subscribe.mutate(plan)}>
+                      {subscribe.isPending && subscribe.variables?.id === plan.id ? "Opening PayPal…" : "Auto-renew"}
+                    </Button>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
       )}
-      {buy.isError && <div className="mt-3"><ErrorNote>{errorText(buy.error)}</ErrorNote></div>}
+      {(buy.isError || subscribe.isError || sync.isError || cancel.isError) && (
+        <div className="mt-3"><ErrorNote>{errorText(buy.error ?? subscribe.error ?? sync.error ?? cancel.error)}</ErrorNote></div>
+      )}
     </Section>
   );
 }
@@ -634,9 +698,14 @@ function StatsSection() {
   if (!stats.data) return null;
   const s = stats.data;
   return (
-    <Section title="Performance" hint={`The last ${s.days} days. Shop clicks open your product page; try-ons are shoppers trying your products on their own photo.`}>
-      <div className="grid gap-3 sm:grid-cols-2">
+    <Section
+      title="Performance"
+      hint={`The last ${s.days} days. Views: your products shown to shoppers. Shop clicks open your product page. Try-ons: shoppers trying your products on their own photo.`}
+    >
+      <div className="grid gap-3 sm:grid-cols-4">
+        <Stat label="Views" value={s.views.toLocaleString()} />
         <Stat label="Shop clicks" value={s.clicks.toLocaleString()} />
+        <Stat label="Click rate" value={s.views ? `${((s.clicks / s.views) * 100).toFixed(1)}%` : "—"} />
         <Stat label="Try-ons" value={s.tryons.toLocaleString()} />
       </div>
       {s.top.length > 0 ? (
@@ -644,12 +713,12 @@ function StatsSection() {
           {s.top.map((row) => (
             <div key={row.store_product_id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-[13px]">
               <span className="min-w-0 flex-1 truncate text-ink-soft">{row.name}</span>
-              <span className="shrink-0 text-muted">{row.clicks} clicks · {row.tryons} try-ons</span>
+              <span className="shrink-0 text-muted">{row.views} views · {row.clicks} clicks · {row.tryons} try-ons</span>
             </div>
           ))}
         </div>
       ) : (
-        <p className="mt-4 text-[13px] text-muted">No clicks or try-ons yet. They appear here once shoppers find your products.</p>
+        <p className="mt-4 text-[13px] text-muted">No views yet. They appear here once shoppers find your products.</p>
       )}
     </Section>
   );

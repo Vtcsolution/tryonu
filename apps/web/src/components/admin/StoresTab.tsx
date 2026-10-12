@@ -220,9 +220,11 @@ function StoreDetail({ id, onClose }: { id: string; onClose: () => void }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
         <StatTile label="Plan" value={d.plan_active ? `${d.plan_code} · until ${new Date(d.plan_expires_at!).toLocaleDateString()}` : "None"} />
+        <StatTile label="Auto-renew" value={d.auto_renew ? "On (PayPal)" : d.subscription_status ? `Off · ${d.subscription_status.toLowerCase()}` : "Off"} />
         <StatTile label="Products" value={`${d.product_count} / ${d.plan_active ? d.plan_product_limit : 0}`} />
+        <StatTile label={`Views · ${d.stats.days}d`} value={d.stats.views} />
         <StatTile label={`Shop clicks · ${d.stats.days}d`} value={d.stats.clicks} />
         <StatTile label={`Try-ons · ${d.stats.days}d`} value={d.stats.tryons} />
       </div>

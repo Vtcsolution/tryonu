@@ -578,6 +578,10 @@ export type Store = {
   feed_url: string | null;
   feed_last_run_at: string | null;
   feed_last_result: string | null;
+  /** a PayPal subscription renews the plan every period */
+  auto_renew: boolean;
+  subscription_status: string | null;
+  subscription_plan_code: string | null;
 };
 
 export type AdminStore = Store & { owner_email: string; created_at: string };
@@ -613,9 +617,10 @@ export type StoreProductInput = {
 
 export type StoreStats = {
   days: number;
+  views: number;
   clicks: number;
   tryons: number;
-  top: { store_product_id: string; name: string; clicks: number; tryons: number }[];
+  top: { store_product_id: string; name: string; views: number; clicks: number; tryons: number }[];
 };
 
 export type StorePayment = {
