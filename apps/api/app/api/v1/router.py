@@ -5,8 +5,8 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     admin,
     admin_controls,
-    admin_settings,
     admin_rakuten,
+    admin_settings,
     affiliate,
     analytics,
     auth,
@@ -17,6 +17,7 @@ from app.api.v1.endpoints import (
     products,
     saved_products,
     search,
+    stores,
     stylist,
     subscriptions,
     tryon,
@@ -48,3 +49,5 @@ api_router.include_router(admin.router)
 api_router.include_router(admin_controls.router)
 api_router.include_router(admin_settings.router)
 api_router.include_router(admin_rakuten.router)
+api_router.include_router(stores.router)
+api_router.include_router(stores.admin_router)

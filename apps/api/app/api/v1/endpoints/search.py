@@ -20,13 +20,18 @@ router = APIRouter(prefix="/search", tags=["search"])
 
 
 @router.get("/live", response_model=list[LiveProductOut])
-async def search_live(q: str = Query(..., min_length=1), limit: int = Query(default=24, le=48)):
+async def search_live(
+    user: OptionalUser, db: DbSession, q: str = Query(..., min_length=1), limit: int = Query(default=24, le=48)
+):
     """Fetched fresh from retailer APIs (eBay today) on every call — never
     reads from or writes to our product catalog. See
     POST /api/v1/products/select-live for turning one result into a real,
     saved product once a user actually picks it."""
     if not q.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="q must not be empty")
+    from app.services.shopper_context import use_profile_country
+
+    await use_profile_country(db, user.id if user else None)  # local stores first
     results = await live_search(q.strip(), limit=limit)
     return [to_live_product_out(r) for r in results]
 

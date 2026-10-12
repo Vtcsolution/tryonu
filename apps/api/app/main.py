@@ -128,6 +128,16 @@ def create_app() -> FastAPI:
         await refresh_if_stale()
         return await call_next(request)
 
+    @app.middleware("http")
+    async def shopper_country(request: Request, call_next):  # noqa: ANN202
+        # the shopper's country from the IP, so company stores in it come
+        # first; endpoints that know the user replace it with the profile's
+        from app.services.analytics_service import country_for_request
+        from app.services.shopper_context import set_country
+
+        set_country(country_for_request(request))
+        return await call_next(request)
+
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):  # noqa: ANN202, ARG001
         return JSONResponse(

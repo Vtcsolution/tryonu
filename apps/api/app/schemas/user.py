@@ -65,6 +65,7 @@ class UserPreferenceOut(ORMModel):
     favorite_retailers: list[str] | None
     budget_min_cents: int | None
     budget_max_cents: int | None
+    country: str | None = None
 
 
 class UserPreferenceUpdate(BaseModel):
@@ -77,3 +78,4 @@ class UserPreferenceUpdate(BaseModel):
     favorite_retailers: list[str] | None = None
     budget_min_cents: int | None = None
     budget_max_cents: int | None = None
+    country: str | None = Field(default=None, pattern=r"^[A-Za-z]{2}$")

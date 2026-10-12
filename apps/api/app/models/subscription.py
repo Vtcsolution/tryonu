@@ -59,6 +59,11 @@ class Payment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     subscription_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("subscriptions.id"), nullable=True
     )
+    # a company paying for its store plan (a 30-day pass)
+    store_plan_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("store_plans.id"), nullable=True)
+    store_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("stores.id", ondelete="SET NULL"), nullable=True
+    )
 
     user: Mapped["User"] = relationship()
     credit_package: Mapped["CreditPackage | None"] = relationship()

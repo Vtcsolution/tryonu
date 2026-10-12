@@ -47,6 +47,9 @@ def _live_alternatives_out(
 
 
 async def _run_stylist_request(payload: StylistAskRequest, user_id: str, db: DbSession) -> StylistAskResponse:
+    from app.services.shopper_context import use_profile_country
+
+    await use_profile_country(db, user_id)  # local stores first for the shopper's own country
     request_row, alternatives = await ask_stylist(db, user_id=user_id, req=payload)
     return await _to_response(db, request_row, alternatives=alternatives)
 

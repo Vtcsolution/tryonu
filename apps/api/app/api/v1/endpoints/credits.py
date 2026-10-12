@@ -187,6 +187,26 @@ async def capture_purchase(payment_id: str, user: CurrentUser, db: DbSession):
         )
         return PurchaseCreditsResponse(payment_id=payment.id, status="failed")
 
+    if payment.store_plan_id:
+        # a company's store plan: unlock (or extend) its 30-day pass
+        from app.models.store import Store, StorePlan
+        from app.services.store_service import activate_plan
+
+        plan = await db.get(StorePlan, payment.store_plan_id)
+        store = await db.get(Store, payment.store_id) if payment.store_id else None
+        payment.status = PaymentStatus.SUCCEEDED
+        if plan is not None and store is not None:
+            activate_plan(store, plan)
+        else:
+            logger.error("payment_store_plan_missing", payment_id=payment.id)
+        await db.commit()
+        return PurchaseCreditsResponse(
+            payment_id=payment.id,
+            status="succeeded",
+            plan_name=plan.name if plan else None,
+            plan_expires_at=store.plan_expires_at if store else None,
+        )
+
     package = await db.get(CreditPackage, payment.credit_package_id) if payment.credit_package_id else None
     if package is None:
         # paid, but for a package that no longer exists: keep the money on

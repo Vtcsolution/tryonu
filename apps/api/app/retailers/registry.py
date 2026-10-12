@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from app.core.config import get_settings
 from app.retailers.admitad import AdmitadFeedProvider
+from app.retailers.stores import StoreProductProvider
 from app.retailers.aliexpress import AliExpressProductProvider
 from app.retailers.amazon import AmazonProductProvider
 from app.retailers.base import ProductProvider
@@ -46,6 +47,8 @@ def get_all_providers() -> list[ProductProvider]:
     The class stays importable for tests, which construct it directly."""
     settings = get_settings()
     return [
+        # company stores on TryOnU, local ones first (see live_search_service)
+        StoreProductProvider(),
         AmazonProductProvider(
             access_key=settings.AMAZON_ACCESS_KEY,
             secret_key=settings.AMAZON_SECRET_KEY,

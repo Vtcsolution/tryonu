@@ -52,3 +52,6 @@ class PurchaseCreditsResponse(BaseModel):
     # Set only once status == "succeeded".
     credits_granted: int | None = None
     new_balance: int | None = None
+    # a store plan payment: the plan unlocked and until when
+    plan_name: str | None = None
+    plan_expires_at: datetime | None = None

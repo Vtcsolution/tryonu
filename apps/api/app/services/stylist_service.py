@@ -37,6 +37,7 @@ from app.services.outfit_compatibility import score_outfit
 from app.services.outfit_slots import slot_for
 from app.services.personalization_service import TasteProfile, affinity_score, build_taste_profile
 from app.services.product_ingestion_service import persist_single_product
+from app.services.shopper_context import current_country
 
 _CANDIDATE_POOL_SIZE = 40
 _LIVE_FETCH_POOL_SIZE = 60  # widened before personalized re-ranking trims to _CANDIDATE_POOL_SIZE
@@ -679,6 +680,7 @@ async def ask_stylist(
             color=c.result.raw.color,
             price_cents=c.result.raw.price_cents,
             style_tags=c.result.raw.style_tags or [],
+            local=bool(c.result.raw.origin_country) and c.result.raw.origin_country == current_country(),
         )
         for i, c in enumerate(candidates)
     ]

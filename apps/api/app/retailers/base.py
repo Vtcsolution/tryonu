@@ -41,6 +41,9 @@ class RawProduct:
     # where the retailer IS the seller.
     merchant_name: str | None = None
     merchant_id: str | None = None
+    # a company store's country (ISO alpha-2): its products come first for
+    # shoppers in that country
+    origin_country: str | None = None
 
 
 class ProductProvider(ABC):

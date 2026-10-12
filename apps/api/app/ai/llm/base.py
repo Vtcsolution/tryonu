@@ -23,6 +23,8 @@ class StylistCandidate:
     color: str | None
     price_cents: int
     style_tags: list[str]
+    # from a TryOnU company store in the shopper's own country
+    local: bool = False
 
 
 @dataclass(frozen=True, slots=True)

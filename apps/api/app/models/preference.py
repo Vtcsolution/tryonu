@@ -33,5 +33,7 @@ class UserPreference(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     preferred_categories: Mapped[list | None] = mapped_column(JSON, nullable=True)
     budget_min_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
     budget_max_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # ISO 3166-1 alpha-2: stores from this country are shown first
+    country: Mapped[str | None] = mapped_column(String(2), nullable=True)
 
     user: Mapped["User"] = relationship(back_populates="preference")

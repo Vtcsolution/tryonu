@@ -173,6 +173,18 @@ def _deduplicate(results: list[LiveSearchResult]) -> list[LiveSearchResult]:
     return kept
 
 
+def _local_stores_first(results: list[LiveSearchResult]) -> list[LiveSearchResult]:
+    """Products of company stores in the shopper's own country first, then
+    everything else in its usual order (eBay, AliExpress, Admitad, ...)."""
+    from app.services.shopper_context import current_country
+
+    country = current_country()
+    if not country:
+        return results
+    local = [r for r in results if r.raw.origin_country == country]
+    return local + [r for r in results if r.raw.origin_country != country] if local else results
+
+
 def _interleave(per_provider: list[list[LiveSearchResult]]) -> list[LiveSearchResult]:
     """Round-robin, so the answer is a mix of the retailers rather than
     whichever one happens to be asked first."""
@@ -212,7 +224,7 @@ async def live_search(query: str, *, limit: int = 24) -> list[LiveSearchResult]:
     product an admin hid is dropped even though the retailer still lists it."""
     cached = _cached(query, limit)
     if cached is not None:
-        return await apply_admin_filters(cached)
+        return _local_stores_first(await apply_admin_filters(cached))
 
     disabled = await _disabled_retailer_slugs()
     providers = [p for p in get_all_providers() if p.slug not in disabled]
@@ -248,7 +260,7 @@ async def live_search(query: str, *, limit: int = 24) -> list[LiveSearchResult]:
     hidden = await _hidden_product_keys(results)
     if hidden:
         results = [r for r in results if (r.provider.slug, r.raw.retailer_product_id) not in hidden]
-    results = results[:limit]
+    results = _local_stores_first(results)[:limit]
     _remember(query, limit, results)
     return results
 
