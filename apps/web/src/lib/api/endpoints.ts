@@ -9,6 +9,8 @@ import type {
   AdminRetailer,
   AdminSettings,
   AdminStore,
+  AdminStoreDetail,
+  AdminStoreSummary,
   AdminSystemStatus,
   AdminTryOnJob,
   AdminUser,
@@ -29,11 +31,14 @@ import type {
   Page,
   Product,
   ProductSearchParams,
+  PublicStore,
   SavedLook,
   Store,
+  StorePayment,
   StorePlan,
   StoreProduct,
   StoreProductInput,
+  StoreStats,
   StylistAskInput,
   StylistResponse,
   SubscribeResponse,
@@ -385,6 +390,18 @@ export const stores = {
     apiFetch<StoreProduct>(`/api/v1/stores/me/products/${id}/images/${index}`, { method: "DELETE" }),
   setFeed: (feed_url: string | null) => apiFetch<Store>("/api/v1/stores/me/feed", { method: "PUT", body: { feed_url } }),
   importFeed: () => apiFetch<{ result: string }>("/api/v1/stores/me/feed/import", { method: "POST" }),
+  importFile: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return apiFetch<{ result: string }>("/api/v1/stores/me/products/import-file", { method: "POST", body: form, isFormData: true });
+  },
+  stats: () => apiFetch<StoreStats>("/api/v1/stores/me/stats"),
+  payments: () => apiFetch<StorePayment[]>("/api/v1/stores/me/payments"),
+  publicStore: (slug: string) => apiFetch<PublicStore>(`/api/v1/stores/public/${encodeURIComponent(slug)}`),
+  selectProduct: (slug: string, productId: string) =>
+    apiFetch<{ product_id: string }>(`/api/v1/stores/public/${encodeURIComponent(slug)}/products/${productId}/select`, {
+      method: "POST",
+    }),
 };
 
 export const adminStores = {
@@ -395,4 +412,12 @@ export const adminStores = {
   plans: () => apiFetch<StorePlan[]>("/api/v1/admin/stores/plans"),
   updatePlan: (id: string, input: Partial<Pick<StorePlan, "name" | "price_cents" | "product_limit" | "duration_days" | "is_active">>) =>
     apiFetch<StorePlan>(`/api/v1/admin/stores/plans/${id}`, { method: "PATCH", body: input }),
+  summary: () => apiFetch<AdminStoreSummary>("/api/v1/admin/stores/summary"),
+  detail: (id: string) => apiFetch<AdminStoreDetail>(`/api/v1/admin/stores/${id}`),
+  grantPlan: (id: string, plan_code: string, days: number) =>
+    apiFetch<AdminStoreDetail>(`/api/v1/admin/stores/${id}/plan`, { method: "POST", body: { plan_code, days } }),
+  setProductActive: (id: string, productId: string, is_active: boolean) =>
+    apiFetch<AdminStoreDetail>(`/api/v1/admin/stores/${id}/products/${productId}`, { method: "PATCH", body: { is_active } }),
+  deleteProduct: (id: string, productId: string) =>
+    apiFetch<AdminStoreDetail>(`/api/v1/admin/stores/${id}/products/${productId}`, { method: "DELETE" }),
 };

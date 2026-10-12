@@ -126,9 +126,10 @@ export function PaymentsTab() {
     <div>
       <SectionHeader title="Payments" />
       <Table
-        columns={["Amount", "Status", "Provider", "Reference", "Date"]}
+        columns={["Amount", "For", "Status", "Provider", "Reference", "Date"]}
         rows={query.data.map((p) => [
           money(Number(p.amount_cents), String(p.currency)),
+          String(p.purpose ?? "—"),
           <Badge key="s" tone={p.status === "succeeded" ? "good" : p.status === "failed" ? "bad" : "neutral"}>
             {String(p.status)}
           </Badge>,

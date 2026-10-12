@@ -135,10 +135,12 @@ function Dashboard({ store }: { store: Store }) {
   return (
     <div className="space-y-8">
       <StoreHeader store={store} />
+      <StatsSection />
       <PlansSection store={store} />
       <ProductsSection store={store} />
       <FeedSection store={store} />
       <ProfileSection store={store} />
+      <PaymentsSection />
     </div>
   );
 }
@@ -176,6 +178,11 @@ function StoreHeader({ store }: { store: Store }) {
       <p className="mt-4 text-[13.5px] text-ink-soft">
         {status.text}
         {store.status_note ? ` ${store.status_note}` : ""}
+        {store.live && (
+          <a href={`/stores/${store.slug}`} target="_blank" rel="noopener" className="ml-2 font-medium text-sage-deep hover:underline">
+            View your public store page ↗
+          </a>
+        )}
       </p>
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         <Stat label="Plan" value={store.plan_active ? (store.plan_code ?? "").replace(/^./, (c) => c.toUpperCase()) : "None"} />
@@ -270,6 +277,8 @@ function ProductsSection({ store }: { store: Store }) {
     onSuccess: refresh,
   });
   const remove = useMutation({ mutationFn: (p: StoreProduct) => storesApi.deleteProduct(p.id), onSuccess: refresh });
+  const fileRef = useRef<HTMLInputElement>(null);
+  const upload = useMutation({ mutationFn: (file: File) => storesApi.importFile(file), onSuccess: refresh });
   const full = store.product_count >= store.plan_product_limit;
 
   return (
@@ -278,9 +287,25 @@ function ProductsSection({ store }: { store: Store }) {
       hint={store.plan_active ? `${store.product_count} of ${store.plan_product_limit} on sale. Products without a photo aren't shown to shoppers.` : "Unlock a plan to add products."}
       action={
         store.plan_active && !adding && !editing ? (
-          <SmallButton tone="primary" disabled={full} onClick={() => setAdding(true)}>
-            {full ? "Plan limit reached" : "+ Add product"}
-          </SmallButton>
+          <div className="flex flex-wrap gap-2">
+            <SmallButton disabled={full || upload.isPending} onClick={() => fileRef.current?.click()}>
+              {upload.isPending ? "Uploading…" : "Upload CSV/JSON file"}
+            </SmallButton>
+            <SmallButton tone="primary" disabled={full} onClick={() => setAdding(true)}>
+              {full ? "Plan limit reached" : "+ Add product"}
+            </SmallButton>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv,.json,.tsv,.txt,text/csv,application/json"
+              hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) upload.mutate(file);
+                e.target.value = "";
+              }}
+            />
+          </div>
         ) : null
       }
     >
@@ -299,7 +324,10 @@ function ProductsSection({ store }: { store: Store }) {
           }}
         />
       )}
-      {(toggle.isError || remove.isError) && <ErrorNote>{errorText(toggle.error ?? remove.error)}</ErrorNote>}
+      {(toggle.isError || remove.isError || upload.isError) && (
+        <ErrorNote>{errorText(toggle.error ?? remove.error ?? upload.error)}</ErrorNote>
+      )}
+      {upload.data && <p className="mb-3 text-[13px] text-ink-soft">{upload.data.result}</p>}
       {products.data && products.data.length === 0 && !adding && (
         <p className="rounded-[16px] border border-dashed border-line p-6 text-center text-[14px] text-muted">
           No products yet{store.plan_active ? ". Add one, or connect your feed below." : "."}
@@ -594,6 +622,56 @@ function ProfileSection({ store }: { store: Store }) {
             e.target.value = "";
           }}
         />
+      </div>
+    </Section>
+  );
+}
+
+// ----------------------------------------------------------- stats & payments
+
+function StatsSection() {
+  const stats = useQuery({ queryKey: ["business", "stats"], queryFn: storesApi.stats });
+  if (!stats.data) return null;
+  const s = stats.data;
+  return (
+    <Section title="Performance" hint={`The last ${s.days} days. Shop clicks open your product page; try-ons are shoppers trying your products on their own photo.`}>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Stat label="Shop clicks" value={s.clicks.toLocaleString()} />
+        <Stat label="Try-ons" value={s.tryons.toLocaleString()} />
+      </div>
+      {s.top.length > 0 ? (
+        <div className="mt-4 divide-y divide-line rounded-[16px] border border-line">
+          {s.top.map((row) => (
+            <div key={row.store_product_id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-[13px]">
+              <span className="min-w-0 flex-1 truncate text-ink-soft">{row.name}</span>
+              <span className="shrink-0 text-muted">{row.clicks} clicks · {row.tryons} try-ons</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-4 text-[13px] text-muted">No clicks or try-ons yet. They appear here once shoppers find your products.</p>
+      )}
+    </Section>
+  );
+}
+
+function PaymentsSection() {
+  const payments = useQuery({ queryKey: ["business", "payments"], queryFn: storesApi.payments });
+  if (!payments.data || payments.data.length === 0) return null;
+  return (
+    <Section title="Payments">
+      <div className="divide-y divide-line rounded-[16px] border border-line">
+        {payments.data.map((p) => (
+          <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 text-[13px]">
+            <span className="text-ink-soft">{p.plan_name ?? "Plan"} plan · {new Date(p.created_at).toLocaleDateString()}</span>
+            <span className="flex items-center gap-3">
+              <span className="font-semibold text-ink">{formatPrice(p.amount_cents, p.currency)}</span>
+              <Badge tone={p.status === "succeeded" ? "good" : p.status === "failed" ? "bad" : "neutral"}>
+                {p.status === "succeeded" ? "Paid" : p.status === "failed" ? "Failed" : "Not completed"}
+              </Badge>
+            </span>
+          </div>
+        ))}
       </div>
     </Section>
   );

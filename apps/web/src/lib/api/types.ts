@@ -609,3 +609,39 @@ export type StoreProductInput = {
   color?: string | null;
   is_active?: boolean;
 };
+
+
+export type StoreStats = {
+  days: number;
+  clicks: number;
+  tryons: number;
+  top: { store_product_id: string; name: string; clicks: number; tryons: number }[];
+};
+
+export type StorePayment = {
+  id: string;
+  amount_cents: number;
+  currency: string;
+  status: string;
+  plan_name: string | null;
+  created_at: string;
+};
+
+export type PublicStore = {
+  name: string;
+  slug: string;
+  country: string;
+  description: string | null;
+  website_url: string | null;
+  logo_url: string | null;
+  products: StoreProduct[];
+};
+
+export type AdminStoreDetail = AdminStore & { stats: StoreStats; payments: StorePayment[]; products: StoreProduct[] };
+
+export type AdminStoreSummary = {
+  by_status: Record<string, number>;
+  live: number;
+  products: number;
+  plan_revenue: Record<string, number>;
+};
