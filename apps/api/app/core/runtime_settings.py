@@ -131,6 +131,8 @@ SPECS: tuple[SettingSpec, ...] = (
     SettingSpec("PAYPAL_SANDBOX_CLIENT_SECRET", "PayPal sandbox secret", "payments", "secret"),
     SettingSpec("PAYPAL_CLIENT_ID", "PayPal live client ID", "payments", "text"),
     SettingSpec("PAYPAL_CLIENT_SECRET", "PayPal live secret", "payments", "secret"),
+    SettingSpec("PAYPAL_WEBHOOK_ID", "PayPal webhook ID", "payments", "text",
+                help="From PayPal Developer -> your app -> Webhooks, for the URL https://<api>/api/v1/webhooks/paypal. Lets PayPal tell us at once about renewals, cancellations, refunds and chargebacks; without it they are picked up nightly."),
     SettingSpec("STRIPE_SECRET_KEY", "Stripe secret key", "payments", "secret"),
     SettingSpec("STRIPE_WEBHOOK_SECRET", "Stripe webhook signing secret", "payments", "secret"),
     # --- email ---

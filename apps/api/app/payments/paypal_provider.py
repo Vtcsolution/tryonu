@@ -279,3 +279,54 @@ class PayPalPaymentProvider(PaymentProvider):
         # 422 SUBSCRIPTION_STATUS_INVALID: already cancelled; nothing left to stop
         if resp.status_code not in (200, 204) and not (resp.status_code == 422 and "STATUS_INVALID" in resp.text):
             raise PayPalError(f"PayPal could not cancel the subscription: {_error_text(resp)}")
+
+
+    # ----------------------------------------------------- refunds and webhooks
+
+    async def refund_order(self, order_id: str, *, idempotency_key: str) -> str:
+        """Refunds the whole captured amount of an order. Returns PayPal's refund
+        status: COMPLETED, PENDING (being processed) or FAILED."""
+        async with self._client() as client:
+            token = await self._access_token(client)
+            headers = {"Authorization": f"Bearer {token}"}
+            resp = await client.get(f"/v2/checkout/orders/{order_id}", headers=headers)
+            if resp.status_code != 200:
+                raise PayPalError(f"PayPal could not read the order: {_error_text(resp)}")
+            captures = [
+                c for unit in resp.json().get("purchase_units") or [] for c in ((unit.get("payments") or {}).get("captures") or [])
+            ]
+            if not captures:
+                raise PayPalError("PayPal has no captured payment on this order to refund")
+            resp = await client.post(
+                f"/v2/payments/captures/{captures[0]['id']}/refund",
+                headers={**headers, "Content-Type": "application/json", "PayPal-Request-Id": f"refund-{idempotency_key}"},
+                json={},
+            )
+        if resp.status_code == 422 and "CAPTURE_FULLY_REFUNDED" in resp.text:
+            return "COMPLETED"
+        if resp.status_code not in (200, 201):
+            raise PayPalError(f"PayPal could not refund: {_error_text(resp)}")
+        return str(resp.json().get("status") or "PENDING")
+
+    async def verify_webhook(self, *, headers: dict, event: dict, webhook_id: str) -> bool:
+        """Asks PayPal whether this webhook call really came from PayPal for our webhook."""
+        lowered = {k.lower(): v for k, v in headers.items()}
+        body = {
+            "auth_algo": lowered.get("paypal-auth-algo"),
+            "cert_url": lowered.get("paypal-cert-url"),
+            "transmission_id": lowered.get("paypal-transmission-id"),
+            "transmission_sig": lowered.get("paypal-transmission-sig"),
+            "transmission_time": lowered.get("paypal-transmission-time"),
+            "webhook_id": webhook_id,
+            "webhook_event": event,
+        }
+        if not all(body.values()):
+            return False
+        async with self._client() as client:
+            token = await self._access_token(client)
+            resp = await client.post(
+                "/v1/notifications/verify-webhook-signature",
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                json=body,
+            )
+        return resp.status_code == 200 and resp.json().get("verification_status") == "SUCCESS"

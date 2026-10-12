@@ -28,11 +28,10 @@ async def _clean(db):  # noqa: ANN001, ANN202
     for plan in (await db.execute(select(StorePlan))).scalars():
         plan.paypal_product_id = plan.paypal_plan_id = plan.paypal_plan_key = None
         plan.price_cents = {"basic": 1000, "standard": 2500}.get(plan.code, plan.price_cents)
-    if not (await db.execute(select(StorePlan))).scalars().first():
-        db.add_all([
-            StorePlan(code="basic", name="Basic", price_cents=1000, currency="usd", product_limit=50, duration_days=30, position=1),
-            StorePlan(code="standard", name="Standard", price_cents=2500, currency="usd", product_limit=200, duration_days=30, position=2),
-        ])
+    existing = set((await db.execute(select(StorePlan.code))).scalars())
+    for code, name, price, limit, pos in (("basic", "Basic", 1000, 50, 1), ("standard", "Standard", 2500, 200, 2)):
+        if code not in existing:
+            db.add(StorePlan(code=code, name=name, price_cents=price, currency="usd", product_limit=limit, duration_days=30, position=pos))
     await db.commit()
     yield
     set_country(None)

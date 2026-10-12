@@ -170,3 +170,74 @@ async def rakuten_postback(request: Request):
         body=body.decode(errors="replace") if body else None,
     )
     return Message(detail="ok")
+
+
+
+# ------------------------------------------------------------------- PayPal
+
+_SUBSCRIPTION_EVENTS = {
+    "BILLING.SUBSCRIPTION.ACTIVATED",
+    "BILLING.SUBSCRIPTION.RE-ACTIVATED",
+    "BILLING.SUBSCRIPTION.UPDATED",
+    "BILLING.SUBSCRIPTION.CANCELLED",
+    "BILLING.SUBSCRIPTION.SUSPENDED",
+    "BILLING.SUBSCRIPTION.EXPIRED",
+    "BILLING.SUBSCRIPTION.PAYMENT.FAILED",
+}
+_MONEY_BACK_EVENTS = {"PAYMENT.CAPTURE.REFUNDED", "PAYMENT.CAPTURE.REVERSED"}
+
+
+@router.post("/paypal", response_model=Message)
+async def paypal_webhook(request: Request, db: DbSession):
+    """PayPal telling us something happened. Every call is verified with PayPal
+    first (an unverifiable call changes nothing), then the affected store
+    subscription is re-read from PayPal, or a refunded / charged-back payment
+    has what it bought taken back. The nightly sync is the backup."""
+    from app.core.config import get_settings
+    from app.models.store import Store
+    from app.payments.paypal_provider import PayPalPaymentProvider
+    from app.services.refund_service import reverse_payment
+    from app.services.store_service import sync_subscription
+
+    webhook_id = get_settings().PAYPAL_WEBHOOK_ID
+    provider = get_payment_provider()
+    if not webhook_id or not isinstance(provider, PayPalPaymentProvider):
+        logger.warning("paypal_webhook_not_configured")
+        return Message(detail="ignored")
+    try:
+        event = await request.json()
+    except Exception:  # noqa: BLE001
+        return Message(detail="ignored")
+    try:
+        verified = await provider.verify_webhook(headers=dict(request.headers), event=event, webhook_id=webhook_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("paypal_webhook_verify_failed", error=str(exc)[:200])
+        verified = False
+    if not verified:
+        logger.warning("paypal_webhook_unverified", event_type=str(event.get("event_type"))[:60])
+        return Message(detail="ignored")
+
+    event_type = str(event.get("event_type") or "")
+    resource = event.get("resource") or {}
+    if event_type in _SUBSCRIPTION_EVENTS or event_type == "PAYMENT.SALE.COMPLETED":
+        subscription_id = resource.get("id") if event_type in _SUBSCRIPTION_EVENTS else resource.get("billing_agreement_id")
+        store = await db.scalar(select(Store).where(Store.subscription_id == subscription_id)) if subscription_id else None
+        if store is not None:
+            result = await sync_subscription(db, store, provider)
+            logger.info("paypal_webhook_subscription", event_type=event_type, store_id=store.id, result=result)
+    elif event_type in _MONEY_BACK_EVENTS:
+        order_id = ((resource.get("supplementary_data") or {}).get("related_ids") or {}).get("order_id")
+        payment = (
+            await db.scalar(
+                select(Payment)
+                .where(Payment.external_payment_id == order_id, Payment.provider == "paypal")
+                .order_by(Payment.created_at.desc())
+                .limit(1)
+            )
+            if order_id
+            else None
+        )
+        if payment is not None:
+            taken = await reverse_payment(db, payment, why=f"PayPal {event_type.rsplit('.', 1)[-1].lower()}")
+            logger.info("paypal_webhook_money_back", event_type=event_type, payment_id=payment.id, **taken)
+    return Message(detail="ok")

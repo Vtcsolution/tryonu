@@ -366,6 +366,9 @@ class Settings(BaseSettings):
     PAYPAL_CLIENT_SECRET: str | None = None
     PAYPAL_SANDBOX_CLIENT_ID: str | None = None
     PAYPAL_SANDBOX_CLIENT_SECRET: str | None = None
+    # the id PayPal gives the webhook pointing at /api/v1/webhooks/paypal;
+    # without it webhook calls can't be verified and are ignored
+    PAYPAL_WEBHOOK_ID: str | None = None
     STRIPE_SECRET_KEY: str | None = None
     STRIPE_WEBHOOK_SECRET: str | None = None
 

@@ -31,6 +31,7 @@ class CreditReason(StrEnum):
     PURCHASE = "purchase"
     SUBSCRIPTION_GRANT = "subscription_grant"
     ADMIN_ADJUSTMENT = "admin_adjustment"
+    PURCHASE_REFUND = "purchase_refund"
 
 
 class SubscriptionPlan(StrEnum):
