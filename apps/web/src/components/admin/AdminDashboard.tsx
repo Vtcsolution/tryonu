@@ -19,6 +19,7 @@ import { AnalyticsTab } from "./AnalyticsTab";
 import { ProductsTab, RetailersTab } from "./CatalogTabs";
 import { CreditPackagesTab } from "./CreditPackagesTab";
 import { StoresTab } from "./StoresTab";
+import { FashnCreditsTab } from "./FashnCreditsTab";
 import { SettingsTab } from "./SettingsTab";
 import { TryOnsTab } from "./TryOnsTab";
 import { UsersTab } from "./UsersTab";
@@ -33,6 +34,7 @@ type Tab =
   | "packs"
   | "stores"
   | "settings"
+  | "fashn"
   | "system"
   | "payments"
   | "subscriptions"
@@ -63,6 +65,7 @@ const NAV: readonly NavGroup<Tab>[] = [
     group: "Configure",
     tabs: [
       { id: "settings", label: "Settings & API keys", icon: "settings" },
+      { id: "fashn", label: "FASHN credits", icon: "ai" },
       { id: "system", label: "System", icon: "system" },
     ],
   },
@@ -161,6 +164,7 @@ export function AdminDashboard() {
         {tab === "packs" && <CreditPackagesTab />}
         {tab === "stores" && <StoresTab />}
         {tab === "settings" && <SettingsTab />}
+        {tab === "fashn" && <FashnCreditsTab />}
         {tab === "system" && <SystemTab />}
         {tab === "payments" && <PaymentsTab />}
         {tab === "subscriptions" && <SubscriptionsTab />}

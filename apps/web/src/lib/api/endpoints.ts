@@ -425,3 +425,26 @@ export const adminStores = {
   deleteProduct: (id: string, productId: string) =>
     apiFetch<AdminStoreDetail>(`/api/v1/admin/stores/${id}/products/${productId}`, { method: "DELETE" }),
 };
+
+
+/* ------------------------------------------------------- admin operations */
+
+export type FashnApproval = {
+  live_generation_allowed: boolean;
+  max_credits_per_authorization: number;
+  max_hours: number;
+  counted_as_spent_credits_all_time: number;
+  open_authorizations: { id: string; budget: number; reserved: number; expires_at: string }[];
+};
+
+export const adminOps = {
+  refundPayment: (id: string, mode: "paypal" | "mark") =>
+    apiFetch<{ status: string; paypal_status: string | null; credits_removed: number; plan_days_removed: number }>(
+      `/api/v1/admin/payments/${id}/refund`,
+      { method: "POST", body: { mode } },
+    ),
+  fashnStatus: () => apiFetch<FashnApproval>("/api/v1/admin/fashn/approval"),
+  fashnApprove: (credits: number, hours: number, phrase: string) =>
+    apiFetch<FashnApproval>("/api/v1/admin/fashn/approval", { method: "POST", body: { credits, hours, phrase } }),
+  fashnClose: () => apiFetch<FashnApproval>("/api/v1/admin/fashn/approval/close", { method: "POST" }),
+};

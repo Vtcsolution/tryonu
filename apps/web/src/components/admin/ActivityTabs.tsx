@@ -1,22 +1,9 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { admin as adminApi } from "@/lib/api/endpoints";
-import {
-  Badge,
-  ErrorNote,
-  PAGE_SIZE,
-  Pager,
-  SectionHeader,
-  SimplePager,
-  StatTile,
-  Table,
-  TableSkeleton,
-  errorText,
-  money,
-  when,
-} from "./ui";
+import { admin as adminApi, adminOps } from "@/lib/api/endpoints";
+import { Badge, ErrorNote, PAGE_SIZE, Pager, SectionHeader, SimplePager, SmallButton, StatTile, Table, TableSkeleton, errorText, money, when } from "./ui";
 
 export function OverviewTab() {
   const query = useQuery({ queryKey: ["admin", "overview"], queryFn: adminApi.overview });
@@ -114,19 +101,40 @@ export function SystemTab() {
 }
 
 export function PaymentsTab() {
+  const qc = useQueryClient();
   const [offset, setOffset] = useState(0);
   const query = useQuery({
     queryKey: ["admin", "payments", offset],
     queryFn: () => adminApi.payments({ limit: PAGE_SIZE, offset }),
   });
+  const refund = useMutation({
+    mutationFn: ({ id, mode }: { id: string; mode: "paypal" | "mark" }) => adminOps.refundPayment(id, mode),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "payments"] }),
+  });
+  const ask = (p: Record<string, unknown>, mode: "paypal" | "mark") => {
+    const money_ = money(Number(p.amount_cents), String(p.currency));
+    const text =
+      mode === "paypal"
+        ? `Refund ${money_} to the buyer through PayPal? What it bought (unspent credits, or the store plan's days) is taken back.`
+        : `Mark ${money_} as refunded outside TryOnU? PayPal is not contacted; what it bought is taken back.`;
+    if (window.confirm(text)) refund.mutate({ id: String(p.id), mode });
+  };
   if (query.isLoading) return <TableSkeleton />;
   if (query.isError || !query.data) return <ErrorNote>{errorText(query.error, "Couldn't load payments.")}</ErrorNote>;
 
   return (
     <div>
-      <SectionHeader title="Payments" />
+      <SectionHeader title="Payments" hint="Auto-renew charges are refunded in PayPal itself, then marked here." />
+      {refund.isError && <div className="mb-3"><ErrorNote>{errorText(refund.error)}</ErrorNote></div>}
+      {refund.data && (
+        <p className="mb-3 text-[13px] text-ink-soft">
+          Refunded{refund.data.paypal_status ? ` (PayPal: ${refund.data.paypal_status.toLowerCase()})` : ""}.
+          {refund.data.credits_removed ? ` ${refund.data.credits_removed} credits taken back.` : ""}
+          {refund.data.plan_days_removed ? ` ${refund.data.plan_days_removed} plan days removed.` : ""}
+        </p>
+      )}
       <Table
-        columns={["Amount", "For", "Status", "Provider", "Reference", "Date"]}
+        columns={["Amount", "For", "Status", "Provider", "Reference", "Date", ""]}
         rows={query.data.map((p) => [
           money(Number(p.amount_cents), String(p.currency)),
           String(p.purpose ?? "—"),
@@ -136,6 +144,20 @@ export function PaymentsTab() {
           String(p.provider),
           <span key="r" className="text-[11px] text-faint">{String(p.external_payment_id ?? "—")}</span>,
           when(String(p.created_at)),
+          p.status === "succeeded" ? (
+            <div key="a" className="flex gap-1.5">
+              {p.provider === "paypal" && !String(p.external_payment_id ?? "").includes(":") && (
+                <SmallButton tone="danger" disabled={refund.isPending} onClick={() => ask(p, "paypal")}>
+                  Refund
+                </SmallButton>
+              )}
+              <SmallButton disabled={refund.isPending} onClick={() => ask(p, "mark")}>
+                Mark refunded
+              </SmallButton>
+            </div>
+          ) : (
+            ""
+          ),
         ])}
         empty="No payments yet."
       />
