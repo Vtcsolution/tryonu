@@ -9,6 +9,8 @@ import { ApiError, affiliateGoUrl, resolveMediaUrl } from "@/lib/api/client";
 import { products as productsApi, stylist as stylistApi, wardrobe as wardrobeApi } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
 import type { LiveProduct, Product, StylistResponse } from "@/lib/api/types";
+import { ProductCard } from "@/components/product/ProductCard";
+import { formatPrice, shopName } from "@/components/try/shop";
 
 const PROMPT_SUGGESTIONS = [
   "Build me a wedding outfit under $400",
@@ -248,7 +250,6 @@ function StylistExchange({ entry }: { entry: StylistResponse }) {
 }
 
 function StylistProductCard({ product, alternatives }: { product: Product; alternatives: LiveProduct[] }) {
-  const thumb = resolveMediaUrl(product.images[0]?.url);
   const shopAlternative = useMutation({
     mutationFn: (item: LiveProduct) =>
       productsApi.selectLive({
@@ -260,43 +261,35 @@ function StylistProductCard({ product, alternatives }: { product: Product; alter
   });
 
   return (
-    <div className="overflow-hidden rounded-[16px] border border-line bg-surface">
-      <div className="relative aspect-[3/4] bg-paper-2">
-        {thumb && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={thumb} alt={product.name} className="h-full w-full object-cover object-top" />
-        )}
-      </div>
-      <div className="p-2.5">
-        <p className="truncate text-[12px] font-semibold text-ink">{product.name}</p>
-        <p className="mt-0.5 text-[11px] text-muted">
-          {(product.price_cents / 100).toFixed(2)} {product.currency.toUpperCase()}
-        </p>
-        {alternatives.length > 0 && (
-          <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5">
+    <div className="flex h-full flex-col gap-2">
+      <ProductCard
+        image={resolveMediaUrl(product.images[0]?.url)}
+        name={product.name}
+        priceCents={product.price_cents}
+        currency={product.currency}
+        shop={shopName(product.merchant_name, product.retailer?.name)}
+        primary={{ label: "Try it on", href: `/try?product=${product.id}` }}
+        secondary={{ label: "View in shop ↗", href: affiliateGoUrl(product.id, "stylist"), external: true }}
+      />
+      {alternatives.length > 0 && (
+        <div>
+          <p className="text-[12px] text-muted">Other prices:</p>
+          <div className="mt-1 flex gap-1.5 overflow-x-auto pb-1">
             {alternatives.map((alt) => (
               <button
                 key={`${alt.retailer_slug}:${alt.retailer_product_id}`}
                 type="button"
                 disabled={shopAlternative.isPending}
                 onClick={() => shopAlternative.mutate(alt)}
-                title={`${alt.name} — ${(alt.price_cents / 100).toFixed(2)} ${alt.currency.toUpperCase()}`}
-                className="shrink-0 rounded-full border border-line px-2 py-0.5 text-[10px] text-ink-soft transition-colors hover:border-sage disabled:opacity-60"
+                title={`${alt.name}: ${formatPrice(alt.price_cents, alt.currency)}`}
+                className="min-h-[34px] shrink-0 rounded-full border border-line px-3 text-[12.5px] font-medium text-ink-soft transition-colors hover:border-sage disabled:opacity-60"
               >
-                {(alt.price_cents / 100).toFixed(0)} {alt.currency.toUpperCase()}
+                {formatPrice(alt.price_cents, alt.currency)}
               </button>
             ))}
           </div>
-        )}
-        <div className="mt-2 flex gap-1.5">
-          <Button href={`/try?product=${product.id}`} size="sm" variant="outline" className="!h-8 flex-1 !px-2 !text-[11px]">
-            Try it on
-          </Button>
-          <Button href={affiliateGoUrl(product.id, "stylist")} size="sm" className="!h-8 flex-1 !px-2 !text-[11px]">
-            Shop
-          </Button>
         </div>
-      </div>
+      )}
     </div>
   );
 }

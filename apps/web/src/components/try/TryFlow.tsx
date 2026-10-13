@@ -12,6 +12,7 @@ import { markerNumber } from "@/components/try/ResultMarkers";
 import { PhotoUploader } from "@/components/upload/PhotoUploader";
 import { ApiError, affiliateGoUrl, resolveMediaUrl } from "@/lib/api/client";
 import { StyledPicks } from "@/components/try/StyledPicks";
+import { ProductCard } from "@/components/product/ProductCard";
 import { RetailerTag, retailerFromImage, shopName } from "@/components/try/shop";
 import {
   credits as creditsApi,
@@ -871,7 +872,7 @@ export function TryFlow() {
             )}
 
             {!liveSearchQuery.isFetching && liveSearchQuery.data && liveSearchQuery.data.length > 0 && (
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                 {liveSearchQuery.data.map((item, i) => {
                   const selected =
                     product != null &&
@@ -881,52 +882,28 @@ export function TryFlow() {
                   const selecting =
                     selectLive.isPending &&
                     selectLive.variables?.retailer_product_id === item.retailer_product_id;
-                  const thumb = resolveMediaUrl(item.images[0]);
                   return (
                     <div
                       key={`${item.retailer_slug}:${item.retailer_product_id}`}
-                      style={{ animationDelay: `${i * 60}ms` }}
+                      style={{ animationDelay: `${i * 50}ms` }}
                       className="animate-[tu-in-scale_0.4s_ease_both]"
                     >
-                      <button
-                        type="button"
-                        disabled={selectLive.isPending}
-                        onClick={() => selectLive.mutate(item)}
-                        className={`group tu-hover-card block w-full overflow-hidden rounded-[20px] border bg-surface text-left disabled:opacity-60 ${
-                          selected ? "border-sage ring-2 ring-sage/40" : "border-line hover:border-line-strong"
-                        }`}
-                      >
-                        <div className="relative aspect-[3/4] overflow-hidden bg-paper-2">
-                          {thumb && (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={thumb}
-                              alt={item.name}
-                              className="tu-hover-media h-full w-full object-cover object-top"
-                            />
-                          )}
-                          <span className="absolute left-2 top-2 rounded-md bg-surface/95 px-2 py-1 text-[10px] font-semibold text-ink">
-                            {item.merchant_name ? `${item.retailer_name} · ${item.merchant_name}` : item.retailer_name}
-                          </span>
-                          <span
-                            className={`absolute right-2 top-2 grid h-6 w-6 transform-gpu place-items-center rounded-full text-[12px] text-white transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                              selecting
-                                ? "scale-100 animate-spin rounded-full border-2 border-white/40 border-t-white bg-transparent opacity-100"
-                                : selected
-                                  ? "scale-100 bg-sage opacity-100"
-                                  : "scale-50 bg-sage opacity-0"
-                            }`}
-                          >
-                            {!selecting && "✓"}
-                          </span>
-                        </div>
-                        <div className="p-3">
-                          <p className="truncate text-[13px] font-semibold text-ink">{item.name}</p>
-                          <p className="mt-0.5 text-[12px] text-muted">
-                            {(item.price_cents / 100).toFixed(2)} {item.currency.toUpperCase()}
-                          </p>
-                        </div>
-                      </button>
+                      <ProductCard
+                        image={resolveMediaUrl(item.images[0])}
+                        name={item.name}
+                        priceCents={item.price_cents}
+                        currency={item.currency}
+                        shop={shopName(item.merchant_name, item.retailer_name)}
+                        badge={selected ? "Selected ✓" : null}
+                        selected={selected}
+                        busy={selecting}
+                        primary={{
+                          label: selected ? "Selected ✓" : "Try this on",
+                          onClick: () => selectLive.mutate(item),
+                          disabled: selectLive.isPending || selected,
+                        }}
+                        secondary={{ label: "View in shop ↗", onClick: () => buyAlternative(item), disabled: shopAlternative.isPending }}
+                      />
                     </div>
                   );
                 })}
@@ -973,6 +950,39 @@ export function TryFlow() {
                 </span>
               </span>
             </label>
+          )}
+
+          {(product || outfit || customItem) && (
+            <>
+              {/* phones: the next step always in reach at the bottom of the screen */}
+              <div className="h-24 md:hidden" aria-hidden="true" />
+              <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 px-4 py-3 shadow-[0_-6px_20px_rgba(20,20,16,0.08)] backdrop-blur md:hidden">
+                <div className="mx-auto flex max-w-xl items-center gap-3">
+                  <p className="min-w-0 flex-1 text-[13px] leading-snug text-ink-soft">
+                    {tryOnCost !== null ? (
+                      <>
+                        Uses <b className="text-ink">{tryOnCost} credits</b>
+                        <br />
+                        You have {balance}
+                      </>
+                    ) : (
+                      "Ready to try on"
+                    )}
+                  </p>
+                  {shortOfCredits ? (
+                    <Button size="md" href="/credits">Buy credits</Button>
+                  ) : (
+                    <Button
+                      size="md"
+                      disabled={createJob.isPending || selectLive.isPending}
+                      onClick={() => createJob.mutate()}
+                    >
+                      {createJob.isPending ? "Starting…" : outfit ? "Try on this look" : "Try it on"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </>
           )}
 
           <div className="mt-8 flex flex-wrap items-center gap-4">

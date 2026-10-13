@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { formatPrice } from "@/components/try/shop";
+import { ProductCard } from "@/components/product/ProductCard";
 import { ApiError, affiliateGoUrl } from "@/lib/api/client";
 import { stores as storesApi } from "@/lib/api/endpoints";
 import type { StoreProduct } from "@/lib/api/types";
@@ -83,42 +83,20 @@ export function PublicStore({ slug }: { slug: string }) {
           {(tryOn.error ?? buy.error) instanceof ApiError ? ((tryOn.error ?? buy.error) as ApiError).detail : "That product isn't available right now."}
         </p>
       )}
-      <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+      <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         {s.products.map((p) => (
-          <article key={p.id} className="group flex flex-col overflow-hidden rounded-[20px] border border-line bg-surface hover:shadow-[0_6px_18px_rgba(20,20,16,0.08)]">
-            <div className="relative aspect-[4/5] bg-white">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p.images[0]} alt={p.name} loading="lazy" className="h-full w-full object-contain p-2 transition-transform duration-300 group-hover:scale-[1.03]" />
-              {busyId === p.id && (
-                <span className="absolute inset-0 grid place-items-center bg-surface/60">
-                  <span className="h-6 w-6 animate-spin rounded-full border-2 border-line-strong border-t-sage" />
-                </span>
-              )}
-            </div>
-            <div className="flex flex-1 flex-col p-3.5">
-              {p.category && <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-faint">{p.category}</p>}
-              <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-ink">{p.name}</p>
-              <p className="mt-1.5 text-[15px] font-semibold text-ink">{formatPrice(p.price_cents, p.currency)}</p>
-              <div className="mt-auto flex gap-2 pt-3">
-                <button
-                  type="button"
-                  disabled={busyId !== undefined}
-                  onClick={() => tryOn.mutate(p)}
-                  className="tu-press h-9 flex-1 rounded-full bg-sage text-[12.5px] font-medium text-white hover:bg-sage-deep disabled:opacity-50"
-                >
-                  Try on
-                </button>
-                <button
-                  type="button"
-                  disabled={busyId !== undefined}
-                  onClick={() => onBuy(p)}
-                  className="tu-press h-9 rounded-full border border-line-strong px-4 text-[12.5px] font-medium text-ink hover:border-ink/40 disabled:opacity-50"
-                >
-                  Buy ↗
-                </button>
-              </div>
-            </div>
-          </article>
+          <ProductCard
+            key={p.id}
+            image={p.images[0]}
+            name={p.name}
+            priceCents={p.price_cents}
+            currency={p.currency}
+            shop={s.name}
+            label={p.category}
+            busy={busyId === p.id}
+            primary={{ label: "Try it on", onClick: () => tryOn.mutate(p), disabled: busyId !== undefined }}
+            secondary={{ label: "Buy ↗", onClick: () => onBuy(p), disabled: busyId !== undefined }}
+          />
         ))}
       </div>
     </section>
