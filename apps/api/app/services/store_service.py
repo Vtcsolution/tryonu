@@ -70,14 +70,23 @@ async def active_product_count(db: AsyncSession, store_id: str) -> int:
     )
 
 
-def activate_plan(store: Store, plan: StorePlan) -> None:
-    """A paid 30-day pass: added to whatever time is left, so renewing early
-    loses nothing; the plan (and its product limit) becomes the one bought."""
+def activate_plan(store: Store, plan: StorePlan, *, free: bool = False) -> None:
+    """A 30-day pass: added to whatever time is left, so renewing early
+    loses nothing; the plan (and its product limit) becomes the one bought.
+    `free`: given by an admin without payment."""
     now = utcnow()
     start = max(now, _aware(store.plan_expires_at) or now)
     store.plan_code = plan.code
     store.plan_product_limit = plan.product_limit
     store.plan_expires_at = start + timedelta(days=plan.duration_days)
+    store.plan_free = free
+
+
+def end_plan(store: Store) -> None:
+    """The plan stops now; the store's products leave search until a new plan."""
+    now = utcnow()
+    if store.plan_expires_at is not None and _aware(store.plan_expires_at) > now:
+        store.plan_expires_at = now
 
 
 # --------------------------------------------------------------------- search

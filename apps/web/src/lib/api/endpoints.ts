@@ -426,6 +426,7 @@ export const adminStores = {
   detail: (id: string) => apiFetch<AdminStoreDetail>(`/api/v1/admin/stores/${id}`),
   grantPlan: (id: string, plan_code: string, days: number) =>
     apiFetch<AdminStoreDetail>(`/api/v1/admin/stores/${id}/plan`, { method: "POST", body: { plan_code, days } }),
+  endPlan: (id: string) => apiFetch<AdminStoreDetail>(`/api/v1/admin/stores/${id}/plan/end`, { method: "POST" }),
   setProductActive: (id: string, productId: string, is_active: boolean) =>
     apiFetch<AdminStoreDetail>(`/api/v1/admin/stores/${id}/products/${productId}`, { method: "PATCH", body: { is_active } }),
   deleteProduct: (id: string, productId: string) =>

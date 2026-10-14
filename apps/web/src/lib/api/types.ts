@@ -575,6 +575,8 @@ export type Store = {
   plan_product_limit: number;
   plan_expires_at: string | null;
   plan_active: boolean;
+  /** the current plan was given free by an admin */
+  plan_free?: boolean;
   live: boolean;
   product_count: number;
   feed_url: string | null;

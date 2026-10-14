@@ -57,6 +57,8 @@ class Store(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     plan_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
     plan_product_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     plan_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # the current plan was given free by an admin (not paid for)
+    plan_free: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     feed_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     feed_last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     feed_last_result: Mapped[str | None] = mapped_column(Text, nullable=True)

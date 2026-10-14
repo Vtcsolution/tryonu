@@ -347,7 +347,14 @@ function StoreHeader({ store }: { store: Store }) {
         )}
       </p>
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        <Stat label="Plan" value={store.plan_active ? (store.plan_code ?? "").replace(/^./, (c) => c.toUpperCase()) : "None"} />
+        <Stat
+          label="Plan"
+          value={
+            store.plan_active
+              ? `${(store.plan_code ?? "").replace(/^./, (c) => c.toUpperCase())}${store.plan_free ? " · free from TryOnU" : ""}`
+              : "None"
+          }
+        />
         <Stat label="Products" value={`${store.product_count} / ${store.plan_active ? store.plan_product_limit : 0}`} />
         <Stat
           label={store.plan_active ? "Plan ends" : "Plan"}

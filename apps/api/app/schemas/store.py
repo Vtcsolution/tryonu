@@ -50,6 +50,7 @@ class StoreOut(BaseModel):
     plan_product_limit: int
     plan_expires_at: datetime | None
     plan_active: bool
+    plan_free: bool = False
     live: bool
     product_count: int
     feed_url: str | None

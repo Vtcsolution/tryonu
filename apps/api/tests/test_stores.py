@@ -277,13 +277,18 @@ async def test_admins_see_a_store_in_detail_moderate_products_and_grant_a_plan(c
     assert hidden["products"][0]["is_active"] is False
 
     before = (await db.get(Store, store["id"])).plan_expires_at
+    assert detail["plan_free"] is False  # bought Basic
     granted = (await client.post(f"/api/v1/admin/stores/{store['id']}/plan", json={"plan_code": "standard", "days": 30})).json()
     assert granted["plan_code"] == "standard" and granted["plan_product_limit"] == 200
+    assert granted["plan_free"] is True
     await db.refresh(await db.get(Store, store["id"]))
     assert (await db.get(Store, store["id"])).plan_expires_at > before
 
     summary = (await client.get("/api/v1/admin/stores/summary")).json()
     assert summary["by_status"]["approved"] >= 1 and summary["live"] >= 1 and summary["plan_revenue"]
+
+    ended = (await client.post(f"/api/v1/admin/stores/{store['id']}/plan/end")).json()
+    assert ended["plan_active"] is False and ended["live"] is False
 
 
 async def test_plan_reminders_go_out_once_per_expiry(client, db, monkeypatch):  # noqa: ANN001

@@ -8,12 +8,55 @@ import { countryName } from "@/lib/countries";
 import { Badge, ErrorNote, SectionHeader, SmallButton, StatTile, Table, TableSkeleton, errorText, inputClass, money } from "./ui";
 
 const FILTERS: [string, string][] = [
+  ["", "All stores"],
   ["pending", "Waiting"],
   ["approved", "Approved"],
   ["suspended", "Suspended"],
   ["rejected", "Rejected"],
-  ["", "All"],
 ];
+
+const DAY = 86_400_000;
+const planName = (code: string | null) => (code ? code.replace(/^./, (c) => c.toUpperCase()) : "No plan");
+const daysLeft = (iso: string | null) => (iso ? Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / DAY)) : 0);
+
+/** "Basic" with a Paid / Free tag, or "No plan". */
+function PlanCell({ s }: { s: AdminStore }) {
+  if (!s.plan_active) return <span className="text-muted">No plan</span>;
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <span className="font-medium text-ink">{planName(s.plan_code)}</span>
+      <Badge tone={s.plan_free ? "warn" : "good"}>{s.plan_free ? "Free" : "Paid"}</Badge>
+    </span>
+  );
+}
+
+function EndsCell({ s }: { s: AdminStore }) {
+  if (!s.plan_active || !s.plan_expires_at) return <span className="text-muted">—</span>;
+  const left = daysLeft(s.plan_expires_at);
+  return (
+    <span>
+      {new Date(s.plan_expires_at).toLocaleDateString()}
+      <span className={`block text-[11.5px] ${left <= 3 ? "text-[#a4553f]" : "text-muted"}`}>
+        {left === 1 ? "1 day left" : `${left} days left`}
+      </span>
+    </span>
+  );
+}
+
+/** "12 of 50 used · 38 left" with a small bar. */
+function UsageCell({ used, limit }: { used: number; limit: number }) {
+  if (limit <= 0) return <span>{used} uploaded<span className="block text-[11.5px] text-muted">no plan limit yet</span></span>;
+  const pct = Math.min(100, Math.round((used / limit) * 100));
+  return (
+    <span className="block min-w-[120px]">
+      {used} of {limit.toLocaleString()} used
+      <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-paper-2">
+        <span className={`block h-full rounded-full ${pct >= 90 ? "bg-[#c0503a]" : "bg-sage"}`} style={{ width: `${pct}%` }} />
+      </span>
+      <span className="block text-[11.5px] text-muted">{Math.max(0, limit - used).toLocaleString()} left</span>
+    </span>
+  );
+}
 const TONE: Record<string, "good" | "bad" | "warn" | "neutral"> = {
   pending: "warn",
   approved: "good",
@@ -24,7 +67,7 @@ const TONE: Record<string, "good" | "bad" | "warn" | "neutral"> = {
 /** Company stores: approve new ones, suspend bad ones, and set plan prices. */
 export function StoresTab() {
   const qc = useQueryClient();
-  const [filter, setFilter] = useState("pending");
+  const [filter, setFilter] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const summary = useQuery({ queryKey: ["admin", "stores", "summary"], queryFn: adminStores.summary });
   const stores = useQuery({ queryKey: ["admin", "stores", filter], queryFn: () => adminStores.list(filter || undefined) });
@@ -56,7 +99,7 @@ export function StoresTab() {
       <div>
         <SectionHeader
           title="Company stores"
-          hint="New stores wait here for approval. A store's products reach shoppers only when it is approved AND has a paid plan."
+          hint="Every store, its plan and how many products it has used. A store's products reach shoppers only when it is approved AND has a plan (paid, or free from you). Open Details to give a free plan."
         />
         <div className="mb-4 flex flex-wrap gap-1.5">
           {FILTERS.map(([value, label]) => (
@@ -72,23 +115,24 @@ export function StoresTab() {
           <ErrorNote>{errorText(stores.error, "Couldn't load stores.")}</ErrorNote>
         ) : (
           <Table
-            columns={["Store", "Country", "Owner", "Plan", "Products", "Status", ""]}
+            columns={["Store", "Owner", "Plan", "Plan ends", "Products", "Status", ""]}
             rows={stores.data.map((s) => [
               <div key="n">
                 <p className="font-medium text-ink">{s.name}</p>
+                <p className="text-[11.5px] text-muted">{countryName(s.country)}</p>
                 {s.website_url && (
                   <a href={s.website_url} target="_blank" rel="noopener noreferrer" className="text-[11.5px] text-sage-deep hover:underline">
                     {s.website_url.replace(/^https?:\/\//, "")}
                   </a>
                 )}
               </div>,
-              countryName(s.country),
               s.owner_email,
-              s.plan_active ? `${s.plan_code} until ${new Date(s.plan_expires_at!).toLocaleDateString()}` : "None",
-              `${s.product_count} / ${s.plan_active ? s.plan_product_limit : 0}`,
+              <PlanCell key="p" s={s} />,
+              <EndsCell key="e" s={s} />,
+              <UsageCell key="u" used={s.product_count} limit={s.plan_active ? s.plan_product_limit : 0} />,
               <Badge key="s" tone={TONE[s.status] ?? "neutral"}>{s.status}</Badge>,
               <div key="a" className="flex flex-wrap gap-1.5">
-                <SmallButton onClick={() => setOpenId(openId === s.id ? null : s.id)}>{openId === s.id ? "Close" : "Details"}</SmallButton>
+                <SmallButton onClick={() => setOpenId(openId === s.id ? null : s.id)}>{openId === s.id ? "Close" : "Details & plan"}</SmallButton>
                 {s.status !== "approved" && (
                   <SmallButton tone="primary" disabled={setStatus.isPending} onClick={() => setStatus.mutate({ store: s, status: "approved" })}>
                     Approve
@@ -180,17 +224,33 @@ function PlanRow({ plan, onSaved }: { plan: StorePlan; onSaved: () => void }) {
 }
 
 
+/** Succeeded plan payments, per currency. */
+function totalPaid(d: AdminStoreDetail): string {
+  const sums: Record<string, number> = {};
+  for (const p of d.payments) if (p.status === "succeeded") sums[p.currency] = (sums[p.currency] ?? 0) + p.amount_cents;
+  const parts = Object.entries(sums).map(([cur, cents]) => money(cents, cur));
+  return parts.length ? parts.join(" + ") : money(0, "usd");
+}
+
 function StoreDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const qc = useQueryClient();
   const detail = useQuery({ queryKey: ["admin", "store", id], queryFn: () => adminStores.detail(id) });
   const plans = useQuery({ queryKey: ["admin", "store-plans"], queryFn: adminStores.plans });
   const [planCode, setPlanCode] = useState("");
   const [days, setDays] = useState("30");
+  const [confirmEnd, setConfirmEnd] = useState(false);
   const update = (d: AdminStoreDetail) => {
     qc.setQueryData(["admin", "store", id], d);
     qc.invalidateQueries({ queryKey: ["admin", "stores"] });
   };
   const grant = useMutation({ mutationFn: () => adminStores.grantPlan(id, planCode, Number(days)), onSuccess: update });
+  const end = useMutation({
+    mutationFn: () => adminStores.endPlan(id),
+    onSuccess: (d) => {
+      update(d);
+      setConfirmEnd(false);
+    },
+  });
   const toggle = useMutation({
     mutationFn: ({ productId, active }: { productId: string; active: boolean }) => adminStores.setProductActive(id, productId, active),
     onSuccess: update,
@@ -220,31 +280,97 @@ function StoreDetail({ id, onClose }: { id: string; onClose: () => void }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
-        <StatTile label="Plan" value={d.plan_active ? `${d.plan_code} · until ${new Date(d.plan_expires_at!).toLocaleDateString()}` : "None"} />
-        <StatTile label="Auto-renew" value={d.auto_renew ? "On (PayPal)" : d.subscription_status ? `Off · ${d.subscription_status.toLowerCase()}` : "Off"} />
-        <StatTile label="Products" value={`${d.product_count} / ${d.plan_active ? d.plan_product_limit : 0}`} />
+      <div>
+        <p className="mb-2 text-[13px] font-semibold text-ink">Plan</p>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <StatTile
+            label="Plan"
+            value={
+              d.plan_active ? (
+                <span className="flex flex-wrap items-center gap-2">
+                  {planName(d.plan_code)}
+                  <Badge tone={d.plan_free ? "warn" : "good"}>{d.plan_free ? "Free from admin" : "Paid"}</Badge>
+                </span>
+              ) : (
+                "No plan"
+              )
+            }
+          />
+          <StatTile
+            label="Plan ends"
+            value={d.plan_active && d.plan_expires_at ? `${new Date(d.plan_expires_at).toLocaleDateString()} · ${daysLeft(d.plan_expires_at)}d left` : "—"}
+          />
+          <StatTile label="Auto-renew" value={d.auto_renew ? "On (PayPal)" : d.subscription_status ? `Off · ${d.subscription_status.toLowerCase()}` : "Off"} />
+          <StatTile label="Total paid" value={totalPaid(d)} />
+        </div>
+      </div>
+
+      <div>
+        <p className="mb-2 text-[13px] font-semibold text-ink">Products</p>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <StatTile label="Uploaded (on sale)" value={d.product_count} />
+          <StatTile label="Hidden" value={d.products.filter((p) => !p.is_active).length} />
+          <StatTile label="Plan limit" value={d.plan_active ? d.plan_product_limit.toLocaleString() : "—"} />
+          <StatTile
+            label="Can still add"
+            value={d.plan_active ? Math.max(0, d.plan_product_limit - d.product_count).toLocaleString() : "Needs a plan"}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
         <StatTile label={`Views · ${d.stats.days}d`} value={d.stats.views} />
         <StatTile label={`Shop clicks · ${d.stats.days}d`} value={d.stats.clicks} />
         <StatTile label={`Try-ons · ${d.stats.days}d`} value={d.stats.tryons} />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-[16px] border border-line p-3">
-        <span className="text-[13px] font-medium text-ink">Give or extend a plan without payment:</span>
-        <select value={planCode} onChange={(e) => setPlanCode(e.target.value)} className={`${inputClass} w-40`}>
-          <option value="">Choose a plan</option>
-          {plans.data?.map((p: StorePlan) => (
-            <option key={p.id} value={p.code}>{p.name} ({p.product_limit} products)</option>
+      <div className="rounded-[16px] border border-sage/40 bg-sage-tint/20 p-4">
+        <p className="text-[14px] font-semibold text-ink">Give a free plan (no payment)</p>
+        <p className="mt-0.5 text-[12.5px] text-muted">
+          The store gets the plan&apos;s product limit right away. Days are added on top of any time it has left.
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <select value={planCode} onChange={(e) => setPlanCode(e.target.value)} className={`${inputClass} w-48`} aria-label="Plan">
+            <option value="">Choose a plan</option>
+            {plans.data?.map((p: StorePlan) => (
+              <option key={p.id} value={p.code}>{p.name} ({p.product_limit.toLocaleString()} products)</option>
+            ))}
+          </select>
+          {["7", "30", "90", "365"].map((n) => (
+            <SmallButton key={n} tone={days === n ? "primary" : "neutral"} onClick={() => setDays(n)}>
+              {n === "365" ? "1 year" : `${n} days`}
+            </SmallButton>
           ))}
-        </select>
-        <label className="flex items-center gap-1 text-[12px] text-muted">
-          Days
-          <input type="number" min={1} value={days} onChange={(e) => setDays(e.target.value)} className={`${inputClass} w-20`} />
-        </label>
-        <SmallButton tone="primary" disabled={!planCode || Number(days) < 1 || grant.isPending} onClick={() => grant.mutate()}>
-          {grant.isPending ? "Saving…" : "Apply"}
-        </SmallButton>
-        {grant.isError && <ErrorNote>{errorText(grant.error)}</ErrorNote>}
+          <label className="flex items-center gap-1 text-[12px] text-muted">
+            or
+            <input type="number" min={1} value={days} onChange={(e) => setDays(e.target.value)} className={`${inputClass} w-20`} aria-label="Days" />
+            days
+          </label>
+          <SmallButton tone="primary" disabled={!planCode || Number(days) < 1 || grant.isPending} onClick={() => grant.mutate()}>
+            {grant.isPending ? "Saving…" : "Give free plan"}
+          </SmallButton>
+        </div>
+        {grant.isSuccess && <p className="mt-2 text-[12.5px] font-medium text-sage-deep">✓ Plan given.</p>}
+        {grant.isError && <div className="mt-2"><ErrorNote>{errorText(grant.error)}</ErrorNote></div>}
+
+        {d.plan_active && (
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3">
+            <span className="text-[12.5px] text-muted">
+              Stop this store&apos;s plan now; its products leave search.{d.auto_renew ? " PayPal auto-renew stays on until the owner cancels it." : ""}
+            </span>
+            {confirmEnd ? (
+              <>
+                <SmallButton tone="danger" disabled={end.isPending} onClick={() => end.mutate()}>
+                  {end.isPending ? "Ending…" : "Yes, end the plan"}
+                </SmallButton>
+                <SmallButton onClick={() => setConfirmEnd(false)}>Cancel</SmallButton>
+              </>
+            ) : (
+              <SmallButton tone="danger" onClick={() => setConfirmEnd(true)}>End plan now</SmallButton>
+            )}
+            {end.isError && <ErrorNote>{errorText(end.error)}</ErrorNote>}
+          </div>
+        )}
       </div>
 
       <div>

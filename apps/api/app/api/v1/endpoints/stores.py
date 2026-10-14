@@ -71,6 +71,7 @@ async def _out(db: DbSession, store: Store) -> StoreOut:
         plan_product_limit=store.plan_product_limit,
         plan_expires_at=store.plan_expires_at,
         plan_active=svc.plan_active(store),
+        plan_free=store.plan_free,
         live=svc.is_live(store),
         product_count=await svc.active_product_count(db, store.id),
         feed_url=store.feed_url,
@@ -591,10 +592,22 @@ async def admin_grant_plan(store_id: str, payload: AdminGrantPlanIn, admin: Admi
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
     granted = StorePlan(code=plan.code, name=plan.name, price_cents=plan.price_cents, currency=plan.currency,
                         product_limit=plan.product_limit, duration_days=payload.days)
-    svc.activate_plan(store, granted)
+    svc.activate_plan(store, granted, free=True)
     await db.commit()
     await db.refresh(store)
     logger.info("store_plan_granted", store_id=store.id, plan=plan.code, days=payload.days, admin_id=admin.id)
+    return await _admin_detail(db, store)
+
+
+@admin_router.post("/{store_id}/plan/end", response_model=AdminStoreDetailOut)
+async def admin_end_plan(store_id: str, admin: AdminUser, db: DbSession):
+    """Stop the store's plan now (e.g. a free plan that's over). A PayPal
+    auto-renew is not cancelled here; the owner or PayPal does that."""
+    store = await _admin_store(db, store_id)
+    svc.end_plan(store)
+    await db.commit()
+    await db.refresh(store)
+    logger.info("store_plan_ended", store_id=store.id, admin_id=admin.id)
     return await _admin_detail(db, store)
 
 
