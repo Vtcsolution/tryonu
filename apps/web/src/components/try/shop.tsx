@@ -42,3 +42,4 @@ export const RECOMMENDED = "★ Recommended";
 export function fromTryOnUStore(retailerSlug: string | null | undefined): boolean {
   return retailerSlug === "stores";
 }
+export const FEATURED = "★ Featured";

@@ -97,6 +97,8 @@ export type LiveProduct = {
   product_url: string;
   images: string[];
   retailer_name: string;
+  /** a TryOnU store's featured product */
+  featured?: boolean;
   // The exact query that found this result — pass back as-is to
   // products.selectLive() to persist this specific item. Null from plain
   // browse search (the caller already knows what it searched); set for
@@ -555,6 +557,8 @@ export type StorePlan = {
   price_cents: number;
   currency: string;
   product_limit: number;
+  /** how many products a store on this plan can feature */
+  featured_limit: number;
   duration_days: number;
   is_active: boolean;
 };
@@ -577,6 +581,8 @@ export type Store = {
   plan_active: boolean;
   /** the current plan was given free by an admin */
   plan_free?: boolean;
+  plan_featured_limit?: number;
+  featured_count?: number;
   live: boolean;
   product_count: number;
   feed_url: string | null;
@@ -603,6 +609,7 @@ export type StoreProduct = {
   gender: string;
   color: string | null;
   is_active: boolean;
+  is_featured?: boolean;
   updated_at: string;
 };
 
@@ -616,6 +623,7 @@ export type StoreProductInput = {
   gender: string;
   color?: string | null;
   is_active?: boolean;
+  is_featured?: boolean;
 };
 
 

@@ -78,6 +78,7 @@ def activate_plan(store: Store, plan: StorePlan, *, free: bool = False) -> None:
     start = max(now, _aware(store.plan_expires_at) or now)
     store.plan_code = plan.code
     store.plan_product_limit = plan.product_limit
+    store.plan_featured_limit = plan.featured_limit or 0
     store.plan_expires_at = start + timedelta(days=plan.duration_days)
     store.plan_free = free
 
@@ -115,13 +116,44 @@ async def search_store_products(
                 select(StoreProduct, Store)
                 .join(Store, Store.id == StoreProduct.store_id)
                 .where(live, *matches)
-                .order_by(local_first, StoreProduct.updated_at.desc())
+                .order_by(local_first, StoreProduct.is_featured.desc(), StoreProduct.updated_at.desc())
                 .limit(limit)
             )
         ).all()
         if rows:
             return [(p, s) for p, s in rows]
     return []
+
+
+async def featured_count(db: AsyncSession, store_id: str) -> int:
+    return (
+        await db.scalar(
+            select(func.count())
+            .select_from(StoreProduct)
+            .where(StoreProduct.store_id == store_id, StoreProduct.is_active.is_(True), StoreProduct.is_featured.is_(True))
+        )
+        or 0
+    )
+
+
+async def featured_ids(db: AsyncSession, stores: list[Store]) -> set[str]:
+    """The products that count as featured now: each store's featured products,
+    newest first, up to its plan's featured limit (a smaller plan after a
+    bigger one keeps only that many)."""
+    ids: set[str] = set()
+    for store in {s.id: s for s in stores}.values():
+        if store.plan_featured_limit <= 0 or not plan_active(store):
+            continue
+        rows = (
+            await db.execute(
+                select(StoreProduct.id)
+                .where(StoreProduct.store_id == store.id, StoreProduct.is_active.is_(True), StoreProduct.is_featured.is_(True))
+                .order_by(StoreProduct.updated_at.desc())
+                .limit(store.plan_featured_limit)
+            )
+        ).scalars()
+        ids.update(rows)
+    return ids
 
 
 # ----------------------------------------------------------------- feed import

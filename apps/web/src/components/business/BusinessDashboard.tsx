@@ -385,7 +385,10 @@ function StoreHeader({ store }: { store: Store }) {
               : "None"
           }
         />
-        <Stat label="Products" value={`${store.product_count} / ${store.plan_active ? store.plan_product_limit : 0}`} />
+        <Stat
+          label="Products"
+          value={`${store.product_count} / ${store.plan_active ? store.plan_product_limit : 0} · ★ ${store.featured_count ?? 0} / ${store.plan_featured_limit ?? 0}`}
+        />
         <Stat
           label={store.plan_active ? "Plan ends" : "Plan"}
           value={store.plan_active && expires ? expires.toLocaleDateString() : "Not unlocked yet"}
@@ -488,6 +491,11 @@ function PlansSection({ store }: { store: Store }) {
                   <span className="text-[13px] font-normal text-muted"> / {plan.duration_days} days</span>
                 </p>
                 <p className="mt-2 text-[14px] text-ink-soft">Up to {plan.product_limit.toLocaleString()} products</p>
+                {plan.featured_limit > 0 && (
+                  <p className="mt-1 text-[14px] text-ink-soft">
+                    <span className="text-sage-deep">★</span> Feature {plan.featured_limit.toLocaleString()} products: shown first to shoppers
+                  </p>
+                )}
                 <div className="mt-auto space-y-2 pt-5">
                   <Button
                     size="md"
@@ -543,11 +551,20 @@ function ProductsSection({ store }: { store: Store }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const upload = useMutation({ mutationFn: (file: File) => storesApi.importFile(file), onSuccess: refresh });
   const full = store.product_count >= store.plan_product_limit;
+  const featureFull = (store.featured_count ?? 0) >= (store.plan_featured_limit ?? 0);
+  const feature = useMutation({
+    mutationFn: (p: StoreProduct) => storesApi.editProduct(p.id, { is_featured: !p.is_featured }),
+    onSuccess: refresh,
+  });
 
   return (
     <Section
       title="Products"
-      hint={store.plan_active ? `${store.product_count} of ${store.plan_product_limit} on sale. Products without a photo aren't shown to shoppers.` : "Unlock a plan to add products."}
+      hint={
+        store.plan_active
+          ? `${store.product_count} of ${store.plan_product_limit} on sale · ★ ${store.featured_count ?? 0} of ${store.plan_featured_limit ?? 0} featured. Featured products are shown first when they match what a shopper asks for, and first of all to shoppers in your country. Products without a photo aren't shown.`
+          : "Unlock a plan to add products."
+      }
       action={
         store.plan_active && !adding && !editing ? (
           <div className="flex flex-wrap gap-2">
@@ -587,8 +604,8 @@ function ProductsSection({ store }: { store: Store }) {
           }}
         />
       )}
-      {(toggle.isError || remove.isError || upload.isError) && (
-        <ErrorNote>{errorText(toggle.error ?? remove.error ?? upload.error)}</ErrorNote>
+      {(toggle.isError || remove.isError || upload.isError || feature.isError) && (
+        <ErrorNote>{errorText(toggle.error ?? remove.error ?? upload.error ?? feature.error)}</ErrorNote>
       )}
       {upload.data && <p className="mb-3 text-[13px] text-ink-soft">{upload.data.result}</p>}
       {products.data && products.data.length === 0 && !adding && (
@@ -610,11 +627,21 @@ function ProductsSection({ store }: { store: Store }) {
                 <span className="absolute left-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-semibold text-white">
                   {p.source === "feed" ? "From feed" : "Added by you"}
                 </span>
+                {p.is_featured && (
+                  <span className="absolute right-2 top-2 rounded-full bg-sage px-2 py-0.5 text-[10.5px] font-semibold text-white">★ Featured</span>
+                )}
               </div>
               <div className="flex flex-1 flex-col p-3">
                 <p className="line-clamp-2 text-[12.5px] leading-snug text-ink">{p.name}</p>
                 <p className="mt-1 text-[14px] font-semibold text-ink">{formatPrice(p.price_cents, p.currency)}</p>
                 <div className="mt-auto flex flex-wrap gap-1.5 pt-3">
+                  <SmallButton
+                    tone={p.is_featured ? "primary" : "neutral"}
+                    disabled={feature.isPending || !p.is_active || (!p.is_featured && featureFull)}
+                    onClick={() => feature.mutate(p)}
+                  >
+                    {p.is_featured ? "★ Featured" : "☆ Feature"}
+                  </SmallButton>
                   <SmallButton onClick={() => setEditing(p)}>Edit</SmallButton>
                   <SmallButton disabled={toggle.isPending} onClick={() => toggle.mutate(p)}>
                     {p.is_active ? "Hide" : "Show"}

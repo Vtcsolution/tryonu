@@ -70,6 +70,7 @@ def _remember(query: str, limit: int, results: list[LiveSearchResult]) -> None:
 def to_live_product_out(result: LiveSearchResult) -> LiveProductOut:
     r = result.raw
     return LiveProductOut(
+        featured=result.raw.featured,
         retailer_slug=result.provider.slug,
         retailer_product_id=r.retailer_product_id,
         name=r.name,
@@ -173,19 +174,26 @@ def _deduplicate(results: list[LiveSearchResult]) -> list[LiveSearchResult]:
     return kept
 
 
-def _local_stores_first(results: list[LiveSearchResult]) -> list[LiveSearchResult]:
-    """Products of TryOnU company stores first (recommended), those in the
-    shopper's own country ahead of the rest, then everything else in its
-    usual order (eBay, AliExpress, Admitad, ...)."""
+def store_rank(result: LiveSearchResult) -> int:
+    """How strongly a result is recommended: a featured product of a store in
+    the shopper's own country first, then that store's other products, then
+    featured products of other stores, their other products, and last
+    everything else (eBay, AliExpress, Admitad, ...)."""
     from app.services.shopper_context import current_country
 
+    if result.provider.slug != "stores":
+        return 4
     country = current_country()
-    local = [r for r in results if country and r.raw.origin_country == country]
-    picked = {id(r) for r in local}
-    stores = [r for r in results if r.provider.slug == "stores" and id(r) not in picked]
-    first = local + stores
-    picked |= {id(r) for r in stores}
-    return first + [r for r in results if id(r) not in picked] if first else results
+    local = bool(country) and result.raw.origin_country == country
+    if local:
+        return 0 if result.raw.featured else 1
+    return 2 if result.raw.featured else 3
+
+
+def _local_stores_first(results: list[LiveSearchResult]) -> list[LiveSearchResult]:
+    """TryOnU company stores' products first (recommended), in store_rank
+    order; everything else keeps its usual order after them."""
+    return sorted(results, key=store_rank)  # stable: equal ranks keep their order
 
 
 def _interleave(per_provider: list[list[LiveSearchResult]]) -> list[LiveSearchResult]:

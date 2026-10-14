@@ -420,7 +420,7 @@ export const adminStores = {
   setStatus: (id: string, status: string, note?: string) =>
     apiFetch<AdminStore>(`/api/v1/admin/stores/${id}/status`, { method: "POST", body: { status, note: note || null } }),
   plans: () => apiFetch<StorePlan[]>("/api/v1/admin/stores/plans"),
-  updatePlan: (id: string, input: Partial<Pick<StorePlan, "name" | "price_cents" | "product_limit" | "duration_days" | "is_active">>) =>
+  updatePlan: (id: string, input: Partial<Pick<StorePlan, "name" | "price_cents" | "product_limit" | "featured_limit" | "duration_days" | "is_active">>) =>
     apiFetch<StorePlan>(`/api/v1/admin/stores/plans/${id}`, { method: "PATCH", body: input }),
   summary: () => apiFetch<AdminStoreSummary>("/api/v1/admin/stores/summary"),
   detail: (id: string) => apiFetch<AdminStoreDetail>(`/api/v1/admin/stores/${id}`),

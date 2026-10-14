@@ -27,6 +27,8 @@ class StylistCandidate:
     local: bool = False
     # from any company store selling on TryOnU
     partner: bool = False
+    # one of that store's featured products
+    featured: bool = False
 
 
 @dataclass(frozen=True, slots=True)

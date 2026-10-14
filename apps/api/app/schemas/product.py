@@ -73,6 +73,8 @@ class LiveProductOut(BaseModel):
     product_url: str
     images: list[str]
     retailer_name: str
+    # a TryOnU store's featured product
+    featured: bool = False
     # The exact query that found this result — pass it straight back as
     # SelectLiveProductRequest.query to persist this specific item via
     # POST /products/select-live. None from GET /search/live (the client

@@ -15,6 +15,7 @@ class StorePlanOut(BaseModel):
     price_cents: int
     currency: str
     product_limit: int
+    featured_limit: int = 0
     duration_days: int
     is_active: bool = True
 
@@ -51,6 +52,8 @@ class StoreOut(BaseModel):
     plan_expires_at: datetime | None
     plan_active: bool
     plan_free: bool = False
+    plan_featured_limit: int = 0
+    featured_count: int = 0
     live: bool
     product_count: int
     feed_url: str | None
@@ -83,6 +86,7 @@ class StoreProductUpdate(BaseModel):
     gender: str | None = Field(default=None, pattern=_GENDER)
     color: str | None = Field(default=None, max_length=60)
     is_active: bool | None = None
+    is_featured: bool | None = None
 
 
 class StoreProductOut(BaseModel):
@@ -98,6 +102,7 @@ class StoreProductOut(BaseModel):
     gender: str
     color: str | None
     is_active: bool
+    is_featured: bool = False
     updated_at: datetime
 
 
@@ -123,6 +128,7 @@ class AdminStorePlanUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=80)
     price_cents: int | None = Field(default=None, gt=0, le=100_000_00)
     product_limit: int | None = Field(default=None, gt=0, le=1_000_000)
+    featured_limit: int | None = Field(default=None, ge=0, le=1_000_000)
     duration_days: int | None = Field(default=None, gt=0, le=3650)
     is_active: bool | None = None
 

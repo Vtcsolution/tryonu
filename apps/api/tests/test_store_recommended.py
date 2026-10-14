@@ -13,9 +13,10 @@ class _P:
         self.slug = slug
 
 
-def _r(slug: str, rid: str, price: int = 2000, country: str | None = None) -> LiveSearchResult:
+def _r(slug: str, rid: str, price: int = 2000, country: str | None = None, featured: bool = False) -> LiveSearchResult:
     raw = RawProduct(retailer_product_id=rid, name=f"Pink lehenga {rid}", price_cents=price,
-                     product_url="https://x.example.com", images=["https://x.example.com/a.jpg"], origin_country=country)
+                     product_url="https://x.example.com", images=["https://x.example.com/a.jpg"], origin_country=country,
+                     featured=featured)
     return LiveSearchResult(provider=_P(slug), raw=raw)  # type: ignore[arg-type]
 
 
@@ -32,3 +33,23 @@ def test_store_options_lead_an_items_alternatives():
     alts = st._alternatives_for(chosen, pool, {"picked"})
     assert alts[0].raw.retailer_product_id == "s1"
     assert len(alts) == 9  # every option still offered, the store's first
+
+
+def test_featured_and_local_products_lead_in_that_order():
+    from app.services.shopper_context import set_country
+
+    r = _r
+
+    set_country("PK")
+    try:
+        results = [
+            r("ebay", "e1"),
+            r("stores", "other", country="GB"),
+            r("stores", "other_featured", country="GB", featured=True),
+            r("stores", "local", country="PK"),
+            r("stores", "local_featured", country="PK", featured=True),
+        ]
+        ordered = [x.raw.retailer_product_id for x in _local_stores_first(results)]
+        assert ordered == ["local_featured", "local", "other_featured", "other", "e1"]
+    finally:
+        set_country(None)

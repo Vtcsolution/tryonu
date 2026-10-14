@@ -32,7 +32,7 @@ from app.models.wardrobe import WardrobeItem
 from app.retailers.base import RawProduct
 from app.schemas.stylist import StylistAskRequest
 from app.services.gender_filter import keep_for_gender
-from app.services.live_search_service import LiveSearchResult, live_search
+from app.services.live_search_service import LiveSearchResult, live_search, store_rank
 from app.services.outfit_compatibility import score_outfit
 from app.services.outfit_slots import slot_for
 from app.services.personalization_service import TasteProfile, affinity_score, build_taste_profile
@@ -530,7 +530,7 @@ async def _fetch_pool(
             # only listings that are the item asked for, while any are
             exact = [r for r in results if _is_the_item(term, r.raw.name)]
             # equally good listings: a TryOnU store's first (recommended to shoppers)
-            results = sorted(exact or results, key=lambda r: (-_fit(term, r.raw.name), not _from_store(r)))
+            results = sorted(exact or results, key=lambda r: (-_fit(term, r.raw.name), store_rank(r)))
             # Retailers match words, not shoppers: "men leather ankle boots"
             # still returns women's heels, and those became the alternatives
             # offered under a man's boots. Filter each term separately, so
@@ -560,7 +560,7 @@ async def _fetch_pool(
         # affinity_score only reads .color/.brand/.style_tags — present on
         # RawProduct with the same names, so this works unmodified even
         # though its signature says Product.
-        pool.sort(key=lambda c: (affinity_score(c.result.raw, profile), _from_store(c.result)), reverse=True)  # type: ignore[arg-type]
+        pool.sort(key=lambda c: (affinity_score(c.result.raw, profile), -store_rank(c.result)), reverse=True)  # type: ignore[arg-type]
     return pool
 
 
@@ -622,7 +622,7 @@ def _alternatives_for(chosen: _Candidate, pool: list[_Candidate], picked_ids: se
     if not same_term:
         return []
     # TryOnU stores' options first (recommended), then the rest across the price range
-    stores = sorted((r for r in same_term if _from_store(r)), key=lambda result: result.raw.price_cents)
+    stores = sorted((r for r in same_term if _from_store(r)), key=lambda result: (store_rank(result), result.raw.price_cents))
     stores = stores[:_MAX_ALTERNATIVES]
     others = sorted((r for r in same_term if not _from_store(r)), key=lambda result: result.raw.price_cents)
     room = _MAX_ALTERNATIVES - len(stores)
@@ -694,6 +694,7 @@ async def ask_stylist(
             style_tags=c.result.raw.style_tags or [],
             local=bool(c.result.raw.origin_country) and c.result.raw.origin_country == current_country(),
             partner=_from_store(c.result),
+            featured=_from_store(c.result) and c.result.raw.featured,
         )
         for i, c in enumerate(candidates)
     ]

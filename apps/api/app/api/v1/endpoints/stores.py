@@ -72,6 +72,8 @@ async def _out(db: DbSession, store: Store) -> StoreOut:
         plan_expires_at=store.plan_expires_at,
         plan_active=svc.plan_active(store),
         plan_free=store.plan_free,
+        plan_featured_limit=store.plan_featured_limit if svc.plan_active(store) else 0,
+        featured_count=await svc.featured_count(db, store.id),
         live=svc.is_live(store),
         product_count=await svc.active_product_count(db, store.id),
         feed_url=store.feed_url,
@@ -87,7 +89,8 @@ def _product_out(p: StoreProduct) -> StoreProductOut:
     return StoreProductOut(
         id=p.id, source=p.source, name=p.name, description=p.description, price_cents=p.price_cents,
         currency=p.currency, images=[svc.image_url(i) for i in p.images or []], product_url=p.product_url,
-        category=p.category, gender=p.gender, color=p.color, is_active=p.is_active, updated_at=p.updated_at,
+        category=p.category, gender=p.gender, color=p.color, is_active=p.is_active, is_featured=p.is_featured,
+        updated_at=p.updated_at,
     )
 
 
@@ -299,6 +302,13 @@ async def edit_product(product_id: str, payload: StoreProductUpdate, user: Curre
     data = payload.model_dump(exclude_unset=True)
     if data.get("is_active") and not product.is_active:
         await _room_check(db, store)
+    if data.get("is_featured") and not product.is_featured:
+        limit = store.plan_featured_limit if svc.plan_active(store) else 0
+        if await svc.featured_count(db, store.id) >= limit:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Your plan lets you feature {limit} products. Un-feature one, or upgrade your plan to feature more.",
+            )
     if "product_url" in data:
         data["product_url"] = _check_link(data["product_url"], "Product link")
     if data.get("currency"):
@@ -591,7 +601,7 @@ async def admin_grant_plan(store_id: str, payload: AdminGrantPlanIn, admin: Admi
     if plan is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
     granted = StorePlan(code=plan.code, name=plan.name, price_cents=plan.price_cents, currency=plan.currency,
-                        product_limit=plan.product_limit, duration_days=payload.days)
+                        product_limit=plan.product_limit, featured_limit=plan.featured_limit, duration_days=payload.days)
     svc.activate_plan(store, granted, free=True)
     await db.commit()
     await db.refresh(store)

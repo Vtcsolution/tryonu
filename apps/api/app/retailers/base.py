@@ -44,6 +44,8 @@ class RawProduct:
     # a company store's country (ISO alpha-2): its products come first for
     # shoppers in that country
     origin_country: str | None = None
+    # a company store's featured product (within its plan): shown first when it fits
+    featured: bool = False
 
 
 class ProductProvider(ABC):

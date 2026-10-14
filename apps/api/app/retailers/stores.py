@@ -17,7 +17,7 @@ from app.services import store_service as svc
 from app.services.shopper_context import current_country
 
 
-def _raw(product: StoreProduct, store: Store) -> RawProduct | None:
+def _raw(product: StoreProduct, store: Store, featured: bool = False) -> RawProduct | None:
     images = [svc.image_url(i) for i in product.images or []]
     if not images:
         return None  # nothing to show or try on
@@ -36,6 +36,7 @@ def _raw(product: StoreProduct, store: Store) -> RawProduct | None:
         merchant_name=store.name,
         merchant_id=store.id,
         origin_country=store.country,
+        featured=featured,
     )
 
 
@@ -49,7 +50,8 @@ class StoreProductProvider(ProductProvider):
     async def search_live(self, *, query: str, limit: int = 24) -> list[RawProduct]:
         async with AsyncSessionLocal() as db:
             rows = await svc.search_store_products(db, query, limit, current_country())
-        return [raw for raw in (_raw(p, s) for p, s in rows) if raw is not None]
+            featured = await svc.featured_ids(db, [s for _, s in rows])
+        return [raw for raw in (_raw(p, s, p.id in featured) for p, s in rows) if raw is not None]
 
     async def fetch_by_id(self, retailer_product_id: str) -> RawProduct | None:
         async with AsyncSessionLocal() as db:

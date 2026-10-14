@@ -185,13 +185,14 @@ function PlanRow({ plan, onSaved }: { plan: StorePlan; onSaved: () => void }) {
   const [name, setName] = useState(plan.name);
   const [price, setPrice] = useState((plan.price_cents / 100).toFixed(2));
   const [limit, setLimit] = useState(String(plan.product_limit));
+  const [featured, setFeatured] = useState(String(plan.featured_limit ?? 0));
   const [days, setDays] = useState(String(plan.duration_days));
   const save = useMutation({
     mutationFn: (patch: Parameters<typeof adminStores.updatePlan>[1]) => adminStores.updatePlan(plan.id, patch),
     onSuccess: onSaved,
   });
   const priceCents = Math.round(Number(price) * 100);
-  const valid = name.trim() && priceCents > 0 && Number(limit) > 0 && Number(days) > 0;
+  const valid = name.trim() && priceCents > 0 && Number(limit) > 0 && Number(days) > 0 && Number(featured) >= 0;
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-[16px] border border-line bg-surface p-3">
       <input value={name} onChange={(e) => setName(e.target.value)} className={`${inputClass} w-36`} aria-label="Plan name" />
@@ -204,20 +205,28 @@ function PlanRow({ plan, onSaved }: { plan: StorePlan; onSaved: () => void }) {
         <input type="number" min={1} value={limit} onChange={(e) => setLimit(e.target.value)} className={`${inputClass} w-24`} />
       </label>
       <label className="flex items-center gap-1 text-[12px] text-muted">
+        ★ Featured
+        <input type="number" min={0} value={featured} onChange={(e) => setFeatured(e.target.value)} className={`${inputClass} w-20`} />
+      </label>
+      <label className="flex items-center gap-1 text-[12px] text-muted">
         Days
         <input type="number" min={1} value={days} onChange={(e) => setDays(e.target.value)} className={`${inputClass} w-20`} />
       </label>
       <SmallButton
         tone="primary"
         disabled={!valid || save.isPending}
-        onClick={() => save.mutate({ name: name.trim(), price_cents: priceCents, product_limit: Number(limit), duration_days: Number(days) })}
+        onClick={() =>
+          save.mutate({ name: name.trim(), price_cents: priceCents, product_limit: Number(limit), featured_limit: Number(featured), duration_days: Number(days) })
+        }
       >
         {save.isPending ? "Saving…" : "Save"}
       </SmallButton>
       <SmallButton tone={plan.is_active ? "danger" : "primary"} disabled={save.isPending} onClick={() => save.mutate({ is_active: !plan.is_active })}>
         {plan.is_active ? "Hide plan" : "Offer plan"}
       </SmallButton>
-      <span className="text-[12px] text-faint">{money(plan.price_cents, plan.currency)} · {plan.product_limit} products</span>
+      <span className="text-[12px] text-faint">
+        {money(plan.price_cents, plan.currency)} · {plan.product_limit} products · ★ {plan.featured_limit ?? 0} featured
+      </span>
       {save.isError && <ErrorNote>{errorText(save.error)}</ErrorNote>}
     </div>
   );
@@ -307,9 +316,10 @@ function StoreDetail({ id, onClose }: { id: string; onClose: () => void }) {
 
       <div>
         <p className="mb-2 text-[13px] font-semibold text-ink">Products</p>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
           <StatTile label="Uploaded (on sale)" value={d.product_count} />
           <StatTile label="Hidden" value={d.products.filter((p) => !p.is_active).length} />
+          <StatTile label="★ Featured" value={`${d.featured_count ?? 0} of ${d.plan_featured_limit ?? 0}`} />
           <StatTile label="Plan limit" value={d.plan_active ? d.plan_product_limit.toLocaleString() : "—"} />
           <StatTile
             label="Can still add"

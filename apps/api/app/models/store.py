@@ -27,6 +27,8 @@ class StorePlan(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     price_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     currency: Mapped[str] = mapped_column(String(8), nullable=False, default="usd")
     product_limit: Mapped[int] = mapped_column(Integer, nullable=False)
+    # how many of its products the store can feature (shown first when they fit a shopper's ask)
+    featured_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     duration_days: Mapped[int] = mapped_column(Integer, nullable=False, default=30)
     position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
@@ -56,6 +58,7 @@ class Store(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     status_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     plan_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
     plan_product_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    plan_featured_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     plan_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # the current plan was given free by an admin (not paid for)
     plan_free: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
@@ -98,6 +101,8 @@ class StoreProduct(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     gender: Mapped[str] = mapped_column(String(16), nullable=False, default="unisex")
     color: Mapped[str | None] = mapped_column(String(60), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # picked by the store to be shown first (within its plan's featured limit)
+    is_featured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 
 class StoreProductView(UUIDPrimaryKeyMixin, TimestampMixin, Base):

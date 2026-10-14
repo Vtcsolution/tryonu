@@ -441,3 +441,43 @@ async def test_views_are_counted_when_products_are_shown(client, db):  # noqa: A
     stats = (await client.get("/api/v1/stores/me/stats")).json()
     assert stats["views"] == 2  # one per product per page shown; duplicates in one page count once
     assert stats["top"][0]["views"] == 2 and stats["top"][0]["name"] == "Pink Bridal Lehenga"
+
+
+async def test_a_plan_lets_a_store_feature_only_so_many_products(client, db):  # noqa: ANN001
+    basic = await db.scalar(select(StorePlan).where(StorePlan.code == "basic"))
+    basic.featured_limit = 2
+    await db.commit()
+    store, first = await _live_store_with_product(client, db)
+    ids = [first["id"]]
+    for name in ("Gold Jhumka Earrings", "Red Khussa"):
+        made = (await _product(client, name)).json()
+        await _with_photo(db, made["id"])
+        ids.append(made["id"])
+
+    for pid in ids[:2]:
+        resp = await client.patch(f"/api/v1/stores/me/products/{pid}", json={"is_featured": True})
+        assert resp.status_code == 200 and resp.json()["is_featured"] is True
+    over = await client.patch(f"/api/v1/stores/me/products/{ids[2]}", json={"is_featured": True})
+    assert over.status_code == 403 and "feature 2" in over.json()["detail"]
+
+    mine = (await client.get("/api/v1/stores/me")).json()
+    assert mine["featured_count"] == 2 and mine["plan_featured_limit"] == 2
+    # featured products come first in the store's search, flagged for ranking
+    set_country("PK")
+    found = await StoreProductProvider().search_live(query="lehenga earrings khussa", limit=10)
+    assert all(r.featured for r in found if r.retailer_product_id in ids[:2])
+    basic.featured_limit = 0
+    await db.commit()
+
+
+async def test_featured_only_counts_up_to_the_current_plans_limit(client, db):  # noqa: ANN001
+    store, product = await _live_store_with_product(client, db)
+    row = await db.get(Store, store["id"])
+    item = await db.get(StoreProduct, product["id"])
+    item.is_featured = True
+    row.plan_featured_limit = 0  # e.g. moved to a plan without featuring
+    await db.commit()
+    assert await svc.featured_ids(db, [row]) == set()
+    row.plan_featured_limit = 5
+    await db.commit()
+    assert await svc.featured_ids(db, [row]) == {product["id"]}

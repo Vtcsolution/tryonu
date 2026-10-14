@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { ProductCard } from "@/components/product/ProductCard";
 import { affiliateGoUrl, resolveMediaUrl, thumbnailUrl } from "@/lib/api/client";
 import type { LiveProduct, Product } from "@/lib/api/types";
-import { RECOMMENDED, formatPrice, fromTryOnUStore, shopName } from "./shop";
+import { FEATURED, RECOMMENDED, formatPrice, fromTryOnUStore, shopName } from "./shop";
 
 export type PickItem = {
   key: string;
@@ -248,7 +248,7 @@ function ChangePanel({
               priceCents={alt.price_cents}
               currency={alt.currency}
               shop={shopName(alt.merchant_name, alt.retailer_name)}
-              badge={fromTryOnUStore(alt.retailer_slug) ? RECOMMENDED : null}
+              badge={alt.featured ? FEATURED : fromTryOnUStore(alt.retailer_slug) ? RECOMMENDED : null}
               busy={busyId === alt.retailer_product_id}
               primary={{ label: "Choose this", onClick: () => onUse(alt), disabled: busy }}
               secondary={{ label: "View in shop ↗", onClick: () => onBuy(alt), disabled: busy }}
