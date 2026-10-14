@@ -28,12 +28,19 @@ class StoreCreate(BaseModel):
     contact_email: str | None = Field(default=None, max_length=255)
 
 
+_DELIVERY = r"^(domestic|countries|worldwide)$"
+_PRODUCT_DELIVERY = r"^(domestic|worldwide)$"
+
+
 class StoreUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=120)
     country: str | None = Field(default=None, pattern=_COUNTRY)
     description: str | None = Field(default=None, max_length=2000)
     website_url: str | None = Field(default=None, max_length=1024)
     contact_email: str | None = Field(default=None, max_length=255)
+    # where the store delivers, and to which countries when "countries"
+    delivery: str | None = Field(default=None, pattern=_DELIVERY)
+    delivery_countries: list[str] | None = Field(default=None, max_length=250)
 
 
 class StoreOut(BaseModel):
@@ -54,6 +61,8 @@ class StoreOut(BaseModel):
     plan_free: bool = False
     plan_featured_limit: int = 0
     featured_count: int = 0
+    delivery: str = "domestic"
+    delivery_countries: list[str] = []
     live: bool
     product_count: int
     feed_url: str | None
@@ -74,6 +83,8 @@ class StoreProductIn(BaseModel):
     gender: str = Field(default="unisex", pattern=_GENDER)
     color: str | None = Field(default=None, max_length=60)
     is_active: bool = True
+    # None: delivered like the rest of the store
+    delivery: str | None = Field(default=None, pattern=_PRODUCT_DELIVERY)
 
 
 class StoreProductUpdate(BaseModel):
@@ -87,6 +98,7 @@ class StoreProductUpdate(BaseModel):
     color: str | None = Field(default=None, max_length=60)
     is_active: bool | None = None
     is_featured: bool | None = None
+    delivery: str | None = Field(default=None, pattern=_PRODUCT_DELIVERY)
 
 
 class StoreProductOut(BaseModel):
@@ -103,6 +115,9 @@ class StoreProductOut(BaseModel):
     color: str | None
     is_active: bool
     is_featured: bool = False
+    delivery: str | None = None
+    # on a store's public page: can it reach the shopper looking (None: unknown)
+    delivers_to_you: bool | None = None
     updated_at: datetime
 
 
@@ -162,6 +177,8 @@ class PublicStoreOut(BaseModel):
     name: str
     slug: str
     country: str
+    delivery: str = "domestic"
+    delivery_countries: list[str] = []
     description: str | None
     website_url: str | None
     logo_url: str | None

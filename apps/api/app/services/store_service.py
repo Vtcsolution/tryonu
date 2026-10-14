@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
-from sqlalchemy import and_, case, delete, func, insert, select
+from sqlalchemy import and_, case, delete, func, insert, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -109,13 +109,14 @@ async def search_store_products(
         StoreProduct.is_active.is_(True),
     )
     local_first = case((Store.country == (country or ""), 0), else_=1)
+    reach = delivers_clause(country)
     for start in range(len(words)):
         matches = [StoreProduct.name.ilike(f"%{w}%") for w in words[start:]]
         rows = (
             await db.execute(
                 select(StoreProduct, Store)
                 .join(Store, Store.id == StoreProduct.store_id)
-                .where(live, *matches)
+                .where(live, reach, *matches)
                 .order_by(local_first, StoreProduct.is_featured.desc(), StoreProduct.updated_at.desc())
                 .limit(limit)
             )
@@ -123,6 +124,46 @@ async def search_store_products(
         if rows:
             return [(p, s) for p, s in rows]
     return []
+
+
+# -------------------------------------------------------------------- delivery
+
+
+def countries_field(codes: list[str] | None) -> str | None:
+    """["us", "GB"] -> ",US,GB," (None when empty)."""
+    clean = sorted({c.strip().upper() for c in codes or [] if c and c.strip()})
+    return f",{','.join(clean)}," if clean else None
+
+
+def countries_list(field: str | None) -> list[str]:
+    return [c for c in (field or "").split(",") if c]
+
+
+def delivers_to(store: Store, product: StoreProduct, country: str | None) -> bool:
+    """Can this product reach a shopper in `country`? Unknown country: yes."""
+    if not country or store.country == country:
+        return True
+    mode = product.delivery or store.delivery
+    if mode == "worldwide":
+        return True
+    if mode == "countries" or (product.delivery is None and store.delivery == "countries"):
+        return country in countries_list(store.delivery_countries)
+    return False
+
+
+def delivers_clause(country: str | None):  # noqa: ANN201 - a SQL condition
+    """delivers_to as a WHERE condition, for search."""
+    if not country:
+        return true()
+    store_reaches = or_(
+        Store.delivery == "worldwide",
+        and_(Store.delivery == "countries", Store.delivery_countries.like(f"%,{country},%")),
+    )
+    return or_(
+        Store.country == country,
+        StoreProduct.delivery == "worldwide",
+        and_(StoreProduct.delivery.is_(None), store_reaches),
+    )
 
 
 async def featured_count(db: AsyncSession, store_id: str) -> int:

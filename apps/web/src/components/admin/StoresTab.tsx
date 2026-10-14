@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { adminStores } from "@/lib/api/endpoints";
 import type { AdminStore, AdminStoreDetail, StorePlan } from "@/lib/api/types";
-import { countryName } from "@/lib/countries";
+import { countryName, deliveryText } from "@/lib/countries";
 import { Badge, ErrorNote, SectionHeader, SmallButton, StatTile, Table, TableSkeleton, errorText, inputClass, money } from "./ui";
 
 const FILTERS: [string, string][] = [
@@ -276,6 +276,7 @@ function StoreDetail({ id, onClose }: { id: string; onClose: () => void }) {
           <p className="font-display text-[20px] text-ink">{d.name}</p>
           <p className="text-[12.5px] text-muted">
             {countryName(d.country)} · owner {d.owner_email} · contact {d.contact_email ?? "—"} · opened {new Date(d.created_at).toLocaleDateString()}
+            {" "}· 🚚 delivers: {deliveryText(d.delivery, d.delivery_countries, d.country)}
           </p>
           {d.description && <p className="mt-2 max-w-2xl text-[13px] text-ink-soft">{d.description}</p>}
         </div>

@@ -62,6 +62,11 @@ class Store(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     plan_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # the current plan was given free by an admin (not paid for)
     plan_free: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # where it delivers: "domestic" (its own country only) | "countries" (its own
+    # country and delivery_countries) | "worldwide"; shoppers elsewhere never see its products
+    delivery: Mapped[str] = mapped_column(String(16), nullable=False, default="domestic")
+    # ",US,GB,AE," so one LIKE finds a country in it
+    delivery_countries: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     feed_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     feed_last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     feed_last_result: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -103,6 +108,8 @@ class StoreProduct(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # picked by the store to be shown first (within its plan's featured limit)
     is_featured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # this product's own delivery: None = as the store; "domestic" | "worldwide"
+    delivery: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
 
 class StoreProductView(UUIDPrimaryKeyMixin, TimestampMixin, Base):

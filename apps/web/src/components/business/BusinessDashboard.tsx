@@ -11,9 +11,9 @@ import { Button } from "@/components/ui/Button";
 import { formatPrice } from "@/components/try/shop";
 import { ApiError } from "@/lib/api/client";
 import { credits as creditsApi, stores as storesApi } from "@/lib/api/endpoints";
-import type { Store, StorePlan, StoreProduct, StoreProductInput, User } from "@/lib/api/types";
+import type { Store, StoreDelivery, StorePlan, StoreProduct, StoreProductInput, User } from "@/lib/api/types";
 import { useSession } from "@/lib/auth/useSession";
-import { countryName, countryOptions } from "@/lib/countries";
+import { countryName, countryOptions, deliveryText } from "@/lib/countries";
 
 const STORE_KEY = ["business", "store"];
 
@@ -367,6 +367,7 @@ function StoreHeader({ store }: { store: Store }) {
           <Badge tone={store.live ? "good" : "neutral"}>{store.live ? "Live: shoppers see your products" : "Not live yet"}</Badge>
         </div>
       </div>
+      <p className="mt-2 text-[13px] text-muted">🚚 Delivers: {deliveryText(store.delivery, store.delivery_countries, store.country)}</p>
       <p className="mt-4 text-[13.5px] text-ink-soft">
         {status.text}
         {store.status_note ? ` ${store.status_note}` : ""}
@@ -592,6 +593,7 @@ function ProductsSection({ store }: { store: Store }) {
       {(adding || editing) && (
         <ProductForm
           key={editing?.id ?? "new"}
+          store={store}
           initial={editing}
           onDone={() => {
             setAdding(false);
@@ -634,6 +636,11 @@ function ProductsSection({ store }: { store: Store }) {
               <div className="flex flex-1 flex-col p-3">
                 <p className="line-clamp-2 text-[12.5px] leading-snug text-ink">{p.name}</p>
                 <p className="mt-1 text-[14px] font-semibold text-ink">{formatPrice(p.price_cents, p.currency)}</p>
+                {p.delivery && (
+                  <p className="mt-1 text-[11.5px] text-muted">
+                    🚚 {p.delivery === "worldwide" ? "Worldwide" : `Only in ${countryName(store.country)}`}
+                  </p>
+                )}
                 <div className="mt-auto flex flex-wrap gap-1.5 pt-3">
                   <SmallButton
                     tone={p.is_featured ? "primary" : "neutral"}
@@ -659,7 +666,17 @@ function ProductsSection({ store }: { store: Store }) {
   );
 }
 
-function ProductForm({ initial, onDone, onCancel }: { initial: StoreProduct | null; onDone: () => void; onCancel: () => void }) {
+function ProductForm({
+  store,
+  initial,
+  onDone,
+  onCancel,
+}: {
+  store: Store;
+  initial: StoreProduct | null;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
   const [form, setForm] = useState<StoreProductInput>(
     initial
       ? { ...initial, category: initial.category ?? "", color: initial.color ?? "", description: initial.description ?? "" }
@@ -682,6 +699,7 @@ function ProductForm({ initial, onDone, onCancel }: { initial: StoreProduct | nu
         category: form.category?.trim() || null,
         color: form.color?.trim() || null,
         description: form.description?.trim() || null,
+        delivery: form.delivery ?? null,
       };
       return product ? storesApi.editProduct(product.id, body) : storesApi.addProduct(body);
     },
@@ -735,6 +753,17 @@ function ProductForm({ initial, onDone, onCancel }: { initial: StoreProduct | nu
         </Field>
         <Field label="Colour">
           <input value={form.color ?? ""} onChange={(e) => set({ color: e.target.value })} maxLength={60} className={`${inputClass} w-full`} />
+        </Field>
+        <Field label="Delivery for this product" hint="Shoppers only see it where it can be delivered.">
+          <select
+            value={form.delivery ?? ""}
+            onChange={(e) => set({ delivery: (e.target.value || null) as StoreProductInput["delivery"] })}
+            className={`${inputClass} w-full`}
+          >
+            <option value="">Same as my store ({deliveryText(store.delivery, store.delivery_countries, store.country)})</option>
+            <option value="domestic">Only in {countryName(store.country)}</option>
+            <option value="worldwide">Worldwide</option>
+          </select>
         </Field>
       </div>
       <Field label="Description">
@@ -873,6 +902,8 @@ function ProfileSection({ store }: { store: Store }) {
   const logo = useMutation({ mutationFn: (file: File) => storesApi.uploadLogo(file), onSuccess: (s) => qc.setQueryData(STORE_KEY, s) });
 
   return (
+    <div className="space-y-6">
+    <DeliverySection store={store} />
     <Section title="Store details">
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Store name">
@@ -912,6 +943,103 @@ function ProfileSection({ store }: { store: Store }) {
             e.target.value = "";
           }}
         />
+      </div>
+    </Section>
+    </div>
+  );
+}
+
+const DELIVERY_CHOICES: { value: StoreDelivery; title: string; text: string }[] = [
+  { value: "domestic", title: "Only in my country", text: "Shoppers in other countries won't see your products." },
+  { value: "countries", title: "My country and some others", text: "Choose the countries you deliver to." },
+  { value: "worldwide", title: "Worldwide", text: "Every shopper can see and buy your products." },
+];
+
+/** Where the store delivers: shoppers only see products that can reach them. */
+function DeliverySection({ store }: { store: Store }) {
+  const qc = useQueryClient();
+  const [mode, setMode] = useState<StoreDelivery>(store.delivery ?? "domestic");
+  const [countries, setCountries] = useState<string[]>(store.delivery_countries ?? []);
+  const [adding, setAdding] = useState("");
+  const save = useMutation({
+    mutationFn: () => storesApi.update({ delivery: mode, delivery_countries: mode === "countries" ? countries : [] }),
+    onSuccess: (s) => qc.setQueryData(STORE_KEY, s),
+  });
+  const changed =
+    mode !== (store.delivery ?? "domestic") ||
+    (mode === "countries" && countries.join() !== (store.delivery_countries ?? []).join());
+  return (
+    <Section
+      title="Where do you deliver?"
+      hint={`Shoppers only see products you can deliver to them. Now: ${deliveryText(store.delivery, store.delivery_countries, store.country)}. You can change it for single products too (Edit a product).`}
+    >
+      <div role="radiogroup" aria-label="Delivery" className="grid gap-3 md:grid-cols-3">
+        {DELIVERY_CHOICES.map((c) => (
+          <button
+            key={c.value}
+            type="button"
+            role="radio"
+            aria-checked={mode === c.value}
+            onClick={() => setMode(c.value)}
+            className={`rounded-[16px] border p-4 text-left transition-colors ${
+              mode === c.value ? "border-sage bg-sage-tint/40 ring-2 ring-sage/30" : "border-line hover:border-line-strong"
+            }`}
+          >
+            <p className="text-[15px] font-semibold text-ink">
+              {mode === c.value ? "● " : "○ "}
+              {c.value === "domestic" ? `Only in ${countryName(store.country)}` : c.title}
+            </p>
+            <p className="mt-1 text-[13px] text-muted">{c.text}</p>
+          </button>
+        ))}
+      </div>
+      {mode === "countries" && (
+        <div className="mt-4 rounded-[16px] border border-line p-4">
+          <p className="text-[13.5px] text-ink-soft">
+            {countryName(store.country)} is always included. Also delivering to:
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {countries.length === 0 && <span className="text-[13px] text-muted">No countries added yet.</span>}
+            {countries.map((c) => (
+              <span key={c} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper-2 px-3 py-1 text-[13px] text-ink">
+                {countryName(c)}
+                <button
+                  type="button"
+                  aria-label={`Remove ${countryName(c)}`}
+                  onClick={() => setCountries(countries.filter((x) => x !== c))}
+                  className="text-muted hover:text-[#a4553f]"
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <div className="w-64">
+              <CountrySelect value={adding} onChange={setAdding} />
+            </div>
+            <SmallButton
+              disabled={!adding || adding === store.country || countries.includes(adding)}
+              onClick={() => {
+                setCountries([...countries, adding].sort());
+                setAdding("");
+              }}
+            >
+              + Add country
+            </SmallButton>
+          </div>
+        </div>
+      )}
+      {save.isError && <div className="mt-3"><ErrorNote>{errorText(save.error)}</ErrorNote></div>}
+      <div className="mt-4 flex items-center gap-3">
+        <SmallButton
+          tone="primary"
+          disabled={save.isPending || !changed || (mode === "countries" && countries.length === 0)}
+          onClick={() => save.mutate()}
+        >
+          {save.isPending ? "Saving…" : "Save delivery"}
+        </SmallButton>
+        {save.isSuccess && !changed && <span className="text-[13px] font-medium text-sage-deep">✓ Saved</span>}
       </div>
     </Section>
   );

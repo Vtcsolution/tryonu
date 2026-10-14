@@ -74,6 +74,8 @@ async def _out(db: DbSession, store: Store) -> StoreOut:
         plan_free=store.plan_free,
         plan_featured_limit=store.plan_featured_limit if svc.plan_active(store) else 0,
         featured_count=await svc.featured_count(db, store.id),
+        delivery=store.delivery,
+        delivery_countries=svc.countries_list(store.delivery_countries),
         live=svc.is_live(store),
         product_count=await svc.active_product_count(db, store.id),
         feed_url=store.feed_url,
@@ -90,7 +92,7 @@ def _product_out(p: StoreProduct) -> StoreProductOut:
         id=p.id, source=p.source, name=p.name, description=p.description, price_cents=p.price_cents,
         currency=p.currency, images=[svc.image_url(i) for i in p.images or []], product_url=p.product_url,
         category=p.category, gender=p.gender, color=p.color, is_active=p.is_active, is_featured=p.is_featured,
-        updated_at=p.updated_at,
+        delivery=p.delivery, updated_at=p.updated_at,
     )
 
 
@@ -188,6 +190,13 @@ async def update_store(payload: StoreUpdate, user: CurrentUser, db: DbSession):
         data["website_url"] = _check_link(data["website_url"], "Website")
     if data.get("country"):
         data["country"] = data["country"].upper()
+    if "delivery_countries" in data:
+        data["delivery_countries"] = svc.countries_field(data["delivery_countries"])
+    countries = data["delivery_countries"] if "delivery_countries" in data else store.delivery_countries
+    if (data.get("delivery") or store.delivery) == "countries" and not countries:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Choose at least one country you deliver to."
+        )
     for field, value in data.items():
         setattr(store, field, value)
     await db.commit()
@@ -517,10 +526,19 @@ async def public_store(slug: str, db: DbSession):
     ).scalars()
     shown = [p for p in products if p.images]
     await svc.record_views(db, [p.id for p in shown])
+    from app.services.shopper_context import current_country
+
+    country = current_country()
+    out = []
+    for p in shown:
+        item = _product_out(p)
+        item.delivers_to_you = svc.delivers_to(store, p, country) if country else None
+        out.append(item)
     return PublicStoreOut(
         name=store.name, slug=store.slug, country=store.country, description=store.description,
         website_url=store.website_url, logo_url=svc.image_url(store.logo_key) if store.logo_key else None,
-        products=[_product_out(p) for p in shown],
+        delivery=store.delivery, delivery_countries=svc.countries_list(store.delivery_countries),
+        products=out,
     )
 
 

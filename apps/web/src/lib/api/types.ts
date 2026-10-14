@@ -583,6 +583,9 @@ export type Store = {
   plan_free?: boolean;
   plan_featured_limit?: number;
   featured_count?: number;
+  /** domestic: its own country only | countries: plus delivery_countries | worldwide */
+  delivery?: StoreDelivery;
+  delivery_countries?: string[];
   live: boolean;
   product_count: number;
   feed_url: string | null;
@@ -610,6 +613,10 @@ export type StoreProduct = {
   color: string | null;
   is_active: boolean;
   is_featured?: boolean;
+  /** null: delivered like the rest of the store */
+  delivery?: "domestic" | "worldwide" | null;
+  /** on a public store page: can it reach this shopper (null: unknown) */
+  delivers_to_you?: boolean | null;
   updated_at: string;
 };
 
@@ -624,6 +631,7 @@ export type StoreProductInput = {
   color?: string | null;
   is_active?: boolean;
   is_featured?: boolean;
+  delivery?: "domestic" | "worldwide" | null;
 };
 
 
@@ -644,10 +652,14 @@ export type StorePayment = {
   created_at: string;
 };
 
+export type StoreDelivery = "domestic" | "countries" | "worldwide";
+
 export type PublicStore = {
   name: string;
   slug: string;
   country: string;
+  delivery?: StoreDelivery;
+  delivery_countries?: string[];
   description: string | null;
   website_url: string | null;
   logo_url: string | null;

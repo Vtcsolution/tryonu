@@ -374,7 +374,9 @@ export const stores = {
   mine: () => apiFetch<Store>("/api/v1/stores/me"),
   create: (input: { name: string; country: string; description?: string; website_url?: string; contact_email?: string }) =>
     apiFetch<Store>("/api/v1/stores", { method: "POST", body: input }),
-  update: (input: Partial<Pick<Store, "name" | "country" | "description" | "website_url" | "contact_email">>) =>
+  update: (
+    input: Partial<Pick<Store, "name" | "country" | "description" | "website_url" | "contact_email" | "delivery" | "delivery_countries">>,
+  ) =>
     apiFetch<Store>("/api/v1/stores/me", { method: "PATCH", body: input }),
   uploadLogo: (file: File) => {
     const form = new FormData();

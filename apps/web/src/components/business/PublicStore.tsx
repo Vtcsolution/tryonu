@@ -6,7 +6,7 @@ import { ProductCard } from "@/components/product/ProductCard";
 import { ApiError, affiliateGoUrl } from "@/lib/api/client";
 import { stores as storesApi } from "@/lib/api/endpoints";
 import type { StoreProduct } from "@/lib/api/types";
-import { countryName } from "@/lib/countries";
+import { countryName, deliveryText } from "@/lib/countries";
 
 /** A company's own page on TryOnU: its details and every product it sells. */
 export function PublicStore({ slug }: { slug: string }) {
@@ -62,6 +62,7 @@ export function PublicStore({ slug }: { slug: string }) {
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-sage-deep">Store on TryOnU · {countryName(s.country)}</p>
           <h1 className="mt-1 font-display text-[clamp(28px,4vw,40px)] leading-tight text-ink">{s.name}</h1>
           {s.description && <p className="mt-2 max-w-2xl text-[14.5px] leading-relaxed text-muted">{s.description}</p>}
+          <p className="mt-2 text-[13.5px] text-ink-soft">🚚 Delivers: {deliveryText(s.delivery, s.delivery_countries, s.country)}</p>
         </div>
         {s.website_url && (
           <a
@@ -93,6 +94,7 @@ export function PublicStore({ slug }: { slug: string }) {
             currency={p.currency}
             shop={s.name}
             label={p.category}
+            note={p.delivers_to_you === false ? "Doesn't deliver to your country" : null}
             busy={busyId === p.id}
             primary={{ label: "Try it on", onClick: () => tryOn.mutate(p), disabled: busyId !== undefined }}
             secondary={{ label: "Buy ↗", onClick: () => onBuy(p), disabled: busyId !== undefined }}

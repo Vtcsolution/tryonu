@@ -103,6 +103,8 @@ async def test_shoppers_see_only_approved_paid_stores_and_their_own_country_firs
 
     await _approve(db, us["id"])
     await _approve(db, pk["id"])
+    (await db.get(Store, us["id"])).delivery = "worldwide"  # it ships to Pakistan too
+    await db.commit()
     set_country("PK")
     found = await provider.search_live(query="women pink bridal lehenga", limit=10)
     assert [r.merchant_name for r in found] == ["Lahore Couture", "New York Bridal"]
@@ -481,3 +483,40 @@ async def test_featured_only_counts_up_to_the_current_plans_limit(client, db):  
     row.plan_featured_limit = 5
     await db.commit()
     assert await svc.featured_ids(db, [row]) == {product["id"]}
+
+
+async def test_shoppers_only_see_products_that_can_be_delivered_to_them(client, db):  # noqa: ANN001
+    pk, item = await _live_store_with_product(client, db, name="Lahore Couture", country="PK")
+    provider = StoreProductProvider()
+
+    async def seen_from(country):  # noqa: ANN001, ANN202
+        set_country(country)
+        return [r.retailer_product_id for r in await provider.search_live(query="pink bridal lehenga", limit=10)]
+
+    # a new store delivers in its own country only
+    assert item["id"] in await seen_from("PK")
+    assert item["id"] not in await seen_from("US")
+
+    # the store adds countries it delivers to
+    resp = await client.patch("/api/v1/stores/me", json={"delivery": "countries", "delivery_countries": ["us", "AE"]})
+    assert resp.status_code == 200 and resp.json()["delivery_countries"] == ["AE", "US"]
+    assert item["id"] in await seen_from("US") and item["id"] not in await seen_from("GB")
+
+    # one product ships everywhere, whatever the store does
+    await client.patch("/api/v1/stores/me", json={"delivery": "domestic"})
+    await client.patch(f"/api/v1/stores/me/products/{item['id']}", json={"delivery": "worldwide"})
+    assert item["id"] in await seen_from("GB")
+
+    # and one product only at home even though the store ships worldwide
+    await client.patch("/api/v1/stores/me", json={"delivery": "worldwide"})
+    await client.patch(f"/api/v1/stores/me/products/{item['id']}", json={"delivery": "domestic"})
+    assert item["id"] not in await seen_from("GB")
+
+    # the public page says so instead of hiding it
+    set_country("GB")
+    page = (await client.get(f"/api/v1/stores/public/{pk['slug']}", headers={"cf-ipcountry": "GB"})).json()
+    assert page["products"][0]["delivers_to_you"] is False
+
+    # "countries" needs at least one country
+    bad = await client.patch("/api/v1/stores/me", json={"delivery": "countries", "delivery_countries": []})
+    assert bad.status_code == 422

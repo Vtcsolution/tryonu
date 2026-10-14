@@ -20,3 +20,13 @@ export function countryName(code: string | null | undefined): string {
   if (!code) return "";
   return countryOptions().find((c) => c.code === code.toUpperCase())?.name ?? code.toUpperCase();
 }
+
+/** "Only in Pakistan" / "Pakistan, UAE and UK" / "Worldwide": where a store delivers. */
+export function deliveryText(delivery: string | null | undefined, countries: string[] | null | undefined, home: string): string {
+  if (delivery === "worldwide") return "Worldwide";
+  if (delivery === "countries" && countries && countries.length > 0) {
+    const names = [home, ...countries.filter((c) => c !== home)].map(countryName);
+    return names.length === 1 ? `Only in ${names[0]}` : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  }
+  return `Only in ${countryName(home)}`;
+}
