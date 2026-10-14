@@ -174,15 +174,18 @@ def _deduplicate(results: list[LiveSearchResult]) -> list[LiveSearchResult]:
 
 
 def _local_stores_first(results: list[LiveSearchResult]) -> list[LiveSearchResult]:
-    """Products of company stores in the shopper's own country first, then
-    everything else in its usual order (eBay, AliExpress, Admitad, ...)."""
+    """Products of TryOnU company stores first (recommended), those in the
+    shopper's own country ahead of the rest, then everything else in its
+    usual order (eBay, AliExpress, Admitad, ...)."""
     from app.services.shopper_context import current_country
 
     country = current_country()
-    if not country:
-        return results
-    local = [r for r in results if r.raw.origin_country == country]
-    return local + [r for r in results if r.raw.origin_country != country] if local else results
+    local = [r for r in results if country and r.raw.origin_country == country]
+    picked = {id(r) for r in local}
+    stores = [r for r in results if r.provider.slug == "stores" and id(r) not in picked]
+    first = local + stores
+    picked |= {id(r) for r in stores}
+    return first + [r for r in results if id(r) not in picked] if first else results
 
 
 def _interleave(per_provider: list[list[LiveSearchResult]]) -> list[LiveSearchResult]:

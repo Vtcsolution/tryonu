@@ -10,7 +10,7 @@ import { products as productsApi, stylist as stylistApi, wardrobe as wardrobeApi
 import { useSession } from "@/lib/auth/useSession";
 import type { LiveProduct, Product, StylistResponse } from "@/lib/api/types";
 import { ProductCard } from "@/components/product/ProductCard";
-import { formatPrice, shopName } from "@/components/try/shop";
+import { RECOMMENDED, formatPrice, fromTryOnUStore, shopName } from "@/components/try/shop";
 
 const PROMPT_SUGGESTIONS = [
   "Build me a wedding outfit under $400",
@@ -268,6 +268,7 @@ function StylistProductCard({ product, alternatives }: { product: Product; alter
         priceCents={product.price_cents}
         currency={product.currency}
         shop={shopName(product.merchant_name, product.retailer?.name)}
+        badge={fromTryOnUStore(product.retailer?.slug) ? RECOMMENDED : null}
         primary={{ label: "Try it on", href: `/try?product=${product.id}` }}
         secondary={{ label: "View in shop ↗", href: affiliateGoUrl(product.id, "stylist"), external: true }}
       />

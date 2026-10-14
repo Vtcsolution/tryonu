@@ -36,3 +36,9 @@ export function formatPrice(cents: number, currency: string): string {
     return `${(cents / 100).toFixed(2)} ${currency.toUpperCase()}`;
   }
 }
+
+/** Products of company stores selling on TryOnU are recommended to shoppers. */
+export const RECOMMENDED = "★ Recommended";
+export function fromTryOnUStore(retailerSlug: string | null | undefined): boolean {
+  return retailerSlug === "stores";
+}

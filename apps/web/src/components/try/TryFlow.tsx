@@ -13,7 +13,7 @@ import { PhotoUploader } from "@/components/upload/PhotoUploader";
 import { ApiError, affiliateGoUrl, resolveMediaUrl } from "@/lib/api/client";
 import { StyledPicks } from "@/components/try/StyledPicks";
 import { ProductCard } from "@/components/product/ProductCard";
-import { RetailerTag, retailerFromImage, shopName } from "@/components/try/shop";
+import { RECOMMENDED, RetailerTag, fromTryOnUStore, retailerFromImage, shopName } from "@/components/try/shop";
 import {
   credits as creditsApi,
   liveSearch as liveSearchApi,
@@ -894,7 +894,7 @@ export function TryFlow() {
                         priceCents={item.price_cents}
                         currency={item.currency}
                         shop={shopName(item.merchant_name, item.retailer_name)}
-                        badge={selected ? "Selected ✓" : null}
+                        badge={selected ? "Selected ✓" : fromTryOnUStore(item.retailer_slug) ? RECOMMENDED : null}
                         selected={selected}
                         busy={selecting}
                         primary={{

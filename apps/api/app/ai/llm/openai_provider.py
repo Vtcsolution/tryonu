@@ -34,8 +34,8 @@ _SYSTEM_PROMPT = (
     "one single product clearly, and suits the occasion asked for: no costumes, "
     "party novelties, multi-packs or kids' items, and for a bridal or wedding "
     "look only pieces a real bride would wear, in the colours asked for. Candidates marked "
-    "LOCAL STORE are sold by a store in the shopper's own country: when one fits the request "
-    "as well as the others, choose it. If earlier "
+    "TRYONU STORE are sold by a store on TryOnU, and LOCAL STORE by one in the shopper's own "
+    "country: when one fits the request as well as the others, choose it (a local one first). If earlier "
     "conversation turns are provided, use them for continuity (e.g. a "
     "follow-up like \"what shoes go with that\") — but still choose only "
     "from THIS request's numbered candidate list; a product mentioned "
@@ -128,6 +128,6 @@ def _build_user_prompt(query: StylistQuery, candidates: list[StylistCandidate]) 
         lines.append(
             f"[{c.index}] {c.name} — {c.brand or 'Unbranded'} — {c.category or 'uncategorised'} "
             f"— {c.color or 'n/a'} — ${c.price_cents / 100:.2f} — tags: {tags}"
-            + (" — LOCAL STORE" if c.local else "")
+            + (" — LOCAL STORE" if c.local else " — TRYONU STORE" if c.partner else "")
         )
     return "\n".join(lines)

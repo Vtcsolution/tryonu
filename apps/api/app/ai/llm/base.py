@@ -25,6 +25,8 @@ class StylistCandidate:
     style_tags: list[str]
     # from a TryOnU company store in the shopper's own country
     local: bool = False
+    # from any company store selling on TryOnU
+    partner: bool = False
 
 
 @dataclass(frozen=True, slots=True)
