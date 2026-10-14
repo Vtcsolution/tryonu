@@ -4,7 +4,7 @@ import { SignUpForm } from "./SignUpForm";
 
 export const metadata: Metadata = {
   title: "Create your account",
-  description: "Create a TryOnU account and get 100 free credits.",
+  description: "Create a TryOnU account and see outfits on your own photo before you buy.",
 };
 
 export default function SignUpPage() {

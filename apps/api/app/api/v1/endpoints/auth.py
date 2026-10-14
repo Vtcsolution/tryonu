@@ -36,9 +36,23 @@ async def register(payload: RegisterRequest, request: Request, response: Respons
     user = await auth_service.register_user(
         db, email=payload.email.lower(), password=payload.password, full_name=payload.full_name
     )
+    if payload.country:
+        from app.models.preference import UserPreference
+
+        db.add(UserPreference(user_id=user.id, country=payload.country.upper()))
+        await db.commit()
     access, refresh = await auth_service.issue_tokens(db, user, user_agent=request.headers.get("user-agent"))
     set_auth_cookies(response, access_token=access, refresh_token=refresh)
     return TokenResponse(access_token=access, user=UserOut.model_validate(user))
+
+
+@router.get("/country-hint")
+async def country_hint(request: Request) -> dict[str, str | None]:
+    """The visitor's likely country (from the IP), to pre-fill the sign-up form.
+    Only a suggestion: the shopper picks their country themselves."""
+    from app.services.analytics_service import country_for_request
+
+    return {"country": country_for_request(request)}
 
 
 @router.post(

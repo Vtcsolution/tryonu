@@ -127,3 +127,27 @@ async def test_account_without_password_can_set_its_first(client):
     assert resp.status_code == 200, resp.text
     login = await client.post("/api/v1/auth/login", json={"email": email, "password": "first-password"})
     assert login.status_code == 200
+
+
+
+async def test_sign_up_saves_the_country_the_shopper_chose(client):
+    from sqlalchemy import select
+
+    from app.db.session import AsyncSessionLocal
+    from app.models.preference import UserPreference
+
+    email = unique_email()
+    resp = await client.post(
+        "/api/v1/auth/register", json={"email": email, "password": "password123", "country": "pk"}
+    )
+    assert resp.status_code == 201, resp.text
+    async with AsyncSessionLocal() as db:
+        pref = await db.scalar(select(UserPreference).where(UserPreference.user_id == resp.json()["user"]["id"]))
+    assert pref is not None and pref.country == "PK"
+    prefs = await client.get("/api/v1/users/me/preferences")
+    assert prefs.json()["country"] == "PK"
+
+
+async def test_country_hint_comes_from_the_visitors_location(client):
+    resp = await client.get("/api/v1/auth/country-hint", headers={"cf-ipcountry": "AE"})
+    assert resp.status_code == 200 and resp.json() == {"country": "AE"}

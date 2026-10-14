@@ -25,6 +25,8 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     full_name: str | None = Field(default=None, max_length=255)
+    # where the shopper lives (ISO alpha-2): stores that deliver there are shown
+    country: str | None = Field(default=None, pattern=r"^[A-Za-z]{2}$")
 
 
 class LoginRequest(BaseModel):

@@ -57,7 +57,7 @@ import type {
 /* ---------------------------------- auth --------------------------------- */
 
 export const auth = {
-  register: (input: { email: string; password: string; full_name?: string }) =>
+  register: (input: { email: string; password: string; full_name?: string; country?: string }) =>
     apiFetch<AuthResponse>("/api/v1/auth/register", { method: "POST", body: input }),
 
   login: (input: { email: string; password: string }) =>
@@ -66,6 +66,9 @@ export const auth = {
   logout: () => apiFetch<{ detail: string }>("/api/v1/auth/logout", { method: "POST" }),
 
   me: () => apiFetch<User>("/api/v1/auth/me"),
+
+  /** the visitor's likely country, to pre-fill a country picker */
+  countryHint: () => apiFetch<{ country: string | null }>("/api/v1/auth/country-hint"),
 
   googleLoginUrl: (apiBase: string) => `${apiBase}/api/v1/auth/google/login`,
 

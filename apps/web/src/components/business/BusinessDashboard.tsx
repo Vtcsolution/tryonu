@@ -1,19 +1,20 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AccountSettings } from "@/components/account/AccountSettings";
 import { AdminShell, Icon, type NavGroup, type ShellArea } from "@/components/admin/AdminShell";
 import { Badge, ErrorNote, SmallButton, errorText, inputClass } from "@/components/admin/ui";
 import { SiteChrome } from "@/components/layout/SiteChrome";
+import { CountryPicker } from "@/components/ui/CountryPicker";
 import { Button } from "@/components/ui/Button";
 import { formatPrice } from "@/components/try/shop";
 import { ApiError } from "@/lib/api/client";
 import { credits as creditsApi, stores as storesApi } from "@/lib/api/endpoints";
 import type { Store, StoreDelivery, StorePlan, StoreProduct, StoreProductInput, User } from "@/lib/api/types";
 import { useSession } from "@/lib/auth/useSession";
-import { countryFlag, countryName, countryOptions, deliveryText } from "@/lib/countries";
+import { countryFlag, countryName, deliveryText } from "@/lib/countries";
 
 const STORE_KEY = ["business", "store"];
 
@@ -1312,14 +1313,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   );
 }
 
+/** A country, picked by typing its name: the same picker as sign-up. */
 export function CountrySelect({ value, onChange }: { value: string; onChange: (code: string) => void }) {
-  const options = useMemo(() => countryOptions(), []);
-  return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className={`${inputClass} w-full`} required>
-      <option value="">Choose a country</option>
-      {options.map((c) => (
-        <option key={c.code} value={c.code}>{c.name}</option>
-      ))}
-    </select>
-  );
+  return <CountryPicker value={value} onChange={onChange} placeholder="Choose a country" />;
 }

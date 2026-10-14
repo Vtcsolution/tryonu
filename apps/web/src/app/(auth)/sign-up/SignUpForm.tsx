@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useEffect, useState, type FormEvent } from "react";
+import { CountryPicker } from "@/components/ui/CountryPicker";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
@@ -22,14 +23,24 @@ export function SignUpForm() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [country, setCountry] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // pre-filled from where they are; they can pick any country
+  const hint = useQuery({ queryKey: ["country-hint"], queryFn: auth.countryHint, staleTime: Infinity, retry: false });
+  useEffect(() => {
+    if (hint.data?.country && !country) setCountry(hint.data.country);
+  }, [hint.data, country]);
   const [registered, setRegistered] = useState(false);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (!country) {
+      setError("Please choose your country.");
+      return;
+    }
     try {
-      await register.mutateAsync({ email, password, full_name: fullName || undefined });
+      await register.mutateAsync({ email, password, full_name: fullName || undefined, country });
       setRegistered(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.detail : "Couldn't create your account. Please try again.");
@@ -45,7 +56,7 @@ export function SignUpForm() {
             Check your <em>email</em>
           </>
         }
-        subtitle={`Your 100 free credits are ready to use. We also sent a verification link to ${email} — verify when you get a chance.`}
+        subtitle={`Your account is ready. We also sent a verification link to ${email}; verify when you get a chance.`}
       >
         <div className="space-y-3">
           <Button href={`/preferences?next=${encodeURIComponent(params.get("next") || "/for-you")}`} size="md" className="w-full">
@@ -73,7 +84,7 @@ export function SignUpForm() {
           Create your <em>fitting profile</em>
         </>
       }
-      subtitle="Get 100 free credits the moment you sign up."
+      subtitle="See every outfit on your own photo before you buy."
       footer={
         <>
           Already have an account?{" "}
@@ -106,6 +117,13 @@ export function SignUpForm() {
           minLength={8}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+        />
+        <CountryPicker
+          label="Your country"
+          value={country}
+          onChange={setCountry}
+          suggested={hint.data?.country}
+          hint="Type to search. We show you shops that deliver to your country."
         />
 
         {error && (

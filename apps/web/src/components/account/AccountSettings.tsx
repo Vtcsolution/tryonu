@@ -1,12 +1,13 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
+import { CountryPicker } from "@/components/ui/CountryPicker";
 import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { ApiError } from "@/lib/api/client";
-import { auth } from "@/lib/api/endpoints";
+import { auth, preferences } from "@/lib/api/endpoints";
 import type { User } from "@/lib/api/types";
 import { SESSION_QUERY_KEY } from "@/lib/auth/useSession";
 
@@ -27,11 +28,21 @@ function ProfileCard({ user }: { user: User }) {
   const qc = useQueryClient();
   const [name, setName] = useState(user.full_name ?? "");
   const [saved, setSaved] = useState(false);
+  const prefs = useQuery({ queryKey: ["preferences"], queryFn: preferences.get });
+  const savedCountry = prefs.data?.country ?? "";
+  const [country, setCountry] = useState<string | null>(null); // null: not changed here
+  const shownCountry = country ?? savedCountry;
+  const hint = useQuery({ queryKey: ["country-hint"], queryFn: auth.countryHint, staleTime: Infinity, retry: false });
 
+  const nameChanged = name.trim() !== (user.full_name ?? "");
+  const countryChanged = country !== null && country !== savedCountry;
   const save = useMutation({
-    mutationFn: () => auth.updateProfile({ full_name: name.trim() }),
-    onSuccess: (u) => {
-      qc.setQueryData(SESSION_QUERY_KEY, u);
+    mutationFn: async () => {
+      if (nameChanged) qc.setQueryData(SESSION_QUERY_KEY, await auth.updateProfile({ full_name: name.trim() }));
+      if (countryChanged) qc.setQueryData(["preferences"], await preferences.update({ country }));
+    },
+    onSuccess: () => {
+      setCountry(null);
       setSaved(true);
     },
   });
@@ -57,6 +68,16 @@ function ProfileCard({ user }: { user: User }) {
             setSaved(false);
           }}
         />
+        <CountryPicker
+          label="Your country"
+          value={shownCountry}
+          onChange={(c) => {
+            setCountry(c);
+            setSaved(false);
+          }}
+          suggested={hint.data?.country}
+          hint="We show you shops that deliver to your country, local shops first."
+        />
         <div>
           <span className="mb-1.5 block text-[13px] font-medium text-ink-soft">Email</span>
           <p className="flex h-11 items-center rounded-xl border border-line bg-paper-2/60 px-3.5 text-[14px] text-ink-soft">
@@ -73,8 +94,8 @@ function ProfileCard({ user }: { user: User }) {
           </p>
         )}
         <div className="flex items-center gap-3">
-          <Button type="submit" size="md" disabled={save.isPending || name.trim() === (user.full_name ?? "")}>
-            {save.isPending ? "Saving…" : "Save name"}
+          <Button type="submit" size="md" disabled={save.isPending || (!nameChanged && !countryChanged)}>
+            {save.isPending ? "Saving…" : "Save"}
           </Button>
           {saved && <span className="text-[13.5px] font-medium text-sage-deep">✓ Saved</span>}
         </div>
