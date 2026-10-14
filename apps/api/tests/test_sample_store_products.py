@@ -68,3 +68,25 @@ async def test_stays_within_the_plan_limit(db):  # noqa: ANN001
     await _catalogue(db)
     store = await _store(db, limit=3)
     assert len(await add_samples(db, store)) == 3
+
+
+async def test_a_shirt_collar_is_not_a_necklace_and_a_tablet_bag_is_not_a_bag(db):  # noqa: ANN001
+    from app.scripts.sample_store_products import pick_samples
+
+    await db.execute(delete(AdmitadFeedItem).where(AdmitadFeedItem.campaign_id == 999002))
+    for i, name in enumerate([
+        "Pleated Contrast Peter Pan Collar Puff Short Sleeve Blouse Grey Blue/S",
+        "para Honor Magic Vs (2022) Mochila Bolso Bandolera Nylon compatible con Ebook, Tablet",
+        "Relojes de mujer Reloj de pulsera creativo de moda",
+    ]):
+        db.add(AdmitadFeedItem(campaign_id=999002, campaign_name="Test shop", offer_id=f"x{i}", name=name,
+                               price_cents=2000, currency="EUR", image_url=f"https://img.example.com/x{i}.jpg",
+                               product_url=f"https://shop.example.com/x{i}", available=True))
+    await db.commit()
+    picks = await pick_samples(db, count=20)
+    by_kind = {}
+    for item, kind in picks:
+        by_kind.setdefault(kind, []).append(item.name)
+    assert not any("Collar Puff" in n for n in by_kind.get("Necklace", []))
+    assert not any("Tablet" in n for names in by_kind.values() for n in names)
+    assert not any("Reloj de pulsera" in n for n in by_kind.get("Bracelet", []))

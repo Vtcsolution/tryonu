@@ -33,22 +33,25 @@ from app.models.user import User
 from app.services import store_service as svc
 
 PREFIX = "sample-"
-# (whole words in the product name, in the catalogue's languages; category on the card)
+# (whole words in the product name, in the catalogue's languages; category on
+# the card; words that mean it's something else: a shirt "collar", a "reloj
+# de pulsera" is a watch, a blouse with a "ring" detail)
 KINDS = [
-    (("dress", "vestido", "robe"), "Dress"),
-    (("lehenga",), "Lehenga"),
-    (("kurta", "kurti"), "Kurta"),
-    (("earrings", "pendientes", "boucles"), "Earrings"),
-    (("necklace", "collar", "collier"), "Necklace"),
-    (("bracelet", "pulsera"), "Bracelet"),
-    (("handbag", "bolso", "shoulder bag", "tote"), "Bag"),
-    (("sandals", "sandalias"), "Shoes"),
-    (("watch", "reloj", "montre"), "Watch"),
-    (("scarf", "pañuelo", "bufanda", "foulard"), "Scarf"),
-    (("heels", "tacón", "tacones", "pumps"), "Shoes"),
-    (("blouse", "blusa"), "Top"),
-    (("skirt", "falda", "jupe"), "Skirt"),
-    (("ring", "anillo", "bague"), "Ring"),
+    (("dress", "vestido", "robe"), "Dress", r"shirt|camisa|blouse|blusa|bag|bolso"),
+    (("lehenga",), "Lehenga", None),
+    (("kurta", "kurti"), "Kurta", None),
+    (("earrings", "pendientes", "boucles"), "Earrings", None),
+    (("necklace", "collar", "collier", "colgante", "gargantilla"), "Necklace",
+     r"shirt|camisa|blouse|blusa|dress|vestido|sleeve|manga|jacket|chaqueta|sweater|jersey|coat|abrigo|polo|perro|dog"),
+    (("bracelet", "pulsera"), "Bracelet", r"reloj|relojes|watch|watches"),
+    (("handbag", "bolso", "shoulder bag", "tote"), "Bag", None),
+    (("sandals", "sandalias"), "Shoes", None),
+    (("watch", "reloj", "montre"), "Watch", r"band|correa|strap"),
+    (("scarf", "pañuelo", "bufanda", "foulard"), "Scarf", None),
+    (("heels", "tacón", "tacones", "pumps"), "Shoes", None),
+    (("blouse", "blusa"), "Top", None),
+    (("skirt", "falda", "jupe"), "Skirt", r"dress|vestido"),
+    (("ring", "anillo", "bague"), "Ring", r"blouse|dress|shirt|sleeve|keyring|llavero"),
 ]
 CURRENCIES = ("usd", "eur", "gbp")
 # a normal fashion price: not a 1-euro trinket, not a luxury outlier
@@ -59,7 +62,8 @@ _NOT_FASHION = re.compile(
     r"\b(vasos?|cups?|tazas?|mugs?|fundas?|case|cover|funda|juego|set de|destornillador\w*|recambio|repuesto|"
     r"pedal|rodamiento|wheels?|plástico|plastico|plastic|fiesta|party|halloween|disfraz|costume|carnaval\w*|"
     r"juguete|toy|niñ[oa]s?|kids?|infantil|bebé|baby|perro|dog|gato|cat|mascota|pet|móvil|movil|phone|"
-    r"iphone|samsung|llavero|keychain|pegatina|sticker|póster|poster|cojín|cushion|lámpara|lamp|herramienta|tool)\b",
+    r"iphone|samsung|llavero|keychain|pegatina|sticker|póster|poster|cojín|cushion|lámpara|lamp|herramienta|tool|"
+    r"tablet|ebook|laptop|portátil|portatil|compatible|honor|xiaomi|huawei|ipad|kindle)\b",
     re.IGNORECASE,
 )
 _FASHION_CATEGORY = re.compile(
@@ -87,7 +91,7 @@ async def pick_samples(db: AsyncSession, *, count: int = 10, skip: set[str] | No
     """One good catalogue item per kind, up to `count`: (item, category label)."""
     skip = skip or set()
     picks: list[tuple[AdmitadFeedItem, str]] = []
-    for words, category in KINDS:
+    for words, category, not_this in KINDS:
         if len(picks) >= count:
             break
         candidates = (
@@ -100,14 +104,19 @@ async def pick_samples(db: AsyncSession, *, count: int = 10, skip: set[str] | No
                     AdmitadFeedItem.image_url.like("http%"),
                     AdmitadFeedItem.price_cents.between(MIN_CENTS, MAX_CENTS),
                 )
-                .limit(400)
+                .order_by(AdmitadFeedItem.id)  # the same picks in --preview and when adding
+                .limit(600)
             )
         ).scalars().all()
         whole = _word_re(words)
+        other = re.compile(rf"\b({not_this})\b", re.IGNORECASE) if not_this else None
         good = [
             c
             for c in candidates
-            if whole.search(c.name) and not _NOT_FASHION.search(c.name) and _external_id(c) not in skip
+            if whole.search(c.name)
+            and not _NOT_FASHION.search(c.name)
+            and not (other and other.search(c.name))
+            and _external_id(c) not in skip
         ]
         if not good:
             continue
