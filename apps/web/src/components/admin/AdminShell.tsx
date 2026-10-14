@@ -9,6 +9,10 @@ import { useLogout } from "@/lib/auth/useSession";
 
 export type NavGroup<T extends string> = { group: string; tabs: readonly { id: T; label: string; icon: IconName }[] };
 
+/** Which panel the shell frames: the admin panel or a company's store panel. */
+export type ShellArea = { name: string; home: string; role: string };
+const ADMIN_AREA: ShellArea = { name: "Admin", home: "/admin", role: "Administrator" };
+
 export function AdminShell<T extends string>({
   nav,
   active,
@@ -16,6 +20,8 @@ export function AdminShell<T extends string>({
   email,
   drawerOpen,
   setDrawerOpen,
+  area = ADMIN_AREA,
+  headerExtra,
   children,
 }: {
   nav: readonly NavGroup<T>[];
@@ -24,6 +30,9 @@ export function AdminShell<T extends string>({
   email: string;
   drawerOpen: boolean;
   setDrawerOpen: (open: boolean) => void;
+  area?: ShellArea;
+  /** extra links in the top bar, before "View site" */
+  headerExtra?: ReactNode;
   children: ReactNode;
 }) {
   const activeGroup = nav.find((g) => g.tabs.some((t) => t.id === active));
@@ -49,6 +58,7 @@ export function AdminShell<T extends string>({
       nav={nav}
       active={active}
       email={email}
+      area={area}
       onSelect={(tab) => {
         onSelect(tab);
         setDrawerOpen(false);
@@ -71,7 +81,7 @@ export function AdminShell<T extends string>({
           ref={drawerRef}
           role="dialog"
           aria-modal="true"
-          aria-label="Admin navigation"
+          aria-label={`${area.name} navigation`}
           inert={!drawerOpen}
           className={`absolute inset-y-0 left-0 flex w-[min(288px,85vw)] flex-col bg-surface shadow-lift transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
             drawerOpen ? "translate-x-0" : "-translate-x-full"
@@ -92,13 +102,14 @@ export function AdminShell<T extends string>({
             <Icon name="menu" />
           </button>
           <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-[13px]">
-            <span className="hidden text-faint sm:inline">Admin</span>
+            <span className="hidden text-faint sm:inline">{area.name}</span>
             <span className="hidden text-faint sm:inline" aria-hidden="true">/</span>
             <span className="hidden text-faint sm:inline">{activeGroup?.group}</span>
             <span className="hidden text-faint sm:inline" aria-hidden="true">/</span>
             <span className="truncate font-medium text-ink">{activeLabel}</span>
           </nav>
           <div className="ml-auto flex items-center gap-2">
+            {headerExtra}
             <Link
               href="/"
               className="tu-press hidden h-9 items-center gap-1.5 rounded-full border border-line px-3.5 text-[12.5px] text-ink-soft hover:border-line-strong hover:text-ink sm:inline-flex"
@@ -122,11 +133,13 @@ function SidebarContent<T extends string>({
   nav,
   active,
   email,
+  area,
   onSelect,
 }: {
   nav: readonly NavGroup<T>[];
   active: T;
   email: string;
+  area: ShellArea;
   onSelect: (tab: T) => void;
 }) {
   const router = useRouter();
@@ -159,13 +172,13 @@ function SidebarContent<T extends string>({
   return (
     <>
       <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-line px-5">
-        <Logo size={26} href="/admin" />
+        <Logo size={26} href={area.home} />
         <span className="rounded-md bg-sage px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-white">
-          Admin
+          {area.name}
         </span>
       </div>
 
-      <nav aria-label="Admin sections" className="flex-1 overflow-y-auto px-3 py-4">
+      <nav aria-label={`${area.name} sections`} className="flex-1 overflow-y-auto px-3 py-4">
         <div ref={listRef} className="relative">
           <span
             aria-hidden="true"
@@ -223,7 +236,7 @@ function SidebarContent<T extends string>({
             <p className="truncate text-[12.5px] font-medium text-ink" title={email}>
               {email}
             </p>
-            <p className="text-[11px] text-faint">Administrator</p>
+            <p className="text-[11px] text-faint">{area.role}</p>
           </div>
         </div>
         <div className="mt-1 grid grid-cols-2 gap-2">
@@ -266,7 +279,8 @@ export type IconName =
   | "audit"
   | "menu"
   | "external"
-  | "logout";
+  | "logout"
+  | "upload";
 
 const PATHS: Record<IconName, string> = {
   overview: "M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z",
@@ -286,6 +300,7 @@ const PATHS: Record<IconName, string> = {
   menu: "M4 7h16M4 12h16M4 17h16",
   external: "M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5",
   logout: "M15 17l5-5-5-5M20 12H9M11 20H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h6",
+  upload: "M12 15V4M7 9l5-5 5 5M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4",
 };
 
 export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {

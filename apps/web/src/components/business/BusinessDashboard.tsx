@@ -1,14 +1,17 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AccountSettings } from "@/components/account/AccountSettings";
+import { AdminShell, Icon, type NavGroup, type ShellArea } from "@/components/admin/AdminShell";
 import { Badge, ErrorNote, SmallButton, errorText, inputClass } from "@/components/admin/ui";
+import { SiteChrome } from "@/components/layout/SiteChrome";
 import { Button } from "@/components/ui/Button";
 import { formatPrice } from "@/components/try/shop";
 import { ApiError } from "@/lib/api/client";
 import { stores as storesApi } from "@/lib/api/endpoints";
-import type { Store, StorePlan, StoreProduct, StoreProductInput } from "@/lib/api/types";
+import type { Store, StorePlan, StoreProduct, StoreProductInput, User } from "@/lib/api/types";
 import { useSession } from "@/lib/auth/useSession";
 import { countryName, countryOptions } from "@/lib/countries";
 
@@ -38,24 +41,31 @@ export function BusinessDashboard() {
 
   if (isLoading || !user || storeQuery.isLoading) {
     return (
-      <section className="mx-auto w-[min(1100px,calc(100%-32px))] py-24 text-center">
-        <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-line-strong border-t-sage" />
-      </section>
+      <div className="grid min-h-screen place-items-center bg-paper">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-line-strong border-t-sage" />
+      </div>
     );
   }
   if (storeQuery.isError) {
     return (
-      <section className="mx-auto w-[min(1100px,calc(100%-32px))] py-16">
-        <ErrorNote>{errorText(storeQuery.error, "Couldn't load your store.")}</ErrorNote>
-      </section>
+      <SiteChrome>
+        <section className="mx-auto w-[min(1100px,calc(100%-32px))] py-16">
+          <ErrorNote>{errorText(storeQuery.error, "Couldn't load your store.")}</ErrorNote>
+        </section>
+      </SiteChrome>
     );
   }
   const store = storeQuery.data;
-  return (
-    <section className="mx-auto w-[min(1100px,calc(100%-32px))] py-12 md:py-16">
-      {store ? <Dashboard store={store} /> : <OpenStore />}
-    </section>
-  );
+  if (!store) {
+    return (
+      <SiteChrome>
+        <section className="mx-auto w-[min(1100px,calc(100%-32px))] py-12 md:py-16">
+          <OpenStore />
+        </section>
+      </SiteChrome>
+    );
+  }
+  return <StorePanel store={store} user={user} />;
 }
 
 // ------------------------------------------------------------------ open a store
@@ -131,17 +141,169 @@ function OpenStore() {
 
 // ------------------------------------------------------------------- dashboard
 
-function Dashboard({ store }: { store: Store }) {
+// ------------------------------------------------------------------ store panel
+
+type Tab = "overview" | "products" | "import" | "profile" | "plan" | "payments" | "account";
+
+const NAV: readonly NavGroup<Tab>[] = [
+  {
+    group: "My store",
+    tabs: [
+      { id: "overview", label: "Overview", icon: "overview" },
+      { id: "products", label: "Products", icon: "products" },
+      { id: "import", label: "Import products", icon: "upload" },
+      { id: "profile", label: "Store details", icon: "retailers" },
+    ],
+  },
+  {
+    group: "Billing",
+    tabs: [
+      { id: "plan", label: "Plan", icon: "packs" },
+      { id: "payments", label: "Payments", icon: "payments" },
+    ],
+  },
+  {
+    group: "You",
+    tabs: [{ id: "account", label: "My account & password", icon: "users" }],
+  },
+];
+const TAB_IDS = new Set<string>(NAV.flatMap((g) => g.tabs.map((t) => t.id)));
+const labelFor = (tab: Tab) => NAV.flatMap((g) => g.tabs).find((t) => t.id === tab)?.label ?? "";
+const STORE_AREA: ShellArea = { name: "Store", home: "/business", role: "Store owner" };
+
+function tabFromLocation(): Tab {
+  if (typeof window === "undefined") return "overview";
+  // back from PayPal: the Plan page confirms the subscription
+  if (new URLSearchParams(window.location.search).has("subscription")) return "plan";
+  const hash = window.location.hash.slice(1);
+  return TAB_IDS.has(hash) ? (hash as Tab) : "overview";
+}
+
+/** A company's store panel: a sidebar like the admin panel, one page per task. */
+function StorePanel({ store, user }: { store: Store; user: User }) {
+  const [tab, setTab] = useState<Tab>("overview");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // the page lives in the URL hash (/business#products), so refresh and links keep it
+  useEffect(() => {
+    setTab(tabFromLocation());
+    const onHash = () => setTab(tabFromLocation());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  useEffect(() => {
+    document.title = `${labelFor(tab)} · ${store.name} · TryOnU`;
+  }, [tab, store.name]);
+
+  const go = useCallback((next: Tab) => {
+    setTab(next);
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#${next}`);
+    window.scrollTo({ top: 0 });
+  }, []);
+
   return (
-    <div className="space-y-8">
-      <StoreHeader store={store} />
-      <StatsSection />
-      <PlansSection store={store} />
-      <ProductsSection store={store} />
-      <FeedSection store={store} />
-      <ProfileSection store={store} />
-      <PaymentsSection />
-    </div>
+    <AdminShell
+      nav={NAV}
+      active={tab}
+      onSelect={go}
+      email={user.email}
+      drawerOpen={drawerOpen}
+      setDrawerOpen={setDrawerOpen}
+      area={STORE_AREA}
+      headerExtra={
+        store.live ? (
+          <a
+            href={`/stores/${store.slug}`}
+            target="_blank"
+            rel="noopener"
+            className="tu-press hidden h-9 items-center gap-1.5 rounded-full border border-sage/50 px-3.5 text-[12.5px] font-medium text-sage-deep hover:bg-sage-tint/50 sm:inline-flex"
+          >
+            <Icon name="external" size={15} />
+            My store page
+          </a>
+        ) : null
+      }
+    >
+      <div className="space-y-6">
+        {tab === "overview" && (
+          <>
+            <StoreHeader store={store} />
+            <NextSteps store={store} go={go} />
+            <StatsSection />
+          </>
+        )}
+        {tab === "products" && <ProductsSection store={store} />}
+        {tab === "import" && <FeedSection store={store} />}
+        {tab === "profile" && <ProfileSection store={store} />}
+        {tab === "plan" && <PlansSection store={store} />}
+        {tab === "payments" && <PaymentsSection />}
+        {tab === "account" && <AccountSettings user={user} />}
+      </div>
+    </AdminShell>
+  );
+}
+
+/** The few steps to go live, ticked off as they're done, each with its button. */
+function NextSteps({ store, go }: { store: Store; go: (tab: Tab) => void }) {
+  if (store.live && store.product_count > 0) return null;
+  const steps: { done: boolean; title: string; text: string; action?: { label: string; tab: Tab } }[] = [
+    { done: true, title: "Open your store", text: "Your store details are saved." },
+    {
+      done: store.status === "approved",
+      title: "Approval by TryOnU",
+      text: store.status === "approved" ? "Approved." : "We check every new store. You'll get an email.",
+    },
+    {
+      done: store.plan_active,
+      title: "Unlock a plan",
+      text: store.plan_active ? "Your plan is active." : "Choose how many products you want to sell.",
+      action: store.plan_active ? undefined : { label: "Choose a plan", tab: "plan" },
+    },
+    {
+      done: store.product_count > 0,
+      title: "Add your products",
+      text: store.product_count > 0 ? `${store.product_count} added.` : "Add them one by one, or import a file.",
+      action: store.product_count > 0 ? undefined : { label: "Add products", tab: "products" },
+    },
+  ];
+  return (
+    <section className="rounded-[24px] border border-line bg-surface p-6">
+      <h2 className="font-display text-[20px] text-ink">Get your store live</h2>
+      <ol className="mt-4 grid gap-3 sm:grid-cols-2">
+        {steps.map((step, i) => (
+          <li
+            key={step.title}
+            className={`flex items-start gap-3 rounded-[16px] border px-4 py-3.5 ${step.done ? "border-sage/40 bg-sage-tint/30" : "border-line"}`}
+          >
+            <span
+              className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-[14px] font-semibold ${
+                step.done ? "bg-sage text-white" : "border border-line-strong text-ink-soft"
+              }`}
+              aria-hidden="true"
+            >
+              {step.done ? "✓" : i + 1}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[15px] font-semibold text-ink">
+                {step.title}
+                <span className="sr-only">{step.done ? " (done)" : " (to do)"}</span>
+              </p>
+              <p className="mt-0.5 text-[13.5px] text-muted">{step.text}</p>
+              {step.action && (
+                <button
+                  type="button"
+                  onClick={() => go(step.action!.tab)}
+                  className="tu-press mt-2.5 inline-flex min-h-[40px] items-center rounded-full bg-sage px-4 text-[13.5px] font-semibold text-white hover:bg-sage-deep"
+                >
+                  {step.action.label} →
+                </button>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }
 
@@ -189,7 +351,7 @@ function StoreHeader({ store }: { store: Store }) {
         <Stat label="Products" value={`${store.product_count} / ${store.plan_active ? store.plan_product_limit : 0}`} />
         <Stat
           label={store.plan_active ? "Plan ends" : "Plan"}
-          value={store.plan_active && expires ? expires.toLocaleDateString() : "Unlock a plan below"}
+          value={store.plan_active && expires ? expires.toLocaleDateString() : "Not unlocked yet"}
         />
       </div>
     </div>
@@ -235,7 +397,7 @@ function PlansSection({ store }: { store: Store }) {
     const flag = params.get("subscription");
     if (!flag) return;
     setReturned(flag);
-    window.history.replaceState(null, "", window.location.pathname);
+    window.history.replaceState(null, "", `${window.location.pathname}#plan`);
     if (flag === "done") sync.mutate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
