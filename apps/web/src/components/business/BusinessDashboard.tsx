@@ -10,7 +10,7 @@ import { SiteChrome } from "@/components/layout/SiteChrome";
 import { Button } from "@/components/ui/Button";
 import { formatPrice } from "@/components/try/shop";
 import { ApiError } from "@/lib/api/client";
-import { stores as storesApi } from "@/lib/api/endpoints";
+import { credits as creditsApi, stores as storesApi } from "@/lib/api/endpoints";
 import type { Store, StorePlan, StoreProduct, StoreProductInput, User } from "@/lib/api/types";
 import { useSession } from "@/lib/auth/useSession";
 import { countryName, countryOptions } from "@/lib/countries";
@@ -233,14 +233,35 @@ function StorePanel({ store, user }: { store: Store; user: User }) {
             <StatsSection />
           </>
         )}
-        {tab === "products" && <ProductsSection store={store} />}
-        {tab === "import" && <FeedSection store={store} />}
+        {tab === "products" && (store.plan_active ? <ProductsSection store={store} /> : <NeedsPlan go={go} what="add products" />)}
+        {tab === "import" && (store.plan_active ? <FeedSection store={store} /> : <NeedsPlan go={go} what="import products" />)}
         {tab === "profile" && <ProfileSection store={store} />}
         {tab === "plan" && <PlansSection store={store} />}
-        {tab === "payments" && <PaymentsSection />}
+        {tab === "payments" && <PaymentsSection go={go} />}
         {tab === "account" && <AccountSettings user={user} />}
       </div>
     </AdminShell>
+  );
+}
+
+/** Shown instead of a page that needs a plan, with the way to get one. */
+function NeedsPlan({ go, what }: { go: (tab: Tab) => void; what: string }) {
+  return (
+    <section className="rounded-[24px] border border-line bg-surface px-6 py-12 text-center">
+      <p className="text-[40px]" aria-hidden="true">🔒</p>
+      <h2 className="mt-2 font-display text-[24px] text-ink">Unlock a plan to {what}</h2>
+      <p className="mx-auto mt-2 max-w-md text-[14.5px] text-muted">
+        Your plan decides how many products you can sell. Once it&apos;s active, you can add products with photos here.
+      </p>
+      <button
+        type="button"
+        onClick={() => go("plan")}
+        className="tu-press mt-5 inline-flex min-h-[44px] items-center rounded-full bg-sage px-6 text-[15px] font-semibold text-white hover:bg-sage-deep"
+      >
+        Choose a plan →
+      </button>
+      <p className="mt-3 text-[12.5px] text-faint">Already paid? Open Payments and press “Check payment again”.</p>
+    </section>
   );
 }
 
@@ -893,23 +914,64 @@ function StatsSection() {
   );
 }
 
-function PaymentsSection() {
+function PaymentsSection({ go }: { go: (tab: Tab) => void }) {
+  const qc = useQueryClient();
   const payments = useQuery({ queryKey: ["business", "payments"], queryFn: storesApi.payments });
-  if (!payments.data || payments.data.length === 0) return null;
+  // a payment left "not completed" (PayPal closed early, or the return page
+  // didn't load): ask PayPal again; the plan unlocks only if the money was taken
+  const check = useMutation({
+    mutationFn: (paymentId: string) => creditsApi.capturePurchase(paymentId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["business", "payments"] });
+      qc.invalidateQueries({ queryKey: STORE_KEY });
+    },
+  });
   return (
-    <Section title="Payments">
-      <div className="divide-y divide-line rounded-[16px] border border-line">
-        {payments.data.map((p) => (
-          <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 text-[13px]">
-            <span className="text-ink-soft">{p.plan_name ?? "Plan"} plan · {new Date(p.created_at).toLocaleDateString()}</span>
-            <span className="flex items-center gap-3">
-              <span className="font-semibold text-ink">{formatPrice(p.amount_cents, p.currency)}</span>
-              <Badge tone={p.status === "succeeded" ? "good" : p.status === "failed" ? "bad" : "neutral"}>
-                {p.status === "succeeded" ? "Paid" : p.status === "failed" ? "Failed" : "Not completed"}
-              </Badge>
-            </span>
-          </div>
-        ))}
+    <Section title="Payments" hint="Every plan payment. A plan unlocks only when its payment says Paid.">
+      {payments.isLoading ? (
+        <p className="text-[13px] text-muted">Loading…</p>
+      ) : !payments.data || payments.data.length === 0 ? (
+        <p className="rounded-[16px] border border-dashed border-line p-6 text-center text-[14px] text-muted">No payments yet.</p>
+      ) : (
+        <div className="divide-y divide-line rounded-[16px] border border-line">
+          {payments.data.map((p) => {
+            const pending = p.status !== "succeeded" && p.status !== "failed" && p.status !== "refunded";
+            const checking = check.isPending && check.variables === p.id;
+            const result = check.variables === p.id ? check.data?.status : undefined;
+            return (
+              <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-[13.5px]">
+                <span className="text-ink-soft">
+                  {p.plan_name ?? "Plan"} plan · {new Date(p.created_at).toLocaleDateString()}
+                  {pending && (
+                    <span className="block text-[12.5px] text-muted">
+                      {result === "pending"
+                        ? "PayPal hasn't received this payment. No money was taken. Buy the plan again to finish."
+                        : "Not finished at PayPal, so no money was taken and the plan isn't unlocked."}
+                    </span>
+                  )}
+                </span>
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="font-semibold text-ink">{formatPrice(p.amount_cents, p.currency)}</span>
+                  <Badge tone={p.status === "succeeded" ? "good" : p.status === "failed" ? "bad" : "neutral"}>
+                    {p.status === "succeeded" ? "Paid" : p.status === "failed" ? "Failed" : p.status === "refunded" ? "Refunded" : "Not finished"}
+                  </Badge>
+                  {pending && (
+                    <SmallButton disabled={check.isPending} onClick={() => check.mutate(p.id)}>
+                      {checking ? "Checking…" : "Check payment again"}
+                    </SmallButton>
+                  )}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {check.isError && <div className="mt-3"><ErrorNote>{errorText(check.error)}</ErrorNote></div>}
+      {check.data?.status === "succeeded" && (
+        <p className="mt-3 text-[13.5px] font-medium text-sage-deep">✓ Payment confirmed. Your plan is unlocked.</p>
+      )}
+      <div className="mt-4">
+        <SmallButton tone="primary" onClick={() => go("plan")}>Go to plans</SmallButton>
       </div>
     </Section>
   );
