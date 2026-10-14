@@ -151,3 +151,11 @@ async def test_sign_up_saves_the_country_the_shopper_chose(client):
 async def test_country_hint_comes_from_the_visitors_location(client):
     resp = await client.get("/api/v1/auth/country-hint", headers={"cf-ipcountry": "AE"})
     assert resp.status_code == 200 and resp.json() == {"country": "AE"}
+
+
+def test_new_accounts_get_no_free_credits_and_a_try_on_costs_10_by_default():
+    from app.core.config import Settings
+
+    fields = Settings.model_fields
+    assert fields["SIGNUP_FREE_CREDITS"].default == 0
+    assert fields["TRYON_CREDIT_COST"].default == 10 and fields["OUTFIT_TRYON_CREDIT_COST"].default == 10

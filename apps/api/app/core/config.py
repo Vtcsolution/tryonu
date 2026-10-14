@@ -94,9 +94,10 @@ class Settings(BaseSettings):
     ]
 
     # --- credits ---
-    SIGNUP_FREE_CREDITS: int = 100
-    TRYON_CREDIT_COST: int = 5
-    OUTFIT_TRYON_CREDIT_COST: int = 8
+    # no free credits: new accounts start at 0 and buy a credit plan (admins can change it)
+    SIGNUP_FREE_CREDITS: int = 0
+    TRYON_CREDIT_COST: int = 10
+    OUTFIT_TRYON_CREDIT_COST: int = 10
 
     # --- AI providers ---
     # "mock" needs no credentials and simulates a realistic job lifecycle —

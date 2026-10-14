@@ -24,6 +24,11 @@ os.environ["REDIS_URL"] = ""  # force the in-process job runner — no Redis nee
 os.environ["VIRTUAL_TRYON_PROVIDER"] = "mock"
 os.environ["LLM_PROVIDER"] = "mock"
 os.environ["PAYMENT_PROVIDER"] = "mock"
+# the suite was written with a funded signup and these prices; production
+# defaults are no free credits and 10 per try-on (app/core/config.py)
+os.environ["SIGNUP_FREE_CREDITS"] = "100"
+os.environ["TRYON_CREDIT_COST"] = "5"
+os.environ["OUTFIT_TRYON_CREDIT_COST"] = "8"
 os.environ["EMAIL_PROVIDER"] = "mock"
 os.environ["FASHN_API_KEY"] = ""
 os.environ["OPENAI_API_KEY"] = ""

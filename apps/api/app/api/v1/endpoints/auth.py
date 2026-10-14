@@ -153,7 +153,7 @@ async def change_password(
 )
 async def verify_email(payload: VerifyEmailRequest, db: DbSession):
     await auth_service.verify_email(db, token=payload.token)
-    return Message(detail="Email verified — your free credits are ready.")
+    return Message(detail="Email verified. Thank you!")
 
 
 @router.post(
