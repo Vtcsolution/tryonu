@@ -37,6 +37,9 @@ export function BusinessDashboard() {
       }
     },
     enabled: !!user,
+    // a plan or approval can change from the admin side at any time
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 
   if (isLoading || !user || storeQuery.isLoading) {
@@ -196,11 +199,17 @@ function StorePanel({ store, user }: { store: Store; user: User }) {
     document.title = `${labelFor(tab)} · ${store.name} · TryOnU`;
   }, [tab, store.name]);
 
-  const go = useCallback((next: Tab) => {
-    setTab(next);
-    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#${next}`);
-    window.scrollTo({ top: 0 });
-  }, []);
+  const qc = useQueryClient();
+  const go = useCallback(
+    (next: Tab) => {
+      setTab(next);
+      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#${next}`);
+      window.scrollTo({ top: 0 });
+      // each page shows the store as it is now (e.g. a plan TryOnU just gave)
+      qc.invalidateQueries({ queryKey: STORE_KEY });
+    },
+    [qc],
+  );
 
   return (
     <AdminShell
