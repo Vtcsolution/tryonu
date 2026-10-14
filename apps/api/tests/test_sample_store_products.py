@@ -13,6 +13,10 @@ from app.services import store_service as svc
 
 _WORDS = ["Silk Dress", "Gold Earrings", "Leather Handbag", "Pearl Necklace", "Strap Sandals",
           "Steel Watch", "Wool Scarf", "Block Heels", "Cotton Kurta", "Charm Bracelet", "Mini Skirt", "Crop Top"]
+# what the first version picked on the live catalogue: never again
+_JUNK = ["Bolsos Hf Vaso de Plastico Flamenco 260 Ml", "Juego de destornilladores tipo relojero",
+         "Recambio Espaciador Rodamiento Grande Pedal (Wheels)", "Halloween Ghost Pumpkin Acrylic Earrings",
+         "Eurocarnavales 6 Vasos Celestes con Topos Blancos"]
 
 
 async def _store(db, *, limit=50):  # noqa: ANN001, ANN202
@@ -29,7 +33,7 @@ async def _store(db, *, limit=50):  # noqa: ANN001, ANN202
 
 async def _catalogue(db):  # noqa: ANN001, ANN202
     await db.execute(delete(AdmitadFeedItem).where(AdmitadFeedItem.campaign_id == 999001))
-    for i, name in enumerate(_WORDS):
+    for i, name in enumerate(_WORDS + _JUNK):
         db.add(AdmitadFeedItem(campaign_id=999001, campaign_name="Test shop", offer_id=f"o{i}", name=name,
                                price_cents=1000 + i, currency="EUR", image_url=f"https://img.example.com/{i}.jpg",
                                product_url=f"https://shop.example.com/{i}", available=True))
@@ -49,6 +53,7 @@ async def test_adds_ten_real_products_once_and_removes_only_those(db):  # noqa: 
     rows = (await db.execute(select(StoreProduct).where(StoreProduct.store_id == store.id))).scalars().all()
     samples = [p for p in rows if p.external_id.startswith("sample-")]
     assert len(samples) == 10 and all(p.images and p.currency in ("usd", "eur", "gbp") and p.is_active for p in samples)
+    assert not {p.name for p in samples} & set(_JUNK)
 
     again = await add_samples(db, store)
     assert not set(again) & {p.name for p in samples}  # never the same product twice

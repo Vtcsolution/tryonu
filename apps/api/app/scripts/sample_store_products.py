@@ -1,5 +1,6 @@
 """Add 10 test products to a company store, or remove them again.
 
+    python -m app.scripts.sample_store_products --preview       # show what would be added
     python -m app.scripts.sample_store_products                 # add to the test store
     python -m app.scripts.sample_store_products --email x@y.com # add to that owner's store
     python -m app.scripts.sample_store_products --remove        # take the test products out
@@ -8,12 +9,18 @@ The products are real fashion items with real photos, copied from the Admitad
 catalogue already in the database (one per kind: dress, earrings, bag...), so
 search and try-on can be tested on the store. They are marked "sample-" and
 --remove deletes only those; the store's own products are never touched.
+
+Picking: whole words only ("heels" never matches "wheels"), obvious
+non-fashion items skipped (cups, cases, tools, costumes, kids), fashion
+categories and women's items preferred, and a normal price rather than the
+cheapest match.
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import re
 import sys
 
 from sqlalchemy import delete, func, or_, select
@@ -26,60 +33,110 @@ from app.models.user import User
 from app.services import store_service as svc
 
 PREFIX = "sample-"
-# (words in the product name, any language the catalogue uses; category on the card; gender)
+# (whole words in the product name, in the catalogue's languages; category on the card)
 KINDS = [
-    (("dress", "vestido", "robe"), "Dress", "women"),
-    (("lehenga",), "Lehenga", "women"),
-    (("kurta", "kurti"), "Kurta", "women"),
-    (("earrings", "pendientes", "boucles"), "Earrings", "women"),
-    (("necklace", "collar", "collier"), "Necklace", "women"),
-    (("bracelet", "pulsera"), "Bracelet", "women"),
-    (("handbag", "bolso", "sac à main"), "Bag", "women"),
-    (("sandals", "sandalias"), "Shoes", "women"),
-    (("watch", "reloj", "montre"), "Watch", "women"),
-    (("scarf", "pañuelo", "bufanda", "foulard"), "Scarf", "women"),
-    (("heels", "tacón", "tacones"), "Shoes", "women"),
-    (("blouse", "blusa", "top"), "Top", "women"),
-    (("skirt", "falda", "jupe"), "Skirt", "women"),
-    ((" ring", "anillo", "bague"), "Ring", "women"),
+    (("dress", "vestido", "robe"), "Dress"),
+    (("lehenga",), "Lehenga"),
+    (("kurta", "kurti"), "Kurta"),
+    (("earrings", "pendientes", "boucles"), "Earrings"),
+    (("necklace", "collar", "collier"), "Necklace"),
+    (("bracelet", "pulsera"), "Bracelet"),
+    (("handbag", "bolso", "shoulder bag", "tote"), "Bag"),
+    (("sandals", "sandalias"), "Shoes"),
+    (("watch", "reloj", "montre"), "Watch"),
+    (("scarf", "pañuelo", "bufanda", "foulard"), "Scarf"),
+    (("heels", "tacón", "tacones", "pumps"), "Shoes"),
+    (("blouse", "blusa"), "Top"),
+    (("skirt", "falda", "jupe"), "Skirt"),
+    (("ring", "anillo", "bague"), "Ring"),
 ]
 CURRENCIES = ("usd", "eur", "gbp")
+# a normal fashion price: not a 1-euro trinket, not a luxury outlier
+MIN_CENTS, MAX_CENTS = 900, 40_000
+
+# names with any of these are not something to wear
+_NOT_FASHION = re.compile(
+    r"\b(vasos?|cups?|tazas?|mugs?|fundas?|case|cover|funda|juego|set de|destornillador\w*|recambio|repuesto|"
+    r"pedal|rodamiento|wheels?|plástico|plastico|plastic|fiesta|party|halloween|disfraz|costume|carnaval\w*|"
+    r"juguete|toy|niñ[oa]s?|kids?|infantil|bebé|baby|perro|dog|gato|cat|mascota|pet|móvil|movil|phone|"
+    r"iphone|samsung|llavero|keychain|pegatina|sticker|póster|poster|cojín|cushion|lámpara|lamp|herramienta|tool)\b",
+    re.IGNORECASE,
+)
+_FASHION_CATEGORY = re.compile(
+    r"ropa|moda|fashion|vestidos?|clothing|apparel|joyer|jewel|bisuter|bolsos|bags?|calzado|zapat|shoes|"
+    r"accesorios|accessories|relojes|watches|mujer|women",
+    re.IGNORECASE,
+)
+_WOMEN = re.compile(r"\b(mujer|women|woman|womens|ladies|señora|dama|femme|femenin[oa])\b", re.IGNORECASE)
+
+
+def _word_re(words: tuple[str, ...]) -> re.Pattern[str]:
+    return re.compile(r"\b(" + "|".join(re.escape(w) for w in words) + r")\b", re.IGNORECASE)
+
+
+def _score(item: AdmitadFeedItem) -> int:
+    score = 0
+    if item.category and _FASHION_CATEGORY.search(item.category):
+        score += 3
+    if _WOMEN.search(item.name) or (item.category and _WOMEN.search(item.category)):
+        score += 2
+    return score
+
+
+async def pick_samples(db: AsyncSession, *, count: int = 10, skip: set[str] | None = None) -> list[tuple[AdmitadFeedItem, str]]:
+    """One good catalogue item per kind, up to `count`: (item, category label)."""
+    skip = skip or set()
+    picks: list[tuple[AdmitadFeedItem, str]] = []
+    for words, category in KINDS:
+        if len(picks) >= count:
+            break
+        candidates = (
+            await db.execute(
+                select(AdmitadFeedItem)
+                .where(
+                    AdmitadFeedItem.available.is_(True),
+                    or_(*(func.lower(AdmitadFeedItem.name).like(f"%{w}%") for w in words)),
+                    func.lower(AdmitadFeedItem.currency).in_(CURRENCIES),
+                    AdmitadFeedItem.image_url.like("http%"),
+                    AdmitadFeedItem.price_cents.between(MIN_CENTS, MAX_CENTS),
+                )
+                .limit(400)
+            )
+        ).scalars().all()
+        whole = _word_re(words)
+        good = [
+            c
+            for c in candidates
+            if whole.search(c.name) and not _NOT_FASHION.search(c.name) and _external_id(c) not in skip
+        ]
+        if not good:
+            continue
+        best = max(_score(c) for c in good)
+        top = sorted((c for c in good if _score(c) == best), key=lambda c: c.price_cents)
+        item = top[len(top) // 2]  # the middle price among the best matches
+        skip.add(_external_id(item))
+        picks.append((item, category))
+    return picks
+
+
+def _external_id(item: AdmitadFeedItem) -> str:
+    return f"{PREFIX}{item.campaign_id}-{item.offer_id}"[:128]
 
 
 async def add_samples(db: AsyncSession, store: Store, *, count: int = 10) -> list[str]:
     """Up to `count` sample products (within the plan's free slots); returns their names."""
     used = await svc.active_product_count(db, store.id)
     room = max(0, store.plan_product_limit - used) if svc.plan_active(store) else 0
-    wanted = min(count, room)
     have = set(
         (await db.execute(select(StoreProduct.external_id).where(StoreProduct.store_id == store.id))).scalars()
     )
-    added: list[str] = []
-    for words, category, gender in KINDS:
-        if len(added) >= wanted:
-            break
-        item = await db.scalar(
-            select(AdmitadFeedItem)
-            .where(
-                AdmitadFeedItem.available.is_(True),
-                or_(*(func.lower(AdmitadFeedItem.name).like(f"%{w}%") for w in words)),
-                func.lower(AdmitadFeedItem.currency).in_(CURRENCIES),
-                AdmitadFeedItem.image_url.like("http%"),
-                AdmitadFeedItem.price_cents > 0,
-            )
-            .order_by(AdmitadFeedItem.price_cents)
-            .limit(1)
-        )
-        if item is None:
-            continue
-        external_id = f"{PREFIX}{item.campaign_id}-{item.offer_id}"[:128]
-        if external_id in have:
-            continue
+    picks = await pick_samples(db, count=min(count, room), skip=have)
+    for item, category in picks:
         db.add(
             StoreProduct(
                 store_id=store.id,
                 source="manual",
-                external_id=external_id,
+                external_id=_external_id(item),
                 name=item.name[:512],
                 description=(item.description or "")[:4000] or None,
                 price_cents=item.price_cents,
@@ -87,14 +144,12 @@ async def add_samples(db: AsyncSession, store: Store, *, count: int = 10) -> lis
                 images=[item.image_url],
                 product_url=item.product_url,
                 category=category,
-                gender=gender,
+                gender="women",
                 is_active=True,
             )
         )
-        have.add(external_id)
-        added.append(item.name)
     await db.commit()
-    return added
+    return [item.name for item, _ in picks]
 
 
 async def remove_samples(db: AsyncSession, store: Store) -> int:
@@ -109,9 +164,16 @@ async def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--email", default="ranazia943+store@gmail.com", help="the store owner's sign-in email")
     parser.add_argument("--remove", action="store_true", help="remove the test products")
+    parser.add_argument("--preview", action="store_true", help="only show what would be added")
     args = parser.parse_args()
 
     async with AsyncSessionLocal() as db:
+        if args.preview:
+            picks = await pick_samples(db)
+            print(f"Would add {len(picks)} product(s):")
+            for item, category in picks:
+                print(f"  {category:9} {item.price_cents / 100:>8.2f} {item.currency.upper()}  {item.name[:80]}")
+            return 0
         user = await db.scalar(select(User).where(User.email == args.email.lower()))
         store = await db.scalar(select(Store).where(Store.owner_user_id == user.id)) if user else None
         if store is None:
@@ -128,7 +190,7 @@ async def main() -> int:
         for name in added:
             print(f"  + {name[:90]}")
         if not added:
-            print("Nothing added: the plan is full, the test products are already there, or the Admitad catalogue is empty.")
+            print("Nothing added: the plan is full, the test products are already there, or nothing fashion-like matched.")
         live = "LIVE: shoppers can find them" if svc.is_live(store) else "not live yet (needs approval and a plan)"
         print(f"Store is {live}. Remove them later with --remove.")
     return 0
