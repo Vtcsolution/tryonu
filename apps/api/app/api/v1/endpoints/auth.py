@@ -11,6 +11,7 @@ from app.core.security import TokenType, decode_token
 from app.models.user import User
 from app.schemas.common import Message
 from app.schemas.user import (
+    ChangePasswordRequest,
     ForgotPasswordRequest,
     LoginRequest,
     RegisterRequest,
@@ -112,6 +113,23 @@ async def forgot_password(payload: ForgotPasswordRequest, db: DbSession):
 async def reset_password(payload: ResetPasswordRequest, db: DbSession):
     await auth_service.reset_password(db, token=payload.token, new_password=payload.new_password)
     return Message(detail="Password updated — please sign in again.")
+
+
+@router.post(
+    "/change-password",
+    response_model=TokenResponse,
+    dependencies=[Depends(rate_limiter("auth_change_password", limit=10, window_seconds=3600))],
+)
+async def change_password(
+    payload: ChangePasswordRequest, user: CurrentUser, request: Request, response: Response, db: DbSession
+):
+    await auth_service.change_password(
+        db, user=user, current_password=payload.current_password, new_password=payload.new_password
+    )
+    # other devices are signed out; this one stays signed in with fresh tokens
+    access, refresh = await auth_service.issue_tokens(db, user, user_agent=request.headers.get("user-agent"))
+    set_auth_cookies(response, access_token=access, refresh_token=refresh)
+    return TokenResponse(access_token=access, user=UserOut.model_validate(user))
 
 
 @router.post(

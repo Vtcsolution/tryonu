@@ -51,6 +51,10 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         back_populates="user", cascade="all, delete-orphan", uselist=False
     )
 
+    @property
+    def has_password(self) -> bool:
+        return bool(self.hashed_password)
+
 
 class RefreshToken(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """Enables refresh-token revocation/rotation independent of JWT expiry."""

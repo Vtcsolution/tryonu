@@ -80,6 +80,12 @@ export const auth = {
 
   resendVerification: () =>
     apiFetch<{ detail: string }>("/api/v1/auth/resend-verification", { method: "POST" }),
+
+  changePassword: (input: { current_password: string | null; new_password: string }) =>
+    apiFetch<AuthResponse>("/api/v1/auth/change-password", { method: "POST", body: input }),
+
+  updateProfile: (input: { full_name: string }) =>
+    apiFetch<User>("/api/v1/users/me", { method: "PATCH", body: input }),
 };
 
 /* --------------------------------- photos --------------------------------- */

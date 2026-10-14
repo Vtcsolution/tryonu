@@ -18,6 +18,7 @@ class UserOut(ORMModel):
     email_verified: bool
     credits_balance: int
     created_at: datetime
+    has_password: bool = False
 
 
 class RegisterRequest(BaseModel):
@@ -33,6 +34,12 @@ class LoginRequest(BaseModel):
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
+
+
+class ChangePasswordRequest(BaseModel):
+    # not needed for an account that has no password yet (signed up with Google)
+    current_password: str | None = Field(default=None, max_length=128)
+    new_password: str = Field(min_length=8, max_length=128)
 
 
 class ResetPasswordRequest(BaseModel):

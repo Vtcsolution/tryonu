@@ -25,6 +25,8 @@ export type User = {
   email_verified: boolean;
   credits_balance: number;
   created_at: string;
+  /** false for an account made with Google that has no password yet */
+  has_password?: boolean;
 };
 
 export type AuthResponse = {

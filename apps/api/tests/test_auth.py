@@ -78,3 +78,52 @@ async def test_google_login_501_when_not_configured(client):
     # clearly rather than pretend to work.
     resp = await client.get("/api/v1/auth/google/login", follow_redirects=False)
     assert resp.status_code == 501
+
+
+async def test_change_password_needs_the_current_one_and_keeps_you_signed_in(client):
+    email = unique_email()
+    await register_and_login(client, email=email)
+
+    wrong = await client.post(
+        "/api/v1/auth/change-password", json={"current_password": "not-it", "new_password": "brand-new-pass"}
+    )
+    assert wrong.status_code == 400
+
+    ok = await client.post(
+        "/api/v1/auth/change-password", json={"current_password": "password123", "new_password": "brand-new-pass"}
+    )
+    assert ok.status_code == 200, ok.text
+    assert (await client.get("/api/v1/auth/me")).status_code == 200
+
+    old = await client.post("/api/v1/auth/login", json={"email": email, "password": "password123"})
+    assert old.status_code == 401
+    new = await client.post("/api/v1/auth/login", json={"email": email, "password": "brand-new-pass"})
+    assert new.status_code == 200
+    assert new.json()["user"]["has_password"] is True
+
+
+async def test_change_password_requires_sign_in(client):
+    await client.post("/api/v1/auth/logout")
+    resp = await client.post("/api/v1/auth/change-password", json={"new_password": "brand-new-pass"})
+    assert resp.status_code == 401
+
+
+async def test_account_without_password_can_set_its_first(client):
+    from sqlalchemy import select
+
+    from app.db.session import AsyncSessionLocal
+    from app.models.user import User
+
+    email = unique_email()
+    await register_and_login(client, email=email)
+    async with AsyncSessionLocal() as db:  # as if signed up with Google
+        user = (await db.execute(select(User).where(User.email == email))).scalar_one()
+        user.hashed_password = None
+        await db.commit()
+
+    me = await client.get("/api/v1/auth/me")
+    assert me.json()["has_password"] is False
+    resp = await client.post("/api/v1/auth/change-password", json={"new_password": "first-password"})
+    assert resp.status_code == 200, resp.text
+    login = await client.post("/api/v1/auth/login", json={"email": email, "password": "first-password"})
+    assert login.status_code == 200

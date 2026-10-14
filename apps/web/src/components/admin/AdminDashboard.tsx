@@ -14,6 +14,7 @@ import {
   SubscriptionsTab,
   SystemTab,
 } from "./ActivityTabs";
+import { AccountSettings } from "@/components/account/AccountSettings";
 import { AdminShell, type NavGroup } from "./AdminShell";
 import { AnalyticsTab } from "./AnalyticsTab";
 import { ProductsTab, RetailersTab } from "./CatalogTabs";
@@ -40,7 +41,8 @@ type Tab =
   | "subscriptions"
   | "clicks"
   | "ai-usage"
-  | "audit";
+  | "audit"
+  | "account";
 
 const NAV: readonly NavGroup<Tab>[] = [
   {
@@ -77,6 +79,12 @@ const NAV: readonly NavGroup<Tab>[] = [
       { id: "clicks", label: "Shop clicks", icon: "clicks" },
       { id: "ai-usage", label: "AI usage", icon: "ai" },
       { id: "audit", label: "Audit log", icon: "audit" },
+    ],
+  },
+  {
+    group: "You",
+    tabs: [
+      { id: "account", label: "My account & password", icon: "users" },
     ],
   },
 ];
@@ -171,6 +179,7 @@ export function AdminDashboard() {
         {tab === "clicks" && <AffiliateClicksTab />}
         {tab === "ai-usage" && <AIUsageTab />}
         {tab === "audit" && <AuditLogTab />}
+        {tab === "account" && <AccountSettings user={user} />}
       </div>
     </AdminShell>
   );

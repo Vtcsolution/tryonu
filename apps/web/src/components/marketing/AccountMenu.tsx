@@ -90,6 +90,7 @@ export function AccountMenu() {
             { href: "/saved", label: "Saved looks" },
             { href: "/preferences", label: "My style picks" },
             { href: "/credits", label: "Buy credits" },
+            { href: "/account", label: "My account & password" },
             ...(user.is_admin ? [{ href: "/admin", label: "Admin dashboard" }] : []),
           ].map((item) => (
             <Link

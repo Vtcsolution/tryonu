@@ -270,6 +270,20 @@ async def request_password_reset(db: AsyncSession, *, email: str) -> None:
     logger.info("password_reset_email_sent", user_id=user.id)
 
 
+async def change_password(db: AsyncSession, *, user: User, current_password: str | None, new_password: str) -> None:
+    """A signed-in user changes their password. The current one must match,
+    unless the account has none yet (Google sign-up), which sets its first.
+    Every other device is signed out; the caller issues this session new tokens."""
+    if user.hashed_password and not (current_password and verify_password(current_password, user.hashed_password)):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Your current password is not correct")
+    if user.hashed_password and verify_password(new_password, user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="The new password must be different")
+    user.hashed_password = hash_password(new_password)
+    await revoke_all_refresh_tokens(db, user.id)
+    await db.commit()
+    logger.info("password_changed", user_id=user.id)
+
+
 async def reset_password(db: AsyncSession, *, token: str, new_password: str) -> None:
     token_hash = _hash_token(token)
     result = await db.execute(select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash))
