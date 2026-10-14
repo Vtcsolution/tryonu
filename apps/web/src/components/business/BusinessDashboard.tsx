@@ -13,7 +13,7 @@ import { ApiError } from "@/lib/api/client";
 import { credits as creditsApi, stores as storesApi } from "@/lib/api/endpoints";
 import type { Store, StoreDelivery, StorePlan, StoreProduct, StoreProductInput, User } from "@/lib/api/types";
 import { useSession } from "@/lib/auth/useSession";
-import { countryName, countryOptions, deliveryText } from "@/lib/countries";
+import { countryFlag, countryName, countryOptions, deliveryText } from "@/lib/countries";
 
 const STORE_KEY = ["business", "store"];
 
@@ -146,13 +146,14 @@ function OpenStore() {
 
 // ------------------------------------------------------------------ store panel
 
-type Tab = "overview" | "products" | "import" | "profile" | "plan" | "payments" | "account";
+type Tab = "overview" | "info" | "products" | "import" | "profile" | "plan" | "payments" | "account";
 
 const NAV: readonly NavGroup<Tab>[] = [
   {
     group: "My store",
     tabs: [
       { id: "overview", label: "Overview", icon: "overview" },
+      { id: "info", label: "My store info", icon: "audit" },
       { id: "products", label: "Products", icon: "products" },
       { id: "import", label: "Import products", icon: "upload" },
       { id: "profile", label: "Store details", icon: "retailers" },
@@ -242,6 +243,7 @@ function StorePanel({ store, user }: { store: Store; user: User }) {
             <StatsSection />
           </>
         )}
+        {tab === "info" && <StoreInfo store={store} email={user.email} go={go} />}
         {tab === "products" && (store.plan_active ? <ProductsSection store={store} /> : <NeedsPlan go={go} what="add products" />)}
         {tab === "import" && (store.plan_active ? <FeedSection store={store} /> : <NeedsPlan go={go} what="import products" />)}
         {tab === "profile" && <ProfileSection store={store} />}
@@ -250,6 +252,148 @@ function StorePanel({ store, user }: { store: Store; user: User }) {
         {tab === "account" && <AccountSettings user={user} />}
       </div>
     </AdminShell>
+  );
+}
+
+const DAY_MS = 86_400_000;
+
+/** Everything about the store in one place, each with where to change it. */
+function StoreInfo({ store, email, go }: { store: Store; email: string; go: (tab: Tab) => void }) {
+  const status = STATUS[store.status] ?? STATUS.pending;
+  const ends = store.plan_expires_at ? new Date(store.plan_expires_at) : null;
+  const daysLeft = ends ? Math.max(0, Math.ceil((ends.getTime() - Date.now()) / DAY_MS)) : 0;
+  const planName = (store.plan_code ?? "").replace(/^./, (c) => c.toUpperCase());
+  const notLiveWhy =
+    store.status !== "approved" ? "waiting for TryOnU's approval" : !store.plan_active ? "no active plan" : "";
+  const rows: { label: string; value: ReactNode; tab?: Tab; action?: string }[] = [
+    { label: "Store name", value: store.name, tab: "profile", action: "Change" },
+    {
+      label: "Country",
+      value: (
+        <>
+          <span className="mr-1.5 text-[18px]" aria-hidden="true">{countryFlag(store.country)}</span>
+          {countryName(store.country)}
+          <span className="block text-[12.5px] text-muted">Shoppers in {countryName(store.country)} see your products first.</span>
+        </>
+      ),
+      tab: "profile",
+      action: "Change",
+    },
+    {
+      label: "Delivers to",
+      value: (
+        <>
+          🚚 {deliveryText(store.delivery, store.delivery_countries, store.country)}
+          <span className="block text-[12.5px] text-muted">Shoppers elsewhere don&apos;t see your products.</span>
+        </>
+      ),
+      tab: "profile",
+      action: "Change",
+    },
+    {
+      label: "Status",
+      value: (
+        <span className="flex flex-wrap items-center gap-2">
+          <Badge tone={status.tone}>{status.label}</Badge>
+          <Badge tone={store.live ? "good" : "neutral"}>{store.live ? "Live: shoppers can find you" : `Not live: ${notLiveWhy}`}</Badge>
+        </span>
+      ),
+    },
+    {
+      label: "Your store page",
+      value: store.live ? (
+        <a href={`/stores/${store.slug}`} target="_blank" rel="noopener" className="font-medium text-sage-deep hover:underline">
+          tryonu.app/stores/{store.slug} ↗
+        </a>
+      ) : (
+        <span className="text-muted">tryonu.app/stores/{store.slug} (opens once you&apos;re live)</span>
+      ),
+    },
+    {
+      label: "Plan",
+      value: store.plan_active ? (
+        <>
+          {planName}
+          {store.plan_free ? " · free from TryOnU" : ""}
+          <span className="block text-[12.5px] text-muted">
+            Ends {ends?.toLocaleDateString()} · {daysLeft === 1 ? "1 day left" : `${daysLeft} days left`}
+            {store.auto_renew ? " · renews automatically" : ""}
+          </span>
+        </>
+      ) : (
+        <span className="text-muted">No plan yet</span>
+      ),
+      tab: "plan",
+      action: store.plan_active ? "Renew or upgrade" : "Choose a plan",
+    },
+    {
+      label: "Products",
+      value: store.plan_active
+        ? `${store.product_count} of ${store.plan_product_limit.toLocaleString()} used · ${Math.max(0, store.plan_product_limit - store.product_count).toLocaleString()} left`
+        : `${store.product_count} (a plan sets your limit)`,
+      tab: "products",
+      action: "Manage",
+    },
+    {
+      label: "Featured",
+      value: `★ ${store.featured_count ?? 0} of ${store.plan_featured_limit ?? 0}`,
+      tab: "products",
+      action: "Manage",
+    },
+    {
+      label: "Product feed",
+      value: store.feed_url ? (
+        <>
+          Connected
+          {store.feed_last_result && <span className="block text-[12.5px] text-muted">Last import: {store.feed_last_result}</span>}
+        </>
+      ) : (
+        <span className="text-muted">Not connected</span>
+      ),
+      tab: "import",
+      action: store.feed_url ? "Change" : "Connect",
+    },
+    { label: "Website", value: store.website_url ?? <span className="text-muted">Not added</span>, tab: "profile", action: "Change" },
+    { label: "Contact email", value: store.contact_email ?? <span className="text-muted">Not added</span>, tab: "profile", action: "Change" },
+    { label: "Sign-in email", value: email, tab: "account", action: "Change password" },
+    { label: "Opened on TryOnU", value: store.opened_at ? new Date(store.opened_at).toLocaleDateString() : "—" },
+  ];
+  return (
+    <section className="rounded-[24px] border border-line bg-surface p-6">
+      <div className="flex flex-wrap items-center gap-4">
+        {store.logo_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={store.logo_url} alt="" className="h-16 w-16 rounded-[16px] border border-line object-cover" />
+        ) : (
+          <div className="grid h-16 w-16 place-items-center rounded-[16px] bg-sage text-[26px] font-semibold text-white">
+            {store.name.slice(0, 1).toUpperCase()}
+          </div>
+        )}
+        <div>
+          <h2 className="font-display text-[26px] leading-tight text-ink">{store.name}</h2>
+          <p className="text-[14px] text-muted">
+            {countryFlag(store.country)} {countryName(store.country)} · Store on TryOnU
+          </p>
+        </div>
+      </div>
+      <dl className="mt-6 divide-y divide-line rounded-[18px] border border-line">
+        {rows.map((row) => (
+          <div key={row.label} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3.5 sm:flex-nowrap">
+            <dt className="w-full text-[13px] font-medium text-muted sm:w-44 sm:shrink-0">{row.label}</dt>
+            <dd className="min-w-0 flex-1 text-[15px] text-ink">{row.value}</dd>
+            {row.tab && row.action && (
+              <button
+                type="button"
+                onClick={() => go(row.tab!)}
+                className="tu-press min-h-[36px] shrink-0 rounded-full border border-line-strong px-3.5 text-[13px] font-medium text-ink hover:border-ink/40"
+              >
+                {row.action}
+              </button>
+            )}
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 

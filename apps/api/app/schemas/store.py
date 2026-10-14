@@ -63,6 +63,8 @@ class StoreOut(BaseModel):
     featured_count: int = 0
     delivery: str = "domestic"
     delivery_countries: list[str] = []
+    # when the store was opened on TryOnU
+    opened_at: datetime | None = None
     live: bool
     product_count: int
     feed_url: str | None

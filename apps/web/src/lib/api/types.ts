@@ -586,6 +586,8 @@ export type Store = {
   /** domestic: its own country only | countries: plus delivery_countries | worldwide */
   delivery?: StoreDelivery;
   delivery_countries?: string[];
+  /** when the store was opened on TryOnU */
+  opened_at?: string | null;
   live: boolean;
   product_count: number;
   feed_url: string | null;

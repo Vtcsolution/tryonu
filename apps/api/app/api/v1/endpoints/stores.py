@@ -76,6 +76,7 @@ async def _out(db: DbSession, store: Store) -> StoreOut:
         featured_count=await svc.featured_count(db, store.id),
         delivery=store.delivery,
         delivery_countries=svc.countries_list(store.delivery_countries),
+        opened_at=store.created_at,
         live=svc.is_live(store),
         product_count=await svc.active_product_count(db, store.id),
         feed_url=store.feed_url,
