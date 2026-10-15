@@ -29,6 +29,8 @@ class StorePlan(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     product_limit: Mapped[int] = mapped_column(Integer, nullable=False)
     # how many of its products the store can feature (shown first when they fit a shopper's ask)
     featured_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # shopper try-ons the store pays for, included with the plan
+    tryon_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     duration_days: Mapped[int] = mapped_column(Integer, nullable=False, default=30)
     position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
@@ -59,6 +61,8 @@ class Store(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     plan_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
     plan_product_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     plan_featured_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # try-on credits left: each pays for one shopper's try-on of its products
+    tryon_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     plan_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # the current plan was given free by an admin (not paid for)
     plan_free: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
@@ -127,3 +131,27 @@ class StoreProductView(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     day: Mapped[date] = mapped_column(Date, nullable=False)
     views: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class StoreTryOn(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A shopper tried on a look with this store's product (one row per store
+    product in the look). The picture is shown to the store only when shared."""
+
+    __tablename__ = "store_tryons"
+    __table_args__ = (
+        Index("ix_store_tryons_store_created", "store_id", "created_at"),
+        Index("ix_store_tryons_job", "tryon_job_id"),
+    )
+
+    store_id: Mapped[str] = mapped_column(String(36), ForeignKey("stores.id", ondelete="CASCADE"), nullable=False)
+    store_product_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("store_products.id", ondelete="SET NULL"), nullable=True
+    )
+    tryon_job_id: Mapped[str] = mapped_column(String(36), ForeignKey("tryon_jobs.id", ondelete="CASCADE"), nullable=False)
+    # the store's try-on credit paid for it (the shopper paid nothing)
+    paid_by_store: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # the shopper agreed to show this store their try-on picture
+    shared: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # the try-on failed and the store got its credit back
+    refunded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    shopper_country: Mapped[str | None] = mapped_column(String(2), nullable=True)

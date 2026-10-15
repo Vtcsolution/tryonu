@@ -34,6 +34,16 @@ class CreateTryOnRequest(BaseModel):
     distractor_options: dict[str, list[DistractorOption]] | None = None
     # add these products onto this finished look of the shopper's
     base_job_id: str | None = None
+    # the shopper chose the free try-on a TryOnU store pays for, and agreed to
+    # share the picture with that store (see GET /tryon/sponsor)
+    use_store_credit: bool = False
+
+
+class TryOnSponsorOut(BaseModel):
+    """The store that would pay for this try-on, if any."""
+
+    store_id: str | None = None
+    store_name: str | None = None
 
 
 class CreateMultiTryOnRequest(BaseModel):

@@ -79,6 +79,8 @@ def activate_plan(store: Store, plan: StorePlan, *, free: bool = False) -> None:
     store.plan_code = plan.code
     store.plan_product_limit = plan.product_limit
     store.plan_featured_limit = plan.featured_limit or 0
+    # try-on credits add up: what's left carries over into the new period
+    store.tryon_credits = (store.tryon_credits or 0) + (plan.tryon_credits or 0)
     store.plan_expires_at = start + timedelta(days=plan.duration_days)
     store.plan_free = free
 

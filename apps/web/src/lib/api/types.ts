@@ -559,6 +559,8 @@ export type StorePlan = {
   product_limit: number;
   /** how many products a store on this plan can feature */
   featured_limit: number;
+  /** shopper try-ons the store pays for, included with the plan */
+  tryon_credits: number;
   duration_days: number;
   is_active: boolean;
 };
@@ -588,6 +590,8 @@ export type Store = {
   delivery_countries?: string[];
   /** when the store was opened on TryOnU */
   opened_at?: string | null;
+  /** shopper try-ons the store can still pay for */
+  tryon_credits?: number;
   live: boolean;
   product_count: number;
   feed_url: string | null;
@@ -676,3 +680,35 @@ export type AdminStoreSummary = {
   products: number;
   plan_revenue: Record<string, number>;
 };
+
+export type StoreTryOnPicture = {
+  id: string;
+  image_url: string;
+  product_name: string;
+  product_url: string | null;
+  product_image: string | null;
+  shopper_country: string | null;
+  paid_by_store: boolean;
+  created_at: string;
+};
+
+export type StoreTryOns = {
+  credits_left: number;
+  plan_credits: number;
+  used_by_store: number;
+  used_30d: number;
+  tryons_total: number;
+  private_tryons: number;
+  products: { store_product_id: string | null; name: string; tryons: number; paid_by_store: number; shared: number }[];
+  pictures: StoreTryOnPicture[];
+};
+
+export type StoreCosts = {
+  fashn_credits_per_tryon: number;
+  fashn_credit_pkr: number;
+  usd_to_pkr: number;
+  tryon_cost_usd_cents: number;
+};
+
+/** The TryOnU store that would pay for a try-on, if any. */
+export type TryOnSponsor = { store_id: string | null; store_name: string | null };

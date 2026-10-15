@@ -98,6 +98,11 @@ class Settings(BaseSettings):
     SIGNUP_FREE_CREDITS: int = 0
     TRYON_CREDIT_COST: int = 10
     OUTFIT_TRYON_CREDIT_COST: int = 10
+    # what one try-on costs us, for pricing store plans with a margin:
+    # FASHN credits per try-on x the price of one FASHN credit in PKR
+    STORE_FASHN_CREDITS_PER_TRYON: int = 4
+    STORE_FASHN_CREDIT_PKR: int = 30
+    STORE_USD_TO_PKR: int = 280
 
     # --- AI providers ---
     # "mock" needs no credentials and simulates a realistic job lifecycle —

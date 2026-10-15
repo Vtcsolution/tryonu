@@ -18,7 +18,7 @@ from app.models.product import Product
 from app.models.tryon import TryOnJob
 from app.models.wardrobe import WardrobeItem
 from app.schemas.common import Page
-from app.schemas.tryon import CreateMultiTryOnRequest, CreateTryOnRequest, TryOnJobOut
+from app.schemas.tryon import CreateMultiTryOnRequest, CreateTryOnRequest, TryOnJobOut, TryOnSponsorOut
 from app.services import credit_service
 from app.services.credit_service import InsufficientCreditsError
 from app.services.queue import enqueue_tryon_job
@@ -104,21 +104,38 @@ async def _create_one_job(
     cost: int,
     distractor_options: dict[str, list] | None = None,
     base: TryOnJob | None = None,
+    use_store_credit: bool = False,
 ) -> str:
+    from app.services import store_tryons
+    from app.services.shopper_context import current_country, use_profile_country
+
     provider = get_tryon_provider()
     job_id = new_uuid()
     kind = "product" if product_id else "outfit" if outfit_id else "wardrobe item"
 
-    # Debit first: if the user can't afford it, no job row is ever created.
-    await credit_service.debit(
-        db,
-        user_id=user.id,
-        amount=cost,
-        reason=CreditReason.TRYON_DEBIT,
-        reference_type="tryon_job",
-        reference_id=job_id,
-        note=f"Try-on ({kind})",
+    # TryOnU store products in the look: each store sees its products were tried on
+    items = await store_tryons.store_products_in(
+        db, await store_tryons.look_product_ids(db, product_id=product_id, outfit_id=outfit_id)
     )
+    sponsor = store_tryons.sponsor_of(items) if use_store_credit else None
+    if use_store_credit and (sponsor is None or not await store_tryons.charge(db, sponsor.id)):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This store's free try-ons have just run out. You can still try it on with your own credits.",
+        )
+    if sponsor is not None:
+        cost = 0  # the store pays: nothing taken from the shopper
+    else:
+        # Debit first: if the user can't afford it, no job row is ever created.
+        await credit_service.debit(
+            db,
+            user_id=user.id,
+            amount=cost,
+            reason=CreditReason.TRYON_DEBIT,
+            reference_type="tryon_job",
+            reference_id=job_id,
+            note=f"Try-on ({kind})",
+        )
 
     job = TryOnJob(
         id=job_id,
@@ -141,6 +158,12 @@ async def _create_one_job(
         ),
     )
     db.add(job)
+    if items:
+        await db.flush()  # the job row first: store try-ons point at it
+        await use_profile_country(db, user.id)
+        store_tryons.record(
+            db, job_id=job_id, items=items, sponsor=sponsor, shared=use_store_credit, country=current_country()
+        )
     await db.commit()
     enqueue_tryon_job(job.id)
     return job_id
@@ -193,8 +216,24 @@ async def create_tryon(payload: CreateTryOnRequest, user: CurrentUser, db: DbSes
         cost=cost,
         distractor_options=payload.distractor_options,
         base=base,
+        use_store_credit=payload.use_store_credit and not payload.wardrobe_item_id,
     )
     return await _load_job(db, job_id)
+
+
+@router.get("/sponsor", response_model=TryOnSponsorOut)
+async def tryon_sponsor(user: CurrentUser, db: DbSession, product_id: str | None = None, outfit_id: str | None = None):
+    """The TryOnU store that would pay for trying on this product or look,
+    so the shopper can choose a free try-on (shared with that store)."""
+    from app.services import store_tryons
+
+    if outfit_id:
+        outfit = await db.get(Outfit, outfit_id)
+        if outfit is None or outfit.user_id != user.id:
+            return TryOnSponsorOut()
+    ids = await store_tryons.look_product_ids(db, product_id=product_id, outfit_id=outfit_id)
+    store = store_tryons.sponsor_of(await store_tryons.store_products_in(db, ids))
+    return TryOnSponsorOut(store_id=store.id, store_name=store.name) if store else TryOnSponsorOut()
 
 
 @router.post("/multi", response_model=list[TryOnJobOut], status_code=status.HTTP_201_CREATED, dependencies=[_tryon_rate_limit])

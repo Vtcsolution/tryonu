@@ -16,6 +16,7 @@ class StorePlanOut(BaseModel):
     currency: str
     product_limit: int
     featured_limit: int = 0
+    tryon_credits: int = 0
     duration_days: int
     is_active: bool = True
 
@@ -65,6 +66,8 @@ class StoreOut(BaseModel):
     delivery_countries: list[str] = []
     # when the store was opened on TryOnU
     opened_at: datetime | None = None
+    # shopper try-ons the store can still pay for
+    tryon_credits: int = 0
     live: bool
     product_count: int
     feed_url: str | None
@@ -146,6 +149,7 @@ class AdminStorePlanUpdate(BaseModel):
     price_cents: int | None = Field(default=None, gt=0, le=100_000_00)
     product_limit: int | None = Field(default=None, gt=0, le=1_000_000)
     featured_limit: int | None = Field(default=None, ge=0, le=1_000_000)
+    tryon_credits: int | None = Field(default=None, ge=0, le=1_000_000)
     duration_days: int | None = Field(default=None, gt=0, le=3650)
     is_active: bool | None = None
 
@@ -220,3 +224,44 @@ class SubscriptionStartOut(BaseModel):
 class SubscriptionSyncOut(BaseModel):
     result: str
     store: StoreOut
+
+
+class StoreTryOnProductOut(BaseModel):
+    store_product_id: str | None
+    name: str
+    tryons: int
+    paid_by_store: int
+    shared: int
+
+
+class StoreTryOnPictureOut(BaseModel):
+    id: str
+    image_url: str
+    product_name: str
+    product_url: str | None
+    product_image: str | None
+    shopper_country: str | None
+    paid_by_store: bool
+    created_at: datetime
+
+
+class StoreTryOnsOut(BaseModel):
+    credits_left: int
+    plan_credits: int  # what the current plan includes per period
+    used_by_store: int  # all time, refunds excluded
+    used_30d: int
+    tryons_total: int  # every try-on of the store's products, shared or not
+    private_tryons: int  # tried on, picture kept private by the shopper
+    products: list[StoreTryOnProductOut]
+    pictures: list[StoreTryOnPictureOut]
+
+
+class StoreCostsOut(BaseModel):
+    fashn_credits_per_tryon: int
+    fashn_credit_pkr: int
+    usd_to_pkr: int
+    tryon_cost_usd_cents: int
+
+
+class AdminTryOnCreditsIn(BaseModel):
+    amount: int = Field(ge=-100_000, le=100_000)

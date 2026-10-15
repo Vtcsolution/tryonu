@@ -146,6 +146,13 @@ SPECS: tuple[SettingSpec, ...] = (
     SettingSpec("SIGNUP_FREE_CREDITS", "Free credits on signup", "credits", "int", min_value=0),
     SettingSpec("TRYON_CREDIT_COST", "Single-item try-on cost", "credits", "int", min_value=1),
     SettingSpec("OUTFIT_TRYON_CREDIT_COST", "Outfit try-on cost", "credits", "int", min_value=1),
+    SettingSpec("STORE_FASHN_CREDITS_PER_TRYON", "FASHN credits per try-on", "credits", "int",
+                help="How many FASHN credits one try-on uses (4 at 2k quality). Used to show each store plan's cost and margin.",
+                min_value=1),
+    SettingSpec("STORE_FASHN_CREDIT_PKR", "Price of one FASHN credit (PKR)", "credits", "int",
+                help="What you pay FASHN for one credit, in Pakistani rupees.", min_value=1),
+    SettingSpec("STORE_USD_TO_PKR", "PKR per US dollar", "credits", "int",
+                help="To compare try-on costs with store plan prices in dollars.", min_value=1),
 )
 
 SPECS_BY_KEY = {s.key: s for s in SPECS}

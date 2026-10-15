@@ -31,6 +31,8 @@ from app.schemas.store import (
     AdminStoreOut,
     AdminStorePlanUpdate,
     AdminStoreStatusIn,
+    AdminTryOnCreditsIn,
+    StoreCostsOut,
     StoreCreate,
     StoreFeedIn,
     StoreFeedResult,
@@ -39,10 +41,14 @@ from app.schemas.store import (
     StoreProductIn,
     StoreProductOut,
     StoreProductUpdate,
+    StoreTryOnPictureOut,
+    StoreTryOnProductOut,
+    StoreTryOnsOut,
     StoreUpdate,
     SubscriptionStartOut,
     SubscriptionSyncOut,
 )
+from app.core.config import get_settings
 from app.services import store_service as svc
 from app.services.image_service import validate_and_optimize
 from app.services.safe_fetch import UnsafeURLError, check_public_url
@@ -77,6 +83,7 @@ async def _out(db: DbSession, store: Store) -> StoreOut:
         delivery=store.delivery,
         delivery_countries=svc.countries_list(store.delivery_countries),
         opened_at=store.created_at,
+        tryon_credits=store.tryon_credits,
         live=svc.is_live(store),
         product_count=await svc.active_product_count(db, store.id),
         feed_url=store.feed_url,
@@ -434,6 +441,31 @@ async def admin_set_status(store_id: str, payload: AdminStoreStatusIn, admin: Ad
     return AdminStoreOut(**base.model_dump(), owner_email=owner_email or "", created_at=store.created_at)
 
 
+@admin_router.get("/costs", response_model=StoreCostsOut)
+async def admin_costs(_: AdminUser):
+    """What one try-on costs TryOnU, to price store plans with a margin."""
+    from app.services.store_tryons import tryon_cost_usd_cents
+
+    s = get_settings()
+    return StoreCostsOut(
+        fashn_credits_per_tryon=s.STORE_FASHN_CREDITS_PER_TRYON,
+        fashn_credit_pkr=s.STORE_FASHN_CREDIT_PKR,
+        usd_to_pkr=s.STORE_USD_TO_PKR,
+        tryon_cost_usd_cents=tryon_cost_usd_cents(),
+    )
+
+
+@admin_router.post("/{store_id}/tryon-credits", response_model=AdminStoreDetailOut)
+async def admin_adjust_tryon_credits(store_id: str, payload: AdminTryOnCreditsIn, admin: AdminUser, db: DbSession):
+    """Add (or, negative, take away) try-on credits for a store."""
+    store = await _admin_store(db, store_id)
+    store.tryon_credits = max(0, store.tryon_credits + payload.amount)
+    await db.commit()
+    await db.refresh(store)
+    logger.info("store_tryon_credits_adjusted", store_id=store.id, amount=payload.amount, admin_id=admin.id)
+    return await _admin_detail(db, store)
+
+
 @admin_router.get("/plans", response_model=list[StorePlanOut])
 async def admin_list_plans(_: AdminUser, db: DbSession):
     plans = (await db.execute(select(StorePlan).order_by(StorePlan.position))).scalars()
@@ -480,6 +512,94 @@ async def _payments(db, store_id: str) -> list[StorePaymentOut]:  # noqa: ANN001
 async def my_stats(user: CurrentUser, db: DbSession, days: int = 30):
     store = await _my_store(db, user)
     return await svc.store_stats(db, store.id, days=max(1, min(days, 365)))
+
+
+@router.get("/me/tryons", response_model=StoreTryOnsOut)
+async def my_tryons(user: CurrentUser, db: DbSession):
+    """Shoppers' try-ons of this store's products: credits used and left, per
+    product, and the pictures shoppers agreed to share."""
+    store = await _my_store(db, user)
+    return await _tryons_out(db, store)
+
+
+async def _tryons_out(db: DbSession, store: Store) -> StoreTryOnsOut:
+    from datetime import timedelta
+
+    from sqlalchemy.orm import selectinload
+
+    from app.models.store import StoreTryOn
+    from app.models.tryon import TryOnJob
+
+    rows = (
+        await db.execute(
+            select(StoreTryOn).where(StoreTryOn.store_id == store.id).order_by(StoreTryOn.created_at.desc()).limit(5000)
+        )
+    ).scalars().all()
+    since = svc.utcnow() - timedelta(days=30)
+    paid = [r for r in rows if r.paid_by_store and not r.refunded]
+    names = dict(
+        (await db.execute(select(StoreProduct.id, StoreProduct.name).where(StoreProduct.store_id == store.id))).all()
+    )
+    per: dict[str | None, dict] = {}
+    for r in rows:
+        if r.refunded:
+            continue
+        entry = per.setdefault(
+            r.store_product_id,
+            {"store_product_id": r.store_product_id, "name": names.get(r.store_product_id, "A product you removed"),
+             "tryons": 0, "paid_by_store": 0, "shared": 0},
+        )
+        entry["tryons"] += 1
+        entry["paid_by_store"] += int(r.paid_by_store)
+        entry["shared"] += int(r.shared)
+
+    shared = [r for r in rows if r.shared and not r.refunded][:120]
+    jobs = {}
+    if shared:
+        found = (
+            await db.execute(
+                select(TryOnJob)
+                .where(TryOnJob.id.in_({r.tryon_job_id for r in shared}))
+                .options(selectinload(TryOnJob.result))
+            )
+        ).scalars()
+        jobs = {j.id: j for j in found}
+    products = {
+        p.id: p
+        for p in (
+            await db.execute(select(StoreProduct).where(StoreProduct.id.in_({r.store_product_id for r in shared if r.store_product_id})))
+        ).scalars()
+    } if shared else {}
+    pictures = []
+    for r in shared:
+        job = jobs.get(r.tryon_job_id)
+        if job is None or job.result is None:
+            continue  # still rendering, or failed
+        product = products.get(r.store_product_id or "")
+        pictures.append(
+            StoreTryOnPictureOut(
+                id=r.id,
+                image_url=job.result.image_url,
+                product_name=product.name if product else "A product you removed",
+                product_url=product.product_url if product else None,
+                product_image=svc.image_url(product.images[0]) if product and product.images else None,
+                shopper_country=r.shopper_country,
+                paid_by_store=r.paid_by_store,
+                created_at=r.created_at,
+            )
+        )
+    plan = await db.scalar(select(StorePlan).where(StorePlan.code == store.plan_code)) if store.plan_code else None
+    counted = [r for r in rows if not r.refunded]
+    return StoreTryOnsOut(
+        credits_left=store.tryon_credits,
+        plan_credits=plan.tryon_credits if plan else 0,
+        used_by_store=len(paid),
+        used_30d=sum(1 for r in paid if svc._aware(r.created_at) >= since),
+        tryons_total=len({r.tryon_job_id for r in counted}),
+        private_tryons=len({r.tryon_job_id for r in counted if not r.shared}),
+        products=[StoreTryOnProductOut(**v) for v in sorted(per.values(), key=lambda v: v["tryons"], reverse=True)],
+        pictures=pictures,
+    )
 
 
 @router.get("/me/payments", response_model=list[StorePaymentOut])
@@ -620,7 +740,8 @@ async def admin_grant_plan(store_id: str, payload: AdminGrantPlanIn, admin: Admi
     if plan is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
     granted = StorePlan(code=plan.code, name=plan.name, price_cents=plan.price_cents, currency=plan.currency,
-                        product_limit=plan.product_limit, featured_limit=plan.featured_limit, duration_days=payload.days)
+                        product_limit=plan.product_limit, featured_limit=plan.featured_limit,
+                        tryon_credits=plan.tryon_credits, duration_days=payload.days)
     svc.activate_plan(store, granted, free=True)
     await db.commit()
     await db.refresh(store)

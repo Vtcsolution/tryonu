@@ -163,9 +163,17 @@ export function StoresTab() {
 function PlansEditor() {
   const qc = useQueryClient();
   const plans = useQuery({ queryKey: ["admin", "store-plans"], queryFn: adminStores.plans });
+  const costs = useQuery({ queryKey: ["admin", "store-costs"], queryFn: adminStores.costs });
   return (
     <div>
-      <SectionHeader title="Store plans" hint="What companies pay for a 30-day pass and how many products each plan lists. Changes apply to the next purchase." />
+      <SectionHeader
+        title="Store plans"
+        hint={
+          costs.data
+            ? `What companies pay for a 30-day pass. One shopper try-on costs you ${costs.data.fashn_credits_per_tryon} FASHN credits × ${costs.data.fashn_credit_pkr} PKR = ${costs.data.fashn_credits_per_tryon * costs.data.fashn_credit_pkr} PKR (${money(costs.data.tryon_cost_usd_cents, "usd")}). Each plan shows what its try-ons cost you and what you keep. Change these costs in Settings → Credits & pricing.`
+            : "What companies pay for a 30-day pass and how many products each plan lists. Changes apply to the next purchase."
+        }
+      />
       {plans.isLoading ? (
         <TableSkeleton />
       ) : plans.isError || !plans.data ? (
@@ -173,7 +181,12 @@ function PlansEditor() {
       ) : (
         <div className="space-y-3">
           {plans.data.map((p) => (
-            <PlanRow key={p.id} plan={p} onSaved={() => qc.invalidateQueries({ queryKey: ["admin", "store-plans"] })} />
+            <PlanRow
+              key={p.id}
+              plan={p}
+              tryonCostCents={costs.data?.tryon_cost_usd_cents ?? null}
+              onSaved={() => qc.invalidateQueries({ queryKey: ["admin", "store-plans"] })}
+            />
           ))}
         </div>
       )}
@@ -181,18 +194,23 @@ function PlansEditor() {
   );
 }
 
-function PlanRow({ plan, onSaved }: { plan: StorePlan; onSaved: () => void }) {
+function PlanRow({ plan, tryonCostCents, onSaved }: { plan: StorePlan; tryonCostCents: number | null; onSaved: () => void }) {
   const [name, setName] = useState(plan.name);
   const [price, setPrice] = useState((plan.price_cents / 100).toFixed(2));
   const [limit, setLimit] = useState(String(plan.product_limit));
   const [featured, setFeatured] = useState(String(plan.featured_limit ?? 0));
+  const [tryons, setTryons] = useState(String(plan.tryon_credits ?? 0));
   const [days, setDays] = useState(String(plan.duration_days));
   const save = useMutation({
     mutationFn: (patch: Parameters<typeof adminStores.updatePlan>[1]) => adminStores.updatePlan(plan.id, patch),
     onSuccess: onSaved,
   });
   const priceCents = Math.round(Number(price) * 100);
-  const valid = name.trim() && priceCents > 0 && Number(limit) > 0 && Number(days) > 0 && Number(featured) >= 0;
+  const valid = name.trim() && priceCents > 0 && Number(limit) > 0 && Number(days) > 0 && Number(featured) >= 0 && Number(tryons) >= 0;
+  // what the try-ons cost if all are used, and what is left of the price (before PayPal's fee)
+  const costCents = tryonCostCents !== null ? Number(tryons) * tryonCostCents : null;
+  const keepCents = costCents !== null ? priceCents - costCents : null;
+  const marginPct = keepCents !== null && priceCents > 0 ? Math.round((keepCents / priceCents) * 100) : null;
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-[16px] border border-line bg-surface p-3">
       <input value={name} onChange={(e) => setName(e.target.value)} className={`${inputClass} w-36`} aria-label="Plan name" />
@@ -203,6 +221,10 @@ function PlanRow({ plan, onSaved }: { plan: StorePlan; onSaved: () => void }) {
       <label className="flex items-center gap-1 text-[12px] text-muted">
         Products
         <input type="number" min={1} value={limit} onChange={(e) => setLimit(e.target.value)} className={`${inputClass} w-24`} />
+      </label>
+      <label className="flex items-center gap-1 text-[12px] text-muted">
+        🎁 Try-ons
+        <input type="number" min={0} value={tryons} onChange={(e) => setTryons(e.target.value)} className={`${inputClass} w-20`} />
       </label>
       <label className="flex items-center gap-1 text-[12px] text-muted">
         ★ Featured
@@ -216,7 +238,14 @@ function PlanRow({ plan, onSaved }: { plan: StorePlan; onSaved: () => void }) {
         tone="primary"
         disabled={!valid || save.isPending}
         onClick={() =>
-          save.mutate({ name: name.trim(), price_cents: priceCents, product_limit: Number(limit), featured_limit: Number(featured), duration_days: Number(days) })
+          save.mutate({
+            name: name.trim(),
+            price_cents: priceCents,
+            product_limit: Number(limit),
+            featured_limit: Number(featured),
+            tryon_credits: Number(tryons),
+            duration_days: Number(days),
+          })
         }
       >
         {save.isPending ? "Saving…" : "Save"}
@@ -225,8 +254,16 @@ function PlanRow({ plan, onSaved }: { plan: StorePlan; onSaved: () => void }) {
         {plan.is_active ? "Hide plan" : "Offer plan"}
       </SmallButton>
       <span className="text-[12px] text-faint">
-        {money(plan.price_cents, plan.currency)} · {plan.product_limit} products · ★ {plan.featured_limit ?? 0} featured
+        {money(plan.price_cents, plan.currency)} · {plan.product_limit} products · ★ {plan.featured_limit ?? 0} featured · 🎁{" "}
+        {plan.tryon_credits ?? 0} try-ons
       </span>
+      {costCents !== null && keepCents !== null && (
+        <span className={`w-full text-[12.5px] ${marginPct !== null && marginPct < 25 ? "text-[#a4553f]" : "text-sage-deep"}`}>
+          If every try-on is used: costs you {money(costCents, "usd")}, you keep {money(keepCents, "usd")}
+          {marginPct !== null ? ` (${marginPct}% margin, before PayPal's fee)` : ""}
+          {marginPct !== null && marginPct < 25 ? ": too low, raise the price or give fewer try-ons" : ""}
+        </span>
+      )}
       {save.isError && <ErrorNote>{errorText(save.error)}</ErrorNote>}
     </div>
   );
@@ -248,11 +285,13 @@ function StoreDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const [planCode, setPlanCode] = useState("");
   const [days, setDays] = useState("30");
   const [confirmEnd, setConfirmEnd] = useState(false);
+  const [creditAmount, setCreditAmount] = useState("10");
   const update = (d: AdminStoreDetail) => {
     qc.setQueryData(["admin", "store", id], d);
     qc.invalidateQueries({ queryKey: ["admin", "stores"] });
   };
   const grant = useMutation({ mutationFn: () => adminStores.grantPlan(id, planCode, Number(days)), onSuccess: update });
+  const credits = useMutation({ mutationFn: (amount: number) => adminStores.adjustTryonCredits(id, amount), onSuccess: update });
   const end = useMutation({
     mutationFn: () => adminStores.endPlan(id),
     onSuccess: (d) => {
@@ -317,10 +356,11 @@ function StoreDetail({ id, onClose }: { id: string; onClose: () => void }) {
 
       <div>
         <p className="mb-2 text-[13px] font-semibold text-ink">Products</p>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
           <StatTile label="Uploaded (on sale)" value={d.product_count} />
           <StatTile label="Hidden" value={d.products.filter((p) => !p.is_active).length} />
           <StatTile label="★ Featured" value={`${d.featured_count ?? 0} of ${d.plan_featured_limit ?? 0}`} />
+          <StatTile label="🎁 Try-on credits left" value={d.tryon_credits ?? 0} />
           <StatTile label="Plan limit" value={d.plan_active ? d.plan_product_limit.toLocaleString() : "—"} />
           <StatTile
             label="Can still add"
@@ -333,6 +373,26 @@ function StoreDetail({ id, onClose }: { id: string; onClose: () => void }) {
         <StatTile label={`Views · ${d.stats.days}d`} value={d.stats.views} />
         <StatTile label={`Shop clicks · ${d.stats.days}d`} value={d.stats.clicks} />
         <StatTile label={`Try-ons · ${d.stats.days}d`} value={d.stats.tryons} />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 rounded-[16px] border border-line p-4">
+        <span className="text-[14px] font-semibold text-ink">🎁 Try-on credits:</span>
+        <span className="text-[13px] text-muted">{d.tryon_credits ?? 0} left. Add some free, or take some away.</span>
+        <input
+          type="number"
+          min={1}
+          value={creditAmount}
+          onChange={(e) => setCreditAmount(e.target.value)}
+          className={`${inputClass} w-24`}
+          aria-label="How many try-on credits"
+        />
+        <SmallButton tone="primary" disabled={credits.isPending || Number(creditAmount) < 1} onClick={() => credits.mutate(Number(creditAmount))}>
+          + Add
+        </SmallButton>
+        <SmallButton tone="danger" disabled={credits.isPending || Number(creditAmount) < 1 || !d.tryon_credits} onClick={() => credits.mutate(-Number(creditAmount))}>
+          − Take away
+        </SmallButton>
+        {credits.isError && <ErrorNote>{errorText(credits.error)}</ErrorNote>}
       </div>
 
       <div className="rounded-[16px] border border-sage/40 bg-sage-tint/20 p-4">

@@ -52,6 +52,9 @@ import type {
   UserPreference,
   WardrobeItem,
   WardrobeItemInput,
+  StoreTryOns,
+  StoreCosts,
+  TryOnSponsor,
 } from "./types";
 
 /* ---------------------------------- auth --------------------------------- */
@@ -340,7 +343,15 @@ export const tryon = {
     distractor_options?: Record<string, DistractorOption[]>;
     // add these products onto this finished look (a further round)
     base_job_id?: string;
+    // a free try-on paid by a TryOnU store, the picture shared with that store
+    use_store_credit?: boolean;
   }) => apiFetch<TryOnJob>("/api/v1/tryon", { method: "POST", body: input }),
+
+  /** the store that would pay for trying on this product or look */
+  sponsor: (target: { product_id?: string; outfit_id?: string }) =>
+    apiFetch<TryOnSponsor>(
+      `/api/v1/tryon/sponsor?${new URLSearchParams(Object.entries(target).filter(([, v]) => !!v) as [string, string][])}`,
+    ),
 
   // One job per photo angle (e.g. front + back) — same product/outfit,
   // charged per job. See POST /tryon/multi.
@@ -412,6 +423,7 @@ export const stores = {
   },
   stats: () => apiFetch<StoreStats>("/api/v1/stores/me/stats"),
   payments: () => apiFetch<StorePayment[]>("/api/v1/stores/me/payments"),
+  tryons: () => apiFetch<StoreTryOns>("/api/v1/stores/me/tryons"),
   publicStore: (slug: string) => apiFetch<PublicStore>(`/api/v1/stores/public/${encodeURIComponent(slug)}`),
   selectProduct: (slug: string, productId: string) =>
     apiFetch<{ product_id: string }>(`/api/v1/stores/public/${encodeURIComponent(slug)}/products/${productId}/select`, {
@@ -420,12 +432,15 @@ export const stores = {
 };
 
 export const adminStores = {
+  costs: () => apiFetch<StoreCosts>("/api/v1/admin/stores/costs"),
+  adjustTryonCredits: (id: string, amount: number) =>
+    apiFetch<AdminStoreDetail>(`/api/v1/admin/stores/${id}/tryon-credits`, { method: "POST", body: { amount } }),
   list: (status?: string) =>
     apiFetch<AdminStore[]>(`/api/v1/admin/stores${status ? `?status_filter=${encodeURIComponent(status)}` : ""}`),
   setStatus: (id: string, status: string, note?: string) =>
     apiFetch<AdminStore>(`/api/v1/admin/stores/${id}/status`, { method: "POST", body: { status, note: note || null } }),
   plans: () => apiFetch<StorePlan[]>("/api/v1/admin/stores/plans"),
-  updatePlan: (id: string, input: Partial<Pick<StorePlan, "name" | "price_cents" | "product_limit" | "featured_limit" | "duration_days" | "is_active">>) =>
+  updatePlan: (id: string, input: Partial<Pick<StorePlan, "name" | "price_cents" | "product_limit" | "featured_limit" | "tryon_credits" | "duration_days" | "is_active">>) =>
     apiFetch<StorePlan>(`/api/v1/admin/stores/plans/${id}`, { method: "PATCH", body: input }),
   summary: () => apiFetch<AdminStoreSummary>("/api/v1/admin/stores/summary"),
   detail: (id: string) => apiFetch<AdminStoreDetail>(`/api/v1/admin/stores/${id}`),

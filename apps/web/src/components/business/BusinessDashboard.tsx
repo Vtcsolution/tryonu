@@ -7,6 +7,7 @@ import { AccountSettings } from "@/components/account/AccountSettings";
 import { AdminShell, Icon, type NavGroup, type ShellArea } from "@/components/admin/AdminShell";
 import { Badge, ErrorNote, SmallButton, errorText, inputClass } from "@/components/admin/ui";
 import { SiteChrome } from "@/components/layout/SiteChrome";
+import { ShopperTryOns } from "@/components/business/ShopperTryOns";
 import { CountryPicker } from "@/components/ui/CountryPicker";
 import { Button } from "@/components/ui/Button";
 import { formatPrice } from "@/components/try/shop";
@@ -147,7 +148,7 @@ function OpenStore() {
 
 // ------------------------------------------------------------------ store panel
 
-type Tab = "overview" | "info" | "products" | "import" | "profile" | "plan" | "payments" | "account";
+type Tab = "overview" | "info" | "tryons" | "products" | "import" | "profile" | "plan" | "payments" | "account";
 
 const NAV: readonly NavGroup<Tab>[] = [
   {
@@ -155,6 +156,7 @@ const NAV: readonly NavGroup<Tab>[] = [
     tabs: [
       { id: "overview", label: "Overview", icon: "overview" },
       { id: "info", label: "My store info", icon: "audit" },
+      { id: "tryons", label: "Shopper try-ons", icon: "tryons" },
       { id: "products", label: "Products", icon: "products" },
       { id: "import", label: "Import products", icon: "upload" },
       { id: "profile", label: "Store details", icon: "retailers" },
@@ -245,6 +247,7 @@ function StorePanel({ store, user }: { store: Store; user: User }) {
           </>
         )}
         {tab === "info" && <StoreInfo store={store} email={user.email} go={go} />}
+        {tab === "tryons" && <ShopperTryOns store={store} onBuyMore={() => go("plan")} />}
         {tab === "products" && (store.plan_active ? <ProductsSection store={store} /> : <NeedsPlan go={go} what="add products" />)}
         {tab === "import" && (store.plan_active ? <FeedSection store={store} /> : <NeedsPlan go={go} what="import products" />)}
         {tab === "profile" && <ProfileSection store={store} />}
@@ -334,6 +337,17 @@ function StoreInfo({ store, email, go }: { store: Store; email: string; go: (tab
         : `${store.product_count} (a plan sets your limit)`,
       tab: "products",
       action: "Manage",
+    },
+    {
+      label: "Try-on credits",
+      value: (
+        <>
+          🎁 {store.tryon_credits ?? 0} left
+          <span className="block text-[12.5px] text-muted">Each one pays for a shopper trying on your product.</span>
+        </>
+      ),
+      tab: "tryons",
+      action: "See try-ons",
     },
     {
       label: "Featured",
@@ -533,7 +547,7 @@ function StoreHeader({ store }: { store: Store }) {
         />
         <Stat
           label="Products"
-          value={`${store.product_count} / ${store.plan_active ? store.plan_product_limit : 0} · ★ ${store.featured_count ?? 0} / ${store.plan_featured_limit ?? 0}`}
+          value={`${store.product_count} / ${store.plan_active ? store.plan_product_limit : 0} · ★ ${store.featured_count ?? 0} / ${store.plan_featured_limit ?? 0} · 🎁 ${store.tryon_credits ?? 0} try-ons`}
         />
         <Stat
           label={store.plan_active ? "Plan ends" : "Plan"}
@@ -637,6 +651,11 @@ function PlansSection({ store }: { store: Store }) {
                   <span className="text-[13px] font-normal text-muted"> / {plan.duration_days} days</span>
                 </p>
                 <p className="mt-2 text-[14px] text-ink-soft">Up to {plan.product_limit.toLocaleString()} products</p>
+                {plan.tryon_credits > 0 && (
+                  <p className="mt-1 text-[14px] text-ink-soft">
+                    🎁 {plan.tryon_credits.toLocaleString()} free try-ons for your shoppers
+                  </p>
+                )}
                 {plan.featured_limit > 0 && (
                   <p className="mt-1 text-[14px] text-ink-soft">
                     <span className="text-sage-deep">★</span> Feature {plan.featured_limit.toLocaleString()} products: shown first to shoppers

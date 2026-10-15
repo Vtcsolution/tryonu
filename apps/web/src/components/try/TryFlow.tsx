@@ -322,8 +322,19 @@ export function TryFlow() {
     },
   });
 
+  // a TryOnU store paying for this try-on (the shopper chooses: free and shared, or private)
+  const sponsorTarget = !customItem && !(multiAngle && canMultiAngle) ? (outfit ? { outfit_id: outfit.id } : product ? { product_id: product.id } : null) : null;
+  const sponsorQuery = useQuery({
+    queryKey: ["tryon-sponsor", sponsorTarget?.outfit_id ?? null, sponsorTarget?.product_id ?? null],
+    queryFn: () => tryonApi.sponsor(sponsorTarget!),
+    enabled: !!user && !!sponsorTarget,
+    staleTime: 30_000,
+  });
+  const sponsorName = sponsorTarget ? sponsorQuery.data?.store_name ?? null : null;
+
   const createJob = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (useStoreCredit: boolean) => {
+      const sponsored = useStoreCredit ? { use_store_credit: true } : {};
       const target = customItem
         ? { wardrobe_item_id: customItem.id }
         : outfit
@@ -356,6 +367,7 @@ export function TryFlow() {
           user_photo_id: baseLook.user_photo.id,
           ...target,
           ...withDistractors,
+          ...sponsored,
           base_job_id: baseLook.id,
         });
         return [job];
@@ -367,7 +379,7 @@ export function TryFlow() {
           ...withDistractors,
         });
       }
-      const job = await tryonApi.create({ user_photo_id: primaryPhoto!.id, ...target, ...withDistractors });
+      const job = await tryonApi.create({ user_photo_id: primaryPhoto!.id, ...target, ...withDistractors, ...sponsored });
       return [job];
     },
     onSuccess: (jobs) => {
@@ -376,6 +388,8 @@ export function TryFlow() {
       setStep(2);
       qc.invalidateQueries({ queryKey: ["session", "me"] }); // credits just changed
     },
+    // the store's free try-ons may have just run out: ask again
+    onError: () => qc.invalidateQueries({ queryKey: ["tryon-sponsor"] }),
   });
 
   const jobQueries = useQueries({
@@ -959,7 +973,13 @@ export function TryFlow() {
               <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 px-4 py-3 shadow-[0_-6px_20px_rgba(20,20,16,0.08)] backdrop-blur md:hidden">
                 <div className="mx-auto flex max-w-xl items-center gap-3">
                   <p className="min-w-0 flex-1 text-[13px] leading-snug text-ink-soft">
-                    {tryOnCost !== null ? (
+                    {sponsorName ? (
+                      <>
+                        🎁 <b className="text-ink">Free</b>
+                        <br />
+                        from {sponsorName}
+                      </>
+                    ) : tryOnCost !== null ? (
                       <>
                         Uses <b className="text-ink">{tryOnCost} credits</b>
                         <br />
@@ -969,13 +989,17 @@ export function TryFlow() {
                       "Ready to try on"
                     )}
                   </p>
-                  {shortOfCredits ? (
+                  {sponsorName ? (
+                    <Button size="md" disabled={createJob.isPending || selectLive.isPending} onClick={() => createJob.mutate(true)}>
+                      {createJob.isPending ? "Starting…" : "Try on free"}
+                    </Button>
+                  ) : shortOfCredits ? (
                     <Button size="md" href="/credits">Buy credits</Button>
                   ) : (
                     <Button
                       size="md"
                       disabled={createJob.isPending || selectLive.isPending}
-                      onClick={() => createJob.mutate()}
+                      onClick={() => createJob.mutate(false)}
                     >
                       {createJob.isPending ? "Starting…" : outfit ? "Try on this look" : "Try it on"}
                     </Button>
@@ -985,8 +1009,32 @@ export function TryFlow() {
             </>
           )}
 
+          {sponsorName && (
+            <div className="mt-8 rounded-[20px] border border-sage/50 bg-sage-tint/30 p-5">
+              <p className="font-display text-[22px] text-ink">🎁 Free try-on from {sponsorName}</p>
+              <p className="mt-1 max-w-2xl text-[14.5px] leading-relaxed text-ink-soft">
+                {sponsorName} pays for this try-on, so it costs you nothing. Your try-on picture will be shared with {sponsorName}{" "}
+                so they can see their product on real people. Your name and email are never shared.
+              </p>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <Button size="md" disabled={createJob.isPending || selectLive.isPending} onClick={() => createJob.mutate(true)}>
+                  {createJob.isPending ? "Starting…" : `Try on free (share with ${sponsorName})`}
+                </Button>
+                {shortOfCredits ? (
+                  <Button size="md" variant="outline" href="/credits">
+                    Buy credits to keep it private
+                  </Button>
+                ) : (
+                  <Button size="md" variant="outline" disabled={createJob.isPending || selectLive.isPending} onClick={() => createJob.mutate(false)}>
+                    Use my {tryOnCost ?? ""} credits (keep it private)
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="mt-8 flex flex-wrap items-center gap-4">
-            {shortOfCredits && (product || outfit || customItem) ? (
+            {sponsorName ? null : shortOfCredits && (product || outfit || customItem) ? (
               <Button size="md" href="/credits">
                 Buy credits to try this on <span aria-hidden="true">→</span>
               </Button>
@@ -994,7 +1042,7 @@ export function TryFlow() {
             <Button
               size="md"
               disabled={(!product && !outfit && !customItem) || createJob.isPending || selectLive.isPending}
-              onClick={() => createJob.mutate()}
+              onClick={() => createJob.mutate(false)}
             >
               {createJob.isPending
                 ? "Starting…"
@@ -1004,7 +1052,7 @@ export function TryFlow() {
               {!createJob.isPending && <span aria-hidden="true">→</span>}
             </Button>
             )}
-            {tryOnCost !== null && (product || outfit || customItem) && (
+            {tryOnCost !== null && !sponsorName && (product || outfit || customItem) && (
               <span className={`text-[12.5px] ${shortOfCredits ? "text-[#a4553f]" : "text-muted"}`}>
                 Uses {tryOnCost} credits · you have {balance}
               </span>
