@@ -635,6 +635,42 @@ def _alternatives_for(chosen: _Candidate, pool: list[_Candidate], picked_ids: se
     return stores + [others[round(i * step)] for i in range(room)]
 
 
+def _prefer_store_items(chosen: list[_Candidate], pool: list[_Candidate]) -> tuple[list[_Candidate], bool]:
+    """Each pick from elsewhere is replaced by a TryOnU store product for the
+    same item when one fits at least as well (same item, colour named if the
+    shopper asked for one) - featured and local store products first. The
+    pool has already dropped wrong items, costumes, other genders and
+    colour clashes, so a store product left in it is a real match."""
+    used = {c.result.raw.retailer_product_id for c in chosen}
+    out: list[_Candidate] = []
+    swapped = False
+    for c in chosen:
+        if _from_store(c.result):
+            out.append(c)
+            continue
+        fit = _fit(c.term, c.result.raw.name)
+        options = [
+            p
+            for p in pool
+            if p.term == c.term
+            and _from_store(p.result)
+            and p.result.raw.retailer_product_id not in used
+            and _fit(p.term, p.result.raw.name) >= fit
+        ]
+        if options:
+            best = min(options, key=lambda p: store_rank(p.result))
+            used.add(best.result.raw.retailer_product_id)
+            out.append(best)
+            swapped = True
+        else:
+            out.append(c)
+    return out, swapped
+
+
+def _shop_of(result: LiveSearchResult) -> str:
+    return result.raw.merchant_name or getattr(result.provider, "display_name", None) or result.provider.slug
+
+
 def _from_store(result: LiveSearchResult) -> bool:
     """Sold by a company store on TryOnU (recommended to shoppers)."""
     return result.provider.slug == "stores"
@@ -766,6 +802,15 @@ async def ask_stylist(
         [candidates[i] for i in recommendation.chosen_indexes if 0 <= i < len(candidates)], candidates, req.max_items
     )
     chosen = _drop_redundant_candidates(chosen)
+    # TryOnU stores first: a store product the stylist passed over for an
+    # equally good one elsewhere takes that place in the look
+    chosen, swapped = _prefer_store_items(chosen, pool)
+    summary = recommendation.summary
+    if swapped:
+        # the stylist's words described what it picked; say plainly what the look now is
+        summary = "Your look, with TryOnU store products first: " + "; ".join(
+            f"{c.result.raw.name[:60]} from {_shop_of(c.result)}" for c in chosen
+        ) + "."
 
     # The one point a live-searched candidate becomes a saved row — only
     # for what the LLM actually chose, never the rest of the pool it saw.
@@ -803,7 +848,7 @@ async def ask_stylist(
         budget_min_cents=req.budget_min_cents,
         budget_max_cents=req.budget_max_cents,
         style=req.style,
-        response_summary=recommendation.summary + _left_out_note(left_out, req.max_items, gender),
+        response_summary=summary + _left_out_note(left_out, req.max_items, gender),
         recommended_product_ids=[p.id for p in chosen_products],
         recommended_outfit_id=outfit.id if outfit else None,
     )

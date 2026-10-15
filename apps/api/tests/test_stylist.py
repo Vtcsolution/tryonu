@@ -878,3 +878,38 @@ def test_one_piece_asked_for_ranks_single_pieces_above_sets():
     single = "Kundan Pearl Maang Tikka"
     assert _fit(term, single) > _fit(term, one_set)
     assert _fit("women gold jewellery set", one_set) >= 0  # asked for a set: no penalty
+
+
+class _FakeStoreProvider:
+    slug = "stores"
+    display_name = "TryOnU stores"
+
+    def build_affiliate_url(self, product_url: str, *, tracking_tag: str) -> str:  # noqa: ARG002
+        return product_url
+
+
+async def test_a_store_product_takes_the_place_of_an_equally_good_pick_elsewhere(client, monkeypatch):
+    # the mock stylist picks the cheapest: the eBay dress. Zee Store's dress is
+    # just as much "a dress", so the look gets Zee Store's.
+    store_dress = _raw("Women Floral Midi Dress", retailer_product_id="zee-dress", price_cents=9000, merchant_name="Zee Store")
+    results = _live_results("Women Wrap Dress") + _live_results(store_dress, provider=_FakeStoreProvider())
+    _patch_live_search(monkeypatch, results)
+    await register_and_login(client)
+
+    resp = await client.post("/api/v1/stylist/ask", json={"prompt": "women dress", "max_items": 1})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    picked = [p["name"] for p in body["products"]]
+    assert picked == ["Women Floral Midi Dress"]
+    assert "Zee Store" in body["summary"]
+
+
+async def test_a_store_product_never_replaces_a_better_match(client, monkeypatch):
+    # asked for red; only the eBay dress says red, so it stays
+    store_dress = _raw("Women Floral Midi Dress", retailer_product_id="zee-dress-2", price_cents=9000, merchant_name="Zee Store")
+    results = _live_results("Women Red Wrap Dress") + _live_results(store_dress, provider=_FakeStoreProvider())
+    _patch_live_search(monkeypatch, results)
+    await register_and_login(client)
+
+    resp = await client.post("/api/v1/stylist/ask", json={"prompt": "women red dress", "max_items": 1})
+    assert [p["name"] for p in resp.json()["products"]] == ["Women Red Wrap Dress"]
