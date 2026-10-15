@@ -53,3 +53,43 @@ def test_featured_and_local_products_lead_in_that_order():
         assert ordered == ["local_featured", "local", "other_featured", "other", "e1"]
     finally:
         set_country(None)
+
+
+def _tiered(rid: str, name: str, tier: int) -> LiveSearchResult:
+    raw = RawProduct(retailer_product_id=rid, name=name, price_cents=3000, product_url="https://x.example.com",
+                     images=["https://x.example.com/a.jpg"], origin_country="PK", store_tier=tier)
+    return LiveSearchResult(provider=_P("stores"), raw=raw)  # type: ignore[arg-type]
+
+
+def test_same_product_in_three_stores_premium_first_then_standard_then_basic():
+    results = [
+        _r("ebay", "e1"),
+        _tiered("basic", "Red Silk Dress", 1),
+        _tiered("premium", "Red Silk Dress", 3),
+        _tiered("standard", "Red Silk Dress", 2),
+    ]
+    ordered = [r.raw.retailer_product_id for r in _local_stores_first(results, "red silk dress")]
+    assert ordered == ["premium", "standard", "basic", "e1"]
+
+
+def test_a_better_match_beats_a_bigger_plan():
+    # the shopper asked for red silk: Premium's dress is blue, Standard's is red silk
+    results = [
+        _tiered("basic", "Red Silk Dress", 1),
+        _tiered("premium", "Blue Cotton Dress", 3),
+        _tiered("standard", "Red Silk Dress", 2),
+    ]
+    ordered = [r.raw.retailer_product_id for r in _local_stores_first(results, "red silk dress")]
+    assert ordered == ["standard", "basic", "premium"]
+
+
+def test_the_stylist_swaps_in_the_premium_stores_product():
+    picked = st._Candidate(result=_r("ebay", "ebay-dress"), term="women dress")
+    pool = [
+        picked,
+        st._Candidate(result=_tiered("basic", "Women Floral Dress", 1), term="women dress"),
+        st._Candidate(result=_tiered("premium", "Women Floral Dress", 3), term="women dress"),
+        st._Candidate(result=_tiered("standard", "Women Floral Dress", 2), term="women dress"),
+    ]
+    chosen, swapped = st._prefer_store_items([picked], pool)
+    assert swapped and chosen[0].result.raw.retailer_product_id == "premium"

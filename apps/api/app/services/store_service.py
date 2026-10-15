@@ -178,8 +178,14 @@ async def search_store_products(
             await db.execute(
                 select(StoreProduct, Store)
                 .join(Store, Store.id == StoreProduct.store_id)
+                .outerjoin(StorePlan, StorePlan.code == Store.plan_code)
                 .where(live, reach, *matches)
-                .order_by(local_first, StoreProduct.is_featured.desc(), StoreProduct.updated_at.desc())
+                .order_by(
+                    func.coalesce(StorePlan.position, 0).desc(),
+                    local_first,
+                    StoreProduct.is_featured.desc(),
+                    StoreProduct.updated_at.desc(),
+                )
                 .limit(limit)
             )
         ).all()
@@ -226,6 +232,11 @@ def delivers_clause(country: str | None):  # noqa: ANN201 - a SQL condition
         StoreProduct.delivery == "worldwide",
         and_(StoreProduct.delivery.is_(None), store_reaches),
     )
+
+
+async def plan_tiers(db: AsyncSession) -> dict[str, int]:
+    """Each plan's rank by its place in the plan list: Basic 1, Standard 2, Premium 3."""
+    return dict((await db.execute(select(StorePlan.code, StorePlan.position))).all())
 
 
 async def featured_count(db: AsyncSession, store_id: str) -> int:

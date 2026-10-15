@@ -174,26 +174,40 @@ def _deduplicate(results: list[LiveSearchResult]) -> list[LiveSearchResult]:
     return kept
 
 
+_NOT_COUNTED = {"women", "womens", "woman", "men", "mens", "man", "for", "and", "with", "the", "ladies", "girls", "boys"}
+
+
+def match_score(query: str, name: str) -> int:
+    """How many of the shopper's words a product's name has ("red silk dress"
+    vs "Red Floral Silk Midi Dress" = 3): colour, fabric, brand, the item."""
+    asked = {w for w in re.findall(r"[a-z0-9]+", query.lower()) if len(w) >= 3 and w not in _NOT_COUNTED}
+    return len(asked & set(re.findall(r"[a-z0-9]+", name.lower())))
+
+
 def store_rank(result: LiveSearchResult) -> int:
-    """How strongly a result is recommended: a featured product of a store in
-    the shopper's own country first, then that store's other products, then
-    featured products of other stores, their other products, and last
-    everything else (eBay, AliExpress, Admitad, ...)."""
+    """How strongly a store product is recommended, among equally good matches:
+    the bigger plan first (Premium, then Standard, then Basic); within a plan,
+    a store in the shopper's own country first, and its featured products
+    first. Everything else (eBay, AliExpress, Admitad, ...) comes after."""
     from app.services.shopper_context import current_country
 
     if result.provider.slug != "stores":
-        return 4
+        return 1000
     country = current_country()
     local = bool(country) and result.raw.origin_country == country
-    if local:
-        return 0 if result.raw.featured else 1
-    return 2 if result.raw.featured else 3
+    within = (0 if result.raw.featured else 1) if local else (2 if result.raw.featured else 3)
+    return (99 - min(max(result.raw.store_tier, 0), 99)) * 4 + within
 
 
-def _local_stores_first(results: list[LiveSearchResult]) -> list[LiveSearchResult]:
-    """TryOnU company stores' products first (recommended), in store_rank
-    order; everything else keeps its usual order after them."""
-    return sorted(results, key=store_rank)  # stable: equal ranks keep their order
+def _local_stores_first(results: list[LiveSearchResult], query: str = "") -> list[LiveSearchResult]:
+    """TryOnU company stores' products first (recommended): the best matches
+    for the search first, and among equal matches the bigger plan. Everything
+    else keeps its usual order after them."""
+    stores = [r for r in results if r.provider.slug == "stores"]
+    if not stores:
+        return results
+    stores.sort(key=lambda r: (-match_score(query, r.raw.name), store_rank(r)))
+    return stores + [r for r in results if r.provider.slug != "stores"]
 
 
 def _interleave(per_provider: list[list[LiveSearchResult]]) -> list[LiveSearchResult]:
@@ -235,7 +249,7 @@ async def live_search(query: str, *, limit: int = 24) -> list[LiveSearchResult]:
     product an admin hid is dropped even though the retailer still lists it."""
     cached = _cached(query, limit)
     if cached is not None:
-        return _local_stores_first(await apply_admin_filters(cached))
+        return _local_stores_first(await apply_admin_filters(cached), query)
 
     disabled = await _disabled_retailer_slugs()
     providers = [p for p in get_all_providers() if p.slug not in disabled]
@@ -271,7 +285,7 @@ async def live_search(query: str, *, limit: int = 24) -> list[LiveSearchResult]:
     hidden = await _hidden_product_keys(results)
     if hidden:
         results = [r for r in results if (r.provider.slug, r.raw.retailer_product_id) not in hidden]
-    results = _local_stores_first(results)[:limit]
+    results = _local_stores_first(results, query)[:limit]
     _remember(query, limit, results)
     return results
 

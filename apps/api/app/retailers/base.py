@@ -46,6 +46,8 @@ class RawProduct:
     origin_country: str | None = None
     # a company store's featured product (within its plan): shown first when it fits
     featured: bool = False
+    # the selling store's plan, higher is bigger (Basic 1, Standard 2, Premium 3)
+    store_tier: int = 0
 
 
 class ProductProvider(ABC):

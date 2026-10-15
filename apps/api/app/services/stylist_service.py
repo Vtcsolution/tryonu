@@ -32,7 +32,7 @@ from app.models.wardrobe import WardrobeItem
 from app.retailers.base import RawProduct
 from app.schemas.stylist import StylistAskRequest
 from app.services.gender_filter import keep_for_gender
-from app.services.live_search_service import LiveSearchResult, live_search, store_rank
+from app.services.live_search_service import LiveSearchResult, live_search, match_score, store_rank
 from app.services.outfit_compatibility import score_outfit
 from app.services.outfit_slots import slot_for
 from app.services.personalization_service import TasteProfile, affinity_score, build_taste_profile
@@ -531,6 +531,8 @@ async def _fetch_pool(
             exact = [r for r in results if _is_the_item(term, r.raw.name)]
             # equally good listings: a TryOnU store's first (recommended to shoppers)
             results = sorted(exact or results, key=lambda r: (-_fit(term, r.raw.name), store_rank(r)))
+            # among store products: the best match for the words asked, then the bigger plan
+            results = _stores_by_match(results, term)
             # Retailers match words, not shoppers: "men leather ankle boots"
             # still returns women's heels, and those became the alternatives
             # offered under a man's boots. Filter each term separately, so
@@ -622,7 +624,10 @@ def _alternatives_for(chosen: _Candidate, pool: list[_Candidate], picked_ids: se
     if not same_term:
         return []
     # TryOnU stores' options first (recommended), then the rest across the price range
-    stores = sorted((r for r in same_term if _from_store(r)), key=lambda result: (store_rank(result), result.raw.price_cents))
+    stores = sorted(
+        (r for r in same_term if _from_store(r)),
+        key=lambda result: (-_match(chosen.term, result.raw.name), store_rank(result), result.raw.price_cents),
+    )
     stores = stores[:_MAX_ALTERNATIVES]
     others = sorted((r for r in same_term if not _from_store(r)), key=lambda result: result.raw.price_cents)
     room = _MAX_ALTERNATIVES - len(stores)
@@ -648,23 +653,40 @@ def _prefer_store_items(chosen: list[_Candidate], pool: list[_Candidate]) -> tup
         if _from_store(c.result):
             out.append(c)
             continue
-        fit = _fit(c.term, c.result.raw.name)
+        fit = _match(c.term, c.result.raw.name)
         options = [
             p
             for p in pool
             if p.term == c.term
             and _from_store(p.result)
             and p.result.raw.retailer_product_id not in used
-            and _fit(p.term, p.result.raw.name) >= fit
+            and _match(p.term, p.result.raw.name) >= fit
         ]
         if options:
-            best = min(options, key=lambda p: store_rank(p.result))
+            # the best-matching store product; among equals, the bigger plan
+            best = min(options, key=lambda p: (-_match(p.term, p.result.raw.name), store_rank(p.result)))
             used.add(best.result.raw.retailer_product_id)
             out.append(best)
             swapped = True
         else:
             out.append(c)
     return out, swapped
+
+
+def _match(term: str, name: str) -> int:
+    """How well a listing matches an item asked for: the colour asked for and
+    no look-alike first (_fit), then how many of the shopper's words it has."""
+    return _fit(term, name) * 100 + match_score(term, name)
+
+
+def _stores_by_match(results: list[LiveSearchResult], term: str) -> list[LiveSearchResult]:
+    """The store products, in their places, re-ordered: best match first, then the bigger plan."""
+    slots = [i for i, r in enumerate(results) if _from_store(r)]
+    ordered = sorted((results[i] for i in slots), key=lambda r: (-_match(term, r.raw.name), store_rank(r)))
+    out = list(results)
+    for i, r in zip(slots, ordered):
+        out[i] = r
+    return out
 
 
 def _shop_of(result: LiveSearchResult) -> str:

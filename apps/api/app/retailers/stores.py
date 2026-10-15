@@ -17,7 +17,7 @@ from app.services import store_service as svc
 from app.services.shopper_context import current_country
 
 
-def _raw(product: StoreProduct, store: Store, featured: bool = False) -> RawProduct | None:
+def _raw(product: StoreProduct, store: Store, featured: bool = False, tier: int = 0) -> RawProduct | None:
     images = [svc.image_url(i) for i in product.images or []]
     if not images:
         return None  # nothing to show or try on
@@ -37,6 +37,7 @@ def _raw(product: StoreProduct, store: Store, featured: bool = False) -> RawProd
         merchant_id=store.id,
         origin_country=store.country,
         featured=featured,
+        store_tier=tier,
     )
 
 
@@ -51,7 +52,12 @@ class StoreProductProvider(ProductProvider):
         async with AsyncSessionLocal() as db:
             rows = await svc.search_store_products(db, query, limit, current_country())
             featured = await svc.featured_ids(db, [s for _, s in rows])
-        return [raw for raw in (_raw(p, s, p.id in featured) for p, s in rows) if raw is not None]
+            tiers = await svc.plan_tiers(db)
+        return [
+            raw
+            for raw in (_raw(p, s, p.id in featured, tiers.get(s.plan_code or "", 0)) for p, s in rows)
+            if raw is not None
+        ]
 
     async def fetch_by_id(self, retailer_product_id: str) -> RawProduct | None:
         async with AsyncSessionLocal() as db:
