@@ -12,7 +12,7 @@ import { CountryPicker } from "@/components/ui/CountryPicker";
 import { Button } from "@/components/ui/Button";
 import { formatPrice } from "@/components/try/shop";
 import { ApiError } from "@/lib/api/client";
-import { credits as creditsApi, stores as storesApi } from "@/lib/api/endpoints";
+import { credits as creditsApi, preferences as preferencesApi, stores as storesApi } from "@/lib/api/endpoints";
 import type { Store, StoreDelivery, StorePlan, StoreProduct, StoreProductInput, User } from "@/lib/api/types";
 import { useSession } from "@/lib/auth/useSession";
 import { countryFlag, countryName, deliveryText } from "@/lib/countries";
@@ -25,7 +25,7 @@ export function BusinessDashboard() {
   const { user, isLoading } = useSession();
 
   useEffect(() => {
-    if (!isLoading && !user) router.replace("/sign-in?next=/business");
+    if (!isLoading && !user) router.replace("/business/sign-up");
   }, [isLoading, user, router]);
 
   const storeQuery = useQuery({
@@ -75,71 +75,127 @@ export function BusinessDashboard() {
 
 // ------------------------------------------------------------------ open a store
 
+/** Right after a store account is made: two short steps, then the store panel. */
 function OpenStore() {
   const qc = useQueryClient();
+  const prefs = useQuery({ queryKey: ["preferences"], queryFn: preferencesApi.get });
+  const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState("");
-  const [country, setCountry] = useState("");
+  const [country, setCountry] = useState<string | null>(null); // null: the account's country
   const [website, setWebsite] = useState("");
   const [description, setDescription] = useState("");
+  const [more, setMore] = useState(false);
+  const [mode, setMode] = useState<StoreDelivery>("domestic");
+  const [countries, setCountries] = useState<string[]>([]);
+  const home = country ?? prefs.data?.country ?? "";
+
   const create = useMutation({
-    mutationFn: () =>
-      storesApi.create({
+    mutationFn: async () => {
+      let store = await storesApi.create({
         name: name.trim(),
-        country,
+        country: home,
         website_url: website.trim() || undefined,
         description: description.trim() || undefined,
-      }),
+      });
+      if (mode !== "domestic") {
+        store = await storesApi.update({ delivery: mode, delivery_countries: mode === "countries" ? countries : [] });
+      }
+      return store;
+    },
     onSuccess: (store) => qc.setQueryData(STORE_KEY, store),
   });
+  const stepOneDone = name.trim().length >= 2 && !!home;
 
   return (
     <div className="mx-auto max-w-2xl">
-      <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-sage-deep">For business</p>
-      <h1 className="mt-2 font-display text-[clamp(28px,4.5vw,44px)] leading-tight text-ink">
-        Sell on <em>TryOnU</em>
-      </h1>
-      <p className="mt-4 text-[15.5px] leading-relaxed text-muted">
-        List your products where shoppers try them on before they buy. Shoppers in your country see your products
-        first, ahead of the big marketplaces, and every product links to your own store.
-      </p>
-      <ul className="mt-6 grid gap-3 text-[14px] text-ink-soft sm:grid-cols-3">
+      <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-sage-deep">Your store account is ready</p>
+      <h1 className="mt-2 font-display text-[clamp(28px,4.5vw,40px)] leading-tight text-ink">Set up your store</h1>
+      <p className="mt-2 text-[15px] text-muted">Two quick steps. You can change everything later.</p>
+
+      {/* progress */}
+      <ol className="mt-6 flex items-center gap-3 text-[14px]" aria-label="Steps">
         {[
-          ["1", "Open your store", "We review it, usually within a day."],
-          ["2", "Unlock a plan", "Basic, Standard or Premium, for 30 days."],
-          ["3", "Add products", "By hand with photos, or from your feed link."],
-        ].map(([n, title, text]) => (
-          <li key={n} className="rounded-[18px] border border-line bg-surface p-4">
-            <span className="grid h-7 w-7 place-items-center rounded-full bg-sage text-[12px] font-semibold text-white">{n}</span>
-            <p className="mt-2 font-semibold text-ink">{title}</p>
-            <p className="mt-1 text-[13px] text-muted">{text}</p>
+          [1, "Your store"],
+          [2, "Delivery"],
+        ].map(([n, label]) => (
+          <li key={n} className="flex items-center gap-2" aria-current={step === n ? "step" : undefined}>
+            <span
+              className={`grid h-8 w-8 place-items-center rounded-full text-[13px] font-semibold ${
+                step === n ? "bg-sage text-white" : step > (n as number) ? "bg-sage/30 text-sage-deep" : "border border-line-strong text-muted"
+              }`}
+            >
+              {step > (n as number) ? "✓" : n}
+            </span>
+            <span className={step === n ? "font-semibold text-ink" : "text-muted"}>{label}</span>
+            {n === 1 && <span className="mx-1 h-px w-8 bg-line-strong" aria-hidden="true" />}
           </li>
         ))}
-      </ul>
+      </ol>
 
       <form
-        className="mt-8 space-y-4 rounded-[24px] border border-line bg-surface p-6"
+        className="mt-6 space-y-5 rounded-[24px] border border-line bg-surface p-6"
         onSubmit={(e: FormEvent) => {
           e.preventDefault();
-          if (name.trim().length >= 2 && country) create.mutate();
+          if (step === 1 && stepOneDone) setStep(2);
+          else if (step === 2 && !(mode === "countries" && countries.length === 0)) create.mutate();
         }}
       >
-        <Field label="Store name">
-          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} className={`${inputClass} w-full`} required />
-        </Field>
-        <Field label="Country" hint="Shoppers in this country see your products first.">
-          <CountrySelect value={country} onChange={setCountry} />
-        </Field>
-        <Field label="Your website (optional)">
-          <input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://" className={`${inputClass} w-full`} />
-        </Field>
-        <Field label="About your store (optional)">
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={2000} rows={3} className={`${inputClass} h-auto w-full py-2`} />
-        </Field>
-        {create.isError && <ErrorNote>{errorText(create.error)}</ErrorNote>}
-        <Button type="submit" size="md" disabled={create.isPending || name.trim().length < 2 || !country}>
-          {create.isPending ? "Opening…" : "Open my store"}
-        </Button>
+        {step === 1 ? (
+          <>
+            <Field label="Store name" hint="Shoppers see this name on every product.">
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                maxLength={120}
+                autoFocus
+                placeholder="e.g. Lahore Couture"
+                className={`${inputClass} w-full`}
+                required
+              />
+            </Field>
+            <Field label="Your store's country" hint="Shoppers in this country see your products first.">
+              <CountrySelect value={home} onChange={setCountry} />
+            </Field>
+            {more ? (
+              <>
+                <Field label="Your website (optional)">
+                  <input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://" className={`${inputClass} w-full`} />
+                </Field>
+                <Field label="About your store (optional)">
+                  <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={2000} rows={3} className={`${inputClass} h-auto w-full py-2`} />
+                </Field>
+              </>
+            ) : (
+              <button type="button" onClick={() => setMore(true)} className="text-[14px] font-medium text-sage-deep hover:underline">
+                + Add your website and a short description (optional)
+              </button>
+            )}
+            <Button type="submit" size="md" disabled={!stepOneDone}>
+              Next: delivery <span aria-hidden="true">→</span>
+            </Button>
+          </>
+        ) : (
+          <>
+            <div>
+              <p className="text-[16px] font-semibold text-ink">Where do you deliver?</p>
+              <p className="mt-1 text-[13.5px] text-muted">Shoppers only see your products if you can deliver to them.</p>
+            </div>
+            <DeliveryChooser home={home} mode={mode} onMode={setMode} countries={countries} onCountries={setCountries} />
+            {create.isError && <ErrorNote>{errorText(create.error)}</ErrorNote>}
+            <div className="flex flex-wrap items-center gap-3">
+              <Button type="submit" size="md" disabled={create.isPending || (mode === "countries" && countries.length === 0)}>
+                {create.isPending ? "Opening…" : "Open my store"} {!create.isPending && <span aria-hidden="true">→</span>}
+              </Button>
+              <button type="button" onClick={() => setStep(1)} className="text-[14px] text-muted hover:text-ink">
+                ← Back
+              </button>
+            </div>
+          </>
+        )}
       </form>
+      <p className="mt-4 text-center text-[13px] text-muted">
+        Next: TryOnU approves your store (usually within a day), you choose a plan, and you add your products.
+      </p>
     </div>
   );
 }
@@ -1119,24 +1175,23 @@ const DELIVERY_CHOICES: { value: StoreDelivery; title: string; text: string }[] 
   { value: "worldwide", title: "Worldwide", text: "Every shopper can see and buy your products." },
 ];
 
-/** Where the store delivers: shoppers only see products that can reach them. */
-function DeliverySection({ store }: { store: Store }) {
-  const qc = useQueryClient();
-  const [mode, setMode] = useState<StoreDelivery>(store.delivery ?? "domestic");
-  const [countries, setCountries] = useState<string[]>(store.delivery_countries ?? []);
+/** Only my country / my country and some others / worldwide, as three big choices. */
+function DeliveryChooser({
+  home,
+  mode,
+  onMode,
+  countries,
+  onCountries,
+}: {
+  home: string;
+  mode: StoreDelivery;
+  onMode: (m: StoreDelivery) => void;
+  countries: string[];
+  onCountries: (c: string[]) => void;
+}) {
   const [adding, setAdding] = useState("");
-  const save = useMutation({
-    mutationFn: () => storesApi.update({ delivery: mode, delivery_countries: mode === "countries" ? countries : [] }),
-    onSuccess: (s) => qc.setQueryData(STORE_KEY, s),
-  });
-  const changed =
-    mode !== (store.delivery ?? "domestic") ||
-    (mode === "countries" && countries.join() !== (store.delivery_countries ?? []).join());
   return (
-    <Section
-      title="Where do you deliver?"
-      hint={`Shoppers only see products you can deliver to them. Now: ${deliveryText(store.delivery, store.delivery_countries, store.country)}. You can change it for single products too (Edit a product).`}
-    >
+    <>
       <div role="radiogroup" aria-label="Delivery" className="grid gap-3 md:grid-cols-3">
         {DELIVERY_CHOICES.map((c) => (
           <button
@@ -1144,14 +1199,14 @@ function DeliverySection({ store }: { store: Store }) {
             type="button"
             role="radio"
             aria-checked={mode === c.value}
-            onClick={() => setMode(c.value)}
+            onClick={() => onMode(c.value)}
             className={`rounded-[16px] border p-4 text-left transition-colors ${
               mode === c.value ? "border-sage bg-sage-tint/40 ring-2 ring-sage/30" : "border-line hover:border-line-strong"
             }`}
           >
             <p className="text-[15px] font-semibold text-ink">
               {mode === c.value ? "● " : "○ "}
-              {c.value === "domestic" ? `Only in ${countryName(store.country)}` : c.title}
+              {c.value === "domestic" ? `Only in ${countryName(home)}` : c.title}
             </p>
             <p className="mt-1 text-[13px] text-muted">{c.text}</p>
           </button>
@@ -1160,7 +1215,7 @@ function DeliverySection({ store }: { store: Store }) {
       {mode === "countries" && (
         <div className="mt-4 rounded-[16px] border border-line p-4">
           <p className="text-[13.5px] text-ink-soft">
-            {countryName(store.country)} is always included. Also delivering to:
+            {countryName(home)} is always included. Also delivering to:
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             {countries.length === 0 && <span className="text-[13px] text-muted">No countries added yet.</span>}
@@ -1170,7 +1225,7 @@ function DeliverySection({ store }: { store: Store }) {
                 <button
                   type="button"
                   aria-label={`Remove ${countryName(c)}`}
-                  onClick={() => setCountries(countries.filter((x) => x !== c))}
+                  onClick={() => onCountries(countries.filter((x) => x !== c))}
                   className="text-muted hover:text-[#a4553f]"
                 >
                   ✕
@@ -1183,9 +1238,9 @@ function DeliverySection({ store }: { store: Store }) {
               <CountrySelect value={adding} onChange={setAdding} />
             </div>
             <SmallButton
-              disabled={!adding || adding === store.country || countries.includes(adding)}
+              disabled={!adding || adding === home || countries.includes(adding)}
               onClick={() => {
-                setCountries([...countries, adding].sort());
+                onCountries([...countries, adding].sort());
                 setAdding("");
               }}
             >
@@ -1194,6 +1249,28 @@ function DeliverySection({ store }: { store: Store }) {
           </div>
         </div>
       )}
+    </>
+  );
+}
+
+/** Where the store delivers: shoppers only see products that can reach them. */
+function DeliverySection({ store }: { store: Store }) {
+  const qc = useQueryClient();
+  const [mode, setMode] = useState<StoreDelivery>(store.delivery ?? "domestic");
+  const [countries, setCountries] = useState<string[]>(store.delivery_countries ?? []);
+  const save = useMutation({
+    mutationFn: () => storesApi.update({ delivery: mode, delivery_countries: mode === "countries" ? countries : [] }),
+    onSuccess: (s) => qc.setQueryData(STORE_KEY, s),
+  });
+  const changed =
+    mode !== (store.delivery ?? "domestic") ||
+    (mode === "countries" && countries.join() !== (store.delivery_countries ?? []).join());
+  return (
+    <Section
+      title="Where do you deliver?"
+      hint={`Shoppers only see products you can deliver to them. Now: ${deliveryText(store.delivery, store.delivery_countries, store.country)}. You can change it for single products too (Edit a product).`}
+    >
+      <DeliveryChooser home={store.country} mode={mode} onMode={setMode} countries={countries} onCountries={setCountries} />
       {save.isError && <div className="mt-3"><ErrorNote>{errorText(save.error)}</ErrorNote></div>}
       <div className="mt-4 flex items-center gap-3">
         <SmallButton
