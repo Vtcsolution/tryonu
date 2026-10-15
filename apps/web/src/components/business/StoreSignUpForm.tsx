@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type FormEvent } from "react";
 import { AuthCard } from "@/components/auth/AuthCard";
+import { GoogleButton } from "@/components/auth/GoogleButton";
 import { Button } from "@/components/ui/Button";
 import { CountryPicker } from "@/components/ui/CountryPicker";
 import { Input } from "@/components/ui/Input";
@@ -97,6 +98,7 @@ export function StoreSignUpForm() {
         </Button>
         <p className="text-center text-[12.5px] text-muted">Next you&apos;ll add your store name and where you deliver.</p>
       </form>
+      <GoogleButton divider next="/business" />
     </AuthCard>
   );
 }

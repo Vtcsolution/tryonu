@@ -166,14 +166,55 @@ async def resend_verification(user: CurrentUser, db: DbSession):
     return Message(detail="Verification email sent.")
 
 
+_OAUTH_COOKIE = "oauth_state"
+
+
+def _safe_next(next_path: str | None) -> str:
+    """Only a page of our own site: "/business", never "//evil.com" or a full URL."""
+    if next_path and next_path.startswith("/") and not next_path.startswith("//") and "\\" not in next_path:
+        return next_path[:300]
+    return "/try"
+
+
+@router.get("/google/enabled")
+async def google_enabled() -> dict[str, bool]:
+    """Whether "Continue with Google" is set up, so the website shows the button only then."""
+    return {"enabled": google_oauth.is_configured()}
+
+
 @router.get("/google/login")
-async def google_login():
-    url = google_oauth.build_authorize_url()
-    return RedirectResponse(url)
+async def google_login(next: str | None = None):  # noqa: A002 - the query parameter's name
+    import secrets
+
+    state = secrets.token_urlsafe(24)
+    url = google_oauth.build_authorize_url(state)
+    redirect = RedirectResponse(url)
+    # the state comes back from Google and must match this cookie: a sign-in
+    # someone else started can't be completed in this browser (login CSRF)
+    redirect.set_cookie(
+        _OAUTH_COOKIE,
+        f"{state}|{_safe_next(next)}",
+        max_age=600,
+        httponly=True,
+        secure=settings.COOKIE_SECURE,
+        samesite="lax",
+        path="/api/v1/auth/google",
+    )
+    return redirect
 
 
 @router.get("/google/callback")
-async def google_callback(code: str, db: DbSession):
+async def google_callback(
+    db: DbSession,
+    code: str | None = None,
+    state: str | None = None,
+    oauth_state: str | None = Cookie(default=None),
+):
+    expected, _, next_path = (oauth_state or "").partition("|")
+    if not code or not state or not expected or state != expected:
+        failed = RedirectResponse(f"{settings.FRONTEND_URL}/sign-in?error=google")
+        failed.delete_cookie(_OAUTH_COOKIE, path="/api/v1/auth/google")
+        return failed
     profile = await google_oauth.exchange_code_for_profile(code)
 
     user = await auth_service.find_or_create_google_user(
@@ -185,6 +226,8 @@ async def google_callback(code: str, db: DbSession):
     )
     access, refresh = await auth_service.issue_tokens(db, user)
 
-    redirect = RedirectResponse(f"{settings.FRONTEND_URL}/try")
+    # back to the page they started from; the website asks for their country there if it's missing
+    redirect = RedirectResponse(f"{settings.FRONTEND_URL}{_safe_next(next_path)}")
+    redirect.delete_cookie(_OAUTH_COOKIE, path="/api/v1/auth/google")
     set_auth_cookies(redirect, access_token=access, refresh_token=refresh)
     return redirect

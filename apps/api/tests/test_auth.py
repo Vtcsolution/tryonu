@@ -159,3 +159,49 @@ def test_new_accounts_get_no_free_credits_and_a_try_on_costs_10_by_default():
     fields = Settings.model_fields
     assert fields["SIGNUP_FREE_CREDITS"].default == 0
     assert fields["TRYON_CREDIT_COST"].default == 10 and fields["OUTFIT_TRYON_CREDIT_COST"].default == 10
+
+
+
+def _google_on(monkeypatch):  # noqa: ANN001, ANN202
+    from app.services import google_oauth
+
+    for key, value in (("GOOGLE_CLIENT_ID", "id"), ("GOOGLE_CLIENT_SECRET", "secret"),
+                       ("GOOGLE_REDIRECT_URI", "https://api.tryonu.test/api/v1/auth/google/callback")):
+        monkeypatch.setattr(google_oauth.settings, key, value)
+
+    async def fake_profile(code):  # noqa: ANN001, ANN202
+        return google_oauth.GoogleProfile(sub=f"g-{code}", email=f"{code}@gmail.example.com", name="G User", picture=None)
+
+    monkeypatch.setattr(google_oauth, "exchange_code_for_profile", fake_profile)
+
+
+async def test_google_sign_in_returns_to_the_page_it_started_from(client, monkeypatch):
+    _google_on(monkeypatch)
+    assert (await client.get("/api/v1/auth/google/enabled")).json() == {"enabled": True}
+    start = await client.get("/api/v1/auth/google/login", params={"next": "/business"}, follow_redirects=False)
+    assert start.status_code in (302, 307)
+    state = start.headers["location"].split("state=")[1].split("&")[0]
+    back = await client.get(
+        "/api/v1/auth/google/callback", params={"code": "gstore1", "state": state}, follow_redirects=False
+    )
+    assert back.headers["location"].endswith("/business")
+    assert (await client.get("/api/v1/auth/me")).json()["email"] == "gstore1@gmail.example.com"
+
+
+async def test_google_sign_in_someone_else_started_is_refused(client, monkeypatch):
+    _google_on(monkeypatch)
+    await client.post("/api/v1/auth/logout")
+    await client.get("/api/v1/auth/google/login", follow_redirects=False)
+    forged = await client.get(
+        "/api/v1/auth/google/callback", params={"code": "attacker", "state": "not-the-one"}, follow_redirects=False
+    )
+    assert "/sign-in?error=google" in forged.headers["location"]
+    assert (await client.get("/api/v1/auth/me")).status_code == 401
+
+
+async def test_google_never_sends_people_to_another_site(client, monkeypatch):
+    _google_on(monkeypatch)
+    start = await client.get("/api/v1/auth/google/login", params={"next": "//evil.example.com"}, follow_redirects=False)
+    state = start.headers["location"].split("state=")[1].split("&")[0]
+    back = await client.get("/api/v1/auth/google/callback", params={"code": "g2", "state": state}, follow_redirects=False)
+    assert back.headers["location"].endswith("/try") and "evil" not in back.headers["location"]

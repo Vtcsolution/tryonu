@@ -1,11 +1,25 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { API_BASE_URL } from "@/lib/api/client";
+import { auth } from "@/lib/api/endpoints";
 
-export function GoogleButton() {
+/** "Continue with Google", back to `next` afterwards. Hidden while Google isn't set up on the server. */
+export function GoogleButton({ next, divider = false }: { next?: string; divider?: boolean }) {
+  const enabled = useQuery({ queryKey: ["google-enabled"], queryFn: auth.googleEnabled, staleTime: Infinity, retry: false });
+  if (!enabled.data?.enabled) return null;
+  const href = `${API_BASE_URL}/api/v1/auth/google/login${next ? `?next=${encodeURIComponent(next)}` : ""}`;
   return (
+    <>
+    {divider && (
+      <div className="my-5 flex items-center gap-3 text-[12px] text-faint">
+        <span className="h-px flex-1 bg-line" />
+        or
+        <span className="h-px flex-1 bg-line" />
+      </div>
+    )}
     <a
-      href={`${API_BASE_URL}/api/v1/auth/google/login`}
+      href={href}
       className="group inline-flex h-11 w-full transform-gpu items-center justify-center gap-2.5 rounded-full border border-line-strong bg-surface text-[14px] font-medium text-ink transition-[transform,border-color] duration-200 hover:-translate-y-0.5 hover:border-ink/30"
     >
       <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
@@ -28,5 +42,6 @@ export function GoogleButton() {
       </svg>
       Continue with Google
     </a>
+    </>
   );
 }

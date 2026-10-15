@@ -19,7 +19,9 @@ export function SignInForm() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    params.get("error") === "google" ? "Google sign-in didn't finish. Please try again." : null,
+  );
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -88,13 +90,7 @@ export function SignInForm() {
         </Button>
       </form>
 
-      <div className="my-5 flex items-center gap-3 text-[12px] text-faint">
-        <span className="h-px flex-1 bg-line" />
-        or
-        <span className="h-px flex-1 bg-line" />
-      </div>
-
-      <GoogleButton />
+      <GoogleButton divider next={next} />
     </AuthCard>
   );
 }

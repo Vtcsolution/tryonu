@@ -7,6 +7,7 @@ import {
   isServer,
 } from "@tanstack/react-query";
 import { AnalyticsTracker } from "@/components/analytics/AnalyticsTracker";
+import { CountryGate } from "@/components/auth/CountryGate";
 
 function makeQueryClient() {
   return new QueryClient({
@@ -38,6 +39,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <AnalyticsTracker />
+      <CountryGate />
       {children}
     </QueryClientProvider>
   );

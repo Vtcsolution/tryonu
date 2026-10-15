@@ -75,6 +75,9 @@ export const auth = {
 
   googleLoginUrl: (apiBase: string) => `${apiBase}/api/v1/auth/google/login`,
 
+  /** whether "Continue with Google" is set up on the server */
+  googleEnabled: () => apiFetch<{ enabled: boolean }>("/api/v1/auth/google/enabled"),
+
   forgotPassword: (input: { email: string }) =>
     apiFetch<{ detail: string }>("/api/v1/auth/forgot-password", { method: "POST", body: input }),
 
