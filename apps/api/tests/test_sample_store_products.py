@@ -90,3 +90,34 @@ async def test_a_shirt_collar_is_not_a_necklace_and_a_tablet_bag_is_not_a_bag(db
     assert not any("Collar Puff" in n for n in by_kind.get("Necklace", []))
     assert not any("Tablet" in n for names in by_kind.values() for n in names)
     assert not any("Reloj de pulsera" in n for n in by_kind.get("Bracelet", []))
+
+
+async def test_twenty_womens_products_spread_over_the_kinds_and_no_mens(db):  # noqa: ANN001
+    from app.scripts.sample_store_products import pick_samples
+
+    await db.execute(delete(AdmitadFeedItem).where(AdmitadFeedItem.campaign_id == 999003))
+    names = [f"Women {kind} {n}" for kind in ("Dress", "Earrings", "Handbag", "Necklace", "Sandals", "Scarf", "Skirt")
+             for n in ("Floral", "Gold", "Silk", "Classic")]
+    names += ["Men Leather Watch Classic", "Reloj Hombre Acero"]
+    for i, name in enumerate(names):
+        db.add(AdmitadFeedItem(campaign_id=999003, campaign_name="Test shop", offer_id=f"w{i}", name=name,
+                               price_cents=2000 + i, currency="EUR", image_url=f"https://img.example.com/w{i}.jpg",
+                               product_url=f"https://shop.example.com/w{i}", available=True))
+    await db.commit()
+    picks = await pick_samples(db, count=20)
+    assert len(picks) == 20
+    assert not any("Men " in item.name or "Hombre" in item.name for item, _ in picks)
+    first_round = [kind for _, kind in picks[:5]]
+    assert len(set(first_round)) == 5  # one of each kind before any second one
+
+
+async def test_the_csv_export_is_a_file_the_store_upload_accepts(db, tmp_path):  # noqa: ANN001
+    from app.scripts.sample_store_products import pick_samples, write_csv
+    from app.services.store_service import normalize_feed_row, parse_feed
+
+    await _catalogue(db)
+    path = tmp_path / "products.csv"
+    write_csv(str(path), await pick_samples(db, count=5))
+    rows = parse_feed(path.read_bytes())
+    products = [normalize_feed_row(r, lambda url: True) for r in rows]
+    assert len(products) == 5 and all(products)
