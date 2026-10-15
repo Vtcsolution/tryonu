@@ -468,6 +468,58 @@ function StoreInfo({ store, email, go }: { store: Store; email: string; go: (tab
   );
 }
 
+/** What the current plan gives the store, used and left, in three bars. */
+function PlanAllowance({ store }: { store: Store }) {
+  const name = (store.plan_code ?? "").replace(/^./, (c) => c.toUpperCase());
+  const ends = store.plan_expires_at ? new Date(store.plan_expires_at).toLocaleDateString() : "";
+  const bars: { label: string; used: number; total: number; text: string }[] = [
+    {
+      label: "Products",
+      used: store.product_count,
+      total: store.plan_product_limit,
+      text: `${store.product_count} of ${store.plan_product_limit.toLocaleString()} used`,
+    },
+    {
+      label: "★ Featured products",
+      used: store.featured_count ?? 0,
+      total: store.plan_featured_limit ?? 0,
+      text: `${store.featured_count ?? 0} of ${store.plan_featured_limit ?? 0} used`,
+    },
+  ];
+  return (
+    <div className="mb-5 rounded-[18px] border border-sage/40 bg-sage-tint/20 p-5">
+      <p className="text-[15px] font-semibold text-ink">
+        {name}
+        {store.plan_free ? " (free from TryOnU)" : ""} · active until {ends}
+      </p>
+      <div className="mt-4 grid gap-4 md:grid-cols-3">
+        {bars.map((b) => {
+          const pct = b.total > 0 ? Math.min(100, Math.round((b.used / b.total) * 100)) : 0;
+          return (
+            <div key={b.label}>
+              <p className="text-[13px] font-medium text-muted">{b.label}</p>
+              <p className="mt-0.5 text-[18px] font-semibold text-ink">{b.text}</p>
+              <span className="mt-1.5 block h-2 overflow-hidden rounded-full bg-paper-2">
+                <span className={`block h-full rounded-full ${pct >= 90 ? "bg-[#c0503a]" : "bg-sage"}`} style={{ width: `${pct}%` }} />
+              </span>
+            </div>
+          );
+        })}
+        <div>
+          <p className="text-[13px] font-medium text-muted">🎁 Try-on credits</p>
+          <p className="mt-0.5 text-[18px] font-semibold text-ink">{(store.tryon_credits ?? 0).toLocaleString()} left</p>
+          <p className="mt-1 text-[12.5px] leading-snug text-muted">1 credit = 1 shopper trying on your product for free.</p>
+        </div>
+      </div>
+      <p className="mt-4 text-[13px] leading-relaxed text-ink-soft">
+        <b>How credits work:</b> every plan comes with try-on credits. When a shopper presses <b>Try on free</b> on one of your
+        products, 1 credit is used. If the try-on fails, it comes back. When you renew or switch plans, the new plan&apos;s credits
+        are <b>added</b> to what you have left.
+      </p>
+    </div>
+  );
+}
+
 /** Shown instead of a page that needs a plan, with the way to get one. */
 function NeedsPlan({ go, what }: { go: (tab: Tab) => void; what: string }) {
   return (
@@ -592,23 +644,19 @@ function StoreHeader({ store }: { store: Store }) {
           </a>
         )}
       </p>
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Stat
           label="Plan"
           value={
             store.plan_active
-              ? `${(store.plan_code ?? "").replace(/^./, (c) => c.toUpperCase())}${store.plan_free ? " · free from TryOnU" : ""}`
+              ? `${(store.plan_code ?? "").replace(/^./, (c) => c.toUpperCase())}${store.plan_free ? " (free)" : ""}`
               : "None"
           }
         />
-        <Stat
-          label="Products"
-          value={`${store.product_count} / ${store.plan_active ? store.plan_product_limit : 0} · ★ ${store.featured_count ?? 0} / ${store.plan_featured_limit ?? 0} · 🎁 ${store.tryon_credits ?? 0} try-ons`}
-        />
-        <Stat
-          label={store.plan_active ? "Plan ends" : "Plan"}
-          value={store.plan_active && expires ? expires.toLocaleDateString() : "Not unlocked yet"}
-        />
+        <Stat label="Plan ends" value={store.plan_active && expires ? expires.toLocaleDateString() : "Not unlocked yet"} />
+        <Stat label="Products" value={`${store.product_count} of ${store.plan_active ? store.plan_product_limit : 0}`} />
+        <Stat label="★ Featured" value={`${store.featured_count ?? 0} of ${store.plan_featured_limit ?? 0}`} />
+        <Stat label="🎁 Try-on credits left" value={`${store.tryon_credits ?? 0}`} />
       </div>
     </div>
   );
@@ -665,6 +713,7 @@ function PlansSection({ store }: { store: Store }) {
       title={store.plan_active ? "Your plan" : "Unlock a plan"}
       hint="Unlock a plan for 30 days, or turn on auto-renew and PayPal renews it every period until you turn it off."
     >
+      {store.plan_active && <PlanAllowance store={store} />}
       {returned === "cancelled" && (
         <p className="mb-3 rounded-[14px] border border-line bg-paper-2/60 px-4 py-2.5 text-[13px] text-ink-soft">
           You left PayPal before confirming auto-renew. Nothing was charged.
