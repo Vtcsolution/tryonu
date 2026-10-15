@@ -23,7 +23,7 @@ def _raw(product: StoreProduct, store: Store, featured: bool = False) -> RawProd
         return None  # nothing to show or try on
     return RawProduct(
         retailer_product_id=product.id,
-        name=product.name,
+        name=svc.shown_name(product.name),
         price_cents=product.price_cents,
         product_url=product.product_url,
         images=images,

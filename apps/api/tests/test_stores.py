@@ -520,3 +520,45 @@ async def test_shoppers_only_see_products_that_can_be_delivered_to_them(client, 
     # "countries" needs at least one country
     bad = await client.patch("/api/v1/stores/me", json={"delivery": "countries", "delivery_countries": []})
     assert bad.status_code == 422
+
+
+
+async def test_foreign_product_names_are_found_by_english_prompts(client, db):  # noqa: ANN001
+    """A store selling "Sandalias ..." shows for "women sandals", named so shoppers know what it is."""
+    store = await _company(client, name="Zee Store", country="PK")
+    await client.post("/api/v1/stores/me/plans/basic/purchase")
+    names = {
+        "Shoes Sandalias marca Top 3 para mujer en color marron": "women sandals",
+        "Pendientes Tu Y Yo De Plata De Ley 5 Y 7 Mm.": "women earrings",
+        "Vestido mujer estampado floral escote pico": "women dress",
+        "Relojes de mujer Reloj de pulsera creativo": "women watch",
+    }
+    for name in names:
+        made = (await _product(client, name)).json()
+        await _with_photo(db, made["id"])
+    await _approve(db, store["id"])
+    set_country("PK")
+    provider = StoreProductProvider()
+    for name, query in names.items():
+        found = await provider.search_live(query=query, limit=10)
+        assert [r.name.split(" · ")[0] for r in found] == [name], query
+    watch = (await provider.search_live(query="women watch", limit=10))[0]
+    assert watch.name.endswith("· Watch")  # a wristwatch, not a bracelet
+    sandals = (await provider.search_live(query="women sandals", limit=10))[0]
+    assert sandals.name.endswith("· Sandals")
+
+
+async def test_a_product_is_found_by_its_category_too(client, db):  # noqa: ANN001
+    store = await _company(client, name="Zee Store", country="PK")
+    await client.post("/api/v1/stores/me/plans/basic/purchase")
+    made = (
+        await client.post(
+            "/api/v1/stores/me/products",
+            json={"name": "Zara Pearl Studs", "price_cents": 2500, "currency": "usd", "product_url": _LINK, "category": "Earrings"},
+        )
+    ).json()
+    await _with_photo(db, made["id"])
+    await _approve(db, store["id"])
+    set_country("PK")
+    found = await StoreProductProvider().search_live(query="women earrings", limit=10)
+    assert [r.retailer_product_id for r in found] == [made["id"]]

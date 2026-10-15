@@ -94,6 +94,66 @@ def end_plan(store: Store) -> None:
 
 # --------------------------------------------------------------------- search
 
+# What stores call an item in other languages (Spanish, French, Portuguese):
+# a shopper asking for "sandals" finds a store's "Sandalias ..." too.
+ITEM_WORDS: dict[str, tuple[str, ...]] = {
+    "dress": ("vestido", "robe"),
+    "earrings": ("pendientes", "aretes", "boucles", "brincos"),
+    "necklace": ("collar", "colgante", "gargantilla", "collier", "colar"),
+    "bracelet": ("pulsera", "brazalete", "bracelete"),
+    "bangles": ("brazalete",),
+    "ring": ("anillo", "bague", "anel"),
+    "bag": ("bolso", "bolsa", "sac"),
+    "handbag": ("bolso", "sac"),
+    "sandals": ("sandalias", "sandales", "sandalia"),
+    "shoes": ("zapatos", "chaussures", "sapatos"),
+    "heels": ("tacones", "tacón", "tacon", "escarpins"),
+    "boots": ("botas", "bottes", "botines"),
+    "watch": ("reloj", "montre", "relógio"),
+    "scarf": ("pañuelo", "bufanda", "foulard", "écharpe"),
+    "skirt": ("falda", "jupe", "saia"),
+    "blouse": ("blusa", "chemisier"),
+    "shirt": ("camisa", "chemise"),
+    "jacket": ("chaqueta", "veste", "jaqueta"),
+    "trousers": ("pantalón", "pantalones", "pantalon", "calça"),
+    "jeans": ("vaqueros",),
+    "sunglasses": ("gafas de sol", "lunettes de soleil"),
+}
+_FOREIGN_TO_ENGLISH = {foreign: english for english, words in ITEM_WORDS.items() for foreign in words}
+
+
+def english_item_words(name: str) -> list[str]:
+    """English item words for the foreign ones in a product name that the name
+    doesn't already say in English: "Sandalias Gel" -> ["Sandals"]."""
+    low = name.lower()
+    found: list[str] = []
+    for foreign, english in _FOREIGN_TO_ENGLISH.items():
+        if re.search(rf"(?<![a-zà-ÿ]){re.escape(foreign)}(?![a-zà-ÿ])", low) and not re.search(rf"\b{english}\b", low):
+            if english.capitalize() not in found:
+                found.append(english.capitalize())
+    if "Watch" in found and "Bracelet" in found:
+        found.remove("Bracelet")  # "reloj de pulsera" is a wristwatch, not a bracelet
+    return found
+
+
+def shown_name(name: str) -> str:
+    """A product's name as shoppers see it in search: a foreign name gets the
+    English word next to it ("Pendientes de plata · Earrings"), so everyone
+    knows what it is and English searches and checks recognise it."""
+    extra = english_item_words(name)
+    return f"{name} · {', '.join(extra)}" if extra else name
+
+
+def _word_condition(word: str):  # noqa: ANN202 - a SQL condition
+    """The query word in a product's name or category, or a foreign word for it in its name."""
+    options = [StoreProduct.name.ilike(f"%{word}%"), StoreProduct.category.ilike(f"%{word}%")]
+    singular = word[:-1] if word.endswith("s") else word
+    for english, foreign in ITEM_WORDS.items():
+        if word in (english, english + "s") or singular == english:
+            options += [StoreProduct.name.ilike(f"%{f}%") for f in foreign]
+    return or_(*options)
+
+
 _IGNORED = {"women", "womens", "woman", "men", "mens", "man", "for", "and", "with", "the", "ladies", "girls", "boys", "unisex"}
 
 
@@ -113,7 +173,7 @@ async def search_store_products(
     local_first = case((Store.country == (country or ""), 0), else_=1)
     reach = delivers_clause(country)
     for start in range(len(words)):
-        matches = [StoreProduct.name.ilike(f"%{w}%") for w in words[start:]]
+        matches = [_word_condition(w) for w in words[start:]]
         rows = (
             await db.execute(
                 select(StoreProduct, Store)
