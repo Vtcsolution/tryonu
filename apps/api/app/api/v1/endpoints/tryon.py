@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from app.ai.providers.registry import direct_engine_active, get_tryon_provider
 from app.core.config import get_settings
 from app.core.deps import CurrentUser, DbSession
+from app.core.logging import logger
 from app.core.rate_limit import rate_limiter
 from app.db.base import new_uuid
 from app.models.enums import CreditReason, JobStatus
@@ -113,17 +114,21 @@ async def _create_one_job(
     job_id = new_uuid()
     kind = "product" if product_id else "outfit" if outfit_id else "wardrobe item"
 
-    # TryOnU store products in the look: each store sees its products were tried on
-    items = await store_tryons.store_products_in(
-        db, await store_tryons.look_product_ids(db, product_id=product_id, outfit_id=outfit_id)
-    )
-    sponsor = store_tryons.sponsor_of(items) if use_store_credit else None
-    if use_store_credit and (sponsor is None or not await store_tryons.charge(db, sponsor.id)):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="This store's free try-ons have just run out. You can still try it on with your own credits.",
-        )
-    if sponsor is not None:
+    async def store_items() -> list:
+        # TryOnU store products in the look: each store sees its products were tried on
+        ids = await store_tryons.look_product_ids(db, product_id=product_id, outfit_id=outfit_id)
+        return await store_tryons.store_products_in(db, ids)
+
+    sponsor = None
+    if use_store_credit:
+        # the shopper chose the free try-on a store pays for
+        items = await store_items()
+        sponsor = store_tryons.sponsor_of(items)
+        if sponsor is None or not await store_tryons.charge(db, sponsor.id):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This store's free try-ons have just run out. You can still try it on with your own credits.",
+            )
         cost = 0  # the store pays: nothing taken from the shopper
     else:
         # Debit first: if the user can't afford it, no job row is ever created.
@@ -136,6 +141,7 @@ async def _create_one_job(
             reference_id=job_id,
             note=f"Try-on ({kind})",
         )
+        items = None  # looked up once the job is saved (below)
 
     job = TryOnJob(
         id=job_id,
@@ -159,13 +165,26 @@ async def _create_one_job(
     )
     db.add(job)
     if items:
+        # a store pays: its try-on is recorded with the job, in one commit
         await db.flush()  # the job row first: store try-ons point at it
         await use_profile_country(db, user.id)
-        store_tryons.record(
-            db, job_id=job_id, items=items, sponsor=sponsor, shared=use_store_credit, country=current_country()
-        )
+        store_tryons.record(db, job_id=job_id, items=items, sponsor=sponsor, shared=True, country=current_country())
     await db.commit()
-    enqueue_tryon_job(job.id)
+    if items is None:
+        # the shopper paid: stores only learn their product was tried on, and
+        # that count must never stop the try-on itself
+        try:
+            paid_items = await store_items()
+            if paid_items:
+                await use_profile_country(db, user.id)
+                store_tryons.record(
+                    db, job_id=job_id, items=paid_items, sponsor=None, shared=False, country=current_country()
+                )
+                await db.commit()
+        except Exception as exc:  # noqa: BLE001
+            await db.rollback()
+            logger.warning("store_tryon_not_recorded", job_id=job_id, error=str(exc)[:200])
+    enqueue_tryon_job(job_id)
     return job_id
 
 
