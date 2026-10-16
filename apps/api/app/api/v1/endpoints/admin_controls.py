@@ -90,7 +90,102 @@ async def get_user_detail(user_id: str, _: AdminUser, db: DbSession):
         ),
         affiliate_clicks_total=await _count(db, AffiliateClick.id, AffiliateClick.user_id == user_id),
         recent_transactions=[CreditTransactionOut.model_validate(t) for t in txns.scalars().all()],
+        **await _user_extras(db, user_id),
     )
+
+
+def _problem(job) -> str | None:  # noqa: ANN001
+    """A failed try-on's reason, in words an admin can act on."""
+    from app.models.enums import JobStatus
+    from app.workers.tasks.tryon_tasks import PAUSED_MESSAGE
+
+    if job.status not in (JobStatus.FAILED, JobStatus.CANCELLED):
+        return None
+    if job.status == JobStatus.CANCELLED:
+        return "Cancelled by the shopper (credits refunded)."
+    if (job.error_message or "") == PAUSED_MESSAGE:
+        return "Paused: no FASHN approval was open (credits refunded). Open one in FASHN credits."
+    return (job.error_message or "Failed (credits refunded).")[:300]
+
+
+async def _user_extras(db: DbSession, user_id: str) -> dict:
+    """What an admin needs to help this person: country, try-ons with reasons,
+    payments, and their store or developer account."""
+    from sqlalchemy.orm import selectinload
+
+    from app.models.developer import DeveloperAccount
+    from app.models.preference import UserPreference
+    from app.models.store import Store, StorePlan, StoreTryOn
+    from app.models.subscription import Payment
+    from app.schemas.admin import AdminUserLink, AdminUserPayment, AdminUserTryOn
+
+    country = await db.scalar(select(UserPreference.country).where(UserPreference.user_id == user_id))
+    jobs = (
+        await db.execute(
+            select(TryOnJob)
+            .where(TryOnJob.user_id == user_id)
+            .options(selectinload(TryOnJob.result))
+            .order_by(TryOnJob.created_at.desc())
+            .limit(20)
+        )
+    ).scalars().all()
+    sponsored = set(
+        (
+            await db.execute(
+                select(StoreTryOn.tryon_job_id).where(
+                    StoreTryOn.tryon_job_id.in_([j.id for j in jobs] or [""]), StoreTryOn.paid_by_store.is_(True)
+                )
+            )
+        ).scalars()
+    )
+    tryons = [
+        AdminUserTryOn(
+            id=j.id,
+            created_at=j.created_at,
+            status=j.status.value,
+            kind="outfit" if j.outfit_id else "wardrobe item" if j.wardrobe_item_id else "product",
+            credits=j.credit_cost,
+            paid_by="a store's try-on credit" if j.id in sponsored else "their credits" if j.credit_cost else "free",
+            problem=_problem(j),
+            result_image_url=j.result.image_url if j.result else None,
+        )
+        for j in jobs
+    ]
+    payments_rows = (
+        await db.execute(
+            select(Payment).where(Payment.user_id == user_id).order_by(Payment.created_at.desc()).limit(20)
+        )
+    ).scalars().all()
+    plan_names = dict((await db.execute(select(StorePlan.id, StorePlan.name))).all())
+    payments = [
+        AdminUserPayment(
+            id=p.id,
+            created_at=p.created_at,
+            amount_cents=p.amount_cents,
+            currency=p.currency,
+            status=p.status.value,
+            what=(
+                f"Store plan: {plan_names.get(p.store_plan_id, 'plan')}" if p.store_plan_id
+                else "Developer API credits" if p.developer_pack_id
+                else "Credit pack" if p.credit_package_id
+                else "Subscription" if p.subscription_id
+                else "Payment"
+            ),
+        )
+        for p in payments_rows
+    ]
+    store = await db.scalar(select(Store).where(Store.owner_user_id == user_id))
+    developer = await db.scalar(select(DeveloperAccount).where(DeveloperAccount.user_id == user_id))
+    return {
+        "country": country,
+        "recent_tryons": tryons,
+        "payments": payments,
+        "store": AdminUserLink(id=store.id, name=store.name, status=store.status, detail=f"tryonu.app/stores/{store.slug}")
+        if store else None,
+        "developer": AdminUserLink(
+            id=developer.id, name=developer.company_name, status=developer.status, detail=f"{developer.credits} API credits"
+        ) if developer else None,
+    }
 
 
 @router.patch("/users/{user_id}", response_model=AdminUserOut)

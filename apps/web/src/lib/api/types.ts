@@ -386,6 +386,20 @@ export type AdminUserDetail = {
   wardrobe_items_total: number;
   affiliate_clicks_total: number;
   recent_transactions: CreditTransaction[];
+  country?: string | null;
+  recent_tryons?: {
+    id: string;
+    created_at: string;
+    status: string;
+    kind: string;
+    credits: number;
+    paid_by: string;
+    problem: string | null;
+    result_image_url: string | null;
+  }[];
+  payments?: { id: string; created_at: string; amount_cents: number; currency: string; status: string; what: string }[];
+  store?: { id: string; name: string; status: string; detail: string } | null;
+  developer?: { id: string; name: string; status: string; detail: string } | null;
 };
 
 export type AdminTryOnJob = TryOnJob & { user_email: string | null };

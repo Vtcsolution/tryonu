@@ -266,3 +266,33 @@ async def test_admin_system_status_never_exposes_secrets(client, db):
     body = resp.json()
     assert body["tryon_credit_cost"] == 5
     assert not any("key" in k.lower() or "secret" in k.lower() for k in body)
+
+
+async def test_admins_see_a_customers_try_ons_with_plain_reasons_and_country(client, db):  # noqa: ANN001
+    from datetime import datetime, timezone
+
+    from app.models.enums import JobStatus, PhotoKind
+    from app.models.photo import UserPhoto
+    from app.models.preference import UserPreference
+    from app.models.tryon import TryOnJob
+    from app.workers.tasks.tryon_tasks import PAUSED_MESSAGE
+    from tests.conftest import make_admin, register_and_login
+
+    shopper = await register_and_login(client)
+    shopper_id = shopper["user"]["id"]
+    photo = UserPhoto(user_id=shopper_id, kind=PhotoKind.FRONT, storage_key="k", url="https://x.example.com/p.jpg")
+    db.add(photo)
+    db.add(UserPreference(user_id=shopper_id, country="PK"))
+    await db.flush()
+    db.add(TryOnJob(user_id=shopper_id, user_photo_id=photo.id, provider="fashn", provider_model="tryon-max", status=JobStatus.FAILED,
+                    credit_cost=10, error_message=PAUSED_MESSAGE, queued_at=datetime.now(timezone.utc)))
+    await db.commit()
+
+    admin = await register_and_login(client)
+    await make_admin(db, admin["user"]["id"])
+    detail = (await client.get(f"/api/v1/admin/users/{shopper_id}")).json()
+    assert detail["country"] == "PK"
+    tryon = detail["recent_tryons"][0]
+    assert tryon["status"] == "failed" and tryon["paid_by"] == "their credits"
+    assert tryon["problem"].startswith("Paused: no FASHN approval")
+    assert detail["store"] is None and detail["developer"] is None and detail["payments"] == []

@@ -27,6 +27,35 @@ class AdminUserOut(ORMModel):
     created_at: datetime
 
 
+class AdminUserTryOn(BaseModel):
+    id: str
+    created_at: datetime
+    status: str
+    kind: str  # product | outfit | wardrobe item
+    credits: int
+    # who paid: the shopper's credits, a store's try-on credit, or nothing yet
+    paid_by: str
+    # why it failed, in plain words (None when it didn't)
+    problem: str | None = None
+    result_image_url: str | None = None
+
+
+class AdminUserPayment(BaseModel):
+    id: str
+    created_at: datetime
+    amount_cents: int
+    currency: str
+    status: str
+    what: str
+
+
+class AdminUserLink(BaseModel):
+    id: str
+    name: str
+    status: str
+    detail: str
+
+
 class AdminUserDetail(BaseModel):
     user: AdminUserOut
     tryon_jobs_total: int
@@ -34,6 +63,11 @@ class AdminUserDetail(BaseModel):
     wardrobe_items_total: int
     affiliate_clicks_total: int
     recent_transactions: list[CreditTransactionOut]
+    country: str | None = None
+    recent_tryons: list[AdminUserTryOn] = []
+    payments: list[AdminUserPayment] = []
+    store: AdminUserLink | None = None
+    developer: AdminUserLink | None = None
 
 
 class AdminUserUpdate(BaseModel):

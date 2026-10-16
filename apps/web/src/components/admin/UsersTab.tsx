@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { admin as adminApi } from "@/lib/api/endpoints";
 import type { AdminUser } from "@/lib/api/types";
+import { countryName } from "@/lib/countries";
 import {
   Badge,
   ErrorNote,
@@ -16,6 +17,7 @@ import {
   TableSkeleton,
   errorText,
   inputClass,
+  money,
   when,
 } from "./ui";
 
@@ -161,6 +163,22 @@ function UserDetailPanel({ userId, isSelf, onClose }: { userId: string; isSelf: 
               <p className="text-[14px] text-muted">
                 {detail.data.user.full_name || "No name"} · joined {when(detail.data.user.created_at)}
               </p>
+              <p className="mt-1 text-[14px] text-ink-soft">
+                {detail.data.country ? `${countryName(detail.data.country)}` : "Country not set"} · signs in with{" "}
+                {detail.data.user.auth_provider === "google" ? "Google" : "email and password"} · last sign-in{" "}
+                {detail.data.user.last_login_at ? when(detail.data.user.last_login_at) : "never"}
+              </p>
+              {(detail.data.store || detail.data.developer) && (
+                <p className="mt-1 text-[14px] text-ink-soft">
+                  {detail.data.store && (
+                    <>🏬 Store: <b>{detail.data.store.name}</b> ({detail.data.store.status}) · {detail.data.store.detail}</>
+                  )}
+                  {detail.data.store && detail.data.developer && " · "}
+                  {detail.data.developer && (
+                    <>🧩 Developer: <b>{detail.data.developer.name}</b> ({detail.data.developer.status}) · {detail.data.developer.detail}</>
+                  )}
+                </p>
+              )}
               <div className="mt-2">
                 <UserBadges user={detail.data.user} />
               </div>
@@ -271,6 +289,44 @@ function UserDetailPanel({ userId, isSelf, onClose }: { userId: string; isSelf: 
               {update.isError && <div className="mt-2"><ErrorNote>{errorText(update.error)}</ErrorNote></div>}
             </div>
           </div>
+
+          <p className="mb-2 mt-5 text-[14px] font-semibold text-ink">Recent try-ons</p>
+          <Table
+            columns={["When", "What", "Status", "Paid with", "Result / problem"]}
+            rows={(detail.data.recent_tryons ?? []).map((t) => [
+              when(t.created_at),
+              t.kind,
+              <Badge key="s" tone={t.status === "completed" ? "good" : t.status === "failed" || t.status === "cancelled" ? "bad" : "warn"}>
+                {t.status}
+              </Badge>,
+              t.credits ? `${t.paid_by} (${t.credits})` : t.paid_by,
+              t.problem ? (
+                <span key="p" className="text-[#a4553f]">{t.problem}</span>
+              ) : t.result_image_url ? (
+                <a key="r" href={t.result_image_url} target="_blank" rel="noopener noreferrer" className="font-medium text-sage-deep hover:underline">
+                  View picture ↗
+                </a>
+              ) : (
+                "—"
+              ),
+            ])}
+            empty="No try-ons yet."
+          />
+
+          {(detail.data.payments ?? []).length > 0 && (
+            <>
+              <p className="mb-2 mt-5 text-[14px] font-semibold text-ink">Payments</p>
+              <Table
+                columns={["When", "For", "Amount", "Status"]}
+                rows={(detail.data.payments ?? []).map((p) => [
+                  when(p.created_at),
+                  p.what,
+                  money(p.amount_cents, p.currency),
+                  <Badge key="s" tone={p.status === "succeeded" ? "good" : p.status === "failed" ? "bad" : "neutral"}>{p.status}</Badge>,
+                ])}
+              />
+            </>
+          )}
 
           <p className="mb-2 mt-5 text-[14px] font-semibold text-ink">Recent credit history</p>
           <Table

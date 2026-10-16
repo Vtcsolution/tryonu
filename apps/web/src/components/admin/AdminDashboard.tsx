@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
+import { adminOps } from "@/lib/api/endpoints";
 import { Logo } from "@/components/ui/Logo";
 import { useSession } from "@/lib/auth/useSession";
 import {
@@ -165,6 +167,7 @@ export function AdminDashboard() {
       drawerOpen={drawerOpen}
       setDrawerOpen={setDrawerOpen}
     >
+      {tab !== "fashn" && <FashnWarning onOpen={() => selectTab("fashn")} />}
       <div key={tab} className="tu-page">
         {tab === "overview" && <OverviewTab />}
         {tab === "analytics" && <AnalyticsTab />}
@@ -186,5 +189,43 @@ export function AdminDashboard() {
         {tab === "account" && <AccountSettings user={user} />}
       </div>
     </AdminShell>
+  );
+}
+
+/** Shoppers' try-ons run only while a FASHN approval is open: say so before customers find out. */
+function FashnWarning({ onOpen }: { onOpen: () => void }) {
+  const status = useQuery({ queryKey: ["admin", "fashn-approval"], queryFn: adminOps.fashnStatus, refetchInterval: 60_000 });
+  if (!status.data) return null;
+  const open = status.data.open_authorizations;
+  const left = open.reduce((sum, a) => sum + Math.max(0, a.budget - a.reserved), 0);
+  const ends = open.map((a) => new Date(a.expires_at).getTime()).sort((x, y) => x - y)[0];
+  const hoursLeft = ends ? Math.max(0, Math.round((ends - Date.now()) / 3_600_000)) : 0;
+  let text: string | null = null;
+  let severe = false;
+  if (!status.data.live_generation_allowed || left === 0) {
+    text = "Try-ons are paused: no FASHN approval is open, so every customer's try-on fails (their credits come back).";
+    severe = true;
+  } else if (left < 8) {
+    text = `Only ${left} FASHN credits left in your approval (about ${Math.floor(left / 4)} looks). Try-ons pause when they run out.`;
+  } else if (hoursLeft <= 6) {
+    text = `Your FASHN approval ends in about ${hoursLeft} hour${hoursLeft === 1 ? "" : "s"}. Try-ons pause then.`;
+  }
+  if (!text) return null;
+  return (
+    <div
+      role="alert"
+      className={`mb-5 flex flex-wrap items-center justify-between gap-3 rounded-[16px] border px-4 py-3 ${
+        severe ? "border-[#c0503a]/40 bg-[#c0503a]/10" : "border-[#c9a13b]/50 bg-[#c9a13b]/10"
+      }`}
+    >
+      <p className="text-[15px] font-medium text-ink">⚠ {text}</p>
+      <button
+        type="button"
+        onClick={onOpen}
+        className="tu-press min-h-[40px] rounded-full bg-sage px-4 text-[14px] font-semibold text-white hover:bg-sage-deep"
+      >
+        {severe ? "Approve now →" : "Add more →"}
+      </button>
+    </div>
   );
 }
