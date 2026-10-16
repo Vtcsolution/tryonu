@@ -82,6 +82,11 @@ async def grant(
     )
     db.add(entry)
     await db.flush()
+    if reason == CreditReason.PURCHASE:
+        # share and earn: whoever invited this buyer earns, once
+        from app.services.referral_service import reward_first_purchase
+
+        await reward_first_purchase(db, user_id)
     return entry
 
 

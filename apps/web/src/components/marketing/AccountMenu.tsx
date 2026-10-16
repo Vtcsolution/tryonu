@@ -88,6 +88,7 @@ export function AccountMenu() {
             { href: "/outfits", label: "Outfit builder" },
             { href: "/wardrobe", label: "My wardrobe" },
             { href: "/saved", label: "Saved looks" },
+            { href: "/saved#earn", label: "Share & earn credits 🎁" },
             { href: "/preferences", label: "My style picks" },
             { href: "/credits", label: "Buy credits" },
             { href: "/account", label: "My account & password" },

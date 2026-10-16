@@ -343,6 +343,20 @@ export const outfits = {
 
 /* --------------------------------- try-on ---------------------------------- */
 
+/** share and earn: your invite link and what it earned; a new account says which link it came from */
+export type ReferralSummary = {
+  code: string;
+  link: string;
+  reward_credits: number;
+  friends_joined: number;
+  friends_bought: number;
+  credits_earned: number;
+};
+export const referrals = {
+  me: () => apiFetch<ReferralSummary>("/api/v1/referrals/me"),
+  claim: (ref: string) => apiFetch<{ claimed: boolean }>("/api/v1/referrals/claim", { method: "POST", body: { ref } }),
+};
+
 /** a look someone shared: the visitor tries the same products on themselves */
 export const shared = {
   tryThis: (token: string) =>

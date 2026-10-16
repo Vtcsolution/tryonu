@@ -2,7 +2,8 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { rememberReferral } from "@/components/referrals/ReferralCapture";
 import { ShareLook } from "@/components/try/ShareLook";
 import { RetailerTag, formatPrice } from "@/components/try/shop";
 import { ApiError, relayedImageUrl, resolveMediaUrl } from "@/lib/api/client";
@@ -16,6 +17,7 @@ type SharedProduct = SharedLook["products"][number];
  * as the owner's result page, shop links, and "Try this look on yourself". */
 export function SharedLookView({ look, pageUrl }: { look: SharedLook; pageUrl: string }) {
   const count = look.products.length;
+  useEffect(() => rememberReferral(`look:${look.token}`), [look.token]);
   return (
     <section className="mx-auto w-[min(1280px,calc(100%-32px))] py-8 md:py-12">
       <div className="flex flex-wrap items-center gap-3">

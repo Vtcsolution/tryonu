@@ -1,9 +1,10 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { tryon as tryonApi } from "@/lib/api/endpoints";
+import { referrals as referralsApi, tryon as tryonApi } from "@/lib/api/endpoints";
+import { useSession } from "@/lib/auth/useSession";
 import { ApiError } from "@/lib/api/client";
 
 type Props = {
@@ -13,12 +14,23 @@ type Props = {
   url?: string;
   /** "pill": small button beside a title; "wide": full-width button in a list of actions */
   variant?: "pill" | "wide";
+  /** the button's words (default: "Share" / "Share this look") */
+  label?: string;
+  /** the pop-up's heading, and the message sent with the link */
+  title?: string;
+  message?: string;
+  /** the link earns the signed-in person credits (their own look, or their invite link) */
+  earns?: boolean;
 };
 
-const TEXT = "Here's my look, made with TryOnU";
+const LOOK_TEXT = "Here's my look, made with TryOnU. Try it on yourself:";
 
 /** Share a look: a pop-up with Facebook, LinkedIn, X, WhatsApp and Copy link. */
-export function ShareLook({ jobId, url, variant = "pill" }: Props) {
+export function ShareLook({ jobId, url, variant = "pill", label, title = "Share your look", message = LOOK_TEXT, earns }: Props) {
+  const TEXT = message;
+  const { user } = useSession();
+  const earn = useQuery({ queryKey: ["referrals", "me"], queryFn: referralsApi.me, enabled: !!user, staleTime: 5 * 60_000 });
+  const reward = earn.data?.reward_credits ?? 0;
   const [open, setOpen] = useState(false);
   const [link, setLink] = useState<string | null>(url ?? null);
   const [copied, setCopied] = useState(false);
@@ -89,7 +101,7 @@ export function ShareLook({ jobId, url, variant = "pill" }: Props) {
         onClick={start}
         className="tu-press flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full border border-sage bg-sage-tint/40 px-5 text-[16px] font-semibold text-ink hover:bg-sage-tint/70"
       >
-        <ShareIcon /> Share this look
+        <ShareIcon /> {label ?? "Share this look"}
       </button>
     ) : (
       <button
@@ -97,7 +109,7 @@ export function ShareLook({ jobId, url, variant = "pill" }: Props) {
         onClick={start}
         className="tu-press ml-auto inline-flex min-h-[44px] items-center gap-2 rounded-full bg-sage px-5 text-[15px] font-semibold text-white hover:bg-sage-deep"
       >
-        <ShareIcon /> Share
+        <ShareIcon /> {label ?? "Share"}
       </button>
     );
 
@@ -120,10 +132,17 @@ export function ShareLook({ jobId, url, variant = "pill" }: Props) {
         >
           ×
         </button>
-        <h2 className="font-display text-[28px] text-ink">Share your look</h2>
-        <p className="mx-auto mt-1 max-w-[400px] text-[15px] text-ink-soft">
-          Anyone with the link sees this picture and the products in it, and can try them on too.
+        <h2 className="font-display text-[28px] text-ink">{title}</h2>
+        <p className="mx-auto mt-1 max-w-[420px] text-[15px] text-ink-soft">
+          {jobId
+            ? "Anyone with the link sees this picture and the products in it, and can try them on too."
+            : "Send the link to friends or post it on social media."}
         </p>
+        {reward > 0 && (earns ?? !!jobId) && (
+          <p className="mx-auto mt-3 max-w-[440px] rounded-xl bg-sage-tint/50 px-3 py-2 text-[14.5px] text-ink">
+            🎁 Earn <b>{reward} credits</b> for every friend who joins from your link and buys credits.
+          </p>
+        )}
 
         {share.isPending && <p className="mt-6 text-[15px] text-muted">Making your link…</p>}
         {share.isError && (
@@ -196,7 +215,7 @@ export function ShareLook({ jobId, url, variant = "pill" }: Props) {
               {canNativeShare && (
                 <button
                   type="button"
-                  onClick={() => navigator.share({ title: "My TryOnU look", text: TEXT, url: link }).catch(() => undefined)}
+                  onClick={() => navigator.share({ title: "TryOnU", text: TEXT, url: link }).catch(() => undefined)}
                   className="font-medium text-sage-deep hover:underline"
                 >
                   More apps…

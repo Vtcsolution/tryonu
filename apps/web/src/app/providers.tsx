@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-query";
 import { AnalyticsTracker } from "@/components/analytics/AnalyticsTracker";
 import { CountryGate } from "@/components/auth/CountryGate";
+import { ReferralCapture } from "@/components/referrals/ReferralCapture";
 
 function makeQueryClient() {
   return new QueryClient({
@@ -40,6 +41,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <AnalyticsTracker />
       <CountryGate />
+      <ReferralCapture />
       {children}
     </QueryClientProvider>
   );
