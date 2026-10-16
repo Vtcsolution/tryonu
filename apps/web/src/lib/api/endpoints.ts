@@ -503,8 +503,8 @@ export const developers = {
     apiFetch<DeveloperAccount>("/api/v1/developers", { method: "POST", body: input }),
   mine: () => apiFetch<DeveloperAccount>("/api/v1/developers/me"),
   keys: () => apiFetch<DeveloperApiKey[]>("/api/v1/developers/keys"),
-  makeKey: (name: string) =>
-    apiFetch<DeveloperApiKeyCreated>("/api/v1/developers/keys", { method: "POST", body: { name } }),
+  makeKey: (input: { name: string; kind?: "secret" | "public"; allowed_domains?: string[] }) =>
+    apiFetch<DeveloperApiKeyCreated>("/api/v1/developers/keys", { method: "POST", body: input }),
   revokeKey: (id: string) => apiFetch<DeveloperApiKey>(`/api/v1/developers/keys/${id}`, { method: "DELETE" }),
   packs: () => apiFetch<DeveloperCreditPack[]>("/api/v1/developers/packs"),
   buyPack: (code: string) =>

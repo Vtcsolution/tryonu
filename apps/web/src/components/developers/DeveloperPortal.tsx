@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import { AccountSettings } from "@/components/account/AccountSettings";
 import { AdminShell, type NavGroup, type ShellArea } from "@/components/admin/AdminShell";
 import { Badge, ErrorNote, SmallButton, errorText, inputClass, money } from "@/components/admin/ui";
-import { DeveloperDocs } from "@/components/developers/DeveloperDocs";
+import { DeveloperDocs, WidgetSteps } from "@/components/developers/DeveloperDocs";
 import { SiteChrome } from "@/components/layout/SiteChrome";
 import { Button } from "@/components/ui/Button";
 import { ApiError } from "@/lib/api/client";
@@ -183,9 +183,9 @@ function Overview({ account, go }: { account: DeveloperAccount; go: (t: Tab) => 
   const keys = useQuery({ queryKey: ["developers", "keys"], queryFn: devApi.keys });
   const hasKey = (keys.data ?? []).some((k) => !k.revoked_at);
   const steps: { done: boolean; title: string; text: string; tab: Tab; action: string }[] = [
-    { done: hasKey, title: "Create an API key", text: "Your server uses it to call TryOnU.", tab: "keys", action: "Create a key" },
+    { done: hasKey, title: "Create a key", text: "A website key for the \u201cTry it on\u201d button, or a secret key for your server.", tab: "keys", action: "Create a key" },
     { done: account.credits > 0, title: "Buy credits", text: "1 credit = 1 try-on. They never expire.", tab: "credits", action: "Buy credits" },
-    { done: account.tryons_total > 0, title: "Make your first try-on", text: "Copy the code for your platform.", tab: "docs", action: "See the code" },
+    { done: account.tryons_total > 0, title: "Add it to your shop", text: "Shopify, WordPress or any website: copy and paste.", tab: "docs", action: "Show me how" },
   ];
   return (
     <>
@@ -241,14 +241,22 @@ function Keys() {
   const qc = useQueryClient();
   const keys = useQuery({ queryKey: ["developers", "keys"], queryFn: devApi.keys });
   const [name, setName] = useState("");
+  const [kind, setKind] = useState<"public" | "secret">("public");
+  const [domains, setDomains] = useState("");
   const [fresh, setFresh] = useState<DeveloperApiKeyCreated | null>(null);
   const [copied, setCopied] = useState(false);
   const [confirm, setConfirm] = useState<string | null>(null);
   const make = useMutation({
-    mutationFn: () => devApi.makeKey(name.trim() || "My key"),
+    mutationFn: () =>
+      devApi.makeKey({
+        name: name.trim() || (kind === "public" ? "My website" : "My server"),
+        kind,
+        allowed_domains: kind === "public" ? domains.split(/[\s,]+/).filter(Boolean) : [],
+      }),
     onSuccess: (k) => {
       setFresh(k);
       setName("");
+      setDomains("");
       setCopied(false);
       qc.invalidateQueries({ queryKey: ["developers", "keys"] });
     },
@@ -262,14 +270,43 @@ function Keys() {
   });
   return (
     <>
-      <Card title="Create an API key" hint="Your server sends this key with every call. Give each server or project its own key, so you can turn one off without touching the others.">
+      <Card title="Create a key" hint="Give each website or server its own key, so you can turn one off without touching the others.">
+        <div role="radiogroup" aria-label="Key type" className="mb-4 grid gap-2 sm:grid-cols-2">
+          {(
+            [
+              ["public", "Website key", "For the \u201cTry it on\u201d button on your shop (any website, Shopify, WordPress). Works only on your domains."],
+              ["secret", "Secret server key", "For programmers calling the API from a server. Never put it in a web page."],
+            ] as const
+          ).map(([id, title, text]) => (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={kind === id}
+              onClick={() => setKind(id)}
+              className={`rounded-[16px] border p-4 text-left ${kind === id ? "border-sage bg-sage-tint/30" : "border-line hover:border-line-strong"}`}
+            >
+              <span className="text-[15.5px] font-semibold text-ink">{kind === id ? "● " : "○ "}{title}</span>
+              <span className="mt-1 block text-[13.5px] text-muted">{text}</span>
+            </button>
+          ))}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
+          {kind === "public" && (
+            <input
+              value={domains}
+              onChange={(e) => setDomains(e.target.value)}
+              placeholder="Your shop's address, e.g. yourshop.com"
+              aria-label="Your shop's web address (several: separate with commas)"
+              className={`${inputClass} w-80`}
+            />
+          )}
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Name, e.g. My shop server"
+            placeholder={kind === "public" ? "Name, e.g. My shop" : "Name, e.g. My shop server"}
             maxLength={80}
-            className={`${inputClass} w-72`}
+            className={`${inputClass} w-64`}
           />
           <SmallButton tone="primary" disabled={make.isPending} onClick={() => make.mutate()}>
             {make.isPending ? "Creating…" : "+ Create key"}
@@ -295,10 +332,21 @@ function Keys() {
                 {copied ? "✓ Copied" : "Copy"}
               </SmallButton>
             </div>
-            <p className="mt-2 text-[13.5px] text-ink-soft">
-              Keep it on your server (for example in an environment variable). Never put it in a web page or an app. If it leaks,
-              revoke it below and create a new one.
-            </p>
+            {fresh.kind === "public" ? (
+              <>
+                <p className="mt-2 text-[13.5px] text-ink-soft">
+                  This website key is safe in your web page: it only works on {(fresh.allowed_domains ?? []).join(", ")}. Now add the
+                  button to your shop:
+                </p>
+                <WidgetSteps shop="website" websiteKey={fresh.key} />
+                <p className="mt-2 text-[13.5px] text-muted">Shopify or WordPress? See the steps in <b>Docs &amp; code</b>.</p>
+              </>
+            ) : (
+              <p className="mt-2 text-[13.5px] text-ink-soft">
+                Keep it on your server (for example in an environment variable). Never put it in a web page or an app. If it leaks,
+                revoke it below and create a new one.
+              </p>
+            )}
             <SmallButton onClick={() => setFresh(null)}>I&apos;ve saved it</SmallButton>
           </div>
         )}
@@ -313,7 +361,12 @@ function Keys() {
             {keys.data.map((k) => (
               <div key={k.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-[14px]">
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium text-ink">{k.name}</p>
+                  <p className="font-medium text-ink">
+                    {k.name}{" "}
+                    <span className="text-[12.5px] font-normal text-muted">
+                      {k.kind === "public" ? `· Website key for ${(k.allowed_domains ?? []).join(", ")}` : "· Secret server key"}
+                    </span>
+                  </p>
                   <p className="text-[13px] text-muted">
                     <code>{k.prefix}…</code> · created {new Date(k.created_at).toLocaleDateString()}
                     {k.last_used_at ? ` · last used ${new Date(k.last_used_at).toLocaleString()}` : " · never used"}

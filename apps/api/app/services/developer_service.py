@@ -31,6 +31,8 @@ from app.services.image_service import ProcessedImage
 from app.services.storage_service import get_storage, new_key
 
 SECRET_PREFIX = "tou_sk_"
+# website keys: safe inside a web page, because they only work on the shop's own domains
+PUBLIC_PREFIX = "tou_pk_"
 MAX_IMAGE_BYTES = 15 * 1024 * 1024
 
 
@@ -42,6 +44,57 @@ def new_secret_key() -> tuple[str, str, str]:
     """(the full key, shown once; what is kept: its fingerprint; and its start to recognise it)."""
     raw = SECRET_PREFIX + secrets.token_urlsafe(32)
     return raw, _hash(raw), raw[:14]
+
+
+def new_public_key() -> tuple[str, str, str]:
+    raw = PUBLIC_PREFIX + secrets.token_urlsafe(24)
+    return raw, _hash(raw), raw[:14]
+
+
+def clean_domains(domains: list[str]) -> list[str]:
+    """"https://www.Shop.com/x" -> "shop.com"; empty and duplicate entries dropped."""
+    from urllib.parse import urlparse
+
+    out: list[str] = []
+    for d in domains:
+        d = (d or "").strip().lower()
+        if not d:
+            continue
+        host = urlparse(d if "//" in d else f"//{d}").hostname or ""
+        host = host.removeprefix("www.")
+        if host and host not in out:
+            out.append(host)
+    return out[:20]
+
+
+def origin_allowed(origin: str | None, domains: list[str] | None) -> bool:
+    """The page calling us is on one of the key's domains (or a subdomain of one)."""
+    from urllib.parse import urlparse
+
+    if not origin or not domains:
+        return False
+    host = (urlparse(origin).hostname or "").lower().removeprefix("www.")
+    return any(host == d or host.endswith("." + d) for d in domains)
+
+
+async def authenticate_public(
+    db: AsyncSession, raw_key: str | None, origin: str | None
+) -> tuple[DeveloperAccount, DeveloperApiKey]:
+    if not raw_key or not raw_key.startswith(PUBLIC_PREFIX):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="This website's TryOnU key is missing.")
+    key = await db.scalar(select(DeveloperApiKey).where(DeveloperApiKey.key_hash == _hash(raw_key)))
+    if key is None or key.revoked_at is not None or key.kind != "public":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="This website's TryOnU key is not valid.")
+    if not origin_allowed(origin, key.allowed_domains):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This TryOnU key can't be used on this website. Add the domain to the key in the developer portal.",
+        )
+    account = await db.get(DeveloperAccount, key.account_id)
+    if account is None or account.status != "active":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Try-on isn't available on this website right now.")
+    key.last_used_at = datetime.now(timezone.utc)
+    return account, key
 
 
 async def authenticate(db: AsyncSession, raw_key: str | None) -> tuple[DeveloperAccount, DeveloperApiKey]:

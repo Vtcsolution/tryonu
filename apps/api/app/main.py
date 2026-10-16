@@ -122,6 +122,30 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestLoggingMiddleware)
 
     @app.middleware("http")
+    async def widget_cors(request: Request, call_next):  # noqa: ANN202
+        """The website widget runs on TryOnU customers' own sites: those calls
+        may come from any origin. The website key decides which domains work
+        (developer_service.authenticate_public); no cookies are involved."""
+        if not request.url.path.startswith("/api/v1/public/widget/"):
+            return await call_next(request)
+        origin = request.headers.get("origin")
+        cors = {
+            "Access-Control-Allow-Origin": origin or "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, X-TryOnU-Key",
+            "Access-Control-Max-Age": "600",
+            "Vary": "Origin",
+        }
+        if request.method == "OPTIONS":
+            from starlette.responses import Response as PlainResponse
+
+            return PlainResponse(status_code=204, headers=cors)
+        response = await call_next(request)
+        for name, value in cors.items():
+            response.headers[name] = value
+        return response
+
+    @app.middleware("http")
     async def sync_runtime_settings(request: Request, call_next):  # noqa: ANN202
         # throttled to one DB check per REFRESH_SECONDS per process, so a
         # key saved from the admin panel reaches every worker without a restart

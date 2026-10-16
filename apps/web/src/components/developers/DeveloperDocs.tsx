@@ -3,7 +3,31 @@
 import { useState } from "react";
 import { API_BASE_URL } from "@/lib/api/client";
 
-const BASE = `${API_BASE_URL || "https://api.tryonu.app"}/api/v1/public`;
+const API_ROOT = API_BASE_URL || "https://api.tryonu.app";
+const BASE = `${API_ROOT}/api/v1/public`;
+export const WIDGET_SRC = "https://tryonu.app/widget.js";
+export const PLUGIN_ZIP = "/downloads/tryonu-try-on.zip";
+
+/** The two lines a shop pastes into its website. */
+export function widgetSnippet(key = "tou_pk_YOUR_WEBSITE_KEY") {
+  const api = API_ROOT === "https://api.tryonu.app" ? "" : ` data-api="${API_ROOT}"`;
+  return `<script src="${WIDGET_SRC}" data-key="${key}"${api} defer></script>
+<button data-tryonu-garment="https://your-shop.com/product-photo.jpg" data-tryonu-name="Product name"></button>`;
+}
+
+export function shopifySnippet(key = "tou_pk_YOUR_WEBSITE_KEY") {
+  const api = API_ROOT === "https://api.tryonu.app" ? "" : ` data-api="${API_ROOT}"`;
+  return `<script src="${WIDGET_SRC}" data-key="${key}"${api} defer></script>
+<button data-tryonu-garment="{{ product.featured_image | image_url: width: 1200 | prepend: 'https:' }}"
+        data-tryonu-name="{{ product.title | escape }}"></button>`;
+}
+
+type Shop = "website" | "shopify" | "wordpress";
+const SHOPS: { id: Shop; label: string }[] = [
+  { id: "website", label: "Any website / Wix" },
+  { id: "shopify", label: "Shopify" },
+  { id: "wordpress", label: "WordPress / WooCommerce" },
+];
 
 type Lang = "curl" | "javascript" | "python" | "php" | "wordpress";
 
@@ -113,7 +137,7 @@ echo $job["result_image_url"] ?? ($job["error"] ?? $job["detail"]);`,
   wordpress: `<?php
 // In your theme's functions.php or a small plugin.
 // Add to wp-config.php:  define('TRYONU_API_KEY', 'tou_sk_...');
-// (A ready-made TryOnU plugin with a "Try it on" button is coming.)
+// No code needed? Install the TryOnU plugin instead (see "Add a Try it on button" above).
 
 function tryonu_start($person_url, $product_id) {
     $garment_url = wp_get_attachment_url(get_post_thumbnail_id($product_id));
@@ -151,7 +175,7 @@ const ERRORS: [string, string][] = [
   ["400", "A photo is missing, isn't an image, or its link isn't a public web address."],
   ["401", "No API key, a wrong key, or a revoked key."],
   ["402", "No credits left. Buy a pack in the developer portal."],
-  ["403", "The developer account is suspended."],
+  ["403", "The developer account is suspended, or (website key) the page isn't on one of the key's domains."],
   ["404", "No try-on with that id on your account."],
   ["429", "Too many requests, or TryOnU's daily capacity is reached. Nothing was charged; try again later."],
 ];
@@ -159,6 +183,7 @@ const ERRORS: [string, string][] = [
 /** How to use the TryOnU try-on API, with code for each platform. */
 export function DeveloperDocs({ compact = false }: { compact?: boolean }) {
   const [lang, setLang] = useState<Lang>("curl");
+  const [shop, setShop] = useState<Shop>("website");
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try {
@@ -188,8 +213,33 @@ export function DeveloperDocs({ compact = false }: { compact?: boolean }) {
       )}
 
       <section className={card}>
+        <h2 className="font-display text-[22px] text-ink">Add a &quot;Try it on&quot; button to your shop</h2>
+        <p className="mt-1 text-[15px] text-ink-soft">
+          No programming: shoppers press the button, add a photo and see themselves wearing your product. It uses a{" "}
+          <b>website key</b> (<code>tou_pk_…</code>), which only works on your own domains, so it is safe in your web page.
+        </p>
+        <div role="tablist" aria-label="Shop platform" className="mt-4 flex flex-wrap gap-2">
+          {SHOPS.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              role="tab"
+              aria-selected={shop === p.id}
+              onClick={() => setShop(p.id)}
+              className={`min-h-[38px] rounded-full px-4 text-[14px] font-medium transition-colors ${
+                shop === p.id ? "bg-ink text-surface" : "border border-line text-ink-soft hover:border-line-strong"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <WidgetSteps shop={shop} />
+      </section>
+
+      <section className={card}>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-display text-[22px] text-ink">Code for your platform</h2>
+          <h2 className="font-display text-[22px] text-ink">Code for your platform (server API)</h2>
           <button
             type="button"
             onClick={copy}
@@ -232,6 +282,11 @@ export function DeveloperDocs({ compact = false }: { compact?: boolean }) {
             <li><code>POST /tryons</code> — start a try-on. Files <code>person_image</code> + <code>garment_image</code>, or JSON <code>person_image_url</code> + <code>garment_image_url</code>. Optional: <code>garment_name</code>, <code>reference</code>.</li>
             <li><code>GET /tryons/&#123;id&#125;</code> — the try-on&apos;s status and result.</li>
             <li><code>GET /credits</code> — credits left.</li>
+            <li>
+              Website widget (browser, website key in <code>X-TryOnU-Key</code>, only from the key&apos;s domains):{" "}
+              <code>POST /widget/tryons</code> and <code>GET /widget/tryons/&#123;id&#125;</code>. Each visitor can make a few
+              try-ons an hour.
+            </li>
           </ul>
           <p className="pt-1 text-[13.5px] text-muted">
             Best photos: the customer standing, facing the camera, well lit; the product alone on a plain background. JPEG or PNG, up to 15 MB.
@@ -262,6 +317,95 @@ export function DeveloperDocs({ compact = false }: { compact?: boolean }) {
           </div>
         </div>
       </section>
+    </div>
+  );
+}
+
+/** Step-by-step: putting the widget on a shop, per platform. */
+export function WidgetSteps({ shop, websiteKey }: { shop: Shop; websiteKey?: string }) {
+  const step = "flex gap-3";
+  const num = "grid h-7 w-7 shrink-0 place-items-center rounded-full bg-sage text-[13px] font-semibold text-white";
+  const keyStep = (
+    <li className={step}>
+      <span className={num}>1</span>
+      <span>
+        In this portal, open <b>API keys</b> and create a <b>Website key</b> with your shop&apos;s address (for example{" "}
+        <code>yourshop.com</code>). Buy credits: 1 credit = 1 try-on.
+      </span>
+    </li>
+  );
+  if (shop === "wordpress") {
+    return (
+      <ol className="mt-4 space-y-3 text-[15px] leading-relaxed text-ink-soft">
+        {keyStep}
+        <li className={step}>
+          <span className={num}>2</span>
+          <span>
+            <a href={PLUGIN_ZIP} download className="font-semibold text-sage-deep underline">Download the TryOnU plugin</a>. In
+            WordPress: <b>Plugins → Add New → Upload Plugin</b>, choose the file, <b>Install</b>, <b>Activate</b>.
+          </span>
+        </li>
+        <li className={step}>
+          <span className={num}>3</span>
+          <span>
+            <b>Settings → TryOnU Try-On</b>: paste your website key and save. The button appears under &quot;Add to cart&quot; on
+            every product. (Or place it anywhere with <code>[tryonu_button]</code>.)
+          </span>
+        </li>
+      </ol>
+    );
+  }
+  const code = shop === "shopify" ? shopifySnippet(websiteKey) : widgetSnippet(websiteKey);
+  return (
+    <>
+      <ol className="mt-4 space-y-3 text-[15px] leading-relaxed text-ink-soft">
+        {keyStep}
+        {shop === "shopify" ? (
+          <li className={step}>
+            <span className={num}>2</span>
+            <span>
+              In Shopify: <b>Online Store → Themes → Customize</b>, open a <b>product page</b>, <b>Add block → Custom Liquid</b>,
+              paste the code below and <b>Save</b>. It uses each product&apos;s own main photo.
+            </span>
+          </li>
+        ) : (
+          <li className={step}>
+            <span className={num}>2</span>
+            <span>
+              Paste the code below into your product page (on Wix: <b>Add → Embed code → Custom code</b>). Put your product&apos;s photo
+              address in <code>data-tryonu-garment</code>, or leave it empty (<code>data-tryonu-garment=&quot;&quot;</code>) to use
+              the page&apos;s main picture.
+            </span>
+          </li>
+        )}
+      </ol>
+      <CopyBlock code={code} />
+    </>
+  );
+}
+
+function CopyBlock({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="relative mt-4">
+      <pre className="overflow-auto rounded-[16px] bg-[#0f0f0d] p-4 pr-24 text-[13px] leading-relaxed text-[#e9e6dc]">
+        <code>{code}</code>
+      </pre>
+      <button
+        type="button"
+        onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(code);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1800);
+          } catch {
+            setCopied(false);
+          }
+        }}
+        className="tu-press absolute right-3 top-3 min-h-[34px] rounded-full bg-surface px-3 text-[13px] font-semibold text-ink"
+      >
+        {copied ? "✓ Copied" : "Copy"}
+      </button>
     </div>
   );
 }

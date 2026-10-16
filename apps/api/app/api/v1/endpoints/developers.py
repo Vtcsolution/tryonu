@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 from starlette.datastructures import UploadFile
 
+from app.core.config import get_settings
 from app.core.deps import AdminUser, CurrentUser, DbSession
 from app.core.logging import logger
 from app.core.rate_limit import rate_limiter
@@ -80,8 +81,8 @@ async def _account_out(db: DbSession, account: DeveloperAccount) -> DeveloperAcc
 
 def _key_out(key: DeveloperApiKey) -> ApiKeyOut:
     return ApiKeyOut(
-        id=key.id, name=key.name, kind=key.kind, prefix=key.prefix, last_used_at=key.last_used_at,
-        revoked_at=key.revoked_at, created_at=key.created_at,
+        id=key.id, name=key.name, kind=key.kind, prefix=key.prefix, allowed_domains=key.allowed_domains or [],
+        last_used_at=key.last_used_at, revoked_at=key.revoked_at, created_at=key.created_at,
     )
 
 
@@ -147,8 +148,21 @@ async def make_key(payload: ApiKeyIn, user: CurrentUser, db: DbSession):
     )
     if (live or 0) >= MAX_KEYS:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"You can have {MAX_KEYS} keys. Revoke one first.")
-    raw, digest, prefix = dev.new_secret_key()
-    key = DeveloperApiKey(account_id=account.id, name=payload.name.strip(), kind="secret", prefix=prefix, key_hash=digest)
+    if payload.kind == "public":
+        domains = dev.clean_domains(payload.allowed_domains)
+        if not domains:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A website key needs your website's domain, for example yourshop.com.",
+            )
+        raw, digest, prefix = dev.new_public_key()
+    else:
+        domains = None
+        raw, digest, prefix = dev.new_secret_key()
+    key = DeveloperApiKey(
+        account_id=account.id, name=payload.name.strip(), kind=payload.kind, prefix=prefix, key_hash=digest,
+        allowed_domains=domains,
+    )
     db.add(key)
     await db.commit()
     await db.refresh(key)
@@ -387,6 +401,51 @@ async def api_credits(
     account, _ = await dev.authenticate(db, _key_from(authorization, x_api_key))
     await db.commit()
     return PublicCreditsOut(credits_left=account.credits)
+
+
+# ------------------------------------------------------------------ the website widget
+
+
+def _page_origin(request: Request) -> str | None:
+    return request.headers.get("origin") or request.headers.get("referer")
+
+
+@public_router.post("/widget/tryons", response_model=PublicTryOnOut, status_code=status.HTTP_202_ACCEPTED)
+async def widget_create_tryon(request: Request, db: DbSession, x_tryonu_key: str | None = Header(default=None)):
+    """A shopper on a TryOnU customer's website tries a product on (the widget).
+    Website key, only from the key's own domains, a few try-ons per visitor."""
+    from app.core.rate_limit import check_rate_limit
+
+    account, key = await dev.authenticate_public(db, x_tryonu_key, _page_origin(request))
+    check_rate_limit(
+        request, bucket=f"widget_tryon:{key.id}", limit=max(1, get_settings().WIDGET_TRYONS_PER_VISITOR_HOUR), window_seconds=3600
+    )
+    form = await request.form()
+    person = await _image_from(form.get("person_image"), "person_image")
+    garment = await _image_from(form.get("garment_image") or form.get("garment_image_url"), "garment_image")
+    garment_name = form.get("garment_name") if isinstance(form.get("garment_name"), str) else None
+    job = await dev.create_tryon(
+        db, account=account, api_key=key, person=person, garment=garment, garment_name=garment_name,
+        reference=f"widget:{(_page_origin(request) or '')[:100]}",
+    )
+    await db.commit()
+    enqueue_tryon_job(job.id)
+    row = await db.scalar(select(DeveloperTryOn).where(DeveloperTryOn.tryon_job_id == job.id))
+    loaded = await db.scalar(select(TryOnJob).where(TryOnJob.id == job.id).options(selectinload(TryOnJob.result)))
+    return _public_out(loaded, row)
+
+
+@public_router.get("/widget/tryons/{tryon_id}", response_model=PublicTryOnOut)
+async def widget_get_tryon(tryon_id: str, request: Request, db: DbSession, x_tryonu_key: str | None = Header(default=None)):
+    account, _ = await dev.authenticate_public(db, x_tryonu_key, _page_origin(request))
+    row = await db.scalar(
+        select(DeveloperTryOn).where(DeveloperTryOn.tryon_job_id == tryon_id, DeveloperTryOn.account_id == account.id)
+    )
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Try-on not found")
+    job = await db.scalar(select(TryOnJob).where(TryOnJob.id == tryon_id).options(selectinload(TryOnJob.result)))
+    await db.commit()
+    return _public_out(job, row)
 
 
 # ------------------------------------------------------------------ admin

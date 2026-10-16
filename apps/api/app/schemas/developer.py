@@ -23,6 +23,9 @@ class DeveloperAccountOut(BaseModel):
 
 class ApiKeyIn(BaseModel):
     name: str = Field(min_length=1, max_length=80)
+    # secret: for your server | public: for a web page (the widget), only on these domains
+    kind: str = Field(default="secret", pattern=r"^(secret|public)$")
+    allowed_domains: list[str] = Field(default_factory=list, max_length=20)
 
 
 class ApiKeyOut(BaseModel):
@@ -30,6 +33,7 @@ class ApiKeyOut(BaseModel):
     name: str
     kind: str
     prefix: str
+    allowed_domains: list[str] = []
     last_used_at: datetime | None
     revoked_at: datetime | None
     created_at: datetime

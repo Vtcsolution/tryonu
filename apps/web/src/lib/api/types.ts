@@ -743,8 +743,10 @@ export type DeveloperAccount = {
 export type DeveloperApiKey = {
   id: string;
   name: string;
-  kind: string;
+  /** secret: for a server | public: a website key for the widget, only on allowed_domains */
+  kind: "secret" | "public";
   prefix: string;
+  allowed_domains?: string[];
   last_used_at: string | null;
   revoked_at: string | null;
   created_at: string;

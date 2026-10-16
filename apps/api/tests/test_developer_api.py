@@ -204,3 +204,60 @@ async def test_photos_can_be_sent_as_links(client, monkeypatch):  # noqa: ANN001
         headers=_bearer(key),
     )
     assert private.status_code == 400
+
+
+# ------------------------------------------------------------------ the website widget
+
+
+async def _website_key(client, domains):  # noqa: ANN001, ANN202
+    resp = await client.post("/api/v1/developers/keys", json={"name": "My shop", "kind": "public", "allowed_domains": domains})
+    return resp
+
+
+def _widget(key: str, origin: str = "https://www.lc-shop.com") -> dict:
+    return {"X-TryOnU-Key": key, "Origin": origin}
+
+
+async def test_a_website_key_works_only_on_its_own_domains(client, monkeypatch):  # noqa: ANN001
+    _instant(monkeypatch)
+    _, secret = await _developer(client)
+    assert (await _website_key(client, [])).status_code == 400  # a domain is required
+    made = (await _website_key(client, ["https://WWW.lc-shop.com/products", "lc-shop.com"])).json()
+    key = made["key"]
+    assert key.startswith("tou_pk_") and made["kind"] == "public" and made["allowed_domains"] == ["lc-shop.com"]
+
+    started = await client.post("/api/v1/public/widget/tryons", files=_files(), headers=_widget(key))
+    assert started.status_code == 202, started.text
+    assert started.headers["access-control-allow-origin"] == "https://www.lc-shop.com"
+    body = started.json()
+    assert body["credits_left"] is None  # a shop's balance is never shown to its visitors
+    await _poll_until_terminal(client, body["id"])
+    done = await client.get(f"/api/v1/public/widget/tryons/{body['id']}", headers=_widget(key, "https://shop.lc-shop.com"))
+    assert done.json()["status"] == "completed"
+    assert (await client.get("/api/v1/public/credits", headers=_bearer(secret))).json()["credits_left"] == 49
+
+    # another site, no origin, a secret key in a web page, or a website key on the server API: refused
+    assert (await client.post("/api/v1/public/widget/tryons", files=_files(), headers=_widget(key, "https://evil-lc-shop.com"))).status_code == 403
+    assert (await client.post("/api/v1/public/widget/tryons", files=_files(), headers={"X-TryOnU-Key": key})).status_code == 403
+    assert (await client.post("/api/v1/public/widget/tryons", files=_files(), headers=_widget(secret))).status_code == 401
+    assert (await client.post("/api/v1/public/tryons", files=_files(), headers=_bearer(key))).status_code == 401
+
+
+async def test_the_widget_answers_browser_preflight_and_limits_each_visitor(client, monkeypatch):  # noqa: ANN001
+    _instant(monkeypatch)
+    await _developer(client)
+    key = (await _website_key(client, ["lc-shop.com"])).json()["key"]
+    pre = await client.options(
+        "/api/v1/public/widget/tryons",
+        headers={"Origin": "https://lc-shop.com", "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "x-tryonu-key"},
+    )
+    assert pre.status_code == 204 and pre.headers["access-control-allow-origin"] == "https://lc-shop.com"
+    assert "X-TryOnU-Key" in pre.headers["access-control-allow-headers"]
+
+    monkeypatch.setattr(get_settings(), "WIDGET_TRYONS_PER_VISITOR_HOUR", 1)
+    first = await client.post("/api/v1/public/widget/tryons", files=_files(), headers=_widget(key))
+    assert first.status_code == 202
+    from app.services.queue import wait_for_inprocess_jobs
+
+    await wait_for_inprocess_jobs()
+    assert (await client.post("/api/v1/public/widget/tryons", files=_files(), headers=_widget(key))).status_code == 429
