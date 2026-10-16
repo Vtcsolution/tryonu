@@ -135,7 +135,9 @@ export function TryFlow() {
 
   // gate the whole flow behind auth — a try-on always needs a stored photo
   useEffect(() => {
-    if (!sessionLoading && !user) router.replace("/sign-in?next=/try");
+    // keep ?outfit= / ?product= (a shared look being tried on) through sign-in
+    if (!sessionLoading && !user)
+      router.replace(`/sign-in?next=${encodeURIComponent(`/try${window.location.search}`)}`);
   }, [sessionLoading, user, router]);
 
   const primaryPhoto =
@@ -1326,6 +1328,7 @@ function ResultStep({
               Shop now <span aria-hidden="true">→</span>
             </Button>
             <SaveLookButton tryonResultId={job.result!.id} />
+            <ShareLook jobId={job.id} variant="wide" />
             <AddMoreButton jobs={jobs} job={job} onAddMore={onAddMore} />
             <Button variant="outline" size="md" className="w-full" onClick={onTryAnother}>
               Try another product
@@ -1493,6 +1496,7 @@ function OutfitResultStep({
 
           <div className="mt-auto space-y-3 pt-6">
             <SaveLookButton tryonResultId={job.result!.id} />
+            <ShareLook jobId={job.id} variant="wide" />
             <AddMoreButton jobs={jobs} job={job} onAddMore={onAddMore} />
             <Button variant="outline" size="md" className="w-full" onClick={onTryAnother}>
               Try another look
@@ -1577,6 +1581,7 @@ function WardrobeResultStep({
 
           <div className="mt-auto space-y-3 pt-6">
             <SaveLookButton tryonResultId={job.result!.id} />
+            <ShareLook jobId={job.id} variant="wide" />
             <Button variant="outline" size="md" className="w-full" onClick={onTryAnother}>
               Try another item
             </Button>

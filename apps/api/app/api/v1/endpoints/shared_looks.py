@@ -1,5 +1,6 @@
 """Sharing a finished try-on: the owner makes (or stops) a public link; anyone
-with the link sees the picture and the products in it, with their shop links."""
+with the link sees the picture and the products in it, with their shop links,
+and can try the same products on themselves (POST /shared/{token}/try)."""
 
 from __future__ import annotations
 
@@ -14,8 +15,8 @@ from sqlalchemy.orm import selectinload
 from app.core.config import get_settings
 from app.core.deps import CurrentUser, DbSession
 from app.core.rate_limit import rate_limiter
-from app.models.enums import JobStatus
-from app.models.outfit import OutfitItem
+from app.models.enums import JobStatus, OutfitSlot
+from app.models.outfit import Outfit, OutfitItem
 from app.models.product import Product
 from app.models.shared_look import SharedLook
 from app.models.tryon import TryOnJob
@@ -38,6 +39,8 @@ class SharedProductOut(BaseModel):
     image_url: str | None
     shop: str | None
     buy_url: str
+    # drawn on the picture (True), shown alongside as a match (False), unknown (None)
+    on_photo: bool | None = None
 
 
 class SharedLookOut(BaseModel):
@@ -45,7 +48,16 @@ class SharedLookOut(BaseModel):
     image_url: str
     title: str
     products: list[SharedProductOut]
+    total_cents: int | None = None  # when every product has the same currency
+    currency: str | None = None
     created_at: datetime
+
+
+class TryThisLookOut(BaseModel):
+    """Where the visitor's own try-on of a shared look starts."""
+
+    outfit_id: str | None = None
+    product_id: str | None = None
 
 
 def _site() -> str:
@@ -111,7 +123,50 @@ async def _live(db: DbSession, token: str) -> tuple[SharedLook, TryOnJob]:
     return shared, job
 
 
-def _product_out(p: Product) -> SharedProductOut:
+_PRODUCT_LOAD = (selectinload(Product.images), selectinload(Product.retailer))
+
+
+async def _look_products(db: DbSession, job: TryOnJob) -> tuple[list[tuple[Product, OutfitSlot | None]], set[str] | None]:
+    """Every product in the look, earliest round first, and the ones drawn on
+    the picture (None when the result doesn't say)."""
+    chain: list[TryOnJob] = []
+    current: TryOnJob | None = job
+    while current is not None and len(chain) < 6:
+        chain.append(current)
+        if not current.base_job_id:
+            break
+        current = await db.scalar(
+            select(TryOnJob).where(TryOnJob.id == current.base_job_id).options(selectinload(TryOnJob.result))
+        )
+    out: list[tuple[Product, OutfitSlot | None]] = []
+    seen: set[str] = set()
+    drawn: set[str] | None = None
+    for round_job in reversed(chain):
+        if round_job.result is not None and round_job.result.placements:
+            drawn = drawn or set()
+            drawn |= {p.get("product_id") for p in round_job.result.placements if isinstance(p, dict) and p.get("drawn")}
+        if round_job.product_id:
+            product = await db.scalar(select(Product).where(Product.id == round_job.product_id).options(*_PRODUCT_LOAD))
+            if product is not None and product.id not in seen:
+                seen.add(product.id)
+                out.append((product, None))
+        elif round_job.outfit_id:
+            items = (
+                await db.execute(
+                    select(OutfitItem)
+                    .where(OutfitItem.outfit_id == round_job.outfit_id)
+                    .options(selectinload(OutfitItem.product).options(*_PRODUCT_LOAD))
+                    .order_by(OutfitItem.position)
+                )
+            ).scalars()
+            for item in items:
+                if item.product is not None and item.product.id not in seen:
+                    seen.add(item.product.id)
+                    out.append((item.product, item.slot))
+    return out, drawn
+
+
+def _product_out(p: Product, drawn: set[str] | None = None) -> SharedProductOut:
     return SharedProductOut(
         id=p.id,
         name=p.name,
@@ -120,6 +175,7 @@ def _product_out(p: Product) -> SharedProductOut:
         image_url=p.primary_image_url,
         shop=p.merchant_name or (p.retailer.name if p.retailer else None),
         buy_url=f"{_api()}/api/v1/affiliate/go/{p.id}?source=shared_look",
+        on_photo=None if drawn is None else p.id in drawn,
     )
 
 
@@ -130,32 +186,57 @@ def _product_out(p: Product) -> SharedProductOut:
 )
 async def shared_look(token: str, db: DbSession):
     shared, job = await _live(db, token)
-    products: list[Product] = []
-    if job.product is not None:
-        products = [job.product]
-    elif job.outfit_id is not None:
-        items = (
-            await db.execute(
-                select(OutfitItem)
-                .where(OutfitItem.outfit_id == job.outfit_id)
-                .options(
-                    selectinload(OutfitItem.product).selectinload(Product.images),
-                    selectinload(OutfitItem.product).selectinload(Product.retailer),
-                )
-                .order_by(OutfitItem.position)
-            )
-        ).scalars()
-        products = [i.product for i in items if i.product is not None]
+    pairs, drawn = await _look_products(db, job)
+    products = [p for p, _ in pairs]
     shared.views += 1
     await db.commit()
     title = products[0].name if len(products) == 1 else f"A look with {len(products)} pieces" if products else "A look"
+    currencies = {p.currency.lower() for p in products}
+    same = len(currencies) == 1
     return SharedLookOut(
         token=shared.token,
         image_url=f"{_api()}/api/v1/shared/{shared.token}/image",
         title=title,
-        products=[_product_out(p) for p in products],
+        products=[_product_out(p, drawn) for p in products],
+        total_cents=sum(p.price_cents for p in products) if same else None,
+        currency=products[0].currency if same else None,
         created_at=shared.created_at,
     )
+
+
+@router.post(
+    "/shared/{token}/try",
+    response_model=TryThisLookOut,
+    dependencies=[Depends(rate_limiter("shared_look_try", limit=30, window_seconds=3600))],
+)
+async def try_this_look(token: str, user: CurrentUser, db: DbSession):
+    """A visitor tries a shared look on themselves: the same products, as
+    their own outfit, ready on the try-on page with their own photo."""
+    from app.services.outfit_compatibility import score_outfit
+    from app.services.outfit_slots import slot_for
+
+    _, job = await _live(db, token)
+    pairs, _ = await _look_products(db, job)
+    pairs = [(p, slot) for p, slot in pairs if p.is_active][:10]
+    if not pairs:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="The products in this look aren't available anymore.")
+    if len(pairs) == 1:
+        return TryThisLookOut(product_id=pairs[0][0].id)
+    slots = [slot if slot not in (None, OutfitSlot.OTHER) else slot_for(p.name) for p, slot in pairs]
+    products = [p for p, _ in pairs]
+    coherence = score_outfit(products, slots)
+    outfit = Outfit(
+        user_id=user.id,
+        name="Shared look",
+        compatibility_score=coherence.overall,
+        compatibility_notes=coherence.notes or None,
+    )
+    db.add(outfit)
+    await db.flush()
+    for pos, (product, slot) in enumerate(zip(products, slots)):
+        db.add(OutfitItem(outfit_id=outfit.id, product_id=product.id, slot=slot, position=pos))
+    await db.commit()
+    return TryThisLookOut(outfit_id=outfit.id)
 
 
 @router.get(

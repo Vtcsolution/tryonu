@@ -801,6 +801,10 @@ export type SharedLook = {
     image_url: string | null;
     shop: string | null;
     buy_url: string;
+    /** drawn on the picture, or shown alongside as a match (null: unknown) */
+    on_photo?: boolean | null;
   }[];
+  total_cents?: number | null;
+  currency?: string | null;
   created_at: string;
 };

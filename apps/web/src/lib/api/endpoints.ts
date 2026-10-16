@@ -343,6 +343,15 @@ export const outfits = {
 
 /* --------------------------------- try-on ---------------------------------- */
 
+/** a look someone shared: the visitor tries the same products on themselves */
+export const shared = {
+  tryThis: (token: string) =>
+    apiFetch<{ outfit_id: string | null; product_id: string | null }>(
+      `/api/v1/shared/${encodeURIComponent(token)}/try`,
+      { method: "POST" },
+    ),
+};
+
 export const tryon = {
   create: (input: {
     user_photo_id: string;
