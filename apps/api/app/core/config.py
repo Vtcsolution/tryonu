@@ -106,6 +106,9 @@ class Settings(BaseSettings):
     # Developer API: at most this many try-ons a day across all developers
     # (they run without the operator's FASHN approval, within paid credits)
     DEV_API_DAILY_TRYON_CAP: int = 200
+    # Shoppers' try-ons run automatically (they paid with credits), but never
+    # spend more than this many FASHN credits a day (about 4 per look). 0 = only manual approvals.
+    SHOP_DAILY_FASHN_CREDITS: int = 400
 
     # --- AI providers ---
     # "mock" needs no credentials and simulates a realistic job lifecycle —

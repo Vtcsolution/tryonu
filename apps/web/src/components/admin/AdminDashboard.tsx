@@ -196,19 +196,18 @@ export function AdminDashboard() {
 function FashnWarning({ onOpen }: { onOpen: () => void }) {
   const status = useQuery({ queryKey: ["admin", "fashn-approval"], queryFn: adminOps.fashnStatus, refetchInterval: 60_000 });
   if (!status.data) return null;
-  const open = status.data.open_authorizations;
-  const left = open.reduce((sum, a) => sum + Math.max(0, a.budget - a.reserved), 0);
-  const ends = open.map((a) => new Date(a.expires_at).getTime()).sort((x, y) => x - y)[0];
-  const hoursLeft = ends ? Math.max(0, Math.round((ends - Date.now()) / 3_600_000)) : 0;
+  const auto = status.data.automatic;
+  const left = status.data.credits_left_now ?? 0;
   let text: string | null = null;
   let severe = false;
-  if (!status.data.live_generation_allowed || left === 0) {
-    text = "Try-ons are paused: no FASHN approval is open, so every customer's try-on fails (their credits come back).";
+  if (auto?.paused) {
+    text = "You paused automatic try-ons: every customer's try-on fails until you resume (their credits come back).";
+    severe = true;
+  } else if (!status.data.live_generation_allowed || left === 0) {
+    text = "Try-ons are stopped: today's FASHN limit is used up. Raise it in Settings, or add extra credits.";
     severe = true;
   } else if (left < 8) {
-    text = `Only ${left} FASHN credits left in your approval (about ${Math.floor(left / 4)} looks). Try-ons pause when they run out.`;
-  } else if (hoursLeft <= 6) {
-    text = `Your FASHN approval ends in about ${hoursLeft} hour${hoursLeft === 1 ? "" : "s"}. Try-ons pause then.`;
+    text = `Only ${left} FASHN credits left for today (about ${Math.floor(left / 4)} looks). Try-ons stop when they run out.`;
   }
   if (!text) return null;
   return (
@@ -224,7 +223,7 @@ function FashnWarning({ onOpen }: { onOpen: () => void }) {
         onClick={onOpen}
         className="tu-press min-h-[40px] rounded-full bg-sage px-4 text-[14px] font-semibold text-white hover:bg-sage-deep"
       >
-        {severe ? "Approve now →" : "Add more →"}
+        {auto?.paused ? "Resume →" : "Open FASHN credits →"}
       </button>
     </div>
   );

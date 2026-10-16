@@ -474,6 +474,9 @@ export const adminStores = {
 
 export type FashnApproval = {
   live_generation_allowed: boolean;
+  /** FASHN credits shoppers' try-ons can still use right now (automatic + manual) */
+  credits_left_now?: number;
+  automatic?: { daily_credits: number; used_today: number; left_today: number; paused: boolean };
   max_credits_per_authorization: number;
   max_hours: number;
   counted_as_spent_credits_all_time: number;
@@ -490,6 +493,7 @@ export const adminOps = {
   fashnApprove: (credits: number, hours: number, phrase: string) =>
     apiFetch<FashnApproval>("/api/v1/admin/fashn/approval", { method: "POST", body: { credits, hours, phrase } }),
   fashnClose: () => apiFetch<FashnApproval>("/api/v1/admin/fashn/approval/close", { method: "POST" }),
+  fashnResume: () => apiFetch<FashnApproval>("/api/v1/admin/fashn/approval/resume", { method: "POST" }),
 };
 
 /* ----------------------------------------------------------- developer API */

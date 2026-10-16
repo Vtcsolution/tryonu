@@ -104,6 +104,15 @@ async def fashn_approve(payload: FashnApprovalIn, admin: AdminUser, db: DbSessio
     return await fashn_approval_status(admin, db)
 
 
+@router.post("/fashn/approval/resume")
+async def fashn_resume(admin: AdminUser, db: DbSession) -> dict:
+    """Turn automatic shopper try-ons back on after a pause."""
+    await fashn_guard.resume_automatic(db)
+    db.add(AdminAuditLog(admin_id=admin.id, action="fashn.resume", target_type="fashn", target_id="approval", detail={}))
+    await db.commit()
+    return await fashn_approval_status(admin, db)
+
+
 @router.post("/fashn/approval/close")
 async def fashn_close(admin: AdminUser, db: DbSession) -> dict:
     closed = await fashn_guard.close_authorizations(db)

@@ -50,6 +50,10 @@ MAX_AUTHORIZATION_HOURS = 72
 # Developer API try-ons spend from their own automatic daily allowance, never
 # from (or blocking) the operator's approval. Set for the length of one job.
 DEVELOPER_POOL = "developer-api"
+# Shoppers' try-ons (paid with their TryOnU credits) run on an automatic daily
+# allowance too: no approval needed, never more than SHOP_DAILY_FASHN_CREDITS a day.
+SHOP_POOL = "shop-auto"
+_AUTO_POOLS = (DEVELOPER_POOL, SHOP_POOL)
 _pool: ContextVar[str] = ContextVar("fashn_pool", default="operator")
 
 
@@ -109,48 +113,67 @@ def _aware(value: datetime | None) -> datetime | None:
 
 
 async def _active_authorization(db):  # noqa: ANN001, ANN202
-    """The operator's open approval (the developer allowance is never it)."""
+    """The operator's open manual approval (never an automatic daily allowance)."""
     now = datetime.now(timezone.utc)
     rows = await db.execute(
         select(FashnLiveAuthorization)
-        .where(FashnLiveAuthorization.status == "active", FashnLiveAuthorization.created_by != DEVELOPER_POOL)
+        .where(FashnLiveAuthorization.status == "active", FashnLiveAuthorization.created_by.not_in(_AUTO_POOLS))
         .order_by(FashnLiveAuthorization.created_at.desc())
     )
     return next((a for a in rows.scalars() if _aware(a.expires_at) is None or _aware(a.expires_at) > now), None)
 
 
-async def _developer_allowance(db):  # noqa: ANN001, ANN202
-    """Today's allowance for paid developer try-ons, made on first use: the
-    daily cap of try-ons x FASHN credits per try-on, until midnight UTC.
-    Closing it (fashn_authorize --close, or Admin) pauses developer try-ons
-    for the rest of the day."""
+def _daily_budget(pool: str) -> int:
     from app.core.config import get_settings
 
     settings = get_settings()
+    if pool == DEVELOPER_POOL:
+        return max(0, settings.DEV_API_DAILY_TRYON_CAP) * max(1, settings.STORE_FASHN_CREDITS_PER_TRYON)
+    return max(0, settings.SHOP_DAILY_FASHN_CREDITS)
+
+
+async def _daily_allowance(db, pool: str, *, create: bool = True):  # noqa: ANN001, ANN202
+    """Today's automatic allowance for a pool, made on first use, until
+    midnight UTC. Closing it (Admin "Pause", or fashn_authorize --close)
+    pauses that pool for the rest of the day."""
     now = datetime.now(timezone.utc)
-    day = now.strftime("%Y-%m-%d")
-    note = f"{DEVELOPER_POOL} {day}"
+    note = f"{pool} {now.strftime('%Y-%m-%d')}"
     existing = await db.scalar(
-        select(FashnLiveAuthorization).where(
-            FashnLiveAuthorization.created_by == DEVELOPER_POOL, FashnLiveAuthorization.note == note
-        )
+        select(FashnLiveAuthorization)
+        .where(FashnLiveAuthorization.created_by == pool, FashnLiveAuthorization.note == note)
+        .execution_options(populate_existing=True)
     )
     if existing is not None:
         return existing if existing.status == "active" else None
-    budget = max(0, settings.DEV_API_DAILY_TRYON_CAP) * max(1, settings.STORE_FASHN_CREDITS_PER_TRYON)
-    if budget == 0:
+    budget = _daily_budget(pool)
+    if budget == 0 or not create:
         return None
     allowance = FashnLiveAuthorization(
         budget_credits=budget,
         reserved_credits=0,
         status="active",
         expires_at=now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1),
-        created_by=DEVELOPER_POOL,
+        created_by=pool,
         note=note,
     )
     db.add(allowance)
     await db.flush()
     return allowance
+
+
+async def _developer_allowance(db):  # noqa: ANN001, ANN202
+    return await _daily_allowance(db, DEVELOPER_POOL)
+
+
+async def _candidates(db) -> list:  # noqa: ANN001
+    """Where this try-on may spend from, in order: developers only from their
+    allowance; shoppers from an open manual approval first, then the
+    automatic daily allowance."""
+    if _pool.get() == DEVELOPER_POOL:
+        found = [await _daily_allowance(db, DEVELOPER_POOL)]
+    else:
+        found = [await _active_authorization(db), await _daily_allowance(db, SHOP_POOL)]
+    return [a for a in found if a is not None]
 
 
 async def _spent(db) -> int:  # noqa: ANN001
@@ -216,12 +239,9 @@ class DbCreditGuard:
         return self._factory
 
     async def remaining(self) -> int:
-        """Credits the open authorization still allows; 0 when there is none."""
+        """Credits this try-on may still spend now; 0 when nothing is open."""
         async with self._sessions()() as db:
-            authorization = await (_developer_allowance(db) if _pool.get() == DEVELOPER_POOL else _active_authorization(db))
-            if authorization is None:
-                return 0
-            return max(0, authorization.budget_credits - authorization.reserved_credits)
+            return sum(max(0, a.budget_credits - a.reserved_credits) for a in await _candidates(db))
 
     async def reserve(
         self, *, model: str, resolution: str | None, mode: str | None, purpose: str
@@ -230,42 +250,41 @@ class DbCreditGuard:
         factory = self._sessions()
         async with factory() as db:
             developer = _pool.get() == DEVELOPER_POOL
-            authorization = await (_developer_allowance(db) if developer else _active_authorization(db))
-            if authorization is None:
+            candidates = await _candidates(db)
+            for authorization in candidates:
+                # The one atomic step: succeeds only while this budget still has room.
+                claimed = await db.execute(
+                    update(FashnLiveAuthorization)
+                    .where(
+                        FashnLiveAuthorization.id == authorization.id,
+                        FashnLiveAuthorization.status == "active",
+                        FashnLiveAuthorization.reserved_credits + cost <= FashnLiveAuthorization.budget_credits,
+                    )
+                    .values(reserved_credits=FashnLiveAuthorization.reserved_credits + cost)
+                )
+                if claimed.rowcount != 1:
+                    continue
+                entry = FashnCreditLedger(
+                    authorization_id=authorization.id,
+                    state=RESERVED,
+                    credits=cost,
+                    model=model,
+                    resolution=resolution,
+                    generation_mode=mode,
+                    purpose=purpose[:160],
+                )
+                db.add(entry)
+                await db.commit()
+                return _DbReservation(entry.id, authorization.id, cost, factory)
+            await db.rollback()
+            if developer:
+                raise GuardRefused("Developer API try-ons are paused today. Nothing was sent.")
+            if not candidates:
                 raise GuardRefused(
-                    "Developer API try-ons are paused today. Nothing was sent."
-                    if developer
-                    else "Live FASHN generation is not authorized. Nothing was sent. "
-                    "An operator must run `python -m app.scripts.fashn_authorize` first."
+                    "Live FASHN generation is not authorized (no approval open, automatic try-ons off or paused). "
+                    "Nothing was sent."
                 )
-
-            # The one atomic step: succeeds only while the budget still has room.
-            claimed = await db.execute(
-                update(FashnLiveAuthorization)
-                .where(
-                    FashnLiveAuthorization.id == authorization.id,
-                    FashnLiveAuthorization.status == "active",
-                    FashnLiveAuthorization.reserved_credits + cost <= FashnLiveAuthorization.budget_credits,
-                )
-                .values(reserved_credits=FashnLiveAuthorization.reserved_credits + cost)
-            )
-            if claimed.rowcount != 1:
-                await db.rollback()
-                raise GuardRefused(
-                    f"The FASHN credit budget is exhausted (this request needs {cost}). Nothing was sent."
-                )
-            entry = FashnCreditLedger(
-                authorization_id=authorization.id,
-                state=RESERVED,
-                credits=cost,
-                model=model,
-                resolution=resolution,
-                generation_mode=mode,
-                purpose=purpose[:160],
-            )
-            db.add(entry)
-            await db.commit()
-            return _DbReservation(entry.id, authorization.id, cost, factory)
+            raise GuardRefused(f"The FASHN credit budget is exhausted (this request needs {cost}). Nothing was sent.")
 
 
 async def create_authorization(
@@ -294,7 +313,7 @@ async def create_authorization(
     now = datetime.now(timezone.utc)
     open_rows = await db.execute(
         select(FashnLiveAuthorization).where(
-            FashnLiveAuthorization.status == "active", FashnLiveAuthorization.created_by != DEVELOPER_POOL
+            FashnLiveAuthorization.status == "active", FashnLiveAuthorization.created_by.not_in(_AUTO_POOLS)
         )
     )
     for existing in open_rows.scalars():
@@ -327,13 +346,29 @@ async def guard_status(db) -> dict:  # noqa: ANN001
     rows = (
         await db.execute(
             select(FashnLiveAuthorization).where(
-                FashnLiveAuthorization.status == "active", FashnLiveAuthorization.created_by != DEVELOPER_POOL
+                FashnLiveAuthorization.status == "active", FashnLiveAuthorization.created_by.not_in(_AUTO_POOLS)
             )
         )
     ).scalars().all()
     live = [a for a in rows if _aware(a.expires_at) is None or _aware(a.expires_at) > now]
+    manual_left = sum(max(0, a.budget_credits - a.reserved_credits) for a in live)
+
+    # today's automatic allowance for shoppers (not created until first used)
+    note = f"{SHOP_POOL} {now.strftime('%Y-%m-%d')}"
+    today = await db.scalar(
+        select(FashnLiveAuthorization)
+        .where(FashnLiveAuthorization.created_by == SHOP_POOL, FashnLiveAuthorization.note == note)
+        .execution_options(populate_existing=True)  # always the stored numbers, never a cached copy
+    )
+    daily = _daily_budget(SHOP_POOL)
+    auto_paused = today is not None and today.status != "active"
+    auto_budget = today.budget_credits if today is not None else daily
+    auto_used = today.reserved_credits if today is not None else 0
+    auto_left = 0 if auto_paused else max(0, auto_budget - auto_used)
     return {
-        "live_generation_allowed": bool(live) and any(a.reserved_credits < a.budget_credits for a in live),
+        "live_generation_allowed": (manual_left + auto_left) > 0,
+        "credits_left_now": manual_left + auto_left,
+        "automatic": {"daily_credits": auto_budget, "used_today": auto_used, "left_today": auto_left, "paused": auto_paused},
         "max_credits_per_authorization": MAX_CREDITS_PER_AUTHORIZATION,
         "counted_as_spent_credits_all_time": await _spent(db),
         "open_authorizations": [
@@ -341,3 +376,15 @@ async def guard_status(db) -> dict:  # noqa: ANN001
             for a in live
         ],
     }
+
+
+async def resume_automatic(db) -> bool:  # noqa: ANN001
+    """Un-pause today's automatic shopper allowance (after a Pause)."""
+    note = f"{SHOP_POOL} {datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
+    result = await db.execute(
+        update(FashnLiveAuthorization)
+        .where(FashnLiveAuthorization.created_by == SHOP_POOL, FashnLiveAuthorization.note == note)
+        .values(status="active")
+    )
+    await db.commit()
+    return bool(result.rowcount)

@@ -19,6 +19,7 @@ export function FashnCreditsTab() {
   };
   const approve = useMutation({ mutationFn: () => adminOps.fashnApprove(Number(credits), Number(hours), phrase), onSuccess: done });
   const close = useMutation({ mutationFn: adminOps.fashnClose, onSuccess: done });
+  const resume = useMutation({ mutationFn: adminOps.fashnResume, onSuccess: done });
 
   if (status.isLoading) return <TableSkeleton />;
   if (status.isError || !status.data) return <ErrorNote>{errorText(status.error, "Couldn't load the FASHN approval.")}</ErrorNote>;
@@ -31,8 +32,34 @@ export function FashnCreditsTab() {
     <div className="space-y-8">
       <SectionHeader
         title="FASHN credits"
-        hint="Try-ons only reach FASHN while an approval with credits left is open. Each look uses about 4 FASHN credits."
+        hint="Shoppers' try-ons run automatically: anyone with credits can try on, no approval needed. A daily safety limit stops runaway spending (each look uses about 4 FASHN credits). Change the limit in Settings → Credits & pricing."
       />
+      {s.automatic && (
+        <div
+          className={`flex flex-wrap items-center gap-3 rounded-[20px] border p-5 ${
+            s.automatic.paused ? "border-[#c0503a]/40 bg-[#c0503a]/10" : "border-sage/40 bg-sage-tint/25"
+          }`}
+        >
+          <div className="min-w-0 flex-1">
+            <p className="text-[17px] font-semibold text-ink">
+              Automatic try-ons: {s.automatic.paused ? "PAUSED" : s.automatic.daily_credits > 0 ? "ON" : "OFF"}
+            </p>
+            <p className="mt-1 text-[14px] text-ink-soft">
+              Today: {s.automatic.used_today} of {s.automatic.daily_credits} FASHN credits used · about{" "}
+              {Math.floor(s.automatic.left_today / 4)} more looks · resets at midnight (UTC)
+            </p>
+          </div>
+          {s.automatic.paused ? (
+            <SmallButton tone="primary" disabled={resume.isPending} onClick={() => resume.mutate()}>
+              {resume.isPending ? "Resuming…" : "Resume try-ons"}
+            </SmallButton>
+          ) : (
+            <SmallButton tone="danger" disabled={close.isPending} onClick={() => close.mutate()}>
+              {close.isPending ? "Pausing…" : "Pause all try-ons"}
+            </SmallButton>
+          )}
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatTile label="Try-ons" value={s.live_generation_allowed ? "Running" : "Paused"} tone={s.live_generation_allowed ? undefined : "warn"} />
         <StatTile label="Approved credits left" value={open ? `${left} of ${open.budget}` : "None open"} tone={open && left < 8 ? "warn" : undefined} />
@@ -58,7 +85,8 @@ export function FashnCreditsTab() {
           if (phrase.trim()) approve.mutate();
         }}
       >
-        <p className="text-[15px] font-semibold text-ink">Approve FASHN credits</p>
+        <p className="text-[15px] font-semibold text-ink">Extra FASHN credits (optional)</p>
+        <p className="text-[13.5px] text-muted">Only needed on a very busy day, on top of the automatic daily limit.</p>
         {open && left > 0 && (
           <p className="text-[13.5px] text-muted">An approval with credits left is open: close it first to open a new one.</p>
         )}
@@ -79,7 +107,7 @@ export function FashnCreditsTab() {
             {approve.isPending ? "Approving…" : "Approve"}
           </SmallButton>
         </div>
-        {(approve.isError || close.isError) && <ErrorNote>{errorText(approve.error ?? close.error)}</ErrorNote>}
+        {(approve.isError || close.isError || resume.isError) && <ErrorNote>{errorText(approve.error ?? close.error ?? resume.error)}</ErrorNote>}
       </form>
     </div>
   );

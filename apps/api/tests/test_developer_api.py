@@ -104,6 +104,9 @@ async def test_no_credits_bad_keys_and_someone_elses_try_ons_are_refused(client,
 
     _, other_key = await _developer(client)
     mine = (await client.post("/api/v1/public/tryons", files=_files(), headers=_bearer(other_key))).json()
+    from app.services.queue import wait_for_inprocess_jobs
+
+    await wait_for_inprocess_jobs()  # the try-on finishes before the next sign-up (one SQLite file)
     _, third_key = await _developer(client)
     peek = await client.get(f"/api/v1/public/tryons/{mine['id']}", headers=_bearer(third_key))
     assert peek.status_code == 404
