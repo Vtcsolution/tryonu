@@ -42,6 +42,14 @@ async def test_save_list_and_delete_a_look(client, db, monkeypatch):
     assert looks[0]["title"] == "Date night"
     assert looks[0]["image_url"] == job["result"]["image_url"]
     assert looks[0]["product"]["name"] == "Saveable Product"
+    # what the saved-looks page shows and shares: every product, and the try-on behind it
+    assert looks[0]["tryon_job_id"] == job["id"]
+    assert [i["name"] for i in looks[0]["items"]] == ["Saveable Product"]
+    assert looks[0]["total_cents"] == looks[0]["items"][0]["price_cents"]
+    # pressing Save again keeps one copy
+    again = await client.post(f"/api/v1/users/me/saved-looks/{result_id}")
+    assert again.json()["id"] == look_id
+    assert len((await client.get("/api/v1/users/me/saved-looks")).json()) == 1
 
     resp = await client.delete(f"/api/v1/users/me/saved-looks/{look_id}")
     assert resp.status_code == 200

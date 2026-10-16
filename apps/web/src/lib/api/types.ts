@@ -273,6 +273,20 @@ export type SavedLook = {
   image_url: string | null;
   product: Product | null;
   created_at: string;
+  /** the try-on behind it: what Share shares */
+  tryon_job_id?: string | null;
+  /** every product in the look (an outfit's too) */
+  items?: {
+    id: string;
+    name: string;
+    price_cents: number;
+    currency: string;
+    image_url: string | null;
+    shop: string | null;
+    on_photo?: boolean | null;
+  }[];
+  total_cents?: number | null;
+  currency?: string | null;
 };
 
 export type UserPreference = {

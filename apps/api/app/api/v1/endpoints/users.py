@@ -12,7 +12,8 @@ from app.models.preference import UserPreference
 from app.models.product import Product
 from app.models.tryon import TryOnJob, TryOnResult
 from app.schemas.common import Message
-from app.schemas.saved_look import SavedLookOut
+from app.services.look_products import look_products
+from app.schemas.saved_look import SavedLookItemOut, SavedLookOut
 from app.schemas.user import UpdateProfileRequest, UserOut, UserPreferenceOut, UserPreferenceUpdate
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -79,16 +80,40 @@ async def list_saved_looks(user: CurrentUser, db: DbSession):
         .order_by(SavedLook.created_at.desc())
     )
     looks = result.scalars().all()
-    return [
-        SavedLookOut(
-            id=look.id,
-            title=look.title,
-            image_url=look.tryon_result.image_url if look.tryon_result else None,
-            product=look.tryon_result.job.product if look.tryon_result and look.tryon_result.job else None,
-            created_at=look.created_at,
+    out: list[SavedLookOut] = []
+    for look in looks:
+        job = look.tryon_result.job if look.tryon_result else None
+        items: list[SavedLookItemOut] = []
+        if job is not None:
+            full = await db.scalar(select(TryOnJob).where(TryOnJob.id == job.id).options(selectinload(TryOnJob.result)))
+            pairs, drawn = await look_products(db, full)
+            items = [
+                SavedLookItemOut(
+                    id=p.id,
+                    name=p.name,
+                    price_cents=p.price_cents,
+                    currency=p.currency,
+                    image_url=p.primary_image_url,
+                    shop=p.merchant_name or (p.retailer.name if p.retailer else None),
+                    on_photo=None if drawn is None else p.id in drawn,
+                )
+                for p, _ in pairs
+            ]
+        same = len({i.currency.lower() for i in items}) == 1
+        out.append(
+            SavedLookOut(
+                id=look.id,
+                title=look.title,
+                image_url=look.tryon_result.image_url if look.tryon_result else None,
+                product=job.product if job else None,
+                created_at=look.created_at,
+                tryon_job_id=job.id if job else None,
+                items=items,
+                total_cents=sum(i.price_cents for i in items) if same else None,
+                currency=items[0].currency if same else None,
+            )
         )
-        for look in looks
-    ]
+    return out
 
 
 @router.post("/me/saved-looks/{tryon_result_id}", status_code=status.HTTP_201_CREATED)
@@ -102,6 +127,12 @@ async def save_look(tryon_result_id: str, user: CurrentUser, db: DbSession, titl
         # belongs to someone else.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Try-on result not found")
 
+    # pressing Save twice keeps one copy
+    existing = await db.scalar(
+        select(SavedLook).where(SavedLook.user_id == user.id, SavedLook.tryon_result_id == tryon_result_id)
+    )
+    if existing is not None:
+        return {"id": existing.id}
     look = SavedLook(user_id=user.id, tryon_result_id=tryon_result_id, title=title)
     db.add(look)
     await db.commit()
