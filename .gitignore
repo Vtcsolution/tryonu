@@ -45,3 +45,8 @@ __pycache__/
 .venv/
 *.db
 *.db-journal
+
+# secrets downloaded from Google / other consoles: never commit
+Google_Auth_Credientials.json
+*client_secret*.json
+*credentials*.json
