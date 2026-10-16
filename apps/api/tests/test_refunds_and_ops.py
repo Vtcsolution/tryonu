@@ -66,6 +66,7 @@ def paypal(monkeypatch):  # noqa: ANN001, ANN201
     for where in ("credits", "stores", "admin_ops"):
         monkeypatch.setattr(f"app.api.v1.endpoints.{where}.get_payment_provider", lambda: provider)
     monkeypatch.setattr("app.api.v1.endpoints.webhooks.get_payment_provider", lambda: provider)
+    monkeypatch.setattr("app.services.payment_settlement.get_payment_provider", lambda: provider)
     return fake
 
 
@@ -186,3 +187,49 @@ async def test_admins_approve_fashn_credits_with_the_exact_phrase(client, db):  
     assert ok["live_generation_allowed"] is True and ok["open_authorizations"][0]["budget"] == 20
     closed = (await client.post("/api/v1/admin/fashn/approval/close")).json()
     assert closed["open_authorizations"] == []  # closed, never deleted: the ledger points at it
+
+
+# ------------------------------------------------------------------ paid, but never came back to our page
+
+
+async def _started_package(client, db):  # noqa: ANN001, ANN202
+    await register_and_login(client)
+    me = (await client.get("/api/v1/auth/me")).json()
+    package = await seed_credit_package(db, name="Starter", credits=20, price_cents=700)
+    started = (await client.post("/api/v1/credits/purchase", json={"credit_package_id": package.id})).json()
+    return me, started["payment_id"]
+
+
+async def test_the_sweep_finishes_a_payment_whose_shopper_closed_the_tab(client, db, paypal):  # noqa: ANN001
+    from datetime import datetime, timedelta, timezone
+
+    from app.services.payment_settlement import settle_pending_once
+
+    me, payment_id = await _started_package(client, db)
+    before = await credit_balance(db, me["id"])
+    await settle_pending_once()  # too fresh: the shopper may still be on their way back
+    assert await credit_balance(db, me["id"]) == before
+
+    payment = await db.get(Payment, payment_id)
+    payment.created_at = datetime.now(timezone.utc) - timedelta(minutes=5)
+    await db.commit()
+    assert await settle_pending_once() >= 1
+    assert await credit_balance(db, me["id"]) == before + 20
+    await settle_pending_once()  # never twice
+    assert await credit_balance(db, me["id"]) == before + 20
+    # coming back later shows it as done
+    assert (await client.post(f"/api/v1/credits/purchase/{payment_id}/capture")).json()["status"] == "succeeded"
+
+
+async def test_a_verified_paypal_approval_webhook_adds_the_credits(client, db, paypal, monkeypatch):  # noqa: ANN001
+    me, payment_id = await _started_package(client, db)
+    before = await credit_balance(db, me["id"])
+    order_id = (await db.get(Payment, payment_id)).external_payment_id
+    monkeypatch.setattr(get_settings(), "PAYPAL_WEBHOOK_ID", "WH-TEST")
+    headers = {"paypal-transmission-id": "t", "paypal-transmission-time": "now", "paypal-transmission-sig": "s",
+               "paypal-cert-url": "https://api.paypal.com/cert", "paypal-auth-algo": "SHA256withRSA"}
+    event = {"event_type": "CHECKOUT.ORDER.APPROVED", "resource": {"id": order_id}}
+    assert (await client.post("/api/v1/webhooks/paypal", json=event, headers=headers)).json()["detail"] == "ok"
+    assert await credit_balance(db, me["id"]) == before + 20
+    assert (await client.post("/api/v1/webhooks/paypal", json=event, headers=headers)).json()["detail"] == "ok"
+    assert await credit_balance(db, me["id"]) == before + 20  # once

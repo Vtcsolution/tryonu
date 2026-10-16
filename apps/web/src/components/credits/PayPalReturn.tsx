@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { AFTER_PAY_KEY } from "@/components/credits/BuyCreditsPanel";
 import { Button } from "@/components/ui/Button";
 import { ApiError } from "@/lib/api/client";
 import { credits as creditsApi } from "@/lib/api/endpoints";
@@ -26,13 +27,31 @@ export function PayPalReturn() {
   const cancelled = params.get("cancelled") === "1";
   const [state, setState] = useState<State>(cancelled ? { kind: "cancelled" } : { kind: "working" });
   const started = useRef(false);
+  // where the shopper was before buying (set by the credits page)
+  const [afterPay, setAfterPay] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      const next = sessionStorage.getItem(AFTER_PAY_KEY);
+      if (next && next.startsWith("/") && !next.startsWith("//")) setAfterPay(next);
+    } catch {
+      // ignore
+    }
+  }, []);
+  // PayPal can take a few seconds to finish: ask again by itself for about a minute
+  const attempts = useRef(0);
+  const retry = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (retry.current) clearTimeout(retry.current);
+  }, []);
 
-  const confirm = async () => {
+  const confirm = async (auto = false) => {
+    if (!auto) attempts.current = 0;
+    if (retry.current) clearTimeout(retry.current);
     if (!paymentId) {
       setState({ kind: "failed", message: "This link is missing its payment reference." });
       return;
     }
-    setState({ kind: "working" });
+    if (!auto) setState({ kind: "working" });
     try {
       const res = await creditsApi.capturePurchase(paymentId);
       if (res.status === "succeeded") {
@@ -47,7 +66,13 @@ export function PayPalReturn() {
         qc.invalidateQueries({ queryKey: SESSION_QUERY_KEY });
         qc.invalidateQueries({ queryKey: ["credit-history"] });
       } else if (res.status === "pending") {
-        setState({ kind: "pending" });
+        if (attempts.current < 15) {
+          attempts.current += 1;
+          setState({ kind: "working" });
+          retry.current = setTimeout(() => void confirm(true), 4000);
+        } else {
+          setState({ kind: "pending" });
+        }
       } else {
         setState({ kind: "failed", message: "PayPal didn't complete this payment, so no credits were added." });
       }
@@ -97,8 +122,12 @@ export function PayPalReturn() {
                 {state.credits ? `${state.credits} credits were added. ` : "Your credits were added. "}
                 {state.balance !== null ? `Your balance is now ${state.balance} credits.` : ""}
               </p>
-              <div className="mt-7 flex justify-center gap-3">
-                <Button href="/try" size="md">Try something on</Button>
+              <div className="mt-7 flex flex-wrap justify-center gap-3">
+                {afterPay ? (
+                  <Button href={afterPay} size="md">Continue your try-on →</Button>
+                ) : (
+                  <Button href="/try" size="md">Try something on</Button>
+                )}
                 <Button href="/credits" size="md" variant="outline">Back to credits</Button>
               </div>
             </>
@@ -109,8 +138,8 @@ export function PayPalReturn() {
         <>
           <h1 className="font-display text-[clamp(24px,4vw,32px)] text-ink">Payment not finished yet</h1>
           <p className="mt-3 text-[16px] text-muted">
-            PayPal hasn&rsquo;t completed this payment yet, so nothing has been charged and no credits added.
-            If you approved it on PayPal, check again in a moment.
+            PayPal hasn&rsquo;t completed this payment yet. If you approved it on PayPal, your credits are added
+            automatically within a few minutes, even if you close this page. If you didn&rsquo;t, nothing was charged.
           </p>
           <div className="mt-7 flex justify-center gap-3">
             <Button size="md" onClick={() => void confirm()}>Check again</Button>

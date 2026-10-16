@@ -225,6 +225,18 @@ async def paypal_webhook(request: Request, db: DbSession):
         if store is not None:
             result = await sync_subscription(db, store, provider)
             logger.info("paypal_webhook_subscription", event_type=event_type, store_id=store.id, result=result)
+    elif event_type in ("CHECKOUT.ORDER.APPROVED", "PAYMENT.CAPTURE.COMPLETED"):
+        # the customer paid: finish it now, even if they never come back to our page
+        from app.services.payment_settlement import settle_by_order_id
+
+        order_id = (
+            resource.get("id")
+            if event_type == "CHECKOUT.ORDER.APPROVED"
+            else ((resource.get("supplementary_data") or {}).get("related_ids") or {}).get("order_id")
+        )
+        if order_id:
+            result = await settle_by_order_id(db, order_id)
+            logger.info("paypal_webhook_paid", event_type=event_type, status=result.status if result else "unknown_order")
     elif event_type in _MONEY_BACK_EVENTS:
         order_id = ((resource.get("supplementary_data") or {}).get("related_ids") or {}).get("order_id")
         payment = (

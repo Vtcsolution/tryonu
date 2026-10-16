@@ -53,6 +53,10 @@ async def lifespan(app: FastAPI):  # noqa: ANN201
     # Nothing else ever moves a job that no worker picked up: the customer
     # watches a spinner and their credits stay reserved. Sweep for those.
     app.state.stuck_sweeper = asyncio.create_task(sweep_forever())
+    # paid on PayPal but never came back to our page: finish those payments too
+    from app.services.payment_settlement import settle_pending_forever
+
+    app.state.payment_sweeper = asyncio.create_task(settle_pending_forever())
 
     app.state.debug_sweeper = None
     if settings.TRYON_SAVE_DEBUG:
@@ -65,6 +69,7 @@ async def lifespan(app: FastAPI):  # noqa: ANN201
         app.state.geoip_download = asyncio.create_task(download_geoip_db())
     yield
     app.state.stuck_sweeper.cancel()
+    app.state.payment_sweeper.cancel()
     if app.state.debug_sweeper is not None:
         app.state.debug_sweeper.cancel()
     logger.info("shutdown")

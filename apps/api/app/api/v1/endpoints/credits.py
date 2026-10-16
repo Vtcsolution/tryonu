@@ -20,6 +20,7 @@ from app.schemas.credit import (
     PurchaseCreditsResponse,
 )
 from app.services import credit_service
+from app.services.payment_settlement import settle
 
 router = APIRouter(prefix="/credits", tags=["credits"])
 
@@ -159,92 +160,7 @@ async def capture_purchase(payment_id: str, user: CurrentUser, db: DbSession):
     if payment.status != PaymentStatus.PENDING or not payment.external_payment_id:
         return PurchaseCreditsResponse(payment_id=payment.id, status="failed")
 
-    provider = get_payment_provider()
-    if provider.name != payment.provider:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This payment was made another way")
-    try:
-        result = await provider.capture(payment.external_payment_id, idempotency_key=payment.id)
-    except PaymentsUnavailableError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Payments are not available right now. Please try again shortly.",
-        ) from exc
-    except Exception as exc:  # noqa: BLE001 — the processor was unreachable; the payment stays pending
-        logger.warning("payment_capture_failed", payment_id=payment.id, error=str(exc)[:200])
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="We couldn't confirm the payment with PayPal yet. Please try again in a moment.",
-        ) from exc
-
-    if result.status in ("pending", "not_approved"):
-        return PurchaseCreditsResponse(payment_id=payment.id, status="pending")
-    matches = result.amount_cents == payment.amount_cents and (result.currency or "") == payment.currency.lower()
-    if result.status != "completed" or not matches:
-        payment.status = PaymentStatus.FAILED
-        await db.commit()
-        logger.warning(
-            "payment_capture_rejected", payment_id=payment.id, status=result.status, amount_matches=matches
-        )
-        return PurchaseCreditsResponse(payment_id=payment.id, status="failed")
-
-    if payment.developer_pack_id:
-        # a developer API pack: try-ons added to the developer account
-        from app.models.developer import DeveloperAccount, DeveloperCreditPack
-
-        pack = await db.get(DeveloperCreditPack, payment.developer_pack_id)
-        account = await db.get(DeveloperAccount, payment.developer_account_id) if payment.developer_account_id else None
-        payment.status = PaymentStatus.SUCCEEDED
-        if pack is not None and account is not None:
-            account.credits += pack.tryons
-        else:
-            logger.error("payment_developer_pack_missing", payment_id=payment.id)
-        await db.commit()
-        return PurchaseCreditsResponse(
-            payment_id=payment.id, status="succeeded", developer_tryons=pack.tryons if pack else None
-        )
-
-    if payment.store_plan_id:
-        # a company's store plan: unlock (or extend) its 30-day pass
-        from app.models.store import Store, StorePlan
-        from app.services.store_service import activate_plan
-
-        plan = await db.get(StorePlan, payment.store_plan_id)
-        store = await db.get(Store, payment.store_id) if payment.store_id else None
-        payment.status = PaymentStatus.SUCCEEDED
-        if plan is not None and store is not None:
-            activate_plan(store, plan)
-        else:
-            logger.error("payment_store_plan_missing", payment_id=payment.id)
-        await db.commit()
-        return PurchaseCreditsResponse(
-            payment_id=payment.id,
-            status="succeeded",
-            plan_name=plan.name if plan else None,
-            plan_expires_at=store.plan_expires_at if store else None,
-        )
-
-    package = await db.get(CreditPackage, payment.credit_package_id) if payment.credit_package_id else None
-    if package is None:
-        # paid, but for a package that no longer exists: keep the money on
-        # record as succeeded and leave the credits to support
-        payment.status = PaymentStatus.SUCCEEDED
-        await db.commit()
-        logger.error("payment_package_missing", payment_id=payment.id)
-        return PurchaseCreditsResponse(payment_id=payment.id, status="succeeded")
-    payment.status = PaymentStatus.SUCCEEDED
-    entry = await credit_service.grant(
-        db,
-        user_id=user.id,
-        amount=package.credits,
-        reason=CreditReason.PURCHASE,
-        reference_type="payment",
-        reference_id=payment.id,
-        note=f"Purchased {package.name}",
-    )
-    await db.commit()
-    return PurchaseCreditsResponse(
-        payment_id=payment.id, status="succeeded", credits_granted=package.credits, new_balance=entry.balance_after
-    )
+    return await settle(db, payment)
 
 
 @router.get("/purchase/{payment_id}", response_model=PurchaseCreditsResponse)

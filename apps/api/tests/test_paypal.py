@@ -65,6 +65,8 @@ def paypal(monkeypatch):  # noqa: ANN001, ANN201
             transport=httpx.MockTransport(fake),
         )
         monkeypatch.setattr("app.api.v1.endpoints.credits.get_payment_provider", lambda: provider)
+        # finishing a payment (return page, webhook, sweep) asks for the provider here
+        monkeypatch.setattr("app.services.payment_settlement.get_payment_provider", lambda: provider)
         return provider
 
     return use

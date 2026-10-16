@@ -325,6 +325,11 @@ export function TryFlow() {
     },
   });
 
+  // "Buy credits" comes back here afterwards, with the same products selected
+  const buyHref = `/credits?next=${encodeURIComponent(
+    outfit ? `/try?outfit=${outfit.id}` : product ? `/try?product=${product.id}` : "/try",
+  )}`;
+
   // a TryOnU store paying for this try-on (the shopper chooses: free and shared, or private)
   const sponsorTarget = !customItem && !(multiAngle && canMultiAngle) ? (outfit ? { outfit_id: outfit.id } : product ? { product_id: product.id } : null) : null;
   const sponsorQuery = useQuery({
@@ -460,12 +465,13 @@ export function TryFlow() {
   return (
     <section className="mx-auto w-[min(1440px,calc(100%-42px))] py-14 md:py-20">
       {/* progress header */}
-      <ol className="mb-10 flex items-center gap-3 text-[13px] sm:gap-4">
+      <ol className="flex w-full items-center gap-3 text-[13px] sm:gap-4">
         {STEPS.map((label, i) => {
           const done = i < activeStepIndex || step === 3;
           const active = i === activeStepIndex && step !== 3;
           return (
-            <li key={label} className="flex flex-1 items-center gap-3">
+            // the last step only takes its own width, so the row spans edge to edge
+            <li key={label} className={`flex items-center gap-3 ${i < STEPS.length - 1 ? "flex-1" : "flex-none"}`}>
               <span
                 className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border text-[13px] font-semibold transition-colors duration-300 ${
                   done
@@ -487,6 +493,10 @@ export function TryFlow() {
           );
         })}
       </ol>
+      <p className="mb-8 mt-3 text-[14px] text-muted sm:hidden">
+        Step {Math.min(activeStepIndex, 2) + 1} of {STEPS.length} · <span className="text-ink">{STEPS[Math.min(activeStepIndex, 2)]}</span>
+      </p>
+      <div className="mb-10 hidden sm:block" />
 
       {/* STEP 0 — upload */}
       {step === 0 && (
@@ -942,7 +952,7 @@ export function TryFlow() {
                 ? createJob.error.detail
                 : "Couldn't start the try-on. Please try again."}
               {createJob.error instanceof ApiError && createJob.error.status === 402 && (
-                <a href="/credits" className="ml-2 font-semibold text-sage-deep underline underline-offset-2">
+                <a href={buyHref} className="ml-2 font-semibold text-sage-deep underline underline-offset-2">
                   Buy credits
                 </a>
               )}
@@ -997,7 +1007,7 @@ export function TryFlow() {
                       {createJob.isPending ? "Starting…" : "Try on free"}
                     </Button>
                   ) : shortOfCredits ? (
-                    <Button size="md" href="/credits">Buy credits</Button>
+                    <Button size="md" href={buyHref}>Buy credits</Button>
                   ) : (
                     <Button
                       size="md"
@@ -1024,7 +1034,7 @@ export function TryFlow() {
                   {createJob.isPending ? "Starting…" : `Try on free (share with ${sponsorName})`}
                 </Button>
                 {shortOfCredits ? (
-                  <Button size="md" variant="outline" href="/credits">
+                  <Button size="md" variant="outline" href={buyHref}>
                     Buy credits to keep it private
                   </Button>
                 ) : (
@@ -1038,7 +1048,7 @@ export function TryFlow() {
 
           <div className="mt-8 flex flex-wrap items-center gap-4">
             {sponsorName ? null : shortOfCredits && (product || outfit || customItem) ? (
-              <Button size="md" href="/credits">
+              <Button size="md" href={buyHref}>
                 Buy credits to try this on <span aria-hidden="true">→</span>
               </Button>
             ) : (

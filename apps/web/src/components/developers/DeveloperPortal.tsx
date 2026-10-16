@@ -298,7 +298,7 @@ function Keys() {
               onChange={(e) => setDomains(e.target.value)}
               placeholder="Your shop's address, e.g. yourshop.com"
               aria-label="Your shop's web address (several: separate with commas)"
-              className={`${inputClass} w-80`}
+              className={`${inputClass} w-full sm:w-80`}
             />
           )}
           <input
@@ -306,7 +306,7 @@ function Keys() {
             onChange={(e) => setName(e.target.value)}
             placeholder={kind === "public" ? "Name, e.g. My shop" : "Name, e.g. My shop server"}
             maxLength={80}
-            className={`${inputClass} w-64`}
+            className={`${inputClass} w-full sm:w-64`}
           />
           <SmallButton tone="primary" disabled={make.isPending} onClick={() => make.mutate()}>
             {make.isPending ? "Creating…" : "+ Create key"}

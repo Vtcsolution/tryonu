@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { PHOTOS } from "@/lib/media";
 
@@ -14,17 +14,31 @@ import { PHOTOS } from "@/lib/media";
 export function CompareSlider() {
   const [pos, setPos] = useState(50);
   const id = useId();
+  // the "original" half is drawn at the frame's full width, then clipped
+  const frame = useRef<HTMLDivElement>(null);
+  const [frameWidth, setFrameWidth] = useState<number | null>(null);
+  useEffect(() => {
+    const el = frame.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => setFrameWidth(entry.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   return (
     <div className="relative">
-      <div className="relative h-[420px] overflow-hidden rounded-[28px] border border-line bg-paper-2 shadow-lift sm:h-[520px]">
+      {/* a portrait frame, like the photos: the whole person shows on every screen */}
+      <div
+        ref={frame}
+        className="relative mx-auto aspect-[4/5] w-full max-w-[640px] overflow-hidden rounded-[28px] border border-line bg-paper-2 shadow-lift"
+      >
         {/* result (base) */}
         <Image
           src={PHOTOS.lookBlueCoat.src}
           alt={`Try-on result — ${PHOTOS.lookBlueCoat.alt}`}
           fill
           className="object-cover object-[50%_20%]"
-          sizes="(max-width: 1180px) 100vw, 1180px"
+          sizes="(max-width: 680px) 100vw, 640px"
         />
 
         {/* original (clipped overlay) */}
@@ -34,14 +48,14 @@ export function CompareSlider() {
         >
           <div
             className="absolute inset-y-0 left-0"
-            style={{ width: "min(1180px, calc(100vw - 42px))" }}
+            style={{ width: frameWidth ? `${frameWidth}px` : "100%" }}
           >
             <Image
               src={PHOTOS.portraitStudio.src}
               alt={`Original — ${PHOTOS.portraitStudio.alt}`}
               fill
               className="object-cover object-[50%_20%]"
-              sizes="(max-width: 1180px) 100vw, 1180px"
+              sizes="(max-width: 680px) 100vw, 640px"
             />
           </div>
         </div>
@@ -80,7 +94,7 @@ export function CompareSlider() {
           className="absolute inset-0 z-20 h-full w-full cursor-ew-resize opacity-0"
         />
 
-        <div className="absolute bottom-4 right-4 z-[15] w-[220px] rounded-[18px] border border-line bg-surface/95 p-4 backdrop-blur">
+        <div className="absolute bottom-4 right-4 z-[15] hidden w-[220px] rounded-[18px] border border-line bg-surface/95 p-4 backdrop-blur sm:block">
           <p className="text-[12px] text-muted">Illustrative preview</p>
           <p className="mb-3 mt-1 text-[15px] font-semibold text-ink">
             Sky Wrap Coat · $128.00
@@ -92,6 +106,12 @@ export function CompareSlider() {
             Try it yourself <span aria-hidden="true">→</span>
           </Button>
         </div>
+      </div>
+      {/* phones: the picture stays clear, the button goes underneath */}
+      <div className="mx-auto mt-4 max-w-[640px] sm:hidden">
+        <Button href="/try" size="lg" className="w-full">
+          Try it yourself <span aria-hidden="true">→</span>
+        </Button>
       </div>
     </div>
   );

@@ -5,11 +5,13 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { BUSINESS, COMPANY, PRODUCT, TOP_LINKS } from "@/components/marketing/navLinks";
+import { useSession } from "@/lib/auth/useSession";
 
 /** Phones and small screens: the whole site menu behind one button. */
 export function MobileNav() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const { user } = useSession();
 
   useEffect(() => setOpen(false), [pathname]);
   useEffect(() => {
@@ -80,7 +82,23 @@ export function MobileNav() {
                   ))}
                 </ul>
               </div>
-              <div className="border-t border-line p-5">
+              <div className="space-y-3 border-t border-line p-5">
+                {!user && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <Link
+                      href="/sign-in"
+                      className="flex min-h-[48px] items-center justify-center rounded-full border border-line-strong text-[15.5px] font-semibold text-ink"
+                    >
+                      Sign in
+                    </Link>
+                    <Link
+                      href="/sign-up"
+                      className="flex min-h-[48px] items-center justify-center rounded-full border border-line-strong text-[15.5px] font-semibold text-ink"
+                    >
+                      Create account
+                    </Link>
+                  </div>
+                )}
                 <Link
                   href="/try"
                   className="flex min-h-[50px] items-center justify-center rounded-full bg-sage text-[16px] font-semibold text-white hover:bg-sage-deep"

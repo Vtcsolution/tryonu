@@ -61,11 +61,13 @@ export function Features() {
         {ROWS.map((row, i) => (
           <Reveal
             key={row.title}
-            className={`grid items-center gap-8 overflow-hidden rounded-[28px] border border-line bg-surface p-6 md:grid-cols-2 md:p-0 ${
-              i % 2 === 1 ? "md:[&>div:first-child]:order-2" : ""
+            className={`grid items-center gap-6 overflow-hidden rounded-[28px] border border-line bg-surface p-4 sm:p-6 md:gap-0 md:p-0 ${
+              i % 2 === 1
+                ? "md:grid-cols-[minmax(0,340px)_minmax(0,1fr)] lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)] md:[&>div:first-child]:order-2"
+                : "md:grid-cols-[minmax(0,1fr)_minmax(0,340px)] lg:grid-cols-[minmax(0,1fr)_minmax(0,520px)]"
             }`}
           >
-            <div className="md:p-12">
+            <div className="px-2 pt-2 sm:px-0 sm:pt-0 md:p-10 lg:p-16">
               <p className="mb-3 text-[13px] font-semibold uppercase tracking-[0.16em] text-sage">
                 {row.kicker}
               </p>
@@ -79,13 +81,14 @@ export function Features() {
                 {row.pill}
               </span>
             </div>
-            <div className="relative h-[300px] overflow-hidden rounded-[22px] md:h-[380px] md:rounded-none">
+            {/* portrait box, like the photos: the whole person shows, never a face cut in half */}
+            <div className="relative aspect-[4/5] w-full overflow-hidden rounded-[22px] md:rounded-none">
               <Image
                 src={row.photo.src}
                 alt={row.photo.alt}
                 fill
-                className="object-cover object-top"
-                sizes="(max-width: 768px) 100vw, 560px"
+                className="object-cover object-[50%_30%]"
+                sizes="(max-width: 768px) 100vw, 520px"
               />
             </div>
           </Reveal>

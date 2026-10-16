@@ -10,6 +10,8 @@ import { SESSION_QUERY_KEY, useSession } from "@/lib/auth/useSession";
 import { SubscriptionPanel } from "@/components/credits/SubscriptionPanel";
 import type { CreditPackage } from "@/lib/api/types";
 
+export const AFTER_PAY_KEY = "tou_after_pay";
+
 export function BuyCreditsPanel() {
   const router = useRouter();
   const qc = useQueryClient();
@@ -45,7 +47,15 @@ export function BuyCreditsPanel() {
         qc.invalidateQueries({ queryKey: SESSION_QUERY_KEY });
         qc.invalidateQueries({ queryKey: ["credit-history"] });
       } else if (res.checkout_url) {
-        // PayPal: pay on PayPal's page; it sends the shopper back to /credits/paypal
+        // PayPal: pay on PayPal's page; it sends the shopper back to /credits/paypal,
+        // which then offers to continue where they were (?next=)
+        const next = new URLSearchParams(window.location.search).get("next");
+        try {
+          if (next && next.startsWith("/") && !next.startsWith("//")) sessionStorage.setItem(AFTER_PAY_KEY, next);
+          else sessionStorage.removeItem(AFTER_PAY_KEY);
+        } catch {
+          // private window: they land on the normal "Try something on"
+        }
         window.location.assign(res.checkout_url);
       } else {
         // Real card payments (Stripe requires_action) need client-side
