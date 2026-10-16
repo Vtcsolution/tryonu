@@ -20,6 +20,7 @@ from app.api.v1.endpoints import (
     products,
     saved_products,
     search,
+    shared_looks,
     stores,
     stylist,
     subscriptions,
@@ -59,3 +60,4 @@ api_router.include_router(image_proxy.router)
 api_router.include_router(developers.router)
 api_router.include_router(developers.public_router)
 api_router.include_router(developers.admin_router)
+api_router.include_router(shared_looks.router)

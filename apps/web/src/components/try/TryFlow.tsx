@@ -13,6 +13,7 @@ import { PhotoUploader } from "@/components/upload/PhotoUploader";
 import { ApiError, affiliateGoUrl, resolveMediaUrl } from "@/lib/api/client";
 import { StyledPicks } from "@/components/try/StyledPicks";
 import { ProductCard } from "@/components/product/ProductCard";
+import { ShareLook } from "@/components/try/ShareLook";
 import { FEATURED, RECOMMENDED, RetailerTag, fromTryOnUStore, retailerFromImage, shopName } from "@/components/try/shop";
 import {
   credits as creditsApi,
@@ -1271,11 +1272,12 @@ function ResultStep({
 
   return (
     <div key="s3" className="animate-[tu-in-scale_0.45s_cubic-bezier(0.22,1,0.36,1)]">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <span className="grid h-6 w-6 place-items-center rounded-full bg-sage text-[13px] text-white">✓</span>
         <h1 className="font-display text-[clamp(24px,3.6vw,36px)] leading-tight text-ink">
           Here&rsquo;s <em>you</em>, in {product.name}
         </h1>
+        <ShareLook jobId={job.id} />
       </div>
 
       <div className="mt-6 space-y-6">
@@ -1404,11 +1406,12 @@ function OutfitResultStep({
 
   return (
     <div key="s3-outfit" className="animate-[tu-in-scale_0.45s_cubic-bezier(0.22,1,0.36,1)]">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <span className="grid h-6 w-6 place-items-center rounded-full bg-sage text-[13px] text-white">✓</span>
         <h1 className="font-display text-[clamp(24px,3.6vw,36px)] leading-tight text-ink">
           Here&rsquo;s <em>you</em>, styled
         </h1>
+        <ShareLook jobId={job.id} />
       </div>
 
       <div className="mt-6 space-y-6">
@@ -1525,11 +1528,12 @@ function WardrobeResultStep({
 
   return (
     <div key="s3-wardrobe" className="animate-[tu-in-scale_0.45s_cubic-bezier(0.22,1,0.36,1)]">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <span className="grid h-6 w-6 place-items-center rounded-full bg-sage text-[13px] text-white">✓</span>
         <h1 className="font-display text-[clamp(24px,3.6vw,36px)] leading-tight text-ink">
           Here&rsquo;s <em>you</em>, in {item.name}
         </h1>
+        <ShareLook jobId={job.id} />
       </div>
 
       <div className="mt-6 space-y-6">

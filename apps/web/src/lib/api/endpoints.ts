@@ -358,6 +358,11 @@ export const tryon = {
     use_store_credit?: boolean;
   }) => apiFetch<TryOnJob>("/api/v1/tryon", { method: "POST", body: input }),
 
+  /** share a finished look as a public link (same link until sharing stops) */
+  share: (jobId: string) =>
+    apiFetch<{ token: string; url: string; views: number }>(`/api/v1/tryon/${jobId}/share`, { method: "POST" }),
+  stopSharing: (jobId: string) => apiFetch<void>(`/api/v1/tryon/${jobId}/share`, { method: "DELETE" }),
+
   /** the store that would pay for trying on this product or look */
   sponsor: (target: { product_id?: string; outfit_id?: string }) =>
     apiFetch<TryOnSponsor>(

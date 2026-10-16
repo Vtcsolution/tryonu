@@ -785,3 +785,20 @@ export type DeveloperPayment = {
 };
 
 export type AdminDeveloper = DeveloperAccount & { owner_email: string; keys: number };
+
+/** A look its owner shared: what anyone with the link sees. */
+export type SharedLook = {
+  token: string;
+  image_url: string;
+  title: string;
+  products: {
+    id: string;
+    name: string;
+    price_cents: number;
+    currency: string;
+    image_url: string | null;
+    shop: string | null;
+    buy_url: string;
+  }[];
+  created_at: string;
+};
