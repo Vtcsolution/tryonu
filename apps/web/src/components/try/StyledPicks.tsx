@@ -51,8 +51,8 @@ type Sort = "best" | "low" | "high";
 
 // columns follow the number of pieces, so a look fills its row
 const GRID: Record<number, string> = {
-  1: "max-w-[280px] grid-cols-1",
-  2: "max-w-[600px] grid-cols-2",
+  1: "max-w-[340px] grid-cols-1",
+  2: "max-w-[720px] grid-cols-2",
   3: "grid-cols-2 sm:grid-cols-3",
   4: "grid-cols-2 sm:grid-cols-4",
   5: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5",
@@ -240,7 +240,7 @@ function ChangePanel({
 
       <div className="mt-4 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-3">
         {sorted.map((alt) => (
-          <div key={`${alt.retailer_slug}:${alt.retailer_product_id}`} className="w-[190px] shrink-0 snap-start">
+          <div key={`${alt.retailer_slug}:${alt.retailer_product_id}`} className="w-[230px] shrink-0 snap-start">
             <ProductCard
               compact
               image={thumbnailUrl(alt.images[0])}

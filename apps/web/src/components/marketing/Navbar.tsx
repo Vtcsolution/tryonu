@@ -29,7 +29,7 @@ const COMPANY_LINKS: MenuLink[] = [
 export function Navbar() {
   return (
     <header className="sticky top-0 z-50 border-b border-line/70 bg-paper/80 backdrop-blur-xl">
-      <div className="mx-auto flex h-[72px] w-[min(1180px,calc(100%-42px))] items-center justify-between">
+      <div className="mx-auto flex h-[72px] w-[min(1440px,calc(100%-42px))] items-center justify-between">
         <Logo size={30} />
 
         <nav className="hidden items-center gap-9 md:flex">

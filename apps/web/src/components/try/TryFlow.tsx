@@ -447,7 +447,7 @@ export function TryFlow() {
 
   if (sessionLoading || !user) {
     return (
-      <section className="mx-auto w-[min(920px,calc(100%-42px))] py-24 text-center">
+      <section className="mx-auto w-[min(1280px,calc(100%-42px))] py-24 text-center">
         <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-line-strong border-t-sage" />
         <p className="mt-4 text-[14px] text-muted">Checking your session…</p>
       </section>
@@ -455,7 +455,7 @@ export function TryFlow() {
   }
 
   return (
-    <section className="mx-auto w-[min(920px,calc(100%-42px))] py-14 md:py-20">
+    <section className="mx-auto w-[min(1280px,calc(100%-42px))] py-14 md:py-20">
       {/* progress header */}
       <ol className="mb-10 flex items-center gap-3 text-[12px] sm:gap-4">
         {STEPS.map((label, i) => {

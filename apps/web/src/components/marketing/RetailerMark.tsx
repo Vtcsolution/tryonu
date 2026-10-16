@@ -1,4 +1,4 @@
-type Props = { name: "Amazon" | "eBay" | "Flipkart" | "Daraz"; className?: string };
+type Props = { name: "eBay" | "AliExpress" | "Local stores" | "Amazon" | "Flipkart" | "Daraz"; className?: string };
 
 /** Lightweight text wordmarks for retailer chips (no third-party logo assets). */
 export function RetailerMark({ name, className = "" }: Props) {

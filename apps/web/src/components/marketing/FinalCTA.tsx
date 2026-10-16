@@ -6,7 +6,7 @@ import { PHOTOS } from "@/lib/media";
 export function FinalCTA() {
   return (
     <section className="py-20 md:py-28">
-      <div className="mx-auto w-[min(1180px,calc(100%-42px))]">
+      <div className="mx-auto w-[min(1440px,calc(100%-42px))]">
         <Reveal className="relative overflow-hidden rounded-[32px] bg-sage px-8 py-16 text-center text-white sm:px-12 md:py-20">
           {/* photo bleeds in from the right, faded into the sage */}
           <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[46%] md:block">

@@ -33,7 +33,7 @@ const COLS: { heading: string; links: { label: string; href: string }[] }[] = [
 export function Footer() {
   return (
     <footer className="border-t border-line bg-paper-2">
-      <div className="mx-auto w-[min(1180px,calc(100%-42px))] py-14">
+      <div className="mx-auto w-[min(1440px,calc(100%-42px))] py-14">
         <div className="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div>
             <Logo size={30} />

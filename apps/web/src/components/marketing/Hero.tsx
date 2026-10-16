@@ -15,7 +15,7 @@ export function Hero() {
         className="pointer-events-none absolute left-1/2 top-[-10%] -z-10 h-[520px] w-[520px] -translate-x-1/3 rounded-full bg-sage-tint/60 blur-[90px]"
       />
 
-      <div className="mx-auto grid w-[min(1180px,calc(100%-42px))] items-center gap-12 py-16 md:grid-cols-[1.05fr_.9fr] md:py-24 lg:gap-16">
+      <div className="mx-auto grid w-[min(1440px,calc(100%-42px))] items-center gap-12 py-16 md:grid-cols-[1.05fr_.9fr] md:py-24 lg:gap-16">
         <Reveal className="max-w-xl">
           <p className="mb-5 text-[12px] font-semibold uppercase tracking-[0.18em] text-sage">
             Try It. See You. Shop It.
@@ -32,7 +32,7 @@ export function Hero() {
           </p>
 
           <div className="mt-7 flex flex-wrap items-center gap-2.5">
-            {(["Amazon", "eBay", "Flipkart", "Daraz"] as const).map((r) => (
+            {(["eBay", "AliExpress", "Local stores"] as const).map((r) => (
               <span
                 key={r}
                 className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface/70 px-3 py-2 text-[13px] text-ink-soft"
