@@ -15,7 +15,7 @@ export function Hero() {
         className="pointer-events-none absolute left-1/2 top-[-10%] -z-10 h-[520px] w-[520px] -translate-x-1/3 rounded-full bg-sage-tint/60 blur-[90px]"
       />
 
-      <div className="mx-auto grid w-[min(1600px,calc(100%-42px))] items-center gap-12 py-16 md:grid-cols-[1.05fr_.9fr] md:py-24 lg:gap-16">
+      <div className="mx-auto grid w-[min(1600px,calc(100%-42px))] items-center gap-12 py-16 lg:grid-cols-[1.05fr_.9fr] md:py-24 lg:gap-16">
         <Reveal className="max-w-xl">
           <p className="mb-5 text-[13px] font-semibold uppercase tracking-[0.18em] text-sage">
             Try It. See You. Shop It.
@@ -57,31 +57,34 @@ export function Hero() {
           </ul>
         </Reveal>
 
-        <Reveal delay={120} className="relative md:min-h-[500px]">
-          {/* floating look cards — free-floating on desktop, a tidy row on mobile */}
-          <div className="mb-5 flex gap-4 md:mb-0 md:block">
-            <div className="tu-float relative aspect-[4/5] w-1/2 rotate-[-3deg] overflow-hidden rounded-[22px] border border-white/70 bg-white shadow-lift [animation:tu-float_6s_ease-in-out_infinite] md:absolute md:-left-2 md:top-2 md:w-[42%] md:max-w-[190px]">
+        <Reveal delay={120} className="relative">
+          {/* one composition on a fixed stage, so the cards stay together on any
+              screen width: your photo, the result overlapping it, the upload
+              card overlapping both. Phones: a tidy row of photos, card below. */}
+          <div className="relative lg:mx-auto lg:h-[600px] lg:w-full lg:max-w-[540px]">
+          <div className="mx-auto mb-5 flex max-w-[540px] gap-4 lg:mb-0 lg:block lg:max-w-none">
+            <div className="tu-float relative aspect-[4/5] w-1/2 rotate-[-3deg] overflow-hidden rounded-[22px] border border-white/70 bg-white shadow-lift [animation:tu-float_6s_ease-in-out_infinite] lg:absolute lg:left-0 lg:top-0 lg:z-0 lg:w-[42%]">
               <Image
                 src={PHOTOS.portraitStudio.src}
                 alt={PHOTOS.portraitStudio.alt}
                 fill
                 priority
                 className="object-cover object-top"
-                sizes="(max-width: 768px) 45vw, 190px"
+                sizes="(max-width: 1024px) 45vw, 230px"
               />
               <span className="absolute left-2 top-2 rounded-full bg-white/85 px-2.5 py-1 text-[11px] font-semibold text-[#1c1b17] backdrop-blur">
                 Your photo
               </span>
             </div>
 
-            <div className="tu-float relative aspect-[4/5] w-1/2 rotate-[2deg] overflow-hidden rounded-[22px] border border-white/70 bg-white shadow-lift [animation:tu-float_7s_ease-in-out_infinite_0.6s] md:absolute md:-right-2 md:top-10 md:w-[46%] md:max-w-[210px]">
+            <div className="tu-float relative aspect-[4/5] w-1/2 rotate-[2deg] overflow-hidden rounded-[22px] border border-white/70 bg-white shadow-lift [animation:tu-float_7s_ease-in-out_infinite_0.6s] lg:absolute lg:left-[34%] lg:top-[44px] lg:z-10 lg:w-[44%]">
               <Image
                 src={PHOTOS.lookPinkCoat.src}
                 alt={PHOTOS.lookPinkCoat.alt}
                 fill
                 priority
                 className="object-cover object-top"
-                sizes="(max-width: 768px) 45vw, 210px"
+                sizes="(max-width: 1024px) 45vw, 240px"
               />
               <span className="absolute left-2 top-2 rounded-full bg-sage px-2.5 py-1 text-[11px] font-semibold text-white">
                 Try-on result
@@ -90,7 +93,7 @@ export function Hero() {
           </div>
 
           {/* upload card (from the prototype, restyled light) */}
-          <div className="relative mx-auto w-full max-w-[370px] rounded-[26px] border border-line bg-surface p-5 shadow-lift md:ml-auto md:mr-0 md:mt-[210px]">
+          <div className="relative z-20 mx-auto w-full max-w-[370px] rounded-[26px] border border-line bg-surface p-5 shadow-lift lg:absolute lg:bottom-0 lg:right-0 lg:mx-0 lg:w-[70%]">
             <div className="rounded-[20px] border border-dashed border-line-strong bg-paper-2/70 px-6 py-8 text-center">
               <div className="mx-auto mb-4 grid h-[52px] w-[52px] place-items-center rounded-[17px] border border-line-strong text-2xl text-sage">
                 ⇧
@@ -119,6 +122,7 @@ export function Hero() {
             <p className="mt-2.5 text-center text-[12px] text-faint">
               No credit card required
             </p>
+          </div>
           </div>
         </Reveal>
       </div>
