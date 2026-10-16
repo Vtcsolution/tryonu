@@ -58,6 +58,7 @@ function NavLink({ href, children }: { href: string; children: ReactNode }) {
   return (
     <Link
       href={href}
+      prefetch={false}
       className="group/nl relative font-display text-[16px] tracking-[-0.01em] text-ink transition-colors duration-200 hover:text-faint"
     >
       {children}
@@ -100,6 +101,7 @@ function NavMenu({ label, children }: { label: string; children: MenuLink[] }) {
             <Link
               key={l.label}
               href={l.href}
+              prefetch={false}
               className="block rounded-xl px-3 py-2.5 transition-colors duration-200 hover:bg-paper-2"
             >
               <span className="block font-display text-[15px] text-ink">

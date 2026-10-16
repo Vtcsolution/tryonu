@@ -65,6 +65,7 @@ export function Hero() {
                 src={PHOTOS.portraitStudio.src}
                 alt={PHOTOS.portraitStudio.alt}
                 fill
+                priority
                 className="object-cover object-top"
                 sizes="(max-width: 768px) 45vw, 190px"
               />
@@ -78,6 +79,7 @@ export function Hero() {
                 src={PHOTOS.lookPinkCoat.src}
                 alt={PHOTOS.lookPinkCoat.alt}
                 fill
+                priority
                 className="object-cover object-top"
                 sizes="(max-width: 768px) 45vw, 210px"
               />

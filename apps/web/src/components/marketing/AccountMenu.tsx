@@ -96,6 +96,7 @@ export function AccountMenu() {
             <Link
               key={item.href}
               href={item.href}
+              prefetch={false}
               onClick={() => setOpen(false)}
               className="block rounded-xl px-3 py-2 text-[14px] text-ink-soft transition-colors hover:bg-paper-2"
             >
