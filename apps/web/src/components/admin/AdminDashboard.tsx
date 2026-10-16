@@ -20,6 +20,7 @@ import { AnalyticsTab } from "./AnalyticsTab";
 import { ProductsTab, RetailersTab } from "./CatalogTabs";
 import { CreditPackagesTab } from "./CreditPackagesTab";
 import { StoresTab } from "./StoresTab";
+import { DevelopersTab } from "./DevelopersTab";
 import { FashnCreditsTab } from "./FashnCreditsTab";
 import { SettingsTab } from "./SettingsTab";
 import { TryOnsTab } from "./TryOnsTab";
@@ -42,7 +43,8 @@ type Tab =
   | "clicks"
   | "ai-usage"
   | "audit"
-  | "account";
+  | "account"
+  | "developers";
 
 const NAV: readonly NavGroup<Tab>[] = [
   {
@@ -61,6 +63,7 @@ const NAV: readonly NavGroup<Tab>[] = [
       { id: "retailers", label: "Retailers", icon: "retailers" },
       { id: "packs", label: "Credit packs", icon: "packs" },
       { id: "stores", label: "Company stores", icon: "retailers" },
+      { id: "developers", label: "Developer API", icon: "ai" },
     ],
   },
   {
@@ -171,6 +174,7 @@ export function AdminDashboard() {
         {tab === "retailers" && <RetailersTab />}
         {tab === "packs" && <CreditPackagesTab />}
         {tab === "stores" && <StoresTab />}
+        {tab === "developers" && <DevelopersTab />}
         {tab === "settings" && <SettingsTab />}
         {tab === "fashn" && <FashnCreditsTab />}
         {tab === "system" && <SystemTab />}

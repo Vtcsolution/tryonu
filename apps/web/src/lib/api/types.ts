@@ -712,3 +712,62 @@ export type StoreCosts = {
 
 /** The TryOnU store that would pay for a try-on, if any. */
 export type TryOnSponsor = { store_id: string | null; store_name: string | null };
+
+/* ----------------------------------------------------------- developer API */
+
+export type DeveloperAccount = {
+  id: string;
+  company_name: string;
+  website: string | null;
+  credits: number;
+  status: "active" | "suspended";
+  tryons_total: number;
+  tryons_30d: number;
+  created_at: string;
+};
+
+export type DeveloperApiKey = {
+  id: string;
+  name: string;
+  kind: string;
+  prefix: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
+};
+
+/** Returned once, when the key is made: only then is the full key known. */
+export type DeveloperApiKeyCreated = DeveloperApiKey & { key: string };
+
+export type DeveloperCreditPack = {
+  id: string;
+  code: string;
+  name: string;
+  tryons: number;
+  price_cents: number;
+  currency: string;
+  is_active: boolean;
+};
+
+export type DeveloperUsage = {
+  id: string;
+  status: "queued" | "processing" | "completed" | "failed";
+  reference: string | null;
+  credits: number;
+  refunded: boolean;
+  result_image_url: string | null;
+  error: string | null;
+  created_at: string;
+};
+
+export type DeveloperPayment = {
+  id: string;
+  amount_cents: number;
+  currency: string;
+  status: string;
+  pack_name: string | null;
+  tryons: number | null;
+  created_at: string;
+};
+
+export type AdminDeveloper = DeveloperAccount & { owner_email: string; keys: number };

@@ -50,7 +50,11 @@ async def validate_and_optimize(file: UploadFile) -> ProcessedImage:
     # was refused with 415 because the browser labelled it differently. Any file
     # Pillow can actually decode is accepted; anything else fails below as
     # "not a valid image".
-    raw = await file.read()
+    return await optimize_bytes(await file.read())
+
+
+async def optimize_bytes(raw: bytes) -> ProcessedImage:
+    """validate_and_optimize for bytes already in hand (e.g. fetched from a link)."""
     if len(raw) > settings.MAX_UPLOAD_BYTES:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,

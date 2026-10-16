@@ -47,6 +47,15 @@ async def reverse_payment(db: AsyncSession, payment: Payment, *, why: str) -> di
         if store is not None and plan is not None and store.plan_expires_at is not None:
             store.plan_expires_at = store.plan_expires_at - timedelta(days=plan.duration_days)
             taken["plan_days_removed"] = plan.duration_days
+    if payment.developer_pack_id and payment.developer_account_id:
+        from app.models.developer import DeveloperAccount, DeveloperCreditPack
+
+        account = await db.get(DeveloperAccount, payment.developer_account_id)
+        pack = await db.get(DeveloperCreditPack, payment.developer_pack_id)
+        if account is not None and pack is not None:
+            removed = min(pack.tryons, account.credits)
+            account.credits -= removed
+            taken["credits_removed"] = removed
     payment.status = PaymentStatus.REFUNDED
     await db.commit()
     return taken

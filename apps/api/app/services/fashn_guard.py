@@ -31,6 +31,7 @@ Reads (job status, the credit balance) spend nothing and are not gated.
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Protocol
@@ -45,6 +46,15 @@ MAX_CREDITS_PER_AUTHORIZATION = 100
 AUTHORIZATION_TTL_MINUTES = 120
 # the longest one approval may stay open (fashn_authorize --hours)
 MAX_AUTHORIZATION_HOURS = 72
+
+# Developer API try-ons spend from their own automatic daily allowance, never
+# from (or blocking) the operator's approval. Set for the length of one job.
+DEVELOPER_POOL = "developer-api"
+_pool: ContextVar[str] = ContextVar("fashn_pool", default="operator")
+
+
+def use_developer_pool() -> None:
+    _pool.set(DEVELOPER_POOL)
 
 
 def authorization_phrase(credits: int) -> str:
@@ -99,13 +109,48 @@ def _aware(value: datetime | None) -> datetime | None:
 
 
 async def _active_authorization(db):  # noqa: ANN001, ANN202
+    """The operator's open approval (the developer allowance is never it)."""
     now = datetime.now(timezone.utc)
     rows = await db.execute(
         select(FashnLiveAuthorization)
-        .where(FashnLiveAuthorization.status == "active")
+        .where(FashnLiveAuthorization.status == "active", FashnLiveAuthorization.created_by != DEVELOPER_POOL)
         .order_by(FashnLiveAuthorization.created_at.desc())
     )
     return next((a for a in rows.scalars() if _aware(a.expires_at) is None or _aware(a.expires_at) > now), None)
+
+
+async def _developer_allowance(db):  # noqa: ANN001, ANN202
+    """Today's allowance for paid developer try-ons, made on first use: the
+    daily cap of try-ons x FASHN credits per try-on, until midnight UTC.
+    Closing it (fashn_authorize --close, or Admin) pauses developer try-ons
+    for the rest of the day."""
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    now = datetime.now(timezone.utc)
+    day = now.strftime("%Y-%m-%d")
+    note = f"{DEVELOPER_POOL} {day}"
+    existing = await db.scalar(
+        select(FashnLiveAuthorization).where(
+            FashnLiveAuthorization.created_by == DEVELOPER_POOL, FashnLiveAuthorization.note == note
+        )
+    )
+    if existing is not None:
+        return existing if existing.status == "active" else None
+    budget = max(0, settings.DEV_API_DAILY_TRYON_CAP) * max(1, settings.STORE_FASHN_CREDITS_PER_TRYON)
+    if budget == 0:
+        return None
+    allowance = FashnLiveAuthorization(
+        budget_credits=budget,
+        reserved_credits=0,
+        status="active",
+        expires_at=now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1),
+        created_by=DEVELOPER_POOL,
+        note=note,
+    )
+    db.add(allowance)
+    await db.flush()
+    return allowance
 
 
 async def _spent(db) -> int:  # noqa: ANN001
@@ -173,7 +218,7 @@ class DbCreditGuard:
     async def remaining(self) -> int:
         """Credits the open authorization still allows; 0 when there is none."""
         async with self._sessions()() as db:
-            authorization = await _active_authorization(db)
+            authorization = await (_developer_allowance(db) if _pool.get() == DEVELOPER_POOL else _active_authorization(db))
             if authorization is None:
                 return 0
             return max(0, authorization.budget_credits - authorization.reserved_credits)
@@ -184,10 +229,13 @@ class DbCreditGuard:
         cost = credits_for(model, resolution, mode)
         factory = self._sessions()
         async with factory() as db:
-            authorization = await _active_authorization(db)
+            developer = _pool.get() == DEVELOPER_POOL
+            authorization = await (_developer_allowance(db) if developer else _active_authorization(db))
             if authorization is None:
                 raise GuardRefused(
-                    "Live FASHN generation is not authorized. Nothing was sent. "
+                    "Developer API try-ons are paused today. Nothing was sent."
+                    if developer
+                    else "Live FASHN generation is not authorized. Nothing was sent. "
                     "An operator must run `python -m app.scripts.fashn_authorize` first."
                 )
 
@@ -244,7 +292,11 @@ async def create_authorization(
             "No authorization was created."
         )
     now = datetime.now(timezone.utc)
-    open_rows = await db.execute(select(FashnLiveAuthorization).where(FashnLiveAuthorization.status == "active"))
+    open_rows = await db.execute(
+        select(FashnLiveAuthorization).where(
+            FashnLiveAuthorization.status == "active", FashnLiveAuthorization.created_by != DEVELOPER_POOL
+        )
+    )
     for existing in open_rows.scalars():
         expired = _aware(existing.expires_at) is not None and _aware(existing.expires_at) <= now
         if not expired and existing.reserved_credits < existing.budget_credits:
@@ -273,7 +325,11 @@ async def close_authorizations(db) -> int:  # noqa: ANN001
 async def guard_status(db) -> dict:  # noqa: ANN001
     now = datetime.now(timezone.utc)
     rows = (
-        await db.execute(select(FashnLiveAuthorization).where(FashnLiveAuthorization.status == "active"))
+        await db.execute(
+            select(FashnLiveAuthorization).where(
+                FashnLiveAuthorization.status == "active", FashnLiveAuthorization.created_by != DEVELOPER_POOL
+            )
+        )
     ).scalars().all()
     live = [a for a in rows if _aware(a.expires_at) is None or _aware(a.expires_at) > now]
     return {

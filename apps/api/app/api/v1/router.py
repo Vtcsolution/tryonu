@@ -12,6 +12,7 @@ from app.api.v1.endpoints import (
     analytics,
     auth,
     credits,
+    developers,
     feed,
     image_proxy,
     outfits,
@@ -55,3 +56,6 @@ api_router.include_router(admin_rakuten.router)
 api_router.include_router(stores.router)
 api_router.include_router(stores.admin_router)
 api_router.include_router(image_proxy.router)
+api_router.include_router(developers.router)
+api_router.include_router(developers.public_router)
+api_router.include_router(developers.admin_router)

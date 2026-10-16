@@ -422,6 +422,15 @@ async def run_tryon_job_async(job_id: str) -> None:
         job.started_at = datetime.now(timezone.utc)
         await session.commit()
 
+        from app.services.developer_service import is_developer_job
+        from app.services.fashn_guard import use_developer_pool
+
+        async with AsyncSessionLocal() as lookup:
+            if await is_developer_job(lookup, job_id):
+                # paid with developer credits: runs on the automatic developer
+                # allowance, not the operator's FASHN approval
+                use_developer_pool()
+
         # Debug image capture (TRYON_SAVE_DEBUG): never for a production
         # user's photo — only the accounts in TRYON_DEBUG_USER_EMAILS, which
         # DebugCapture itself enforces. One extra by-id lookup per job, only

@@ -55,3 +55,5 @@ class PurchaseCreditsResponse(BaseModel):
     # a store plan payment: the plan unlocked and until when
     plan_name: str | None = None
     plan_expires_at: datetime | None = None
+    # a developer API pack: how many try-ons it added
+    developer_tryons: int | None = None

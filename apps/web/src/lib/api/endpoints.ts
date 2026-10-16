@@ -55,6 +55,13 @@ import type {
   StoreTryOns,
   StoreCosts,
   TryOnSponsor,
+  DeveloperAccount,
+  DeveloperApiKey,
+  DeveloperApiKeyCreated,
+  DeveloperCreditPack,
+  DeveloperUsage,
+  DeveloperPayment,
+  AdminDeveloper,
 } from "./types";
 
 /* ---------------------------------- auth --------------------------------- */
@@ -178,6 +185,7 @@ export const credits = {
       new_balance: number | null;
       plan_name?: string | null;
       plan_expires_at?: string | null;
+      developer_tryons?: number | null;
     }>(`/api/v1/credits/purchase/${paymentId}/capture`, { method: "POST" }),
   purchaseStatus: (paymentId: string) =>
     apiFetch<{ payment_id: string; status: string; new_balance: number | null }>(
@@ -477,4 +485,35 @@ export const adminOps = {
   fashnApprove: (credits: number, hours: number, phrase: string) =>
     apiFetch<FashnApproval>("/api/v1/admin/fashn/approval", { method: "POST", body: { credits, hours, phrase } }),
   fashnClose: () => apiFetch<FashnApproval>("/api/v1/admin/fashn/approval/close", { method: "POST" }),
+};
+
+/* ----------------------------------------------------------- developer API */
+
+export const developers = {
+  open: (input: { company_name: string; website?: string | null }) =>
+    apiFetch<DeveloperAccount>("/api/v1/developers", { method: "POST", body: input }),
+  mine: () => apiFetch<DeveloperAccount>("/api/v1/developers/me"),
+  keys: () => apiFetch<DeveloperApiKey[]>("/api/v1/developers/keys"),
+  makeKey: (name: string) =>
+    apiFetch<DeveloperApiKeyCreated>("/api/v1/developers/keys", { method: "POST", body: { name } }),
+  revokeKey: (id: string) => apiFetch<DeveloperApiKey>(`/api/v1/developers/keys/${id}`, { method: "DELETE" }),
+  packs: () => apiFetch<DeveloperCreditPack[]>("/api/v1/developers/packs"),
+  buyPack: (code: string) =>
+    apiFetch<{ payment_id: string; status: string; checkout_url?: string | null; developer_tryons?: number | null }>(
+      `/api/v1/developers/packs/${code}/purchase`,
+      { method: "POST" },
+    ),
+  usage: () => apiFetch<DeveloperUsage[]>("/api/v1/developers/usage"),
+  payments: () => apiFetch<DeveloperPayment[]>("/api/v1/developers/payments"),
+};
+
+export const adminDevelopers = {
+  list: () => apiFetch<AdminDeveloper[]>("/api/v1/admin/developers"),
+  adjustCredits: (id: string, amount: number) =>
+    apiFetch<DeveloperAccount>(`/api/v1/admin/developers/${id}/credits`, { method: "POST", body: { amount } }),
+  setStatus: (id: string, status: "active" | "suspended") =>
+    apiFetch<DeveloperAccount>(`/api/v1/admin/developers/${id}/status`, { method: "POST", body: { status } }),
+  packs: () => apiFetch<DeveloperCreditPack[]>("/api/v1/admin/developers/packs"),
+  updatePack: (id: string, input: Partial<Pick<DeveloperCreditPack, "name" | "tryons" | "price_cents" | "is_active">>) =>
+    apiFetch<DeveloperCreditPack>(`/api/v1/admin/developers/packs/${id}`, { method: "PATCH", body: input }),
 };

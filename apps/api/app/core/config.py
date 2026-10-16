@@ -103,6 +103,9 @@ class Settings(BaseSettings):
     STORE_FASHN_CREDITS_PER_TRYON: int = 4
     STORE_FASHN_CREDIT_PKR: int = 30
     STORE_USD_TO_PKR: int = 280
+    # Developer API: at most this many try-ons a day across all developers
+    # (they run without the operator's FASHN approval, within paid credits)
+    DEV_API_DAILY_TRYON_CAP: int = 200
 
     # --- AI providers ---
     # "mock" needs no credentials and simulates a realistic job lifecycle —

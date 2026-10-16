@@ -151,6 +151,9 @@ SPECS: tuple[SettingSpec, ...] = (
                 min_value=1),
     SettingSpec("STORE_FASHN_CREDIT_PKR", "Price of one FASHN credit (PKR)", "credits", "int",
                 help="What you pay FASHN for one credit, in Pakistani rupees.", min_value=1),
+    SettingSpec("DEV_API_DAILY_TRYON_CAP", "Developer API: try-ons per day (all developers)", "credits", "int",
+                help="Developer try-ons run automatically within the credits developers paid for, but never more than "
+                "this many a day in total. Each one uses FASHN credits.", min_value=0),
     SettingSpec("STORE_USD_TO_PKR", "PKR per US dollar", "credits", "int",
                 help="To compare try-on costs with store plan prices in dollars.", min_value=1),
 )

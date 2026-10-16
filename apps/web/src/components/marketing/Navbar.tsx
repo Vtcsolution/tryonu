@@ -20,6 +20,7 @@ const PRODUCT_LINKS: MenuLink[] = [
 
 const COMPANY_LINKS: MenuLink[] = [
   { label: "Sell on TryOnU", href: "/business", hint: "Open your store" },
+  { label: "Try-on API", href: "/developers/docs", hint: "Add try-on to your shop" },
   { label: "About", href: "#" },
   { label: "Blog", href: "#" },
   { label: "Careers", href: "#" },

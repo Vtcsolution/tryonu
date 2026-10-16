@@ -187,6 +187,22 @@ async def capture_purchase(payment_id: str, user: CurrentUser, db: DbSession):
         )
         return PurchaseCreditsResponse(payment_id=payment.id, status="failed")
 
+    if payment.developer_pack_id:
+        # a developer API pack: try-ons added to the developer account
+        from app.models.developer import DeveloperAccount, DeveloperCreditPack
+
+        pack = await db.get(DeveloperCreditPack, payment.developer_pack_id)
+        account = await db.get(DeveloperAccount, payment.developer_account_id) if payment.developer_account_id else None
+        payment.status = PaymentStatus.SUCCEEDED
+        if pack is not None and account is not None:
+            account.credits += pack.tryons
+        else:
+            logger.error("payment_developer_pack_missing", payment_id=payment.id)
+        await db.commit()
+        return PurchaseCreditsResponse(
+            payment_id=payment.id, status="succeeded", developer_tryons=pack.tryons if pack else None
+        )
+
     if payment.store_plan_id:
         # a company's store plan: unlock (or extend) its 30-day pass
         from app.models.store import Store, StorePlan

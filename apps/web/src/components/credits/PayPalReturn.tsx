@@ -11,7 +11,7 @@ import { SESSION_QUERY_KEY } from "@/lib/auth/useSession";
 
 type State =
   | { kind: "working" }
-  | { kind: "succeeded"; credits: number | null; balance: number | null; plan: string | null; planUntil: string | null }
+  | { kind: "succeeded"; credits: number | null; balance: number | null; plan: string | null; planUntil: string | null; apiTryons: number | null }
   | { kind: "pending" }
   | { kind: "failed"; message: string }
   | { kind: "cancelled" };
@@ -42,6 +42,7 @@ export function PayPalReturn() {
           balance: res.new_balance,
           plan: res.plan_name ?? null,
           planUntil: res.plan_expires_at ?? null,
+          apiTryons: res.developer_tryons ?? null,
         });
         qc.invalidateQueries({ queryKey: SESSION_QUERY_KEY });
         qc.invalidateQueries({ queryKey: ["credit-history"] });
@@ -73,7 +74,14 @@ export function PayPalReturn() {
       {state.kind === "succeeded" && (
         <>
           <h1 className="font-display text-[clamp(26px,4vw,36px)] text-ink">Payment complete</h1>
-          {state.plan ? (
+          {state.apiTryons ? (
+            <>
+              <p className="mt-3 text-[16px] text-muted">{state.apiTryons} API try-ons were added to your developer account.</p>
+              <div className="mt-7 flex justify-center gap-3">
+                <Button href="/developers" size="md">Go to the developer portal</Button>
+              </div>
+            </>
+          ) : state.plan ? (
             <>
               <p className="mt-3 text-[16px] text-muted">
                 Your {state.plan} plan is unlocked

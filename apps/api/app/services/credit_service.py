@@ -135,9 +135,11 @@ async def refund(
     (e.g. from a retry path) because of the idempotency check in grant()."""
     if reference_type == "tryon_job":
         # a store that paid for this try-on gets its credit back (once)
+        from app.services.developer_service import refund_job as refund_developer_job
         from app.services.store_tryons import refund_job
 
         await refund_job(db, reference_id)
+        await refund_developer_job(db, reference_id)
     # Never refund something that was never debited.
     debited = await _existing_entry(db, reference_type, reference_id, CreditReason.TRYON_DEBIT)
     if debited is None:

@@ -64,6 +64,13 @@ class Payment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     store_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("stores.id", ondelete="SET NULL"), nullable=True
     )
+    # a developer buying a pack of API try-ons
+    developer_pack_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("developer_credit_packs.id"), nullable=True
+    )
+    developer_account_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("developer_accounts.id", ondelete="SET NULL"), nullable=True
+    )
 
     user: Mapped["User"] = relationship()
     credit_package: Mapped["CreditPackage | None"] = relationship()
