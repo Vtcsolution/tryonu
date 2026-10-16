@@ -20,12 +20,13 @@ export function SharedLookView({ look, pageUrl }: { look: SharedLook; pageUrl: s
   useEffect(() => rememberReferral(`look:${look.token}`), [look.token]);
   return (
     <section className="mx-auto w-[min(1280px,calc(100%-32px))] py-8 md:py-12">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="min-w-0 flex-1">
+      {/* phones: title on top, buttons on their own row below; wider screens: side by side */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div className="min-w-0">
           <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-sage-deep">A look made with TryOnU</p>
-          <h1 className="mt-1 font-display text-[clamp(26px,4vw,40px)] leading-tight text-ink">{look.title}</h1>
+          <h1 className="mt-1 font-display text-[clamp(28px,4vw,40px)] leading-tight text-ink">{look.title}</h1>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 md:shrink-0 [&>*]:ml-0">
           <ShareLook url={pageUrl} />
           <TryThisLookButton token={look.token} compact />
         </div>
