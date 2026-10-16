@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ContentPage, InfoCard, SectionTitle } from "@/components/content/ContentPage";
+import { ContentPage, InfoCard, SectionTitle, cardGrid } from "@/components/content/ContentPage";
 import { formatPrice } from "@/components/try/shop";
 import { Button } from "@/components/ui/Button";
 import { serverFetch } from "@/lib/api/server";
@@ -36,7 +36,7 @@ export default async function PricingPage() {
         Credits for shoppers
       </SectionTitle>
       {sortedPacks.length > 0 ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className={cardGrid(sortedPacks.length)}>
           {sortedPacks.map((p, i) => (
             <div
               key={p.id}
@@ -44,9 +44,15 @@ export default async function PricingPage() {
                 i === 1 && sortedPacks.length > 2 ? "border-sage ring-2 ring-sage/25" : "border-line"
               }`}
             >
-              {i === 1 && sortedPacks.length > 2 && (
-                <span className="mb-2 self-start rounded-full bg-sage px-2.5 py-0.5 text-[12px] font-semibold text-white">Most popular</span>
-              )}
+              {/* every card keeps this row, so names, prices and buttons line up across cards */}
+              <span
+                aria-hidden={!(i === 1 && sortedPacks.length > 2)}
+                className={`mb-2 self-start rounded-full bg-sage px-2.5 py-0.5 text-[12px] font-semibold text-white ${
+                  i === 1 && sortedPacks.length > 2 ? "" : "hidden md:inline-block md:invisible"
+                }`}
+              >
+                Most popular
+              </span>
               <p className="text-[18px] font-semibold text-ink">{p.name}</p>
               <p className="mt-2 font-display text-[40px] leading-none text-ink">{formatPrice(p.price_cents, p.currency)}</p>
               <p className="mt-2 text-[15.5px] text-ink-soft">{p.credits.toLocaleString()} credits</p>
@@ -76,7 +82,7 @@ export default async function PricingPage() {
           <SectionTitle sub="Sell on TryOnU: your products are recommended first to shoppers in the areas you deliver to.">
             Plans for stores
           </SectionTitle>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className={cardGrid(plans.length)}>
             {plans.map((plan) => (
               <InfoCard
                 key={plan.id}

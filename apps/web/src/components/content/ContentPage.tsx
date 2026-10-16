@@ -18,13 +18,13 @@ export function ContentPage({
   return (
     <SiteChrome>
       <header className="border-b border-line bg-paper-2/60">
-        <div className={`mx-auto py-12 md:py-16 ${narrow ? "w-[min(860px,calc(100%-32px))]" : "w-[min(1200px,calc(100%-32px))]"}`}>
+        <div className={`mx-auto py-12 md:py-16 ${narrow ? "w-[min(860px,calc(100%-32px))]" : "tu-container"}`}>
           <p className="text-[13px] font-semibold uppercase tracking-[0.16em] text-sage-deep">{kicker}</p>
           <h1 className="mt-2 font-display text-[clamp(32px,5vw,54px)] leading-[1.05] text-ink">{title}</h1>
           {intro && <p className="mt-4 max-w-2xl text-[17.5px] leading-relaxed text-ink-soft">{intro}</p>}
         </div>
       </header>
-      <div className={`mx-auto py-12 md:py-16 ${narrow ? "w-[min(860px,calc(100%-32px))]" : "w-[min(1200px,calc(100%-32px))]"}`}>
+      <div className={`mx-auto py-12 md:py-16 ${narrow ? "w-[min(860px,calc(100%-32px))]" : "tu-container"}`}>
         {children}
       </div>
     </SiteChrome>
@@ -50,6 +50,16 @@ export function InfoCard({ title, children, footer }: { title: string; children:
       {footer && <div className="mt-5">{footer}</div>}
     </div>
   );
+}
+
+/** Columns for a row of cards, by how many there are: never an empty column
+ * at the end of the row (3 packs fill 3 columns, not 3 of 4). */
+export function cardGrid(count: number): string {
+  if (count <= 1) return "grid gap-5 sm:max-w-md";
+  if (count === 2) return "grid gap-5 sm:grid-cols-2";
+  if (count === 3) return "grid gap-5 md:grid-cols-3";
+  if (count === 4) return "grid gap-5 sm:grid-cols-2 xl:grid-cols-4";
+  return "grid gap-5 sm:grid-cols-2 lg:grid-cols-3";
 }
 
 /** Numbered steps. */

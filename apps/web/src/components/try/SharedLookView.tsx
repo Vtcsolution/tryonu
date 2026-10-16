@@ -19,7 +19,7 @@ export function SharedLookView({ look, pageUrl }: { look: SharedLook; pageUrl: s
   const count = look.products.length;
   useEffect(() => rememberReferral(`look:${look.token}`), [look.token]);
   return (
-    <section className="mx-auto w-[min(1280px,calc(100%-32px))] py-8 md:py-12">
+    <section className="tu-container py-8 md:py-12">
       {/* phones: title on top, buttons on their own row below; wider screens: side by side */}
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0">

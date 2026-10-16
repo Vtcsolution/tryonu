@@ -10,7 +10,7 @@ import { BUSINESS, COMPANY, PRODUCT, TOP_LINKS, type NavGroup } from "@/componen
 export function Navbar() {
   return (
     <header className="sticky top-0 z-50 border-b border-line/70 bg-paper/80 backdrop-blur-xl">
-      <div className="mx-auto flex h-[72px] w-[min(1600px,calc(100%-32px))] items-center justify-between gap-4">
+      <div className="mx-auto flex h-[72px] tu-container items-center justify-between gap-4">
         <Logo size={30} />
 
         <nav aria-label="Main" className="hidden items-center gap-8 lg:flex">

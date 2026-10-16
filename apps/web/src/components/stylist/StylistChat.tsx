@@ -77,14 +77,14 @@ export function StylistChat() {
 
   if (sessionLoading || !user) {
     return (
-      <section className="mx-auto w-[min(1180px,calc(100%-42px))] py-24 text-center">
+      <section className="tu-container py-24 text-center">
         <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-line-strong border-t-sage" />
       </section>
     );
   }
 
   return (
-    <section className="mx-auto flex w-[min(1180px,calc(100%-42px))] flex-col py-14 md:py-20">
+    <section className="mx-auto flex tu-container flex-col py-14 md:py-20">
       <h1 className="font-display text-[clamp(26px,4vw,40px)] leading-tight text-ink">
         Your AI <em>fashion stylist</em>
       </h1>

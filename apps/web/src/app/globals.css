@@ -479,3 +479,16 @@ body {
     zoom: 1.25;
   }
 }
+
+/* The site's one content width: header, footer and every full-width page
+   share it, so left and right edges line up everywhere.
+   16px side margin on phones, 24px from tablets up, at most 1600px wide. */
+.tu-container {
+  width: min(1600px, calc(100% - 32px));
+  margin-inline: auto;
+}
+@media (min-width: 640px) {
+  .tu-container {
+    width: min(1600px, calc(100% - 48px));
+  }
+}

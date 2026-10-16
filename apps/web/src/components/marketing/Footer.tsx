@@ -28,7 +28,7 @@ const COLS: { heading: string; links: NavItem[] }[] = [
 export function Footer() {
   return (
     <footer className="border-t border-line bg-paper-2">
-      <div className="mx-auto w-[min(1600px,calc(100%-32px))] py-14">
+      <div className="tu-container py-14">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_1fr_1fr_1fr]">
           <div className="sm:col-span-2 lg:col-span-1">
             <Logo size={30} />

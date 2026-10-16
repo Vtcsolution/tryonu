@@ -77,7 +77,7 @@ export function SavedLookDetail({ id }: { id: string }) {
   const price = lookPrice(look);
 
   return (
-    <section className="mx-auto w-[min(1400px,calc(100%-32px))] py-8 md:py-12">
+    <section className="tu-container py-8 md:py-12">
       <div className="flex flex-wrap items-center gap-3">
         <Button href="/saved" size="sm" variant="outline">← All saved looks</Button>
         <div className="ml-auto">{look.tryon_job_id && <ShareLook jobId={look.tryon_job_id} />}</div>

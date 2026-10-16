@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ContentPage, InfoCard, SectionTitle, Steps } from "@/components/content/ContentPage";
+import { ContentPage, InfoCard, SectionTitle, cardGrid, Steps } from "@/components/content/ContentPage";
 import { formatPrice } from "@/components/try/shop";
 import { Button } from "@/components/ui/Button";
 import { serverFetch } from "@/lib/api/server";
@@ -79,7 +79,7 @@ export default async function SellPage() {
       {plans && plans.length > 0 && (
         <div className="mt-16">
           <SectionTitle sub="Each plan runs for a fixed period; renew whenever you like.">Store plans</SectionTitle>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className={cardGrid(plans.length)}>
             {plans.map((plan) => (
               <InfoCard
                 key={plan.id}

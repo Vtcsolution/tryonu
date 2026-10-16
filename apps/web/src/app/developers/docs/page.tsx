@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function DeveloperDocsPage() {
   return (
     <SiteChrome>
-      <section className="mx-auto w-[min(1100px,calc(100%-42px))] py-12 md:py-16">
+      <section className="tu-container py-12 md:py-16">
         <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-sage-deep">TryOnU for developers</p>
         <h1 className="mt-2 font-display text-[clamp(32px,5vw,52px)] leading-tight text-ink">
           Virtual try-on for <em>your</em> shop

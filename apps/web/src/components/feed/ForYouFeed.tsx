@@ -61,7 +61,7 @@ export function ForYouFeed() {
 
   if (sessionLoading || !user) {
     return (
-      <section className="mx-auto w-[min(1600px,calc(100%-42px))] py-24 text-center">
+      <section className="tu-container py-24 text-center">
         <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-line-strong border-t-sage" />
       </section>
     );
@@ -71,7 +71,7 @@ export function ForYouFeed() {
   const noPicks = data && data.sections.length === 0;
 
   return (
-    <section className="mx-auto w-[min(1600px,calc(100%-42px))] py-10 md:py-14">
+    <section className="tu-container py-10 md:py-14">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-[12.5px] font-semibold uppercase tracking-[0.12em] text-sage-deep">For you</p>
