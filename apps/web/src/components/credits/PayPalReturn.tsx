@@ -67,7 +67,7 @@ export function PayPalReturn() {
       {state.kind === "working" && (
         <>
           <div className="mx-auto h-9 w-9 animate-spin rounded-full border-2 border-line-strong border-t-sage" />
-          <p className="mt-5 text-[15px] text-muted">Confirming your payment with PayPal…</p>
+          <p className="mt-5 text-[16px] text-muted">Confirming your payment with PayPal…</p>
         </>
       )}
       {state.kind === "succeeded" && (
@@ -75,7 +75,7 @@ export function PayPalReturn() {
           <h1 className="font-display text-[clamp(26px,4vw,36px)] text-ink">Payment complete</h1>
           {state.plan ? (
             <>
-              <p className="mt-3 text-[15px] text-muted">
+              <p className="mt-3 text-[16px] text-muted">
                 Your {state.plan} plan is unlocked
                 {state.planUntil ? ` until ${new Date(state.planUntil).toLocaleDateString()}` : ""}.
               </p>
@@ -85,7 +85,7 @@ export function PayPalReturn() {
             </>
           ) : (
             <>
-              <p className="mt-3 text-[15px] text-muted">
+              <p className="mt-3 text-[16px] text-muted">
                 {state.credits ? `${state.credits} credits were added. ` : "Your credits were added. "}
                 {state.balance !== null ? `Your balance is now ${state.balance} credits.` : ""}
               </p>
@@ -100,7 +100,7 @@ export function PayPalReturn() {
       {state.kind === "pending" && (
         <>
           <h1 className="font-display text-[clamp(24px,4vw,32px)] text-ink">Payment not finished yet</h1>
-          <p className="mt-3 text-[15px] text-muted">
+          <p className="mt-3 text-[16px] text-muted">
             PayPal hasn&rsquo;t completed this payment yet, so nothing has been charged and no credits added.
             If you approved it on PayPal, check again in a moment.
           </p>
@@ -113,7 +113,7 @@ export function PayPalReturn() {
       {state.kind === "failed" && (
         <>
           <h1 className="font-display text-[clamp(24px,4vw,32px)] text-ink">Payment not completed</h1>
-          <p className="mt-3 text-[15px] text-muted">{state.message}</p>
+          <p className="mt-3 text-[16px] text-muted">{state.message}</p>
           <div className="mt-7 flex justify-center gap-3">
             <Button size="md" onClick={() => void confirm()}>Try again</Button>
             <Button href="/credits" size="md" variant="outline">Back to credits</Button>
@@ -123,9 +123,9 @@ export function PayPalReturn() {
       {state.kind === "cancelled" && (
         <>
           <h1 className="font-display text-[clamp(24px,4vw,32px)] text-ink">Payment cancelled</h1>
-          <p className="mt-3 text-[15px] text-muted">You left PayPal before paying. Nothing was charged.</p>
+          <p className="mt-3 text-[16px] text-muted">You left PayPal before paying. Nothing was charged.</p>
           <p className="mt-7">
-            <Link href="/credits" className="text-[14px] font-medium text-sage-deep underline-offset-2 hover:underline">
+            <Link href="/credits" className="text-[15px] font-medium text-sage-deep underline-offset-2 hover:underline">
               Back to credits
             </Link>
           </p>

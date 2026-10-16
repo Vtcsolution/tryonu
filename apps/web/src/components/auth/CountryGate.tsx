@@ -39,11 +39,11 @@ export function CountryGate() {
   return (
     <div className="fixed inset-0 z-[70] grid place-items-center bg-black/60 px-4 backdrop-blur-[2px]">
       <div role="dialog" aria-modal="true" aria-labelledby="country-gate-title" className="w-full max-w-md rounded-[24px] border border-line bg-surface p-6 shadow-lift">
-        <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-sage-deep">One last step</p>
+        <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-sage-deep">One last step</p>
         <h2 id="country-gate-title" className="mt-1 font-display text-[26px] leading-tight text-ink">
           Where do you live?
         </h2>
-        <p className="mt-2 text-[14.5px] text-muted">So we show you shops that deliver to you, local shops first.</p>
+        <p className="mt-2 text-[15.5px] text-muted">So we show you shops that deliver to you, local shops first.</p>
         <form
           className="mt-5 space-y-4"
           onSubmit={(e) => {
@@ -52,7 +52,7 @@ export function CountryGate() {
           }}
         >
           <CountryPicker value={country} onChange={setCountry} suggested={hint.data?.country} />
-          {save.isError && <p role="alert" className="text-[13px] text-[#a4553f]">Couldn&apos;t save. Please try again.</p>}
+          {save.isError && <p role="alert" className="text-[14px] text-[#a4553f]">Couldn&apos;t save. Please try again.</p>}
           <Button type="submit" size="md" className="w-full" disabled={!country || save.isPending}>
             {save.isPending ? "Saving…" : "Continue"} {!save.isPending && <span aria-hidden="true">→</span>}
           </Button>

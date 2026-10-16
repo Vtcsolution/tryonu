@@ -40,7 +40,7 @@ export function ResetPasswordForm() {
   if (!token) {
     return (
       <AuthCard kicker="Account recovery" title={<>Link is invalid</>}>
-        <p className="text-[14px] leading-relaxed text-ink-soft">
+        <p className="text-[15px] leading-relaxed text-ink-soft">
           This password reset link is missing or malformed.{" "}
           <Link href="/forgot-password" className="font-semibold text-sage hover:text-sage-deep">
             Request a new one
@@ -69,7 +69,7 @@ export function ResetPasswordForm() {
       }
     >
       {done ? (
-        <p className="text-[14px] leading-relaxed text-ink-soft">
+        <p className="text-[15px] leading-relaxed text-ink-soft">
           Password updated. Taking you to sign in…
         </p>
       ) : (
@@ -84,7 +84,7 @@ export function ResetPasswordForm() {
           />
 
           {error && (
-            <p role="alert" className="text-[13px] text-[#a4553f]">
+            <p role="alert" className="text-[14px] text-[#a4553f]">
               {error}
             </p>
           )}

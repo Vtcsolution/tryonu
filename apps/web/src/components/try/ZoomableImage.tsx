@@ -44,9 +44,20 @@ export function ZoomableImage({
   const [moving, setMoving] = useState(false);
   const zoomed = scale > 1.001;
 
+  /** The frame in the page's own units. When the whole site is scaled up for a
+   * large screen, the pointer moves in screen pixels while the photo moves in
+   * page pixels; `z` converts one into the other. */
+  const frameBox = () => {
+    const el = frame.current;
+    if (!el) return undefined;
+    const r = el.getBoundingClientRect();
+    const z = el.offsetWidth ? r.width / el.offsetWidth : 1;
+    return { left: r.left, top: r.top, width: el.offsetWidth, height: el.offsetHeight, z: z || 1 };
+  };
+
   /** Keep the image covering the frame: panning may never expose a gap. */
   const clamp = useCallback((next: Point, atScale: number): Point => {
-    const box = frame.current?.getBoundingClientRect();
+    const box = frameBox();
     if (!box) return next;
     const room = { x: (box.width * (atScale - 1)) / 2, y: (box.height * (atScale - 1)) / 2 };
     return {
@@ -59,7 +70,7 @@ export function ZoomableImage({
    * you are looking at stays under the cursor instead of sliding away. */
   const zoomTo = useCallback(
     (next: number, at?: Point) => {
-      const box = frame.current?.getBoundingClientRect();
+      const box = frameBox();
       const target = Math.min(MAX, Math.max(MIN, next));
       setScale((current) => {
         if (!box || target === current) return target;
@@ -83,8 +94,8 @@ export function ZoomableImage({
   );
 
   const pointIn = (e: { clientX: number; clientY: number }): Point | undefined => {
-    const box = frame.current?.getBoundingClientRect();
-    return box ? { x: e.clientX - box.left, y: e.clientY - box.top } : undefined;
+    const box = frameBox();
+    return box ? { x: (e.clientX - box.left) / box.z, y: (e.clientY - box.top) / box.z } : undefined;
   };
 
   // Non-passive so the page doesn't scroll under a zoom gesture. React's
@@ -145,11 +156,11 @@ export function ZoomableImage({
     if (e.touches.length === 2 && pinch.current) {
       e.preventDefault();
       const { distance, scale: from } = pinch.current;
-      const box = frame.current?.getBoundingClientRect();
+      const box = frameBox();
       const middle =
         box && {
-          x: (e.touches[0].clientX + e.touches[1].clientX) / 2 - box.left,
-          y: (e.touches[0].clientY + e.touches[1].clientY) / 2 - box.top,
+          x: ((e.touches[0].clientX + e.touches[1].clientX) / 2 - box.left) / box.z,
+          y: ((e.touches[0].clientY + e.touches[1].clientY) / 2 - box.top) / box.z,
         };
       zoomTo((from * touchDistance(e.touches)) / distance, middle || undefined);
       return;
@@ -173,7 +184,7 @@ export function ZoomableImage({
   /** Where the photo actually sits inside the frame: object-contain
    * letterboxes it, so the frame's box is not the picture's box. */
   const measure = useCallback(() => {
-    const box = frame.current?.getBoundingClientRect();
+    const box = frameBox();
     const size = natural.current;
     if (!box || !size || !size.w || !size.h) return;
     const shown = Math.min(box.width / size.w, box.height / size.h);
@@ -263,7 +274,7 @@ export function ZoomableImage({
           type="button"
           onClick={reset}
           disabled={!zoomed}
-          className={`${control} text-[11px] font-semibold`}
+          className={`${control} text-[12px] font-semibold`}
           aria-label="Reset zoom"
         >
           {zoomed ? `${scale.toFixed(1)}×` : "1×"}

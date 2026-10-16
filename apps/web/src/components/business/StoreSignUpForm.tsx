@@ -88,7 +88,7 @@ export function StoreSignUpForm() {
           hint="Type to search. Shoppers in this country see your products first."
         />
         {error && (
-          <p role="alert" className="text-[13px] text-[#a4553f]">
+          <p role="alert" className="text-[14px] text-[#a4553f]">
             {error}
           </p>
         )}
@@ -96,7 +96,7 @@ export function StoreSignUpForm() {
           {register.isPending ? "Creating your account…" : "Create store account"}
           {!register.isPending && <span aria-hidden="true">→</span>}
         </Button>
-        <p className="text-center text-[12.5px] text-muted">Next you&apos;ll add your store name and where you deliver.</p>
+        <p className="text-center text-[13.5px] text-muted">Next you&apos;ll add your store name and where you deliver.</p>
       </form>
       <GoogleButton divider next="/business" />
     </AuthCard>

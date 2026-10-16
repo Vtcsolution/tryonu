@@ -79,16 +79,16 @@ export async function Marketplaces() {
                 alt={p.name}
                 className="tu-hover-media h-full w-full object-cover object-top"
               />
-              <span className="absolute left-3.5 top-3.5 rounded-lg bg-surface/95 px-2.5 py-1.5 text-[12px] font-semibold text-ink">
+              <span className="absolute left-3.5 top-3.5 rounded-lg bg-surface/95 px-2.5 py-1.5 text-[13px] font-semibold text-ink">
                 {p.retailer}
               </span>
             </div>
             <div className="flex items-center justify-between gap-3 p-5">
               <div>
-                <h4 className="text-[15px] font-semibold tracking-[-0.01em] text-ink">
+                <h4 className="text-[16px] font-semibold tracking-[-0.01em] text-ink">
                   {p.name}
                 </h4>
-                <p className="mt-0.5 text-[13px] text-muted">{p.price}</p>
+                <p className="mt-0.5 text-[14px] text-muted">{p.price}</p>
               </div>
               <Button href={p.href} size="sm" variant="outline">
                 Shop now <span aria-hidden="true">→</span>

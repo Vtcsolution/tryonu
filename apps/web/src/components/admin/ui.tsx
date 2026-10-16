@@ -18,7 +18,7 @@ export function errorText(err: unknown, fallback = "Something went wrong."): str
 export function StatTile({ label, value, tone }: { label: string; value: ReactNode; tone?: "warn" }) {
   return (
     <div className="tu-lift rounded-[16px] border border-line bg-surface p-4 hover:border-line-strong">
-      <p className="text-[11px] uppercase tracking-[0.08em] text-faint">{label}</p>
+      <p className="text-[12px] uppercase tracking-[0.08em] text-faint">{label}</p>
       <p className={`mt-1 font-display text-[22px] ${tone === "warn" ? "text-[#a4553f]" : "text-ink"}`}>{value}</p>
     </div>
   );
@@ -32,7 +32,7 @@ export function Badge({ children, tone = "neutral" }: { children: ReactNode; ton
     neutral: "border-line bg-paper-2 text-ink-soft",
   };
   return (
-    <span className={`inline-flex items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium ${tones[tone]}`}>
+    <span className={`inline-flex items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-[12px] font-medium ${tones[tone]}`}>
       {children}
     </span>
   );
@@ -61,7 +61,7 @@ export function SmallButton({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`tu-press inline-flex h-8 items-center whitespace-nowrap rounded-full border px-3 text-[12px] font-medium disabled:opacity-50 ${tones[tone]}`}
+      className={`tu-press inline-flex h-8 items-center whitespace-nowrap rounded-full border px-3 text-[13px] font-medium disabled:opacity-50 ${tones[tone]}`}
     >
       {children}
     </button>
@@ -69,15 +69,15 @@ export function SmallButton({
 }
 
 export const inputClass =
-  "h-9 rounded-full border border-line-strong bg-paper px-3.5 text-[13px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25";
+  "h-9 rounded-full border border-line-strong bg-paper px-3.5 text-[14px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25";
 
 export function Table({ columns, rows, empty = "Nothing here yet." }: { columns: string[]; rows: ReactNode[][]; empty?: string }) {
   if (rows.length === 0) {
-    return <p className="rounded-[16px] border border-dashed border-line p-6 text-center text-[13px] text-muted">{empty}</p>;
+    return <p className="rounded-[16px] border border-dashed border-line p-6 text-center text-[14px] text-muted">{empty}</p>;
   }
   return (
     <div className="overflow-x-auto rounded-[16px] border border-line bg-surface">
-      <table className="w-full min-w-[640px] text-left text-[13px]">
+      <table className="w-full min-w-[640px] text-left text-[14px]">
         <thead>
           <tr className="border-b border-line bg-paper-2">
             {columns.map((c, i) => (
@@ -118,7 +118,7 @@ export function Pager({
   const page = Math.floor(offset / pageSize) + 1;
   const pages = Math.ceil(total / pageSize);
   return (
-    <div className="mt-3 flex items-center justify-end gap-2 text-[12px] text-muted">
+    <div className="mt-3 flex items-center justify-end gap-2 text-[13px] text-muted">
       <SmallButton disabled={offset === 0} onClick={() => onChange(Math.max(0, offset - pageSize))}>
         ← Prev
       </SmallButton>
@@ -160,7 +160,7 @@ export function TableSkeleton() {
 
 export function ErrorNote({ children }: { children: ReactNode }) {
   return (
-    <p role="alert" className="text-[13px] text-[#a4553f]">
+    <p role="alert" className="text-[14px] text-[#a4553f]">
       {children}
     </p>
   );
@@ -171,7 +171,7 @@ export function SectionHeader({ title, hint, children }: { title: string; hint?:
     <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
       <div>
         <h2 className="font-display text-[20px] text-ink">{title}</h2>
-        {hint && <p className="mt-0.5 text-[13px] text-muted">{hint}</p>}
+        {hint && <p className="mt-0.5 text-[14px] text-muted">{hint}</p>}
       </div>
       {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
     </div>

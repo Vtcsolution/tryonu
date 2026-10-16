@@ -64,13 +64,13 @@ export function Pipeline() {
             }}
           >
             <span
-              className={`block text-[12.5px] font-semibold ${
+              className={`block text-[13.5px] font-semibold ${
                 s.accent ? "text-sage-deep" : "text-ink"
               }`}
             >
               {s.label}
             </span>
-            <span className="mt-0.5 block truncate text-[10.5px] text-muted">
+            <span className="mt-0.5 block truncate text-[11.5px] text-muted">
               {s.note}
             </span>
           </div>

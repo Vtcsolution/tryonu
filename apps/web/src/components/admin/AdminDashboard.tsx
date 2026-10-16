@@ -142,10 +142,10 @@ export function AdminDashboard() {
         <div className="max-w-sm text-center">
           <Logo size={30} className="justify-center" />
           <p className="mt-6 font-display text-[22px] text-ink">Not authorized</p>
-          <p className="mt-2 text-[14px] text-muted">
+          <p className="mt-2 text-[15px] text-muted">
             You&rsquo;re signed in as {user.email}, which isn&rsquo;t an admin account.
           </p>
-          <Link href="/" className="mt-5 inline-block text-[13px] text-sage-deep hover:underline">
+          <Link href="/" className="mt-5 inline-block text-[14px] text-sage-deep hover:underline">
             ← Back to TryOnU
           </Link>
         </div>

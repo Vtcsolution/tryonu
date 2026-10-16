@@ -26,16 +26,16 @@ export function AuthCard({
         </div>
 
         <div className="rounded-[28px] border border-line bg-surface p-8 shadow-lift">
-          <p className="mb-2 text-[12px] font-semibold uppercase tracking-[0.16em] text-sage">
+          <p className="mb-2 text-[13px] font-semibold uppercase tracking-[0.16em] text-sage">
             {kicker}
           </p>
           <h1 className="font-display text-[28px] leading-tight text-ink">{title}</h1>
-          {subtitle && <p className="mt-2 text-[14px] text-muted">{subtitle}</p>}
+          {subtitle && <p className="mt-2 text-[15px] text-muted">{subtitle}</p>}
 
           <div className="mt-7">{children}</div>
         </div>
 
-        {footer && <div className="mt-6 text-center text-[13px] text-muted">{footer}</div>}
+        {footer && <div className="mt-6 text-center text-[14px] text-muted">{footer}</div>}
       </div>
     </div>
   );

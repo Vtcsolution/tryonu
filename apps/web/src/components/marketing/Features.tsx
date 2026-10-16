@@ -66,16 +66,16 @@ export function Features() {
             }`}
           >
             <div className="md:p-12">
-              <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.16em] text-sage">
+              <p className="mb-3 text-[13px] font-semibold uppercase tracking-[0.16em] text-sage">
                 {row.kicker}
               </p>
               <h3 className="font-display text-[28px] leading-tight text-ink sm:text-[34px]">
                 {row.title}
               </h3>
-              <p className="mt-4 max-w-md text-[15px] leading-relaxed text-muted">
+              <p className="mt-4 max-w-md text-[16px] leading-relaxed text-muted">
                 {row.body}
               </p>
-              <span className="mt-6 inline-flex rounded-full border border-line-strong px-3.5 py-1.5 text-[12px] font-medium text-ink-soft">
+              <span className="mt-6 inline-flex rounded-full border border-line-strong px-3.5 py-1.5 text-[13px] font-medium text-ink-soft">
                 {row.pill}
               </span>
             </div>
@@ -98,8 +98,8 @@ export function Features() {
             key={m.title}
             className="rounded-[22px] border border-line bg-surface p-6"
           >
-            <h4 className="text-[15px] font-semibold text-ink">{m.title}</h4>
-            <p className="mt-2 text-[13.5px] leading-relaxed text-muted">
+            <h4 className="text-[16px] font-semibold text-ink">{m.title}</h4>
+            <p className="mt-2 text-[14.5px] leading-relaxed text-muted">
               {m.body}
             </p>
           </Reveal>

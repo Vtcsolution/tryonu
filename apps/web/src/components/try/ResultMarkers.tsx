@@ -87,11 +87,11 @@ export function ResultMarkers({ placements }: { placements: ResultPlacement[] | 
               maxWidth: flip ? `${Math.min(92, Math.max(8, x))}%` : `${100 - Math.min(92, Math.max(8, x))}%`,
             }}
           >
-            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-sage text-[11px] font-semibold text-white shadow-[0_1px_6px_rgba(0,0,0,0.45)] ring-2 ring-white/70">
+            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-sage text-[12px] font-semibold text-white shadow-[0_1px_6px_rgba(0,0,0,0.45)] ring-2 ring-white/70">
               {number}
             </span>
             <span
-              className="truncate rounded-full bg-black/65 px-2 py-0.5 text-[11px] font-medium text-white backdrop-blur-sm"
+              className="truncate rounded-full bg-black/65 px-2 py-0.5 text-[12px] font-medium text-white backdrop-blur-sm"
               title={item.name}
             >
               {shortLabel(item.name, item.slot)}

@@ -24,13 +24,13 @@ export function FinalCTA() {
             aria-hidden="true"
             className="pointer-events-none absolute inset-x-0 -bottom-40 mx-auto h-[420px] w-[820px] rounded-full bg-white/10 blur-3xl"
           />
-          <p className="relative text-[12px] font-semibold uppercase tracking-[0.18em] text-white/75">
+          <p className="relative text-[13px] font-semibold uppercase tracking-[0.18em] text-white/75">
             Fashion meets technology
           </p>
           <h2 className="relative mx-auto mt-4 max-w-2xl font-display text-[clamp(30px,4.6vw,52px)] leading-[1.05]">
             Ready to try it <em>before you buy it?</em>
           </h2>
-          <p className="relative mx-auto mt-4 max-w-md text-[15px] text-white/80">
+          <p className="relative mx-auto mt-4 max-w-md text-[16px] text-white/80">
             Build your fitting profile once. Use it on every product, from every
             store, every time.
           </p>

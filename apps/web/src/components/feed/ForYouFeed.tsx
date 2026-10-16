@@ -74,11 +74,11 @@ export function ForYouFeed() {
     <section className="mx-auto w-[min(1600px,calc(100%-42px))] py-10 md:py-14">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-[11.5px] font-semibold uppercase tracking-[0.12em] text-sage-deep">For you</p>
+          <p className="text-[12.5px] font-semibold uppercase tracking-[0.12em] text-sage-deep">For you</p>
           <h1 className="mt-1 font-display text-[clamp(28px,4.4vw,44px)] leading-tight text-ink">
             Picked for <em>your style</em>
           </h1>
-          <p className="mt-2 max-w-xl text-[14.5px] text-muted">
+          <p className="mt-2 max-w-xl text-[15.5px] text-muted">
             Live from real stores, based on what you told us you love. Try anything on yourself before you buy.
           </p>
         </div>
@@ -91,7 +91,7 @@ export function ForYouFeed() {
         <FeedSkeleton />
       ) : query.isError ? (
         <div className="mt-10 rounded-[22px] border border-line bg-surface p-8 text-center">
-          <p className="text-[14px] text-muted">
+          <p className="text-[15px] text-muted">
             {query.error instanceof ApiError ? query.error.detail : "Couldn't load your picks right now."}
           </p>
           <Button size="sm" variant="outline" className="mt-4" onClick={() => query.refetch()}>
@@ -102,7 +102,7 @@ export function ForYouFeed() {
         <div className="tu-pop mt-10 rounded-[26px] border border-line bg-surface px-6 py-12 text-center">
           <p className="text-[38px]" aria-hidden="true">🧭</p>
           <p className="mt-3 font-display text-[24px] text-ink">Tell us what you love</p>
-          <p className="mx-auto mt-2 max-w-md text-[14px] text-muted">
+          <p className="mx-auto mt-2 max-w-md text-[15px] text-muted">
             Pick your categories — shalwar kameez, bangles, shoes, anything — and we&rsquo;ll fill this page with matching products.
           </p>
           <Button href="/preferences?next=%2Ffor-you" size="md" className="mt-6">
@@ -125,13 +125,13 @@ export function ForYouFeed() {
             </div>
 
             {select.isError && (
-              <p role="alert" className="mt-3 text-[13px] text-[#a4553f]">
+              <p role="alert" className="mt-3 text-[14px] text-[#a4553f]">
                 {select.error instanceof ApiError ? select.error.detail : "That item isn't available any more — try another."}
               </p>
             )}
 
             {data.items.length === 0 ? (
-              <div className="mt-6 rounded-[22px] border border-dashed border-line p-10 text-center text-[14px] text-muted">
+              <div className="mt-6 rounded-[22px] border border-dashed border-line p-10 text-center text-[15px] text-muted">
                 No matches in this category right now — try another one or widen your budget.
               </div>
             ) : (
@@ -167,7 +167,7 @@ function Chip({ label, active, onClick }: { label: string; active: boolean; onCl
       role="tab"
       aria-selected={active}
       onClick={onClick}
-      className={`tu-press shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-[13px] ${
+      className={`tu-press shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-[14px] ${
         active ? "bg-ink text-paper" : "border border-line bg-surface text-ink-soft hover:border-line-strong hover:text-ink"
       }`}
     >
@@ -197,7 +197,7 @@ function ProductCard({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={image} alt={item.name} loading="lazy" className="tu-hover-media h-full w-full object-cover object-top" />
         )}
-        <span className="absolute left-2 top-2 rounded-md bg-surface/95 px-2 py-1 text-[10px] font-semibold text-ink">
+        <span className="absolute left-2 top-2 rounded-md bg-surface/95 px-2 py-1 text-[11px] font-semibold text-ink">
           {item.retailer_name}
         </span>
         {busy && (
@@ -207,8 +207,8 @@ function ProductCard({
         )}
       </div>
       <div className="flex flex-1 flex-col p-3">
-        <p className="line-clamp-2 text-[13px] font-medium leading-snug text-ink">{item.name}</p>
-        <p className="mt-1 text-[13px] text-ink-soft">
+        <p className="line-clamp-2 text-[14px] font-medium leading-snug text-ink">{item.name}</p>
+        <p className="mt-1 text-[14px] text-ink-soft">
           {(item.price_cents / 100).toFixed(2)} {item.currency.toUpperCase()}
         </p>
         <div className="mt-auto grid grid-cols-2 gap-2 pt-3">
@@ -216,7 +216,7 @@ function ProductCard({
             type="button"
             disabled={disabled}
             onClick={onTry}
-            className="tu-press h-9 rounded-full bg-sage text-[12.5px] font-medium text-white hover:bg-sage-deep disabled:opacity-50"
+            className="tu-press h-9 rounded-full bg-sage text-[13.5px] font-medium text-white hover:bg-sage-deep disabled:opacity-50"
           >
             Try on
           </button>
@@ -224,7 +224,7 @@ function ProductCard({
             type="button"
             disabled={disabled}
             onClick={onShop}
-            className="tu-press h-9 rounded-full border border-line-strong text-[12.5px] font-medium text-ink hover:border-ink/40 disabled:opacity-50"
+            className="tu-press h-9 rounded-full border border-line-strong text-[13.5px] font-medium text-ink hover:border-ink/40 disabled:opacity-50"
           >
             Shop
           </button>

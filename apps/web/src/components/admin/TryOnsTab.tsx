@@ -54,7 +54,7 @@ export function TryOnsTab() {
                 setStatus(s);
                 setOffset(0);
               }}
-              className={`tu-press rounded-full px-3 py-1 text-[12px] ${
+              className={`tu-press rounded-full px-3 py-1 text-[13px] ${
                 status === s ? "bg-ink text-paper" : "border border-line text-ink-soft hover:border-line-strong"
               }`}
             >
@@ -92,7 +92,7 @@ export function TryOnsTab() {
               <div key="s" className="space-y-1">
                 <Badge tone={STATUS_TONE[job.status]}>{job.status}</Badge>
                 {job.error_message && (
-                  <p className="line-clamp-2 max-w-[220px] text-[11px] text-muted" title={job.error_message}>
+                  <p className="line-clamp-2 max-w-[220px] text-[12px] text-muted" title={job.error_message}>
                     {job.error_message}
                   </p>
                 )}

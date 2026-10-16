@@ -49,7 +49,7 @@ export function OverviewTab() {
         <h3 className="font-display text-[16px] text-ink">Try-on jobs by status</h3>
         <div className="mt-3 flex flex-wrap gap-2">
           {Object.entries(d.tryon_jobs_by_status).map(([status, count]) => (
-            <span key={status} className="rounded-full border border-line px-3 py-1 text-[12px] text-ink-soft">
+            <span key={status} className="rounded-full border border-line px-3 py-1 text-[13px] text-ink-soft">
               {status}: <b className="text-ink">{count}</b>
             </span>
           ))}
@@ -127,7 +127,7 @@ export function PaymentsTab() {
       <SectionHeader title="Payments" hint="Auto-renew charges are refunded in PayPal itself, then marked here." />
       {refund.isError && <div className="mb-3"><ErrorNote>{errorText(refund.error)}</ErrorNote></div>}
       {refund.data && (
-        <p className="mb-3 text-[13px] text-ink-soft">
+        <p className="mb-3 text-[14px] text-ink-soft">
           Refunded{refund.data.paypal_status ? ` (PayPal: ${refund.data.paypal_status.toLowerCase()})` : ""}.
           {refund.data.credits_removed ? ` ${refund.data.credits_removed} credits taken back.` : ""}
           {refund.data.plan_days_removed ? ` ${refund.data.plan_days_removed} plan days removed.` : ""}
@@ -142,7 +142,7 @@ export function PaymentsTab() {
             {String(p.status)}
           </Badge>,
           String(p.provider),
-          <span key="r" className="text-[11px] text-faint">{String(p.external_payment_id ?? "—")}</span>,
+          <span key="r" className="text-[12px] text-faint">{String(p.external_payment_id ?? "—")}</span>,
           when(String(p.created_at)),
           p.status === "succeeded" ? (
             <div key="a" className="flex gap-1.5">
@@ -275,10 +275,10 @@ export function AuditLogTab() {
           when(e.created_at),
           e.admin_email ?? "—",
           <Badge key="a">{e.action}</Badge>,
-          <span key="t" className="text-[12px]">
+          <span key="t" className="text-[13px]">
             {e.target_type} <span className="text-faint">{e.target_id.slice(0, 12)}</span>
           </span>,
-          <code key="d" className="line-clamp-2 max-w-[340px] break-all text-[11px] text-muted">
+          <code key="d" className="line-clamp-2 max-w-[340px] break-all text-[12px] text-muted">
             {e.detail ? JSON.stringify(e.detail) : "—"}
           </code>,
         ])}

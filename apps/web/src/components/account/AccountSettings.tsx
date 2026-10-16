@@ -79,17 +79,17 @@ function ProfileCard({ user }: { user: User }) {
           hint="We show you shops that deliver to your country, local shops first."
         />
         <div>
-          <span className="mb-1.5 block text-[13px] font-medium text-ink-soft">Email</span>
-          <p className="flex h-11 items-center rounded-xl border border-line bg-paper-2/60 px-3.5 text-[14px] text-ink-soft">
+          <span className="mb-1.5 block text-[14px] font-medium text-ink-soft">Email</span>
+          <p className="flex h-11 items-center rounded-xl border border-line bg-paper-2/60 px-3.5 text-[15px] text-ink-soft">
             {user.email}
           </p>
-          <p className="mt-1.5 text-[12.5px] text-muted">
+          <p className="mt-1.5 text-[13.5px] text-muted">
             {user.is_admin ? "Administrator account" : "Your sign-in email"}
             {user.auth_provider === "google" ? " · signs in with Google" : ""}
           </p>
         </div>
         {save.isError && (
-          <p role="alert" className="text-[13px] text-[#a4553f]">
+          <p role="alert" className="text-[14px] text-[#a4553f]">
             {save.error instanceof ApiError ? save.error.detail : "Couldn't save. Please try again."}
           </p>
         )}
@@ -97,7 +97,7 @@ function ProfileCard({ user }: { user: User }) {
           <Button type="submit" size="md" disabled={save.isPending || (!nameChanged && !countryChanged)}>
             {save.isPending ? "Saving…" : "Save"}
           </Button>
-          {saved && <span className="text-[13.5px] font-medium text-sage-deep">✓ Saved</span>}
+          {saved && <span className="text-[14.5px] font-medium text-sage-deep">✓ Saved</span>}
         </div>
       </form>
     </section>
@@ -138,7 +138,7 @@ function PasswordCard({ user }: { user: User }) {
   return (
     <section className={card}>
       <h2 className="font-display text-[22px] text-ink">{hasPassword ? "Change password" : "Set a password"}</h2>
-      <p className="mt-1 text-[13.5px] text-muted">
+      <p className="mt-1 text-[14.5px] text-muted">
         {hasPassword
           ? "You stay signed in here. Other phones and computers will need the new password."
           : "Then you can also sign in with your email and this password."}
@@ -167,12 +167,12 @@ function PasswordCard({ user }: { user: User }) {
           onChange={(e) => setAgain(e.target.value)}
         />
         {error && (
-          <p role="alert" className="text-[13px] text-[#a4553f]">
+          <p role="alert" className="text-[14px] text-[#a4553f]">
             {error}
           </p>
         )}
         {done && (
-          <p role="status" className="rounded-xl bg-sage-tint/60 px-3.5 py-2.5 text-[13.5px] font-medium text-ink">
+          <p role="status" className="rounded-xl bg-sage-tint/60 px-3.5 py-2.5 text-[14.5px] font-medium text-ink">
             ✓ Password changed. Use the new one next time you sign in.
           </p>
         )}

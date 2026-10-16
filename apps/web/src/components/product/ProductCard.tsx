@@ -79,15 +79,15 @@ export function ProductCard({
             className="h-full w-full object-contain p-3 transition-transform duration-300 group-hover:scale-[1.03]"
           />
         ) : (
-          <div className="grid h-full place-items-center text-[13px] text-faint">No photo</div>
+          <div className="grid h-full place-items-center text-[14px] text-faint">No photo</div>
         )}
         {label && (
-          <span className="absolute left-2.5 top-2.5 rounded-full bg-black/75 px-2.5 py-1 text-[12px] font-semibold text-white">
+          <span className="absolute left-2.5 top-2.5 rounded-full bg-black/75 px-2.5 py-1 text-[13px] font-semibold text-white">
             {label}
           </span>
         )}
         {badge && (
-          <span className="absolute right-2.5 top-2.5 rounded-full bg-sage px-2.5 py-1 text-[12px] font-semibold text-white">
+          <span className="absolute right-2.5 top-2.5 rounded-full bg-sage px-2.5 py-1 text-[13px] font-semibold text-white">
             {badge}
           </span>
         )}
@@ -100,16 +100,16 @@ export function ProductCard({
 
       <div className={`flex flex-1 flex-col ${compact ? "p-3" : "p-3.5"}`}>
         {shop && (
-          <p className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.06em] text-muted">
+          <p className="flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-[0.06em] text-muted">
             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-sage" aria-hidden="true" />
             <span className="truncate">{shop}</span>
           </p>
         )}
-        <p className={`mt-1 line-clamp-2 leading-snug text-ink ${compact ? "text-[13px]" : "text-[14px]"}`} title={name}>
+        <p className={`mt-1 line-clamp-2 leading-snug text-ink ${compact ? "text-[14px]" : "text-[15px]"}`} title={name}>
           {name}
         </p>
         <p className={`mt-2 font-bold text-ink ${compact ? "text-[16px]" : "text-[18px]"}`}>{formatPrice(priceCents, currency)}</p>
-        {note && <p className="mt-1 text-[12px] text-muted">{note}</p>}
+        {note && <p className="mt-1 text-[13px] text-muted">{note}</p>}
 
         {(primary || secondary) && (
           <div className="mt-auto grid gap-2 pt-3.5">
@@ -123,7 +123,7 @@ export function ProductCard({
 }
 
 function ActionButton({ action, kind }: { action: CardAction; kind: "primary" | "secondary" }) {
-  const cls = `tu-press inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-full px-4 text-[14px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+  const cls = `tu-press inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-full px-4 text-[15px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
     kind === "primary"
       ? "bg-sage text-white hover:bg-sage-deep"
       : "border border-line-strong bg-surface text-ink hover:border-ink/50"

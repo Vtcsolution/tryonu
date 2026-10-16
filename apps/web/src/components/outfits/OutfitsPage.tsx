@@ -40,7 +40,7 @@ export function OutfitsPage() {
           <h1 className="font-display text-[clamp(26px,4vw,40px)] leading-tight text-ink">
             Outfit <em>builder</em>
           </h1>
-          <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-muted">
+          <p className="mt-3 max-w-lg text-[16px] leading-relaxed text-muted">
             Combine real products into a complete outfit — see a live compatibility score as you build.
           </p>
         </div>
@@ -71,7 +71,7 @@ export function OutfitsPage() {
 
         {outfitsQuery.data && outfitsQuery.data.length === 0 && !building && (
           <div className="rounded-[22px] border border-dashed border-line p-10 text-center">
-            <p className="text-[14px] text-muted">No outfits yet — build one from real products.</p>
+            <p className="text-[15px] text-muted">No outfits yet — build one from real products.</p>
           </div>
         )}
 
@@ -116,14 +116,14 @@ function OutfitCard({ outfit }: { outfit: Outfit }) {
         <div className="flex items-center justify-between">
           <p className="font-display text-[16px] text-ink">{outfit.name || outfit.occasion || "Outfit"}</p>
           {score != null && (
-            <span className={`text-[13px] font-semibold ${scoreTone}`}>{score}% match</span>
+            <span className={`text-[14px] font-semibold ${scoreTone}`}>{score}% match</span>
           )}
         </div>
-        <p className="mt-1 text-[13px] text-muted">
+        <p className="mt-1 text-[14px] text-muted">
           {outfit.items.length} items · {(outfit.total_price_cents / 100).toFixed(2)}
         </p>
         {outfit.compatibility_notes && outfit.compatibility_notes.length > 0 && (
-          <ul className="mt-2 space-y-1 text-[12px] text-faint">
+          <ul className="mt-2 space-y-1 text-[13px] text-faint">
             {outfit.compatibility_notes.map((n) => (
               <li key={n}>· {n}</li>
             ))}
@@ -136,7 +136,7 @@ function OutfitCard({ outfit }: { outfit: Outfit }) {
               href={affiliateGoUrl(item.product.id, "outfit")}
               size="sm"
               variant="outline"
-              className="!h-8 !px-3 !text-[11.5px]"
+              className="!h-8 !px-3 !text-[12.5px]"
             >
               Shop {item.product.name.length > 18 ? `${item.product.name.slice(0, 18)}…` : item.product.name}
             </Button>
@@ -146,7 +146,7 @@ function OutfitCard({ outfit }: { outfit: Outfit }) {
           type="button"
           onClick={() => remove.mutate()}
           disabled={remove.isPending}
-          className="mt-3 text-[12.5px] text-faint transition-colors hover:text-[#a4553f]"
+          className="mt-3 text-[13.5px] text-faint transition-colors hover:text-[#a4553f]"
         >
           {remove.isPending ? "Removing…" : "Remove outfit"}
         </button>

@@ -72,14 +72,14 @@ export function SignInForm() {
           />
           <Link
             href="/forgot-password"
-            className="mt-1.5 inline-block text-[13px] text-sage hover:text-sage-deep"
+            className="mt-1.5 inline-block text-[14px] text-sage hover:text-sage-deep"
           >
             Forgot password?
           </Link>
         </div>
 
         {error && (
-          <p role="alert" className="text-[13px] text-[#a4553f]">
+          <p role="alert" className="text-[14px] text-[#a4553f]">
             {error}
           </p>
         )}

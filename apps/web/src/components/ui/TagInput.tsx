@@ -49,7 +49,7 @@ export function TagInput({
           return (
             <span
               key={v}
-              className="tu-pop flex items-center gap-1.5 rounded-full bg-sage-tint px-2.5 py-1 text-[12px] font-medium text-sage-deep"
+              className="tu-pop flex items-center gap-1.5 rounded-full bg-sage-tint px-2.5 py-1 text-[13px] font-medium text-sage-deep"
             >
               {swatch && typeof swatch !== "string" && swatch.swatch && <Swatch color={swatch.swatch} />}
               {v}
@@ -71,7 +71,7 @@ export function TagInput({
           onKeyDown={onKeyDown}
           onBlur={() => add(draft)}
           placeholder={values.length === 0 ? placeholder : "Add more…"}
-          className="min-w-[100px] flex-1 bg-transparent text-[14px] text-ink outline-none placeholder:text-faint"
+          className="min-w-[100px] flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-faint"
         />
       </div>
 
@@ -88,7 +88,7 @@ export function TagInput({
                 // mousedown would blur the text box first and commit a half-typed draft
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => (on ? remove(value) : add(value))}
-                className={`tu-press inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12.5px] ${
+                className={`tu-press inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13.5px] ${
                   on ? "border-sage bg-sage text-white" : "border-line-strong bg-surface text-ink-soft hover:border-sage hover:text-ink"
                 }`}
               >

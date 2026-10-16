@@ -37,7 +37,7 @@ export function WardrobePage() {
           <h1 className="font-display text-[clamp(26px,4vw,40px)] leading-tight text-ink">
             My <em>wardrobe</em>
           </h1>
-          <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-muted">
+          <p className="mt-3 max-w-lg text-[16px] leading-relaxed text-muted">
             Catalog what you already own, then ask the AI stylist to build an outfit around it.
           </p>
         </div>
@@ -63,7 +63,7 @@ export function WardrobePage() {
 
         {itemsQuery.data && itemsQuery.data.length === 0 && !adding && (
           <div className="rounded-[22px] border border-dashed border-line p-10 text-center">
-            <p className="text-[14px] text-muted">Nothing in your wardrobe yet.</p>
+            <p className="text-[15px] text-muted">Nothing in your wardrobe yet.</p>
           </div>
         )}
 
@@ -115,12 +115,12 @@ function AddWardrobeItemForm({ onAdded }: { onAdded: () => void }) {
       <Input label="Color" value={color} onChange={(e) => setColor(e.target.value)} placeholder="Black" />
       <Input label="Brand" value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Levi's" />
       <div className="sm:col-span-2">
-        <span className="mb-1.5 block text-[13px] font-medium text-ink-soft">Style tags</span>
+        <span className="mb-1.5 block text-[14px] font-medium text-ink-soft">Style tags</span>
         <TagInput values={styleTags} onChange={setStyleTags} placeholder="e.g. formal, casual — press Enter" />
       </div>
 
       {create.isError && (
-        <p role="alert" className="text-[13px] text-[#a4553f] sm:col-span-2">
+        <p role="alert" className="text-[14px] text-[#a4553f] sm:col-span-2">
           {create.error instanceof ApiError ? create.error.detail : "Couldn't add this item."}
         </p>
       )}
@@ -159,7 +159,7 @@ function WardrobeItemCard({ item }: { item: WardrobeItem }) {
           // eslint-disable-next-line @next/next/no-img-element
           <img src={image} alt={item.name} className="h-full w-full object-cover object-top" />
         ) : (
-          <span className="absolute inset-0 grid place-items-center text-[12px] text-faint">
+          <span className="absolute inset-0 grid place-items-center text-[13px] text-faint">
             {uploadPhoto.isPending ? "Uploading…" : "+ Add photo"}
           </span>
         )}
@@ -176,15 +176,15 @@ function WardrobeItemCard({ item }: { item: WardrobeItem }) {
         />
       </button>
       <div className="p-2.5">
-        <p className="truncate text-[12.5px] font-semibold text-ink">{item.name}</p>
-        <p className="mt-0.5 truncate text-[11px] text-muted">
+        <p className="truncate text-[13.5px] font-semibold text-ink">{item.name}</p>
+        <p className="mt-0.5 truncate text-[12px] text-muted">
           {[item.category, item.color].filter(Boolean).join(" · ") || " "}
         </p>
         <button
           type="button"
           onClick={() => remove.mutate()}
           disabled={remove.isPending}
-          className="mt-1.5 text-[11px] text-faint hover:text-[#a4553f]"
+          className="mt-1.5 text-[12px] text-faint hover:text-[#a4553f]"
         >
           {remove.isPending ? "Removing…" : "Remove"}
         </button>

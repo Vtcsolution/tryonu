@@ -36,7 +36,7 @@ export function SavedLooksGallery() {
       <h1 className="font-display text-[clamp(26px,4vw,40px)] leading-tight text-ink">
         Your <em>saved looks</em>
       </h1>
-      <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-muted">
+      <p className="mt-3 max-w-lg text-[16px] leading-relaxed text-muted">
         Try-on results you've kept — revisit them or shop the original product.
       </p>
 
@@ -51,7 +51,7 @@ export function SavedLooksGallery() {
 
         {looksQuery.data && looksQuery.data.length === 0 && (
           <div className="rounded-[22px] border border-dashed border-line p-10 text-center">
-            <p className="text-[14px] text-muted">
+            <p className="text-[15px] text-muted">
               No saved looks yet — try something on and save it from the result screen.
             </p>
             <Button href="/try" size="md" className="mt-5">
@@ -93,7 +93,7 @@ function SavedLookCard({ look }: { look: SavedLook }) {
           onClick={() => remove.mutate()}
           disabled={remove.isPending}
           aria-label="Remove saved look"
-          className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-white/90 text-[13px] text-[#1c1b17] opacity-0 backdrop-blur transition-opacity group-hover:opacity-100 disabled:opacity-60"
+          className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-white/90 text-[14px] text-[#1c1b17] opacity-0 backdrop-blur transition-opacity group-hover:opacity-100 disabled:opacity-60"
         >
           ✕
         </button>
@@ -101,8 +101,8 @@ function SavedLookCard({ look }: { look: SavedLook }) {
       <div className="p-3">
         {look.product ? (
           <>
-            <p className="truncate text-[13px] font-semibold text-ink">{look.product.name}</p>
-            <p className="mt-0.5 text-[12px] text-muted">
+            <p className="truncate text-[14px] font-semibold text-ink">{look.product.name}</p>
+            <p className="mt-0.5 text-[13px] text-muted">
               {(look.product.price_cents / 100).toFixed(2)} {look.product.currency.toUpperCase()} ·{" "}
               {look.product.merchant_name
                 ? `${look.product.retailer.name} · ${look.product.merchant_name}`
@@ -113,7 +113,7 @@ function SavedLookCard({ look }: { look: SavedLook }) {
             </Button>
           </>
         ) : (
-          <p className="text-[12px] text-muted">{look.title ?? "Saved look"}</p>
+          <p className="text-[13px] text-muted">{look.title ?? "Saved look"}</p>
         )}
       </div>
     </div>

@@ -64,14 +64,14 @@ export function AnalyticsTab() {
             type="button"
             aria-pressed={days === r.days}
             onClick={() => setDays(r.days)}
-            className={`tu-press h-8 rounded-full px-3.5 text-[12.5px] ${
+            className={`tu-press h-8 rounded-full px-3.5 text-[13.5px] ${
               days === r.days ? "bg-ink text-paper" : "border border-line text-ink-soft hover:border-line-strong hover:text-ink"
             }`}
           >
             {r.label}
           </button>
         ))}
-        <span className="ml-auto text-[11.5px] text-faint">Days are in UTC · refreshes every minute</span>
+        <span className="ml-auto text-[12.5px] text-faint">Days are in UTC · refreshes every minute</span>
       </div>
 
       {query.isLoading ? (
@@ -91,7 +91,7 @@ function Report({ data }: { data: AnalyticsReport }) {
   return (
     <>
       {!data.geoip_available && (
-        <p className="rounded-[14px] border border-[#c9a13b]/40 bg-[#c9a13b]/10 px-4 py-3 text-[12.5px] text-[#8a6d1f]">
+        <p className="rounded-[14px] border border-[#c9a13b]/40 bg-[#c9a13b]/10 px-4 py-3 text-[13.5px] text-[#8a6d1f]">
           Country lookup isn&rsquo;t available yet, so countries show as Unknown. The server downloads the free
           database automatically on startup — or run <code>python -m app.scripts.update_geoip</code> in{" "}
           <code>apps/api</code> and restart the API.
@@ -162,7 +162,7 @@ function Report({ data }: { data: AnalyticsReport }) {
         <Table
           columns={["Page", "Views", "Visitors", "Avg. time on page"]}
           rows={data.pages.map((p) => [
-            <code key="p" className="break-all text-[12.5px]">{p.path}</code>,
+            <code key="p" className="break-all text-[13.5px]">{p.path}</code>,
             nf.format(p.views),
             nf.format(p.visitors),
             formatDuration(p.avg_duration_ms),
@@ -172,7 +172,7 @@ function Report({ data }: { data: AnalyticsReport }) {
       </Card>
 
       {/* required by the database's CC BY 4.0 license */}
-      <p className="text-[11px] text-faint">
+      <p className="text-[12px] text-faint">
         Country data:{" "}
         <a href="https://db-ip.com" target="_blank" rel="noopener noreferrer" className="underline-offset-2 hover:underline">
           IP Geolocation by DB-IP
@@ -186,8 +186,8 @@ function Report({ data }: { data: AnalyticsReport }) {
 function Card({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
     <section className="rounded-[20px] border border-line bg-surface p-5">
-      <h3 className="text-[14px] font-semibold text-ink">{title}</h3>
-      {subtitle && <p className="mt-0.5 text-[12px] text-muted">{subtitle}</p>}
+      <h3 className="text-[15px] font-semibold text-ink">{title}</h3>
+      {subtitle && <p className="mt-0.5 text-[13px] text-muted">{subtitle}</p>}
       <div className="mt-4">{children}</div>
     </section>
   );
@@ -207,7 +207,7 @@ function BarList({
   limit?: number;
 }) {
   const [expanded, setExpanded] = useState(false);
-  if (rows.length === 0) return <p className="text-[13px] text-muted">{empty}</p>;
+  if (rows.length === 0) return <p className="text-[14px] text-muted">{empty}</p>;
   const max = Math.max(...rows.map((r) => r.visitors), 1);
   const shown = expanded ? rows : rows.slice(0, limit);
 
@@ -218,7 +218,7 @@ function BarList({
           const share = total ? Math.round((r.visitors / total) * 100) : 0;
           return (
             <li key={r.key}>
-              <div className="flex items-baseline justify-between gap-3 text-[13px]">
+              <div className="flex items-baseline justify-between gap-3 text-[14px]">
                 <span className="min-w-0 truncate text-ink">{label(r.key)}</span>
                 <span className="shrink-0 tabular-nums text-ink-soft">
                   {nf.format(r.visitors)} <span className="text-faint">· {share}%</span>
@@ -241,7 +241,7 @@ function BarList({
         <button
           type="button"
           onClick={() => setExpanded((e) => !e)}
-          className="tu-press mt-3 text-[12px] text-sage-deep hover:underline"
+          className="tu-press mt-3 text-[13px] text-sage-deep hover:underline"
         >
           {expanded ? "Show less" : `Show all ${rows.length}`}
         </button>
@@ -290,7 +290,7 @@ function TrendChart({ daily }: { daily: AnalyticsReport["daily"] }) {
 
   const total = daily.reduce((sum, d) => sum + d.views, 0);
   if (total === 0) {
-    return <p className="py-10 text-center text-[13px] text-muted">No visits recorded in this period yet.</p>;
+    return <p className="py-10 text-center text-[14px] text-muted">No visits recorded in this period yet.</p>;
   }
 
   const indexFromPointer = (e: PointerEvent<SVGRectElement>) => {
@@ -364,7 +364,7 @@ function TrendChart({ daily }: { daily: AnalyticsReport["daily"] }) {
         {point && active !== null && (
           <div
             role="status"
-            className="pointer-events-none absolute top-1 z-10 min-w-[150px] rounded-[12px] border border-line bg-surface px-3 py-2 text-[12px] shadow-lift"
+            className="pointer-events-none absolute top-1 z-10 min-w-[150px] rounded-[12px] border border-line bg-surface px-3 py-2 text-[13px] shadow-lift"
             style={
               tipLeft > width / 2
                 ? { right: width - tipLeft + 12 }
@@ -374,7 +374,7 @@ function TrendChart({ daily }: { daily: AnalyticsReport["daily"] }) {
             <p className="text-faint">{shortDate(point.date)}</p>
             <p className="mt-1 flex items-center gap-2">
               <span className="h-0.5 w-3 rounded bg-[var(--color-chart)]" aria-hidden="true" />
-              <b className="text-[14px] text-ink">{nf.format(point.visitors)}</b>
+              <b className="text-[15px] text-ink">{nf.format(point.visitors)}</b>
               <span className="text-ink-soft">visitors</span>
             </p>
             <p className="mt-0.5 pl-5">
@@ -385,7 +385,7 @@ function TrendChart({ daily }: { daily: AnalyticsReport["daily"] }) {
       </div>
 
       <details className="mt-3">
-        <summary className="cursor-pointer text-[12px] text-muted hover:text-ink">View as table</summary>
+        <summary className="cursor-pointer text-[13px] text-muted hover:text-ink">View as table</summary>
         <div className="mt-2">
           <Table
             columns={["Date", "Visitors", "Page views"]}

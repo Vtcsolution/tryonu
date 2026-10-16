@@ -108,19 +108,19 @@ function OpenStore() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-sage-deep">Your store account is ready</p>
+      <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-sage-deep">Your store account is ready</p>
       <h1 className="mt-2 font-display text-[clamp(28px,4.5vw,40px)] leading-tight text-ink">Set up your store</h1>
-      <p className="mt-2 text-[15px] text-muted">Two quick steps. You can change everything later.</p>
+      <p className="mt-2 text-[16px] text-muted">Two quick steps. You can change everything later.</p>
 
       {/* progress */}
-      <ol className="mt-6 flex items-center gap-3 text-[14px]" aria-label="Steps">
+      <ol className="mt-6 flex items-center gap-3 text-[15px]" aria-label="Steps">
         {[
           [1, "Your store"],
           [2, "Delivery"],
         ].map(([n, label]) => (
           <li key={n} className="flex items-center gap-2" aria-current={step === n ? "step" : undefined}>
             <span
-              className={`grid h-8 w-8 place-items-center rounded-full text-[13px] font-semibold ${
+              className={`grid h-8 w-8 place-items-center rounded-full text-[14px] font-semibold ${
                 step === n ? "bg-sage text-white" : step > (n as number) ? "bg-sage/30 text-sage-deep" : "border border-line-strong text-muted"
               }`}
             >
@@ -166,7 +166,7 @@ function OpenStore() {
                 </Field>
               </>
             ) : (
-              <button type="button" onClick={() => setMore(true)} className="text-[14px] font-medium text-sage-deep hover:underline">
+              <button type="button" onClick={() => setMore(true)} className="text-[15px] font-medium text-sage-deep hover:underline">
                 + Add your website and a short description (optional)
               </button>
             )}
@@ -178,7 +178,7 @@ function OpenStore() {
           <>
             <div>
               <p className="text-[16px] font-semibold text-ink">Where do you deliver?</p>
-              <p className="mt-1 text-[13.5px] text-muted">Shoppers only see your products if you can deliver to them.</p>
+              <p className="mt-1 text-[14.5px] text-muted">Shoppers only see your products if you can deliver to them.</p>
             </div>
             <DeliveryChooser home={home} mode={mode} onMode={setMode} countries={countries} onCountries={setCountries} />
             {create.isError && <ErrorNote>{errorText(create.error)}</ErrorNote>}
@@ -186,14 +186,14 @@ function OpenStore() {
               <Button type="submit" size="md" disabled={create.isPending || (mode === "countries" && countries.length === 0)}>
                 {create.isPending ? "Opening…" : "Open my store"} {!create.isPending && <span aria-hidden="true">→</span>}
               </Button>
-              <button type="button" onClick={() => setStep(1)} className="text-[14px] text-muted hover:text-ink">
+              <button type="button" onClick={() => setStep(1)} className="text-[15px] text-muted hover:text-ink">
                 ← Back
               </button>
             </div>
           </>
         )}
       </form>
-      <p className="mt-4 text-center text-[13px] text-muted">
+      <p className="mt-4 text-center text-[14px] text-muted">
         Next: TryOnU approves your store (usually within a day), you choose a plan, and you add your products.
       </p>
     </div>
@@ -286,7 +286,7 @@ function StorePanel({ store, user }: { store: Store; user: User }) {
             href={`/stores/${store.slug}`}
             target="_blank"
             rel="noopener"
-            className="tu-press hidden h-9 items-center gap-1.5 rounded-full border border-sage/50 px-3.5 text-[12.5px] font-medium text-sage-deep hover:bg-sage-tint/50 sm:inline-flex"
+            className="tu-press hidden h-9 items-center gap-1.5 rounded-full border border-sage/50 px-3.5 text-[13.5px] font-medium text-sage-deep hover:bg-sage-tint/50 sm:inline-flex"
           >
             <Icon name="external" size={15} />
             My store page
@@ -333,7 +333,7 @@ function StoreInfo({ store, email, go }: { store: Store; email: string; go: (tab
         <>
           <span className="mr-1.5 text-[18px]" aria-hidden="true">{countryFlag(store.country)}</span>
           {countryName(store.country)}
-          <span className="block text-[12.5px] text-muted">Shoppers in {countryName(store.country)} see your products first.</span>
+          <span className="block text-[13.5px] text-muted">Shoppers in {countryName(store.country)} see your products first.</span>
         </>
       ),
       tab: "profile",
@@ -344,7 +344,7 @@ function StoreInfo({ store, email, go }: { store: Store; email: string; go: (tab
       value: (
         <>
           🚚 {deliveryText(store.delivery, store.delivery_countries, store.country)}
-          <span className="block text-[12.5px] text-muted">Shoppers elsewhere don&apos;t see your products.</span>
+          <span className="block text-[13.5px] text-muted">Shoppers elsewhere don&apos;t see your products.</span>
         </>
       ),
       tab: "profile",
@@ -375,7 +375,7 @@ function StoreInfo({ store, email, go }: { store: Store; email: string; go: (tab
         <>
           {planName}
           {store.plan_free ? " · free from TryOnU" : ""}
-          <span className="block text-[12.5px] text-muted">
+          <span className="block text-[13.5px] text-muted">
             Ends {ends?.toLocaleDateString()} · {daysLeft === 1 ? "1 day left" : `${daysLeft} days left`}
             {store.auto_renew ? " · renews automatically" : ""}
           </span>
@@ -399,7 +399,7 @@ function StoreInfo({ store, email, go }: { store: Store; email: string; go: (tab
       value: (
         <>
           🎁 {store.tryon_credits ?? 0} left
-          <span className="block text-[12.5px] text-muted">Each one pays for a shopper trying on your product.</span>
+          <span className="block text-[13.5px] text-muted">Each one pays for a shopper trying on your product.</span>
         </>
       ),
       tab: "tryons",
@@ -416,7 +416,7 @@ function StoreInfo({ store, email, go }: { store: Store; email: string; go: (tab
       value: store.feed_url ? (
         <>
           Connected
-          {store.feed_last_result && <span className="block text-[12.5px] text-muted">Last import: {store.feed_last_result}</span>}
+          {store.feed_last_result && <span className="block text-[13.5px] text-muted">Last import: {store.feed_last_result}</span>}
         </>
       ) : (
         <span className="text-muted">Not connected</span>
@@ -442,7 +442,7 @@ function StoreInfo({ store, email, go }: { store: Store; email: string; go: (tab
         )}
         <div>
           <h2 className="font-display text-[26px] leading-tight text-ink">{store.name}</h2>
-          <p className="text-[14px] text-muted">
+          <p className="text-[15px] text-muted">
             {countryFlag(store.country)} {countryName(store.country)} · Store on TryOnU
           </p>
         </div>
@@ -450,13 +450,13 @@ function StoreInfo({ store, email, go }: { store: Store; email: string; go: (tab
       <dl className="mt-6 divide-y divide-line rounded-[18px] border border-line">
         {rows.map((row) => (
           <div key={row.label} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3.5 sm:flex-nowrap">
-            <dt className="w-full text-[13px] font-medium text-muted sm:w-44 sm:shrink-0">{row.label}</dt>
-            <dd className="min-w-0 flex-1 text-[15px] text-ink">{row.value}</dd>
+            <dt className="w-full text-[14px] font-medium text-muted sm:w-44 sm:shrink-0">{row.label}</dt>
+            <dd className="min-w-0 flex-1 text-[16px] text-ink">{row.value}</dd>
             {row.tab && row.action && (
               <button
                 type="button"
                 onClick={() => go(row.tab!)}
-                className="tu-press min-h-[36px] shrink-0 rounded-full border border-line-strong px-3.5 text-[13px] font-medium text-ink hover:border-ink/40"
+                className="tu-press min-h-[36px] shrink-0 rounded-full border border-line-strong px-3.5 text-[14px] font-medium text-ink hover:border-ink/40"
               >
                 {row.action}
               </button>
@@ -488,7 +488,7 @@ function PlanAllowance({ store }: { store: Store }) {
   ];
   return (
     <div className="mb-5 rounded-[18px] border border-sage/40 bg-sage-tint/20 p-5">
-      <p className="text-[15px] font-semibold text-ink">
+      <p className="text-[16px] font-semibold text-ink">
         {name}
         {store.plan_free ? " (free from TryOnU)" : ""} · active until {ends}
       </p>
@@ -497,7 +497,7 @@ function PlanAllowance({ store }: { store: Store }) {
           const pct = b.total > 0 ? Math.min(100, Math.round((b.used / b.total) * 100)) : 0;
           return (
             <div key={b.label}>
-              <p className="text-[13px] font-medium text-muted">{b.label}</p>
+              <p className="text-[14px] font-medium text-muted">{b.label}</p>
               <p className="mt-0.5 text-[18px] font-semibold text-ink">{b.text}</p>
               <span className="mt-1.5 block h-2 overflow-hidden rounded-full bg-paper-2">
                 <span className={`block h-full rounded-full ${pct >= 90 ? "bg-[#c0503a]" : "bg-sage"}`} style={{ width: `${pct}%` }} />
@@ -506,12 +506,12 @@ function PlanAllowance({ store }: { store: Store }) {
           );
         })}
         <div>
-          <p className="text-[13px] font-medium text-muted">🎁 Try-on credits</p>
+          <p className="text-[14px] font-medium text-muted">🎁 Try-on credits</p>
           <p className="mt-0.5 text-[18px] font-semibold text-ink">{(store.tryon_credits ?? 0).toLocaleString()} left</p>
-          <p className="mt-1 text-[12.5px] leading-snug text-muted">1 credit = 1 shopper trying on your product for free.</p>
+          <p className="mt-1 text-[13.5px] leading-snug text-muted">1 credit = 1 shopper trying on your product for free.</p>
         </div>
       </div>
-      <p className="mt-4 text-[13px] leading-relaxed text-ink-soft">
+      <p className="mt-4 text-[14px] leading-relaxed text-ink-soft">
         <b>How credits work:</b> every plan comes with try-on credits. When a shopper presses <b>Try on free</b> on one of your
         products, 1 credit is used. If the try-on fails, it comes back. When you renew or switch plans, the new plan&apos;s credits
         are <b>added</b> to what you have left.
@@ -526,17 +526,17 @@ function NeedsPlan({ go, what }: { go: (tab: Tab) => void; what: string }) {
     <section className="rounded-[24px] border border-line bg-surface px-6 py-12 text-center">
       <p className="text-[40px]" aria-hidden="true">🔒</p>
       <h2 className="mt-2 font-display text-[24px] text-ink">Unlock a plan to {what}</h2>
-      <p className="mx-auto mt-2 max-w-md text-[14.5px] text-muted">
+      <p className="mx-auto mt-2 max-w-md text-[15.5px] text-muted">
         Your plan decides how many products you can sell. Once it&apos;s active, you can add products with photos here.
       </p>
       <button
         type="button"
         onClick={() => go("plan")}
-        className="tu-press mt-5 inline-flex min-h-[44px] items-center rounded-full bg-sage px-6 text-[15px] font-semibold text-white hover:bg-sage-deep"
+        className="tu-press mt-5 inline-flex min-h-[44px] items-center rounded-full bg-sage px-6 text-[16px] font-semibold text-white hover:bg-sage-deep"
       >
         Choose a plan →
       </button>
-      <p className="mt-3 text-[12.5px] text-faint">Already paid? Open Payments and press “Check payment again”.</p>
+      <p className="mt-3 text-[13.5px] text-faint">Already paid? Open Payments and press “Check payment again”.</p>
     </section>
   );
 }
@@ -574,7 +574,7 @@ function NextSteps({ store, go }: { store: Store; go: (tab: Tab) => void }) {
             className={`flex items-start gap-3 rounded-[16px] border px-4 py-3.5 ${step.done ? "border-sage/40 bg-sage-tint/30" : "border-line"}`}
           >
             <span
-              className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-[14px] font-semibold ${
+              className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-[15px] font-semibold ${
                 step.done ? "bg-sage text-white" : "border border-line-strong text-ink-soft"
               }`}
               aria-hidden="true"
@@ -582,16 +582,16 @@ function NextSteps({ store, go }: { store: Store; go: (tab: Tab) => void }) {
               {step.done ? "✓" : i + 1}
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-[15px] font-semibold text-ink">
+              <p className="text-[16px] font-semibold text-ink">
                 {step.title}
                 <span className="sr-only">{step.done ? " (done)" : " (to do)"}</span>
               </p>
-              <p className="mt-0.5 text-[13.5px] text-muted">{step.text}</p>
+              <p className="mt-0.5 text-[14.5px] text-muted">{step.text}</p>
               {step.action && (
                 <button
                   type="button"
                   onClick={() => go(step.action!.tab)}
-                  className="tu-press mt-2.5 inline-flex min-h-[40px] items-center rounded-full bg-sage px-4 text-[13.5px] font-semibold text-white hover:bg-sage-deep"
+                  className="tu-press mt-2.5 inline-flex min-h-[40px] items-center rounded-full bg-sage px-4 text-[14.5px] font-semibold text-white hover:bg-sage-deep"
                 >
                   {step.action.label} →
                 </button>
@@ -627,15 +627,15 @@ function StoreHeader({ store }: { store: Store }) {
         )}
         <div className="min-w-0 flex-1">
           <h1 className="font-display text-[28px] leading-tight text-ink">{store.name}</h1>
-          <p className="text-[13px] text-muted">{countryName(store.country)}</p>
+          <p className="text-[14px] text-muted">{countryName(store.country)}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Badge tone={status.tone}>{status.label}</Badge>
           <Badge tone={store.live ? "good" : "neutral"}>{store.live ? "Live: shoppers see your products" : "Not live yet"}</Badge>
         </div>
       </div>
-      <p className="mt-2 text-[13px] text-muted">🚚 Delivers: {deliveryText(store.delivery, store.delivery_countries, store.country)}</p>
-      <p className="mt-4 text-[13.5px] text-ink-soft">
+      <p className="mt-2 text-[14px] text-muted">🚚 Delivers: {deliveryText(store.delivery, store.delivery_countries, store.country)}</p>
+      <p className="mt-4 text-[14.5px] text-ink-soft">
         {status.text}
         {store.status_note ? ` ${store.status_note}` : ""}
         {store.live && (
@@ -665,7 +665,7 @@ function StoreHeader({ store }: { store: Store }) {
 function Stat({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="rounded-[16px] border border-line bg-paper-2/50 px-4 py-3">
-      <p className="text-[11px] uppercase tracking-[0.1em] text-faint">{label}</p>
+      <p className="text-[12px] uppercase tracking-[0.1em] text-faint">{label}</p>
       <p className="mt-1 text-[16px] font-semibold text-ink">{value}</p>
     </div>
   );
@@ -715,12 +715,12 @@ function PlansSection({ store }: { store: Store }) {
     >
       {store.plan_active && <PlanAllowance store={store} />}
       {returned === "cancelled" && (
-        <p className="mb-3 rounded-[14px] border border-line bg-paper-2/60 px-4 py-2.5 text-[13px] text-ink-soft">
+        <p className="mb-3 rounded-[14px] border border-line bg-paper-2/60 px-4 py-2.5 text-[14px] text-ink-soft">
           You left PayPal before confirming auto-renew. Nothing was charged.
         </p>
       )}
       {subscribed && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-sage/40 bg-sage-tint/40 px-4 py-3 text-[13.5px]">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-sage/40 bg-sage-tint/40 px-4 py-3 text-[14.5px]">
           <span className="text-ink-soft">
             {store.auto_renew && store.plan_active
               ? `Auto-renew is on: PayPal renews your ${store.subscription_plan_code ?? ""} plan every period.`
@@ -739,7 +739,7 @@ function PlansSection({ store }: { store: Store }) {
         </div>
       )}
       {!subscribed && store.subscription_status === "CANCELLED" && store.plan_active && (
-        <p className="mb-3 text-[13px] text-muted">Auto-renew is off. Your plan stays active until it ends.</p>
+        <p className="mb-3 text-[14px] text-muted">Auto-renew is off. Your plan stays active until it ends.</p>
       )}
       {plans.data && (
         <div className="grid gap-4 sm:grid-cols-3">
@@ -753,16 +753,16 @@ function PlansSection({ store }: { store: Store }) {
                 <p className="font-display text-[20px] text-ink">{plan.name}</p>
                 <p className="mt-1 text-[24px] font-semibold text-ink">
                   {formatPrice(plan.price_cents, plan.currency)}
-                  <span className="text-[13px] font-normal text-muted"> / {plan.duration_days} days</span>
+                  <span className="text-[14px] font-normal text-muted"> / {plan.duration_days} days</span>
                 </p>
-                <p className="mt-2 text-[14px] text-ink-soft">Up to {plan.product_limit.toLocaleString()} products</p>
+                <p className="mt-2 text-[15px] text-ink-soft">Up to {plan.product_limit.toLocaleString()} products</p>
                 {plan.tryon_credits > 0 && (
-                  <p className="mt-1 text-[14px] text-ink-soft">
+                  <p className="mt-1 text-[15px] text-ink-soft">
                     🎁 {plan.tryon_credits.toLocaleString()} free try-ons for your shoppers
                   </p>
                 )}
                 {plan.featured_limit > 0 && (
-                  <p className="mt-1 text-[14px] text-ink-soft">
+                  <p className="mt-1 text-[15px] text-ink-soft">
                     <span className="text-sage-deep">★</span> Feature {plan.featured_limit.toLocaleString()} products: shown first to shoppers
                   </p>
                 )}
@@ -878,9 +878,9 @@ function ProductsSection({ store }: { store: Store }) {
       {(toggle.isError || remove.isError || upload.isError || feature.isError) && (
         <ErrorNote>{errorText(toggle.error ?? remove.error ?? upload.error ?? feature.error)}</ErrorNote>
       )}
-      {upload.data && <p className="mb-3 text-[13px] text-ink-soft">{upload.data.result}</p>}
+      {upload.data && <p className="mb-3 text-[14px] text-ink-soft">{upload.data.result}</p>}
       {products.data && products.data.length === 0 && !adding && (
-        <p className="rounded-[16px] border border-dashed border-line p-6 text-center text-[14px] text-muted">
+        <p className="rounded-[16px] border border-dashed border-line p-6 text-center text-[15px] text-muted">
           No products yet{store.plan_active ? ". Add one, or connect your feed below." : "."}
         </p>
       )}
@@ -893,20 +893,20 @@ function ProductsSection({ store }: { store: Store }) {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={p.images[0]} alt={p.name} className="h-full w-full object-contain p-2" />
                 ) : (
-                  <div className="grid h-full place-items-center text-[12px] text-faint">No photo yet</div>
+                  <div className="grid h-full place-items-center text-[13px] text-faint">No photo yet</div>
                 )}
-                <span className="absolute left-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-semibold text-white">
+                <span className="absolute left-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-[11px] font-semibold text-white">
                   {p.source === "feed" ? "From feed" : "Added by you"}
                 </span>
                 {p.is_featured && (
-                  <span className="absolute right-2 top-2 rounded-full bg-sage px-2 py-0.5 text-[10.5px] font-semibold text-white">★ Featured</span>
+                  <span className="absolute right-2 top-2 rounded-full bg-sage px-2 py-0.5 text-[11.5px] font-semibold text-white">★ Featured</span>
                 )}
               </div>
               <div className="flex flex-1 flex-col p-3">
-                <p className="line-clamp-2 text-[12.5px] leading-snug text-ink">{p.name}</p>
-                <p className="mt-1 text-[14px] font-semibold text-ink">{formatPrice(p.price_cents, p.currency)}</p>
+                <p className="line-clamp-2 text-[13.5px] leading-snug text-ink">{p.name}</p>
+                <p className="mt-1 text-[15px] font-semibold text-ink">{formatPrice(p.price_cents, p.currency)}</p>
                 {p.delivery && (
-                  <p className="mt-1 text-[11.5px] text-muted">
+                  <p className="mt-1 text-[12.5px] text-muted">
                     🚚 {p.delivery === "worldwide" ? "Worldwide" : `Only in ${countryName(store.country)}`}
                   </p>
                 )}
@@ -992,7 +992,7 @@ function ProductForm({
         if (valid) save.mutate();
       }}
     >
-      <p className="text-[14px] font-semibold text-ink">{initial ? `Edit “${initial.name}”` : product ? "Product saved: add its photos" : "New product"}</p>
+      <p className="text-[15px] font-semibold text-ink">{initial ? `Edit “${initial.name}”` : product ? "Product saved: add its photos" : "New product"}</p>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Name">
           <input value={form.name} onChange={(e) => set({ name: e.target.value })} maxLength={512} className={`${inputClass} w-full`} />
@@ -1048,7 +1048,7 @@ function ProductForm({
 
       {product && (
         <div className="border-t border-line pt-4">
-          <p className="text-[13px] font-semibold text-ink">Photos <span className="font-normal text-muted">(up to 6; the first is the main photo)</span></p>
+          <p className="text-[14px] font-semibold text-ink">Photos <span className="font-normal text-muted">(up to 6; the first is the main photo)</span></p>
           <div className="mt-3 flex flex-wrap gap-3">
             {product.images.map((src, i) => (
               <div key={src} className="relative h-28 w-24 overflow-hidden rounded-[12px] border border-line bg-white">
@@ -1058,7 +1058,7 @@ function ProductForm({
                   type="button"
                   aria-label="Remove photo"
                   onClick={() => dropImage.mutate(i)}
-                  className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-black/70 text-[13px] text-white"
+                  className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-black/70 text-[14px] text-white"
                 >
                   ×
                 </button>
@@ -1069,7 +1069,7 @@ function ProductForm({
                 type="button"
                 onClick={() => fileRef.current?.click()}
                 disabled={upload.isPending}
-                className="grid h-28 w-24 place-items-center rounded-[12px] border border-dashed border-line-strong text-[12px] text-muted hover:text-ink"
+                className="grid h-28 w-24 place-items-center rounded-[12px] border border-dashed border-line-strong text-[13px] text-muted hover:text-ink"
               >
                 {upload.isPending ? "Uploading…" : "+ Add photo"}
               </button>
@@ -1130,12 +1130,12 @@ function FeedSection({ store }: { store: Store }) {
       </div>
       {(save.isError || run.isError) && <div className="mt-2"><ErrorNote>{errorText(save.error ?? run.error)}</ErrorNote></div>}
       {(run.data?.result || store.feed_last_result) && (
-        <p className="mt-3 text-[13px] text-ink-soft">
+        <p className="mt-3 text-[14px] text-ink-soft">
           {run.data?.result ?? store.feed_last_result}
           {store.feed_last_run_at && !run.data ? ` (${new Date(store.feed_last_run_at).toLocaleString()})` : ""}
         </p>
       )}
-      <details className="mt-3 text-[12.5px] text-muted">
+      <details className="mt-3 text-[13.5px] text-muted">
         <summary className="cursor-pointer">Which columns does the feed need?</summary>
         <p className="mt-2">
           Each product needs a <b>name</b> (or title), <b>price</b>, <b>link</b> (url) and at least one <b>image</b> link. Optional:
@@ -1253,23 +1253,23 @@ function DeliveryChooser({
               mode === c.value ? "border-sage bg-sage-tint/40 ring-2 ring-sage/30" : "border-line hover:border-line-strong"
             }`}
           >
-            <p className="text-[15px] font-semibold text-ink">
+            <p className="text-[16px] font-semibold text-ink">
               {mode === c.value ? "● " : "○ "}
               {c.value === "domestic" ? `Only in ${countryName(home)}` : c.title}
             </p>
-            <p className="mt-1 text-[13px] text-muted">{c.text}</p>
+            <p className="mt-1 text-[14px] text-muted">{c.text}</p>
           </button>
         ))}
       </div>
       {mode === "countries" && (
         <div className="mt-4 rounded-[16px] border border-line p-4">
-          <p className="text-[13.5px] text-ink-soft">
+          <p className="text-[14.5px] text-ink-soft">
             {countryName(home)} is always included. Also delivering to:
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
-            {countries.length === 0 && <span className="text-[13px] text-muted">No countries added yet.</span>}
+            {countries.length === 0 && <span className="text-[14px] text-muted">No countries added yet.</span>}
             {countries.map((c) => (
-              <span key={c} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper-2 px-3 py-1 text-[13px] text-ink">
+              <span key={c} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper-2 px-3 py-1 text-[14px] text-ink">
                 {countryName(c)}
                 <button
                   type="button"
@@ -1329,7 +1329,7 @@ function DeliverySection({ store }: { store: Store }) {
         >
           {save.isPending ? "Saving…" : "Save delivery"}
         </SmallButton>
-        {save.isSuccess && !changed && <span className="text-[13px] font-medium text-sage-deep">✓ Saved</span>}
+        {save.isSuccess && !changed && <span className="text-[14px] font-medium text-sage-deep">✓ Saved</span>}
       </div>
     </Section>
   );
@@ -1355,14 +1355,14 @@ function StatsSection() {
       {s.top.length > 0 ? (
         <div className="mt-4 divide-y divide-line rounded-[16px] border border-line">
           {s.top.map((row) => (
-            <div key={row.store_product_id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-[13px]">
+            <div key={row.store_product_id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-[14px]">
               <span className="min-w-0 flex-1 truncate text-ink-soft">{row.name}</span>
               <span className="shrink-0 text-muted">{row.views} views · {row.clicks} clicks · {row.tryons} try-ons</span>
             </div>
           ))}
         </div>
       ) : (
-        <p className="mt-4 text-[13px] text-muted">No views yet. They appear here once shoppers find your products.</p>
+        <p className="mt-4 text-[14px] text-muted">No views yet. They appear here once shoppers find your products.</p>
       )}
     </Section>
   );
@@ -1383,9 +1383,9 @@ function PaymentsSection({ go }: { go: (tab: Tab) => void }) {
   return (
     <Section title="Payments" hint="Every plan payment. A plan unlocks only when its payment says Paid.">
       {payments.isLoading ? (
-        <p className="text-[13px] text-muted">Loading…</p>
+        <p className="text-[14px] text-muted">Loading…</p>
       ) : !payments.data || payments.data.length === 0 ? (
-        <p className="rounded-[16px] border border-dashed border-line p-6 text-center text-[14px] text-muted">No payments yet.</p>
+        <p className="rounded-[16px] border border-dashed border-line p-6 text-center text-[15px] text-muted">No payments yet.</p>
       ) : (
         <div className="divide-y divide-line rounded-[16px] border border-line">
           {payments.data.map((p) => {
@@ -1393,11 +1393,11 @@ function PaymentsSection({ go }: { go: (tab: Tab) => void }) {
             const checking = check.isPending && check.variables === p.id;
             const result = check.variables === p.id ? check.data?.status : undefined;
             return (
-              <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-[13.5px]">
+              <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-[14.5px]">
                 <span className="text-ink-soft">
                   {p.plan_name ?? "Plan"} plan · {new Date(p.created_at).toLocaleDateString()}
                   {pending && (
-                    <span className="block text-[12.5px] text-muted">
+                    <span className="block text-[13.5px] text-muted">
                       {result === "pending"
                         ? "PayPal hasn't received this payment. No money was taken. Buy the plan again to finish."
                         : "Not finished at PayPal, so no money was taken and the plan isn't unlocked."}
@@ -1422,7 +1422,7 @@ function PaymentsSection({ go }: { go: (tab: Tab) => void }) {
       )}
       {check.isError && <div className="mt-3"><ErrorNote>{errorText(check.error)}</ErrorNote></div>}
       {check.data?.status === "succeeded" && (
-        <p className="mt-3 text-[13.5px] font-medium text-sage-deep">✓ Payment confirmed. Your plan is unlocked.</p>
+        <p className="mt-3 text-[14.5px] font-medium text-sage-deep">✓ Payment confirmed. Your plan is unlocked.</p>
       )}
       <div className="mt-4">
         <SmallButton tone="primary" onClick={() => go("plan")}>Go to plans</SmallButton>
@@ -1439,7 +1439,7 @@ function Section({ title, hint, action, children }: { title: string; hint?: stri
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="max-w-2xl">
           <h2 className="font-display text-[20px] text-ink">{title}</h2>
-          {hint && <p className="mt-1 text-[13px] leading-relaxed text-muted">{hint}</p>}
+          {hint && <p className="mt-1 text-[14px] leading-relaxed text-muted">{hint}</p>}
         </div>
         {action}
       </div>
@@ -1451,9 +1451,9 @@ function Section({ title, hint, action, children }: { title: string; hint?: stri
 function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="text-[12.5px] font-medium text-ink-soft">{label}</span>
+      <span className="text-[13.5px] font-medium text-ink-soft">{label}</span>
       <div className="mt-1">{children}</div>
-      {hint && <span className="mt-1 block text-[11.5px] text-faint">{hint}</span>}
+      {hint && <span className="mt-1 block text-[12.5px] text-faint">{hint}</span>}
     </label>
   );
 }

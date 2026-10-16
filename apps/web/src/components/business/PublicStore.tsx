@@ -40,7 +40,7 @@ export function PublicStore({ slug }: { slug: string }) {
     return (
       <section className="mx-auto w-[min(720px,calc(100%-32px))] py-24 text-center">
         <h1 className="font-display text-[28px] text-ink">{missing ? "Store not found" : "Couldn't load this store"}</h1>
-        <p className="mt-3 text-[15px] text-muted">{missing ? "This store isn't open on TryOnU right now." : "Please try again in a moment."}</p>
+        <p className="mt-3 text-[16px] text-muted">{missing ? "This store isn't open on TryOnU right now." : "Please try again in a moment."}</p>
       </section>
     );
   }
@@ -59,28 +59,28 @@ export function PublicStore({ slug }: { slug: string }) {
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-sage-deep">Store on TryOnU · {countryName(s.country)}</p>
+          <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-sage-deep">Store on TryOnU · {countryName(s.country)}</p>
           <h1 className="mt-1 font-display text-[clamp(28px,4vw,40px)] leading-tight text-ink">{s.name}</h1>
-          {s.description && <p className="mt-2 max-w-2xl text-[14.5px] leading-relaxed text-muted">{s.description}</p>}
-          <p className="mt-2 text-[13.5px] text-ink-soft">🚚 Delivers: {deliveryText(s.delivery, s.delivery_countries, s.country)}</p>
+          {s.description && <p className="mt-2 max-w-2xl text-[15.5px] leading-relaxed text-muted">{s.description}</p>}
+          <p className="mt-2 text-[14.5px] text-ink-soft">🚚 Delivers: {deliveryText(s.delivery, s.delivery_countries, s.country)}</p>
         </div>
         {s.website_url && (
           <a
             href={s.website_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="tu-press rounded-full border border-line-strong px-4 py-2 text-[13px] font-medium text-ink hover:border-ink/40"
+            className="tu-press rounded-full border border-line-strong px-4 py-2 text-[14px] font-medium text-ink hover:border-ink/40"
           >
             Visit website ↗
           </a>
         )}
       </header>
 
-      <p className="mt-8 text-[13px] text-muted">
+      <p className="mt-8 text-[14px] text-muted">
         {s.products.length} product{s.products.length === 1 ? "" : "s"} · try any of them on your own photo before you buy
       </p>
       {(tryOn.isError || buy.isError) && (
-        <p role="alert" className="mt-3 text-[13px] text-[#a4553f]">
+        <p role="alert" className="mt-3 text-[14px] text-[#a4553f]">
           {(tryOn.error ?? buy.error) instanceof ApiError ? ((tryOn.error ?? buy.error) as ApiError).detail : "That product isn't available right now."}
         </p>
       )}

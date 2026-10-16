@@ -46,7 +46,7 @@ export function ForgotPasswordForm() {
       }
     >
       {sent ? (
-        <p className="text-[14px] leading-relaxed text-ink-soft">
+        <p className="text-[15px] leading-relaxed text-ink-soft">
           If an account exists for <span className="font-semibold text-ink">{email}</span>, a reset
           link is on its way. Check your inbox — the link expires in 30 minutes.
         </p>
@@ -62,7 +62,7 @@ export function ForgotPasswordForm() {
           />
 
           {error && (
-            <p role="alert" className="text-[13px] text-[#a4553f]">
+            <p role="alert" className="text-[14px] text-[#a4553f]">
               {error}
             </p>
           )}

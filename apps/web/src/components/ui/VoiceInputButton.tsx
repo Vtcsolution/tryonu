@@ -45,14 +45,14 @@ export function VoiceInputButton({
       </button>
 
       {(isListening && interimText) && (
-        <div className="absolute bottom-full left-1/2 mb-2 w-max max-w-[240px] -translate-x-1/2 rounded-lg bg-ink px-2.5 py-1.5 text-[11.5px] text-white shadow-lift">
+        <div className="absolute bottom-full left-1/2 mb-2 w-max max-w-[240px] -translate-x-1/2 rounded-lg bg-ink px-2.5 py-1.5 text-[12.5px] text-white shadow-lift">
           {interimText}
         </div>
       )}
       {error && (
         <div
           role="alert"
-          className="absolute bottom-full left-1/2 mb-2 w-max max-w-[220px] -translate-x-1/2 rounded-lg bg-[#a4553f] px-2.5 py-1.5 text-[11.5px] text-white shadow-lift"
+          className="absolute bottom-full left-1/2 mb-2 w-max max-w-[220px] -translate-x-1/2 rounded-lg bg-[#a4553f] px-2.5 py-1.5 text-[12.5px] text-white shadow-lift"
         >
           {error}
         </div>

@@ -57,7 +57,7 @@ function NavLink({ href, children }: { href: string; children: ReactNode }) {
   return (
     <Link
       href={href}
-      className="group/nl relative font-display text-[15px] tracking-[-0.01em] text-ink transition-colors duration-200 hover:text-faint"
+      className="group/nl relative font-display text-[16px] tracking-[-0.01em] text-ink transition-colors duration-200 hover:text-faint"
     >
       {children}
       <span className="absolute -bottom-1.5 left-0 h-px w-full origin-left scale-x-0 bg-faint transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/nl:scale-x-100" />
@@ -70,7 +70,7 @@ function NavMenu({ label, children }: { label: string; children: MenuLink[] }) {
     <div className="group relative">
       <button
         type="button"
-        className="flex items-center gap-1.5 font-display text-[15px] tracking-[-0.01em] text-ink transition-colors duration-200 group-hover:text-faint group-focus-within:text-faint"
+        className="flex items-center gap-1.5 font-display text-[16px] tracking-[-0.01em] text-ink transition-colors duration-200 group-hover:text-faint group-focus-within:text-faint"
         aria-haspopup="true"
       >
         {label}
@@ -101,11 +101,11 @@ function NavMenu({ label, children }: { label: string; children: MenuLink[] }) {
               href={l.href}
               className="block rounded-xl px-3 py-2.5 transition-colors duration-200 hover:bg-paper-2"
             >
-              <span className="block font-display text-[14px] text-ink">
+              <span className="block font-display text-[15px] text-ink">
                 {l.label}
               </span>
               {l.hint && (
-                <span className="mt-0.5 block text-[12px] text-muted">
+                <span className="mt-0.5 block text-[13px] text-muted">
                   {l.hint}
                 </span>
               )}

@@ -465,3 +465,17 @@ body {
     transition: none;
   }
 }
+
+/* Large screens: the whole site a little bigger, as if zoomed in, so text
+   stays easy to read on wide monitors at 100% scaling. Laptops and phones
+   are unchanged. */
+@media (min-width: 1800px) {
+  html {
+    zoom: 1.12;
+  }
+}
+@media (min-width: 2300px) {
+  html {
+    zoom: 1.25;
+  }
+}

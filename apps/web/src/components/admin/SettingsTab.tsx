@@ -34,7 +34,7 @@ export function SettingsTab() {
         title="Settings & API keys"
         hint="Changes go live on every server within about 15 seconds — no restart. Saved secrets are encrypted and never shown again."
       />
-      <p className="mb-5 rounded-[14px] border border-line bg-paper-2 px-4 py-3 text-[12.5px] leading-relaxed text-muted">
+      <p className="mb-5 rounded-[14px] border border-line bg-paper-2 px-4 py-3 text-[13.5px] leading-relaxed text-muted">
         Database URL, SECRET_KEY, Redis, CORS and file storage can only be changed in the server&rsquo;s{" "}
         <code>.env</code>. A wrong value there could take the site down or lock every admin out, so they
         aren&rsquo;t editable from a page that depends on them.
@@ -113,7 +113,7 @@ function SettingsGroupCard({ group }: { group: AdminSettingGroup }) {
       {test && (
         <p
           role="status"
-          className={`tu-pop mt-3 rounded-[12px] border px-3 py-2 text-[12.5px] ${
+          className={`tu-pop mt-3 rounded-[12px] border px-3 py-2 text-[13.5px] ${
             test.ok ? "border-sage/40 bg-sage-tint/30 text-sage-deep" : "border-[#c0503a]/30 bg-[#c0503a]/10 text-[#a4553f]"
           }`}
         >
@@ -145,7 +145,7 @@ function SettingsGroupCard({ group }: { group: AdminSettingGroup }) {
             Discard
           </SmallButton>
         )}
-        {saved && !dirty && <span className="tu-fade text-[12.5px] text-sage-deep">Saved — live within ~15 seconds.</span>}
+        {saved && !dirty && <span className="tu-fade text-[13.5px] text-sage-deep">Saved — live within ~15 seconds.</span>}
         {save.isError && <ErrorNote>{errorText(save.error, "Couldn't save.")}</ErrorNote>}
       </div>
     </section>
@@ -218,7 +218,7 @@ function SettingInput({
   return (
     <div>
       <div className="mb-1.5 flex flex-wrap items-center gap-2">
-        <label htmlFor={inputId} className="text-[13px] font-medium text-ink">
+        <label htmlFor={inputId} className="text-[14px] font-medium text-ink">
           {field.label}
         </label>
         <Badge tone={source.tone}>{source.text}</Badge>
@@ -226,12 +226,12 @@ function SettingInput({
       </div>
       {control}
       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <code className="text-[10.5px] text-faint">{field.key}</code>
+        <code className="text-[11.5px] text-faint">{field.key}</code>
         {field.source === "admin" && !isPending && (
           <button
             type="button"
             onClick={() => onChange(null)}
-            className="text-[11.5px] text-muted underline-offset-2 hover:text-ink hover:underline"
+            className="text-[12.5px] text-muted underline-offset-2 hover:text-ink hover:underline"
           >
             Revert to .env value
           </button>
@@ -240,16 +240,16 @@ function SettingInput({
           <button
             type="button"
             onClick={onDiscard}
-            className="text-[11.5px] text-muted underline-offset-2 hover:text-ink hover:underline"
+            className="text-[12.5px] text-muted underline-offset-2 hover:text-ink hover:underline"
           >
             Undo
           </button>
         )}
       </div>
-      {field.help && <p className="mt-1 text-[11.5px] leading-snug text-muted">{field.help}</p>}
-      {field.warning && <p className="mt-1 text-[11.5px] leading-snug text-[#8a6d1f]">⚠ {field.warning}</p>}
+      {field.help && <p className="mt-1 text-[12.5px] leading-snug text-muted">{field.help}</p>}
+      {field.warning && <p className="mt-1 text-[12.5px] leading-snug text-[#8a6d1f]">⚠ {field.warning}</p>}
       {field.unreadable && (
-        <p className="mt-1 text-[11.5px] leading-snug text-[#a4553f]">
+        <p className="mt-1 text-[12.5px] leading-snug text-[#a4553f]">
           ⚠ The saved value can&rsquo;t be decrypted (SECRET_KEY changed) and is being ignored — enter it again.
         </p>
       )}

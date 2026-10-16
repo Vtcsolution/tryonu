@@ -53,7 +53,7 @@ export function OutfitBuilder({ onSaved }: { onSaved: () => void }) {
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
       <div>
-        <p className="mb-3 text-[13px] font-semibold text-ink-soft">Pick products to combine</p>
+        <p className="mb-3 text-[14px] font-semibold text-ink-soft">Pick products to combine</p>
         {productsQuery.isLoading && (
           <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => (
@@ -81,14 +81,14 @@ export function OutfitBuilder({ onSaved }: { onSaved: () => void }) {
                       <img src={thumb} alt={p.name} className="h-full w-full object-cover object-top" />
                     )}
                     {selected && (
-                      <span className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-sage text-[10px] text-white">
+                      <span className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-sage text-[11px] text-white">
                         ✓
                       </span>
                     )}
                   </div>
                   <div className="p-2">
-                    <p className="truncate text-[11px] font-semibold text-ink">{p.name}</p>
-                    <p className="text-[10.5px] text-muted">{(p.price_cents / 100).toFixed(2)}</p>
+                    <p className="truncate text-[12px] font-semibold text-ink">{p.name}</p>
+                    <p className="text-[11.5px] text-muted">{(p.price_cents / 100).toFixed(2)}</p>
                   </div>
                 </button>
               );
@@ -99,18 +99,18 @@ export function OutfitBuilder({ onSaved }: { onSaved: () => void }) {
 
       <div className="flex flex-col gap-4 rounded-[20px] border border-line bg-surface p-4">
         <div>
-          <span className="mb-1.5 block text-[13px] font-medium text-ink-soft">Outfit name (optional)</span>
+          <span className="mb-1.5 block text-[14px] font-medium text-ink-soft">Outfit name (optional)</span>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Weekend brunch"
-            className="h-10 w-full rounded-xl border border-line-strong bg-paper px-3 text-[13px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25"
+            className="h-10 w-full rounded-xl border border-line-strong bg-paper px-3 text-[14px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25"
           />
         </div>
 
         {tray.length === 0 && (
-          <p className="text-[13px] text-muted">Select at least 2 products to see a compatibility score.</p>
+          <p className="text-[14px] text-muted">Select at least 2 products to see a compatibility score.</p>
         )}
 
         <div className="flex flex-col gap-2.5">
@@ -126,11 +126,11 @@ export function OutfitBuilder({ onSaved }: { onSaved: () => void }) {
                   />
                 )}
               </div>
-              <p className="flex-1 truncate text-[12px] text-ink">{t.product.name}</p>
+              <p className="flex-1 truncate text-[13px] text-ink">{t.product.name}</p>
               <select
                 value={t.slot}
                 onChange={(e) => setSlot(t.product.id, e.target.value as OutfitSlot)}
-                className="h-8 rounded-lg border border-line-strong bg-paper px-1.5 text-[11px] text-ink-soft"
+                className="h-8 rounded-lg border border-line-strong bg-paper px-1.5 text-[12px] text-ink-soft"
               >
                 {SLOTS.map((s) => (
                   <option key={s} value={s}>
@@ -152,12 +152,12 @@ export function OutfitBuilder({ onSaved }: { onSaved: () => void }) {
 
         {tray.length >= 2 && (
           <div className="rounded-[14px] border border-line bg-paper-2 p-3">
-            {previewQuery.isLoading && <p className="text-[12px] text-muted">Scoring…</p>}
+            {previewQuery.isLoading && <p className="text-[13px] text-muted">Scoring…</p>}
             {previewQuery.data && (
               <>
-                <p className="text-[13px] font-semibold text-ink">{previewQuery.data.overall}% compatibility</p>
+                <p className="text-[14px] font-semibold text-ink">{previewQuery.data.overall}% compatibility</p>
                 {previewQuery.data.notes.length > 0 && (
-                  <ul className="mt-1.5 space-y-1 text-[11.5px] text-muted">
+                  <ul className="mt-1.5 space-y-1 text-[12.5px] text-muted">
                     {previewQuery.data.notes.map((n) => (
                       <li key={n}>· {n}</li>
                     ))}
@@ -169,11 +169,11 @@ export function OutfitBuilder({ onSaved }: { onSaved: () => void }) {
         )}
 
         {tray.length > 0 && (
-          <p className="text-[13px] text-ink-soft">Total: {(totalCents / 100).toFixed(2)}</p>
+          <p className="text-[14px] text-ink-soft">Total: {(totalCents / 100).toFixed(2)}</p>
         )}
 
         {save.isError && (
-          <p role="alert" className="text-[12.5px] text-[#a4553f]">
+          <p role="alert" className="text-[13.5px] text-[#a4553f]">
             {save.error instanceof ApiError ? save.error.detail : "Couldn't save this outfit."}
           </p>
         )}

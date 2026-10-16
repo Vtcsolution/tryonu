@@ -31,7 +31,7 @@ export function VerifyEmailPanel() {
   if (!token) {
     return (
       <AuthCard kicker="Account setup" title={<>Link is invalid</>}>
-        <p className="text-[14px] leading-relaxed text-ink-soft">
+        <p className="text-[15px] leading-relaxed text-ink-soft">
           This verification link is missing or malformed. Sign in and use “Resend verification
           email” from your account menu to get a new one.
         </p>
@@ -60,7 +60,7 @@ export function VerifyEmailPanel() {
   if (verify.isError) {
     return (
       <AuthCard kicker="Account setup" title={<>Verification failed</>}>
-        <p className="text-[14px] leading-relaxed text-ink-soft">
+        <p className="text-[15px] leading-relaxed text-ink-soft">
           {verify.error instanceof ApiError
             ? verify.error.detail
             : "This link is invalid or has expired."}{" "}

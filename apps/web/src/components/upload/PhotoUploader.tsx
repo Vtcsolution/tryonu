@@ -137,7 +137,7 @@ export function PhotoUploader({
         <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-[18px] border border-line-strong text-2xl text-sage">
           ⇧
         </div>
-        <p className="text-[15px] font-semibold text-ink">Drag photos here, or</p>
+        <p className="text-[16px] font-semibold text-ink">Drag photos here, or</p>
         <div className="mt-3 flex justify-center">
           <Button
             variant="outline"
@@ -159,12 +159,12 @@ export function PhotoUploader({
             e.target.value = "";
           }}
         />
-        <p className="mt-3 text-[12px] text-faint">
+        <p className="mt-3 text-[13px] text-faint">
           JPG, PNG, WEBP or HEIC · up to 12MB each · front required · back and sides optional
         </p>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-line bg-paper-2/60 px-4 py-3 text-left text-[12.5px] leading-relaxed text-muted">
+      <div className="mt-4 rounded-2xl border border-line bg-paper-2/60 px-4 py-3 text-left text-[13.5px] leading-relaxed text-muted">
         <p className="font-semibold text-ink">For the sharpest result</p>
         <ul className="mt-1 list-disc space-y-0.5 pl-4">
           <li>One person, full body visible from head to feet, standing straight</li>
@@ -183,7 +183,7 @@ export function PhotoUploader({
           return (
             <div
               key={i}
-              className="relative grid aspect-[0.78] place-items-center overflow-hidden rounded-2xl border border-dashed border-line-strong bg-paper-2 p-2 text-center text-[10px] text-faint"
+              className="relative grid aspect-[0.78] place-items-center overflow-hidden rounded-2xl border border-dashed border-line-strong bg-paper-2 p-2 text-center text-[11px] text-faint"
             >
               {photo ? (
                 <>
@@ -194,7 +194,7 @@ export function PhotoUploader({
                     className="absolute inset-0 h-full w-full animate-[tu-in-scale_0.35s_ease] object-cover"
                   />
                   {isLowRes(photo) && (
-                    <span className="absolute inset-x-1.5 bottom-1.5 rounded-md bg-[#a4553f]/90 px-1 py-0.5 text-[9px] font-semibold text-white">
+                    <span className="absolute inset-x-1.5 bottom-1.5 rounded-md bg-[#a4553f]/90 px-1 py-0.5 text-[10px] font-semibold text-white">
                       Low resolution
                     </span>
                   )}
@@ -210,7 +210,7 @@ export function PhotoUploader({
               ) : state?.status === "uploading" ? (
                 <span className="h-5 w-5 animate-spin rounded-full border-2 border-line-strong border-t-sage" />
               ) : state?.status === "error" ? (
-                <span className="px-1 text-[9px] leading-tight text-[#a4553f]">
+                <span className="px-1 text-[10px] leading-tight text-[#a4553f]">
                   {state.error || "Failed"}
                 </span>
               ) : (
@@ -227,26 +227,26 @@ export function PhotoUploader({
           style={{ width: `${pct}%` }}
         />
       </div>
-      <div className="mt-2 flex items-center justify-between text-[12px] text-faint">
+      <div className="mt-2 flex items-center justify-between text-[13px] text-faint">
         <span>
           {count} / {MAX_PHOTOS} photos
         </span>
         <span>{isReady ? "Ready ✓" : "Add a front photo"}</span>
       </div>
       {photos.filter(isLowRes).map((photo) => (
-        <p key={photo.id} className="mt-2 text-[12px] text-[#a4553f]" role="alert">
+        <p key={photo.id} className="mt-2 text-[13px] text-[#a4553f]" role="alert">
           Your {SLOTS.find((s) => s.kind === photo.kind)?.label.toLowerCase() ?? ""} photo is only {photo.width}×
           {photo.height}px, so the try-on may look blurry or grainy. For a sharp result, replace it with one at
           least {RECOMMENDED_HEIGHT}px tall.
         </p>
       ))}
       {loadError && (
-        <p className="mt-2 text-[12px] text-[#a4553f]" role="alert">
+        <p className="mt-2 text-[13px] text-[#a4553f]" role="alert">
           {loadError}
         </p>
       )}
       {!loaded && !loadError && (
-        <p className="mt-2 text-[12px] text-faint">Loading your fitting profile…</p>
+        <p className="mt-2 text-[13px] text-faint">Loading your fitting profile…</p>
       )}
     </div>
   );

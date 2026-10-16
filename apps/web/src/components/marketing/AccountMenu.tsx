@@ -22,7 +22,7 @@ export function AccountMenu() {
     return (
       <Link
         href="/sign-in"
-        className="group/si relative hidden font-display text-[15px] tracking-[-0.01em] text-ink transition-colors duration-200 sm:inline-block"
+        className="group/si relative hidden font-display text-[16px] tracking-[-0.01em] text-ink transition-colors duration-200 sm:inline-block"
       >
         Sign in
         <span className="absolute -bottom-1 left-0 h-px w-full origin-left scale-x-0 bg-ink transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/si:scale-x-100" />
@@ -39,13 +39,13 @@ export function AccountMenu() {
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-2.5 rounded-full border border-line py-1 pl-1 pr-3 transition-colors hover:border-line-strong"
       >
-        <span className="grid h-7 w-7 place-items-center rounded-full bg-sage text-[12px] font-semibold text-white">
+        <span className="grid h-7 w-7 place-items-center rounded-full bg-sage text-[13px] font-semibold text-white">
           {initial}
         </span>
         {/* The balance, verified or not — the red dot below is what asks
             for verification, and replacing the number with "Verify email"
             left shoppers unable to see credits they actually hold. */}
-        <span className="hidden font-display text-[13px] text-ink sm:inline">
+        <span className="hidden font-display text-[14px] text-ink sm:inline">
           {user.credits_balance} credits
         </span>
         {!user.email_verified && (
@@ -60,14 +60,14 @@ export function AccountMenu() {
       >
         <div className="w-[220px] rounded-2xl border border-line bg-surface p-2 shadow-lift">
           <div className="px-3 py-2">
-            <p className="truncate text-[13px] font-semibold text-ink">
+            <p className="truncate text-[14px] font-semibold text-ink">
               {user.full_name || user.email}
             </p>
             {/* The real balance either way. This used to print "0 credits"
                 for an unverified account, which was simply untrue — the
                 credits are there and nothing stops them being spent, so a
                 shopper with 200 was told they had none. */}
-            <p className="text-[12px] text-muted">
+            <p className="text-[13px] text-muted">
               {user.credits_balance} credits{user.email_verified ? "" : " · email unverified"}
             </p>
           </div>
@@ -76,7 +76,7 @@ export function AccountMenu() {
               type="button"
               disabled={resend.isPending || resend.isSuccess}
               onClick={() => resend.mutate()}
-              className="block w-full rounded-xl px-3 py-2 text-left text-[13px] text-sage-deep transition-colors hover:bg-paper-2 disabled:opacity-60"
+              className="block w-full rounded-xl px-3 py-2 text-left text-[14px] text-sage-deep transition-colors hover:bg-paper-2 disabled:opacity-60"
             >
               {resend.isSuccess ? "Verification email sent" : resend.isPending ? "Sending…" : "Resend verification email"}
             </button>
@@ -97,7 +97,7 @@ export function AccountMenu() {
               key={item.href}
               href={item.href}
               onClick={() => setOpen(false)}
-              className="block rounded-xl px-3 py-2 text-[13px] text-ink-soft transition-colors hover:bg-paper-2"
+              className="block rounded-xl px-3 py-2 text-[14px] text-ink-soft transition-colors hover:bg-paper-2"
             >
               {item.label}
             </Link>
@@ -110,7 +110,7 @@ export function AccountMenu() {
               router.push("/");
               router.refresh();
             }}
-            className="block w-full rounded-xl px-3 py-2 text-left text-[13px] text-ink-soft transition-colors hover:bg-paper-2"
+            className="block w-full rounded-xl px-3 py-2 text-left text-[14px] text-ink-soft transition-colors hover:bg-paper-2"
           >
             Sign out
           </button>

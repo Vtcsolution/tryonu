@@ -117,7 +117,7 @@ export default function HowItWorksPage() {
                       className="object-cover object-top"
                       sizes="(max-width: 768px) 100vw, 520px"
                     />
-                    <span className="absolute left-4 top-4 rounded-full bg-surface/90 px-2.5 py-1 font-display text-[13px] text-ink backdrop-blur">
+                    <span className="absolute left-4 top-4 rounded-full bg-surface/90 px-2.5 py-1 font-display text-[14px] text-ink backdrop-blur">
                       {s.n}
                     </span>
                   </Reveal>
@@ -127,17 +127,17 @@ export default function HowItWorksPage() {
                     delay={100}
                     className={flip ? "md:order-1 md:text-right" : ""}
                   >
-                    <p className="font-display text-[15px] text-sage">
+                    <p className="font-display text-[16px] text-sage">
                       Step {s.n}
                     </p>
                     <h2 className="mt-2 font-display text-[clamp(26px,3.6vw,40px)] leading-tight text-ink">
                       {s.title}
                     </h2>
-                    <p className="mt-4 max-w-md text-[15px] leading-relaxed text-muted md:inline-block">
+                    <p className="mt-4 max-w-md text-[16px] leading-relaxed text-muted md:inline-block">
                       {s.body}
                     </p>
                     <p
-                      className={`mt-4 flex items-center gap-2 text-[12.5px] text-faint ${
+                      className={`mt-4 flex items-center gap-2 text-[13.5px] text-faint ${
                         flip ? "md:justify-end" : ""
                       }`}
                     >
@@ -159,7 +159,7 @@ export default function HowItWorksPage() {
           <h2 className="font-display text-[clamp(28px,4vw,46px)] leading-tight text-ink">
             A real job pipeline, <em>not a spinner</em>
           </h2>
-          <p className="mt-4 text-[15px] leading-relaxed text-muted">
+          <p className="mt-4 text-[16px] leading-relaxed text-muted">
             Long AI renders never block your browser. Every try-on is a tracked
             job with reserved credits and a safe refund if it fails.
           </p>
@@ -199,7 +199,7 @@ export default function HowItWorksPage() {
               className="rounded-[22px] border border-line bg-surface p-6"
             >
               <h3 className="font-display text-[19px] text-ink">{c.t}</h3>
-              <p className="mt-2 text-[13.5px] leading-relaxed text-muted">
+              <p className="mt-2 text-[14.5px] leading-relaxed text-muted">
                 {c.b}
               </p>
             </Reveal>
@@ -219,7 +219,7 @@ export default function HowItWorksPage() {
                 Start now <span aria-hidden="true">→</span>
               </Button>
             </div>
-            <p className="mt-4 text-[12px] text-white/70">
+            <p className="mt-4 text-[13px] text-white/70">
               No credit card required ·{" "}
               <Link href="/" className="underline">
                 back to home

@@ -21,7 +21,7 @@ export function Section({
 
 export function Kicker({ children }: { children: ReactNode }) {
   return (
-    <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.16em] text-sage">
+    <p className="mb-3 text-[13px] font-semibold uppercase tracking-[0.16em] text-sage">
       {children}
     </p>
   );
@@ -46,7 +46,7 @@ export function SectionHead({
           {title}
         </h2>
         {sub && (
-          <p className="mx-auto mt-4 max-w-xl text-[15px] leading-relaxed text-muted">
+          <p className="mx-auto mt-4 max-w-xl text-[16px] leading-relaxed text-muted">
             {sub}
           </p>
         )}
@@ -63,7 +63,7 @@ export function SectionHead({
         </h2>
       </div>
       {sub && (
-        <p className="max-w-md text-[15px] leading-relaxed text-muted">{sub}</p>
+        <p className="max-w-md text-[16px] leading-relaxed text-muted">{sub}</p>
       )}
     </Reveal>
   );

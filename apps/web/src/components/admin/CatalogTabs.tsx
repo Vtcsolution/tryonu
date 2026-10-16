@@ -169,7 +169,7 @@ export function RetailersTab() {
           rows={query.data.map((r) => [
             <div key="n">
               <p className="font-medium">{r.name}</p>
-              <p className="text-[11px] text-faint">{r.slug}</p>
+              <p className="text-[12px] text-faint">{r.slug}</p>
             </div>,
             r.integration_built ? <Badge key="i" tone="good">Built</Badge> : <Badge key="i">Not built yet</Badge>,
             r.credentials_configured ? <Badge key="c" tone="good">Set</Badge> : <Badge key="c" tone="bad">Missing</Badge>,

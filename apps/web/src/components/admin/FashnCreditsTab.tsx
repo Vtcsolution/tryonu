@@ -40,7 +40,7 @@ export function FashnCreditsTab() {
         <StatTile label="Spent, all time" value={s.counted_as_spent_credits_all_time} />
       </div>
       {open && (
-        <div className="flex flex-wrap items-center gap-3 rounded-[16px] border border-line bg-surface p-4 text-[13px]">
+        <div className="flex flex-wrap items-center gap-3 rounded-[16px] border border-line bg-surface p-4 text-[14px]">
           <Badge tone="good">Open</Badge>
           <span className="text-ink-soft">
             {open.reserved} used of {open.budget} · about {Math.floor(left / 4)} more looks
@@ -58,20 +58,20 @@ export function FashnCreditsTab() {
           if (phrase.trim()) approve.mutate();
         }}
       >
-        <p className="text-[14px] font-semibold text-ink">Approve FASHN credits</p>
+        <p className="text-[15px] font-semibold text-ink">Approve FASHN credits</p>
         {open && left > 0 && (
-          <p className="text-[12.5px] text-muted">An approval with credits left is open: close it first to open a new one.</p>
+          <p className="text-[13.5px] text-muted">An approval with credits left is open: close it first to open a new one.</p>
         )}
         <div className="flex flex-wrap items-end gap-3">
-          <label className="text-[12px] text-muted">
+          <label className="text-[13px] text-muted">
             Credits (max {s.max_credits_per_authorization})
             <input type="number" min={1} max={s.max_credits_per_authorization} value={credits} onChange={(e) => setCredits(e.target.value)} className={`${inputClass} mt-1 block w-28`} />
           </label>
-          <label className="text-[12px] text-muted">
+          <label className="text-[13px] text-muted">
             Hours open (max {s.max_hours})
             <input type="number" min={1} max={s.max_hours} value={hours} onChange={(e) => setHours(e.target.value)} className={`${inputClass} mt-1 block w-28`} />
           </label>
-          <label className="min-w-[260px] flex-1 text-[12px] text-muted">
+          <label className="min-w-[260px] flex-1 text-[13px] text-muted">
             Type exactly: <b className="text-ink">{expected}</b>
             <input value={phrase} onChange={(e) => setPhrase(e.target.value)} placeholder={expected} className={`${inputClass} mt-1 block w-full`} autoComplete="off" />
           </label>

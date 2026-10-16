@@ -88,7 +88,7 @@ export function StylistChat() {
       <h1 className="font-display text-[clamp(26px,4vw,40px)] leading-tight text-ink">
         Your AI <em>fashion stylist</em>
       </h1>
-      <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-muted">
+      <p className="mt-3 max-w-lg text-[16px] leading-relaxed text-muted">
         Ask for an outfit, an occasion look, or a budget — every recommendation comes straight
         from the real product catalog. Never invented.
       </p>
@@ -96,14 +96,14 @@ export function StylistChat() {
       <div className="mt-8 flex flex-col gap-6">
         {thread.length === 0 && !historyQuery.isLoading && (
           <div className="rounded-[22px] border border-dashed border-line p-6">
-            <p className="text-[13px] font-semibold text-ink-soft">Try asking:</p>
+            <p className="text-[14px] font-semibold text-ink-soft">Try asking:</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {PROMPT_SUGGESTIONS.map((s) => (
                 <button
                   key={s}
                   type="button"
                   onClick={() => setPrompt(s)}
-                  className="rounded-full border border-line px-3 py-1.5 text-[13px] text-ink-soft transition-colors hover:border-sage hover:text-sage-deep"
+                  className="rounded-full border border-line px-3 py-1.5 text-[14px] text-ink-soft transition-colors hover:border-sage hover:text-sage-deep"
                 >
                   {s}
                 </button>
@@ -117,14 +117,14 @@ export function StylistChat() {
         ))}
 
         {ask.isPending && (
-          <div className="flex items-center gap-2 self-start rounded-full border border-line px-4 py-2 text-[13px] text-muted">
+          <div className="flex items-center gap-2 self-start rounded-full border border-line px-4 py-2 text-[14px] text-muted">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-sage" />
             Styling your look…
           </div>
         )}
 
         {ask.isError && (
-          <p role="alert" className="text-[13px] text-[#a4553f]">
+          <p role="alert" className="text-[14px] text-[#a4553f]">
             {ask.error instanceof ApiError ? ask.error.detail : "Couldn't reach the stylist. Please try again."}
           </p>
         )}
@@ -133,12 +133,12 @@ export function StylistChat() {
       </div>
 
       {wardrobeQuery.data && wardrobeQuery.data.length > 0 && (
-        <div className="mt-6 flex flex-wrap items-center gap-2 text-[12.5px]">
+        <div className="mt-6 flex flex-wrap items-center gap-2 text-[13.5px]">
           <span className="text-faint">Build around:</span>
           <select
             value={wardrobeItemId}
             onChange={(e) => setWardrobeItemId(e.target.value)}
-            className="h-8 rounded-full border border-line-strong bg-paper px-3 text-[12.5px] text-ink-soft"
+            className="h-8 rounded-full border border-line-strong bg-paper px-3 text-[13.5px] text-ink-soft"
           >
             <option value="">Nothing specific</option>
             {wardrobeQuery.data.map((item) => (
@@ -160,7 +160,7 @@ export function StylistChat() {
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="e.g. black formal outfit for a wedding under $300"
-            className="h-11 flex-1 rounded-full bg-transparent px-3 text-[14px] text-ink outline-none placeholder:text-faint"
+            className="h-11 flex-1 rounded-full bg-transparent px-3 text-[15px] text-ink outline-none placeholder:text-faint"
           />
           <VoiceInputButton onTranscript={(text) => setPrompt((p) => (p ? `${p} ${text}` : text))} />
           <button
@@ -177,7 +177,7 @@ export function StylistChat() {
           </button>
         </div>
         <div className="flex items-center gap-2 border-t border-line/70 px-1.5 pt-2">
-          <label className="flex items-center gap-1.5 text-[12.5px] text-faint">
+          <label className="flex items-center gap-1.5 text-[13.5px] text-faint">
             Budget
             <input
               type="number"
@@ -185,7 +185,7 @@ export function StylistChat() {
               value={budgetMax}
               onChange={(e) => setBudgetMax(e.target.value)}
               placeholder="Max $"
-              className="h-8 w-20 rounded-full border border-line-strong bg-paper px-3 text-[13px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25"
+              className="h-8 w-20 rounded-full border border-line-strong bg-paper px-3 text-[14px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25"
             />
           </label>
         </div>
@@ -197,22 +197,22 @@ export function StylistChat() {
 function StylistExchange({ entry }: { entry: StylistResponse }) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="self-end rounded-[18px] rounded-br-sm bg-sage px-4 py-2.5 text-[14px] text-white sm:max-w-[75%]">
+      <div className="self-end rounded-[18px] rounded-br-sm bg-sage px-4 py-2.5 text-[15px] text-white sm:max-w-[75%]">
         {entry.prompt}
       </div>
 
       <div className="self-start rounded-[18px] rounded-bl-sm border border-line bg-surface px-4 py-3.5 sm:max-w-[85%]">
-        <p className="text-[14px] leading-relaxed text-ink">{entry.summary}</p>
+        <p className="text-[15px] leading-relaxed text-ink">{entry.summary}</p>
 
         {entry.outfit && (
           <div className="mt-3 rounded-[16px] border border-line bg-paper-2 p-3">
             <div className="flex items-center justify-between">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-faint">
+              <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-faint">
                 Complete outfit · {(entry.outfit.total_price_cents / 100).toFixed(2)}
               </p>
               {entry.outfit.compatibility_score != null && (
                 <span
-                  className={`text-[12px] font-semibold ${
+                  className={`text-[13px] font-semibold ${
                     entry.outfit.compatibility_score >= 65 ? "text-sage-deep" : "text-[#a4553f]"
                   }`}
                 >
@@ -221,7 +221,7 @@ function StylistExchange({ entry }: { entry: StylistResponse }) {
               )}
             </div>
             {entry.outfit.compatibility_notes && entry.outfit.compatibility_notes.length > 0 && (
-              <ul className="mt-1.5 space-y-1 text-[11.5px] text-muted">
+              <ul className="mt-1.5 space-y-1 text-[12.5px] text-muted">
                 {entry.outfit.compatibility_notes.map((n) => (
                   <li key={n}>· {n}</li>
                 ))}
@@ -230,7 +230,7 @@ function StylistExchange({ entry }: { entry: StylistResponse }) {
             <Button
               href={`/try?outfit=${entry.outfit.id}`}
               size="sm"
-              className="mt-3 !h-8 w-full !text-[12px]"
+              className="mt-3 !h-8 w-full !text-[13px]"
             >
               Try this outfit on
             </Button>
@@ -274,7 +274,7 @@ function StylistProductCard({ product, alternatives }: { product: Product; alter
       />
       {alternatives.length > 0 && (
         <div>
-          <p className="text-[12px] text-muted">Other prices:</p>
+          <p className="text-[13px] text-muted">Other prices:</p>
           <div className="mt-1 flex gap-1.5 overflow-x-auto pb-1">
             {alternatives.map((alt) => (
               <button
@@ -283,7 +283,7 @@ function StylistProductCard({ product, alternatives }: { product: Product; alter
                 disabled={shopAlternative.isPending}
                 onClick={() => shopAlternative.mutate(alt)}
                 title={`${alt.name}: ${formatPrice(alt.price_cents, alt.currency)}`}
-                className="min-h-[34px] shrink-0 rounded-full border border-line px-3 text-[12.5px] font-medium text-ink-soft transition-colors hover:border-sage disabled:opacity-60"
+                className="min-h-[34px] shrink-0 rounded-full border border-line px-3 text-[13.5px] font-medium text-ink-soft transition-colors hover:border-sage disabled:opacity-60"
               >
                 {formatPrice(alt.price_cents, alt.currency)}
               </button>

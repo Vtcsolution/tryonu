@@ -40,11 +40,11 @@ export function SubscriptionPanel() {
   return (
     <div className="rounded-[22px] border border-line bg-surface p-6">
       <h2 className="font-display text-[18px] text-ink">Subscribe monthly</h2>
-      <p className="mt-1 text-[13px] text-muted">Recurring credits every month — cancel anytime.</p>
+      <p className="mt-1 text-[14px] text-muted">Recurring credits every month — cancel anytime.</p>
 
       {current && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-sage/40 bg-sage-tint px-4 py-3">
-          <p className="text-[13px] text-sage-deep">
+          <p className="text-[14px] text-sage-deep">
             Current plan: <b className="capitalize">{current.plan}</b> · {current.credits_per_cycle} credits/mo
             {current.cancel_at_period_end && " · ending at period end"}
           </p>
@@ -53,7 +53,7 @@ export function SubscriptionPanel() {
               type="button"
               onClick={() => cancel.mutate()}
               disabled={cancel.isPending}
-              className="text-[12.5px] text-sage-deep underline hover:text-ink"
+              className="text-[13.5px] text-sage-deep underline hover:text-ink"
             >
               {cancel.isPending ? "Canceling…" : "Cancel"}
             </button>
@@ -66,10 +66,10 @@ export function SubscriptionPanel() {
           {plansQuery.data.map((plan) => (
             <div key={plan.plan} className="rounded-[16px] border border-line p-4">
               <p className="font-display text-[16px] capitalize text-ink">{plan.name}</p>
-              <p className="mt-1 text-[14px] text-muted">
+              <p className="mt-1 text-[15px] text-muted">
                 {(plan.price_cents / 100).toFixed(2)} {plan.currency.toUpperCase()}/mo
               </p>
-              <p className="mt-1 text-[12px] text-faint">{plan.credits_per_cycle} credits/mo</p>
+              <p className="mt-1 text-[13px] text-faint">{plan.credits_per_cycle} credits/mo</p>
               <Button
                 size="sm"
                 className="mt-3 w-full"
@@ -87,12 +87,12 @@ export function SubscriptionPanel() {
       )}
 
       {subscribe.isError && (
-        <p role="alert" className="mt-3 text-[13px] text-[#a4553f]">
+        <p role="alert" className="mt-3 text-[14px] text-[#a4553f]">
           {subscribe.error instanceof ApiError ? subscribe.error.detail : "Couldn't start the subscription."}
         </p>
       )}
       {needsCardConfirmation && (
-        <p className="mt-3 rounded-[14px] border border-line bg-paper-2 px-4 py-3 text-[13px] text-ink-soft">
+        <p className="mt-3 rounded-[14px] border border-line bg-paper-2 px-4 py-3 text-[14px] text-ink-soft">
           This plan needs card confirmation, which isn't connected yet — please try again shortly or contact
           support.
         </p>

@@ -17,7 +17,7 @@ export function Hero() {
 
       <div className="mx-auto grid w-[min(1600px,calc(100%-42px))] items-center gap-12 py-16 md:grid-cols-[1.05fr_.9fr] md:py-24 lg:gap-16">
         <Reveal className="max-w-xl">
-          <p className="mb-5 text-[12px] font-semibold uppercase tracking-[0.18em] text-sage">
+          <p className="mb-5 text-[13px] font-semibold uppercase tracking-[0.18em] text-sage">
             Try It. See You. Shop It.
           </p>
           <h1 className="font-display text-[clamp(44px,6.4vw,76px)] leading-[0.98] text-ink">
@@ -35,20 +35,20 @@ export function Hero() {
             {(["eBay", "AliExpress", "Local stores"] as const).map((r) => (
               <span
                 key={r}
-                className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface/70 px-3 py-2 text-[13px] text-ink-soft"
+                className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface/70 px-3 py-2 text-[14px] text-ink-soft"
               >
-                <RetailerMark name={r} className="text-[13px]" />
+                <RetailerMark name={r} className="text-[14px]" />
               </span>
             ))}
-            <span className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface/70 px-3 py-2 text-[13px] text-muted">
+            <span className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface/70 px-3 py-2 text-[14px] text-muted">
               ↗ Affiliate powered
             </span>
           </div>
 
-          <ul className="mt-7 flex flex-wrap gap-x-6 gap-y-2 text-[13px] text-ink-soft">
+          <ul className="mt-7 flex flex-wrap gap-x-6 gap-y-2 text-[14px] text-ink-soft">
             {TICKS.map((t) => (
               <li key={t} className="flex items-center gap-2">
-                <span className="grid h-4 w-4 place-items-center rounded-full bg-sage text-[10px] font-bold text-white">
+                <span className="grid h-4 w-4 place-items-center rounded-full bg-sage text-[11px] font-bold text-white">
                   ✓
                 </span>
                 {t}
@@ -68,7 +68,7 @@ export function Hero() {
                 className="object-cover object-top"
                 sizes="(max-width: 768px) 45vw, 190px"
               />
-              <span className="absolute left-2 top-2 rounded-full bg-white/85 px-2.5 py-1 text-[10px] font-semibold text-[#1c1b17] backdrop-blur">
+              <span className="absolute left-2 top-2 rounded-full bg-white/85 px-2.5 py-1 text-[11px] font-semibold text-[#1c1b17] backdrop-blur">
                 Your photo
               </span>
             </div>
@@ -81,7 +81,7 @@ export function Hero() {
                 className="object-cover object-top"
                 sizes="(max-width: 768px) 45vw, 210px"
               />
-              <span className="absolute left-2 top-2 rounded-full bg-sage px-2.5 py-1 text-[10px] font-semibold text-white">
+              <span className="absolute left-2 top-2 rounded-full bg-sage px-2.5 py-1 text-[11px] font-semibold text-white">
                 Try-on result
               </span>
             </div>
@@ -96,25 +96,25 @@ export function Hero() {
               <h3 className="text-[17px] font-semibold tracking-[-0.01em] text-ink">
                 Create your fitting profile
               </h3>
-              <p className="mt-1.5 text-[13px] text-muted">
+              <p className="mt-1.5 text-[14px] text-muted">
                 Upload 7–10 clear photos once.
               </p>
               <Button href="/try" size="md" className="mt-4 w-full">
                 Create my fitting profile <span aria-hidden="true">→</span>
               </Button>
             </div>
-            <div className="my-3.5 flex items-center gap-3 text-[12px] text-faint">
+            <div className="my-3.5 flex items-center gap-3 text-[13px] text-faint">
               <span className="h-px flex-1 bg-line" />
               or
               <span className="h-px flex-1 bg-line" />
             </div>
             <a
               href="#studio"
-              className="block text-center text-[13px] font-semibold text-sage hover:text-sage-deep"
+              className="block text-center text-[14px] font-semibold text-sage hover:text-sage-deep"
             >
               try a demo look
             </a>
-            <p className="mt-2.5 text-center text-[11px] text-faint">
+            <p className="mt-2.5 text-center text-[12px] text-faint">
               No credit card required
             </p>
           </div>

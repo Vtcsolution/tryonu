@@ -18,7 +18,7 @@ export function ShopperTryOns({ store, onBuyMore }: { store: Store; onBuyMore: (
 
   if (data.isLoading) return <div className="mx-auto my-16 h-8 w-8 animate-spin rounded-full border-2 border-line-strong border-t-sage" />;
   if (data.isError || !data.data) {
-    return <p className="rounded-[16px] border border-line p-6 text-center text-[14px] text-muted">Couldn&apos;t load your try-ons. Please refresh.</p>;
+    return <p className="rounded-[16px] border border-line p-6 text-center text-[15px] text-muted">Couldn&apos;t load your try-ons. Please refresh.</p>;
   }
   const d = data.data;
   const low = d.credits_left <= Math.max(3, Math.round(d.plan_credits * 0.1));
@@ -28,13 +28,13 @@ export function ShopperTryOns({ store, onBuyMore }: { store: Store; onBuyMore: (
       {/* how it works, in plain words */}
       <section className="rounded-[24px] border border-sage/40 bg-sage-tint/25 p-6">
         <h2 className="font-display text-[22px] text-ink">How shopper try-ons work</h2>
-        <ol className="mt-3 space-y-2 text-[14.5px] leading-relaxed text-ink-soft">
+        <ol className="mt-3 space-y-2 text-[15.5px] leading-relaxed text-ink-soft">
           <li><b className="text-ink">1.</b> A shopper finds your product and presses <b>Try it on</b>.</li>
           <li><b className="text-ink">2.</b> The try-on is <b>free for them</b>: it uses <b>1 of your try-on credits</b>. They see your product on their own photo.</li>
           <li><b className="text-ink">3.</b> If they agree, their try-on picture appears below, so you can see your product on real people.</li>
           <li><b className="text-ink">4.</b> If a try-on fails, your credit comes back automatically.</li>
         </ol>
-        <p className="mt-3 text-[13px] text-muted">
+        <p className="mt-3 text-[14px] text-muted">
           Shoppers can also pay with their own credits and keep their picture private. Then you only see that your product was tried on.
         </p>
       </section>
@@ -53,7 +53,7 @@ export function ShopperTryOns({ store, onBuyMore }: { store: Store; onBuyMore: (
       </div>
       {low && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-[#c9a13b]/40 bg-[#c9a13b]/10 px-4 py-3">
-          <p className="text-[14px] text-ink">
+          <p className="text-[15px] text-ink">
             {d.credits_left === 0
               ? "You have no try-on credits left. Shoppers can still try your products, but they pay for it themselves."
               : `Only ${d.credits_left} try-on credits left.`}
@@ -61,7 +61,7 @@ export function ShopperTryOns({ store, onBuyMore }: { store: Store; onBuyMore: (
           <button
             type="button"
             onClick={onBuyMore}
-            className="tu-press min-h-[40px] rounded-full bg-sage px-4 text-[14px] font-semibold text-white hover:bg-sage-deep"
+            className="tu-press min-h-[40px] rounded-full bg-sage px-4 text-[15px] font-semibold text-white hover:bg-sage-deep"
           >
             Get more with a plan →
           </button>
@@ -71,9 +71,9 @@ export function ShopperTryOns({ store, onBuyMore }: { store: Store; onBuyMore: (
       {/* the pictures */}
       <section className="rounded-[24px] border border-line bg-surface p-6">
         <h2 className="font-display text-[20px] text-ink">Shoppers wearing your products</h2>
-        <p className="mt-1 text-[13.5px] text-muted">Tap a picture to see it full screen. Newest first.</p>
+        <p className="mt-1 text-[14.5px] text-muted">Tap a picture to see it full screen. Newest first.</p>
         {d.pictures.length === 0 ? (
-          <p className="mt-4 rounded-[16px] border border-dashed border-line p-8 text-center text-[14px] text-muted">
+          <p className="mt-4 rounded-[16px] border border-dashed border-line p-8 text-center text-[15px] text-muted">
             No pictures yet. They appear here when shoppers try on your products and share their picture.
           </p>
         ) : (
@@ -89,11 +89,11 @@ export function ShopperTryOns({ store, onBuyMore }: { store: Store; onBuyMore: (
                 <div className="relative aspect-[3/4] bg-paper-2">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={p.image_url} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
-                  <span className="absolute right-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-[11px] font-semibold text-white">⤢ Full screen</span>
+                  <span className="absolute right-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-[12px] font-semibold text-white">⤢ Full screen</span>
                 </div>
                 <div className="p-3">
-                  <p className="line-clamp-2 text-[13px] leading-snug text-ink">{p.product_name}</p>
-                  <p className="mt-1 text-[12px] text-muted">
+                  <p className="line-clamp-2 text-[14px] leading-snug text-ink">{p.product_name}</p>
+                  <p className="mt-1 text-[13px] text-muted">
                     {new Date(p.created_at).toLocaleDateString()}
                     {p.shopper_country ? ` · ${countryFlag(p.shopper_country)} ${countryName(p.shopper_country)}` : ""}
                   </p>
@@ -108,12 +108,12 @@ export function ShopperTryOns({ store, onBuyMore }: { store: Store; onBuyMore: (
       <section className="rounded-[24px] border border-line bg-surface p-6">
         <h2 className="font-display text-[20px] text-ink">Try-ons per product</h2>
         {d.products.length === 0 ? (
-          <p className="mt-3 text-[14px] text-muted">None of your products has been tried on yet.</p>
+          <p className="mt-3 text-[15px] text-muted">None of your products has been tried on yet.</p>
         ) : (
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[520px] text-left text-[14px]">
+            <table className="w-full min-w-[520px] text-left text-[15px]">
               <thead>
-                <tr className="border-b border-line text-[12px] uppercase tracking-[0.08em] text-faint">
+                <tr className="border-b border-line text-[13px] uppercase tracking-[0.08em] text-faint">
                   <th className="py-2 pr-3 font-medium">Product</th>
                   <th className="py-2 pr-3 font-medium">Tried on</th>
                   <th className="py-2 pr-3 font-medium">Paid with your credits</th>
@@ -145,9 +145,9 @@ export function ShopperTryOns({ store, onBuyMore }: { store: Store; onBuyMore: (
 function Tile({ label, value, note, tone }: { label: string; value: string; note?: string; tone?: "warn" }) {
   return (
     <div className={`rounded-[18px] border p-4 ${tone === "warn" ? "border-[#c9a13b]/50 bg-[#c9a13b]/10" : "border-line bg-surface"}`}>
-      <p className="text-[12px] uppercase tracking-[0.08em] text-faint">{label}</p>
+      <p className="text-[13px] uppercase tracking-[0.08em] text-faint">{label}</p>
       <p className="mt-1 font-display text-[28px] text-ink">{value}</p>
-      {note && <p className="mt-0.5 text-[12.5px] text-muted">{note}</p>}
+      {note && <p className="mt-0.5 text-[13.5px] text-muted">{note}</p>}
     </div>
   );
 }
@@ -189,7 +189,7 @@ function Viewer({
   return (
     <div role="dialog" aria-modal="true" aria-label={`Try-on of ${p.product_name}`} className="fixed inset-0 z-[60] flex flex-col bg-black/95">
       <div className="flex items-center gap-3 px-4 py-3 text-white">
-        <p className="min-w-0 flex-1 truncate text-[14px]">
+        <p className="min-w-0 flex-1 truncate text-[15px]">
           <b>{p.product_name}</b>
           <span className="text-white/60">
             {" "}· {new Date(p.created_at).toLocaleString()}
@@ -197,7 +197,7 @@ function Viewer({
             {p.paid_by_store ? ` · paid by ${storeName}` : ""}
           </span>
         </p>
-        <span className="text-[13px] text-white/60">
+        <span className="text-[14px] text-white/60">
           {index + 1} / {pictures.length}
         </span>
         <button type="button" onClick={onClose} className={button} aria-label="Close">
@@ -219,7 +219,7 @@ function Viewer({
           </button>
         )}
       </div>
-      <div className="flex flex-wrap items-center justify-center gap-3 px-4 pb-4 text-[13px] text-white/70">
+      <div className="flex flex-wrap items-center justify-center gap-3 px-4 pb-4 text-[14px] text-white/70">
         {p.product_image && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={p.product_image} alt="" className="h-12 w-12 rounded-lg bg-white object-contain p-1" />

@@ -70,7 +70,7 @@ export function BuyCreditsPanel() {
       <h1 className="font-display text-[clamp(26px,4vw,40px)] leading-tight text-ink">
         Buy <em>credits</em>
       </h1>
-      <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-muted">
+      <p className="mt-3 max-w-lg text-[16px] leading-relaxed text-muted">
         You currently have <b className="text-ink">{user.credits_balance} credits</b>.
         {tryOnCost !== null ? ` Each try-on uses ${tryOnCost} credits.` : " Each try-on uses a few credits."}
       </p>
@@ -79,7 +79,7 @@ export function BuyCreditsPanel() {
         <SubscriptionPanel />
       </div>
 
-      <div className="mt-10 flex items-center gap-3 text-[12px] text-faint">
+      <div className="mt-10 flex items-center gap-3 text-[13px] text-faint">
         <span className="h-px flex-1 bg-line" />
         or buy one-time credits
         <span className="h-px flex-1 bg-line" />
@@ -101,37 +101,37 @@ export function BuyCreditsPanel() {
               }`}
             >
               <p className="font-display text-[20px] text-ink">{pkg.credits} credits</p>
-              <p className="mt-1 text-[15px] text-muted">
+              <p className="mt-1 text-[16px] text-muted">
                 {(pkg.price_cents / 100).toFixed(2)} {pkg.currency.toUpperCase()}
               </p>
               {tryOnCost !== null && (
-                <p className="mt-2 text-[13px] font-medium text-sage-deep">
+                <p className="mt-2 text-[14px] font-medium text-sage-deep">
                   {Math.floor(pkg.credits / tryOnCost)} try-on{Math.floor(pkg.credits / tryOnCost) === 1 ? "" : "s"}
                 </p>
               )}
-              <p className="mt-3 text-[12px] text-faint">{pkg.name}</p>
+              <p className="mt-3 text-[13px] text-faint">{pkg.name}</p>
             </button>
           ))}
         </div>
       )}
 
       {packagesQuery.data && packagesQuery.data.length === 0 && (
-        <p className="mt-8 text-[14px] text-muted">No credit packages are available right now.</p>
+        <p className="mt-8 text-[15px] text-muted">No credit packages are available right now.</p>
       )}
 
       <div className="mt-6 space-y-3">
         {purchase.isError && (
-          <p role="alert" className="text-[13px] text-[#a4553f]">
+          <p role="alert" className="text-[14px] text-[#a4553f]">
             {purchase.error instanceof ApiError ? purchase.error.detail : "Couldn't start the purchase."}
           </p>
         )}
         {purchase.isSuccess && purchase.data.status === "succeeded" && (
-          <p className="rounded-[16px] border border-sage/40 bg-sage-tint px-4 py-3 text-[13px] text-sage-deep">
+          <p className="rounded-[16px] border border-sage/40 bg-sage-tint px-4 py-3 text-[14px] text-sage-deep">
             {purchase.data.credits_granted} credits added — new balance {purchase.data.new_balance}.
           </p>
         )}
         {needsCardConfirmation && (
-          <p className="rounded-[16px] border border-line bg-paper-2 px-4 py-3 text-[13px] text-ink-soft">
+          <p className="rounded-[16px] border border-line bg-paper-2 px-4 py-3 text-[14px] text-ink-soft">
             This payment needs card confirmation, which isn't connected yet — please try again shortly or
             contact support.
           </p>
@@ -150,7 +150,7 @@ export function BuyCreditsPanel() {
                 ? `Buy ${selected.credits} credits`
                 : "Select a package"}
         </Button>
-        <p className="text-[12px] text-faint">Payments are processed securely by PayPal. You can pay with a PayPal account or a card.</p>
+        <p className="text-[13px] text-faint">Payments are processed securely by PayPal. You can pay with a PayPal account or a card.</p>
       </div>
 
       {historyQuery.data && historyQuery.data.length > 0 && (
@@ -158,7 +158,7 @@ export function BuyCreditsPanel() {
           <h2 className="font-display text-[18px] text-ink">Recent activity</h2>
           <div className="mt-4 divide-y divide-line rounded-[20px] border border-line bg-surface">
             {historyQuery.data.slice(0, 10).map((tx) => (
-              <div key={tx.id} className="flex items-center justify-between px-4 py-3 text-[13px]">
+              <div key={tx.id} className="flex items-center justify-between px-4 py-3 text-[14px]">
                 <span className="text-ink-soft">{tx.note || tx.reason.replace(/_/g, " ")}</span>
                 <span className={tx.amount >= 0 ? "font-semibold text-sage-deep" : "font-semibold text-ink-soft"}>
                   {tx.amount >= 0 ? "+" : ""}

@@ -36,7 +36,7 @@ function EndsCell({ s }: { s: AdminStore }) {
   return (
     <span>
       {new Date(s.plan_expires_at).toLocaleDateString()}
-      <span className={`block text-[11.5px] ${left <= 3 ? "text-[#a4553f]" : "text-muted"}`}>
+      <span className={`block text-[12.5px] ${left <= 3 ? "text-[#a4553f]" : "text-muted"}`}>
         {left === 1 ? "1 day left" : `${left} days left`}
       </span>
     </span>
@@ -45,7 +45,7 @@ function EndsCell({ s }: { s: AdminStore }) {
 
 /** "12 of 50 used · 38 left" with a small bar. */
 function UsageCell({ used, limit }: { used: number; limit: number }) {
-  if (limit <= 0) return <span>{used} uploaded<span className="block text-[11.5px] text-muted">no plan limit yet</span></span>;
+  if (limit <= 0) return <span>{used} uploaded<span className="block text-[12.5px] text-muted">no plan limit yet</span></span>;
   const pct = Math.min(100, Math.round((used / limit) * 100));
   return (
     <span className="block min-w-[120px]">
@@ -53,7 +53,7 @@ function UsageCell({ used, limit }: { used: number; limit: number }) {
       <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-paper-2">
         <span className={`block h-full rounded-full ${pct >= 90 ? "bg-[#c0503a]" : "bg-sage"}`} style={{ width: `${pct}%` }} />
       </span>
-      <span className="block text-[11.5px] text-muted">{Math.max(0, limit - used).toLocaleString()} left</span>
+      <span className="block text-[12.5px] text-muted">{Math.max(0, limit - used).toLocaleString()} left</span>
     </span>
   );
 }
@@ -119,9 +119,9 @@ export function StoresTab() {
             rows={stores.data.map((s) => [
               <div key="n">
                 <p className="font-medium text-ink">{s.name}</p>
-                <p className="text-[11.5px] text-muted">{countryName(s.country)}</p>
+                <p className="text-[12.5px] text-muted">{countryName(s.country)}</p>
                 {s.website_url && (
-                  <a href={s.website_url} target="_blank" rel="noopener noreferrer" className="text-[11.5px] text-sage-deep hover:underline">
+                  <a href={s.website_url} target="_blank" rel="noopener noreferrer" className="text-[12.5px] text-sage-deep hover:underline">
                     {s.website_url.replace(/^https?:\/\//, "")}
                   </a>
                 )}
@@ -214,23 +214,23 @@ function PlanRow({ plan, tryonCostCents, onSaved }: { plan: StorePlan; tryonCost
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-[16px] border border-line bg-surface p-3">
       <input value={name} onChange={(e) => setName(e.target.value)} className={`${inputClass} w-36`} aria-label="Plan name" />
-      <label className="flex items-center gap-1 text-[12px] text-muted">
+      <label className="flex items-center gap-1 text-[13px] text-muted">
         Price ({plan.currency.toUpperCase()})
         <input type="number" min={0.01} step={0.01} value={price} onChange={(e) => setPrice(e.target.value)} className={`${inputClass} w-24`} />
       </label>
-      <label className="flex items-center gap-1 text-[12px] text-muted">
+      <label className="flex items-center gap-1 text-[13px] text-muted">
         Products
         <input type="number" min={1} value={limit} onChange={(e) => setLimit(e.target.value)} className={`${inputClass} w-24`} />
       </label>
-      <label className="flex items-center gap-1 text-[12px] text-muted">
+      <label className="flex items-center gap-1 text-[13px] text-muted">
         🎁 Try-ons
         <input type="number" min={0} value={tryons} onChange={(e) => setTryons(e.target.value)} className={`${inputClass} w-20`} />
       </label>
-      <label className="flex items-center gap-1 text-[12px] text-muted">
+      <label className="flex items-center gap-1 text-[13px] text-muted">
         ★ Featured
         <input type="number" min={0} value={featured} onChange={(e) => setFeatured(e.target.value)} className={`${inputClass} w-20`} />
       </label>
-      <label className="flex items-center gap-1 text-[12px] text-muted">
+      <label className="flex items-center gap-1 text-[13px] text-muted">
         Days
         <input type="number" min={1} value={days} onChange={(e) => setDays(e.target.value)} className={`${inputClass} w-20`} />
       </label>
@@ -253,12 +253,12 @@ function PlanRow({ plan, tryonCostCents, onSaved }: { plan: StorePlan; tryonCost
       <SmallButton tone={plan.is_active ? "danger" : "primary"} disabled={save.isPending} onClick={() => save.mutate({ is_active: !plan.is_active })}>
         {plan.is_active ? "Hide plan" : "Offer plan"}
       </SmallButton>
-      <span className="text-[12px] text-faint">
+      <span className="text-[13px] text-faint">
         {money(plan.price_cents, plan.currency)} · {plan.product_limit} products · ★ {plan.featured_limit ?? 0} featured · 🎁{" "}
         {plan.tryon_credits ?? 0} try-ons
       </span>
       {costCents !== null && keepCents !== null && (
-        <span className={`w-full text-[12.5px] ${marginPct !== null && marginPct < 25 ? "text-[#a4553f]" : "text-sage-deep"}`}>
+        <span className={`w-full text-[13.5px] ${marginPct !== null && marginPct < 25 ? "text-[#a4553f]" : "text-sage-deep"}`}>
           If every try-on is used: costs you {money(costCents, "usd")}, you keep {money(keepCents, "usd")}
           {marginPct !== null ? ` (${marginPct}% margin, before PayPal's fee)` : ""}
           {marginPct !== null && marginPct < 25 ? ": too low, raise the price or give fewer try-ons" : ""}
@@ -313,15 +313,15 @@ function StoreDetail({ id, onClose }: { id: string; onClose: () => void }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="font-display text-[20px] text-ink">{d.name}</p>
-          <p className="text-[12.5px] text-muted">
+          <p className="text-[13.5px] text-muted">
             {countryName(d.country)} · owner {d.owner_email} · contact {d.contact_email ?? "—"} · opened {new Date(d.created_at).toLocaleDateString()}
             {" "}· 🚚 delivers: {deliveryText(d.delivery, d.delivery_countries, d.country)}
           </p>
-          {d.description && <p className="mt-2 max-w-2xl text-[13px] text-ink-soft">{d.description}</p>}
+          {d.description && <p className="mt-2 max-w-2xl text-[14px] text-ink-soft">{d.description}</p>}
         </div>
         <div className="flex gap-1.5">
           {d.live && (
-            <a href={`/stores/${d.slug}`} target="_blank" rel="noopener" className="text-[12.5px] font-medium text-sage-deep hover:underline">
+            <a href={`/stores/${d.slug}`} target="_blank" rel="noopener" className="text-[13.5px] font-medium text-sage-deep hover:underline">
               Public page ↗
             </a>
           )}
@@ -330,7 +330,7 @@ function StoreDetail({ id, onClose }: { id: string; onClose: () => void }) {
       </div>
 
       <div>
-        <p className="mb-2 text-[13px] font-semibold text-ink">Plan</p>
+        <p className="mb-2 text-[14px] font-semibold text-ink">Plan</p>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <StatTile
             label="Plan"
@@ -355,7 +355,7 @@ function StoreDetail({ id, onClose }: { id: string; onClose: () => void }) {
       </div>
 
       <div>
-        <p className="mb-2 text-[13px] font-semibold text-ink">Products</p>
+        <p className="mb-2 text-[14px] font-semibold text-ink">Products</p>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
           <StatTile label="Uploaded (on sale)" value={d.product_count} />
           <StatTile label="Hidden" value={d.products.filter((p) => !p.is_active).length} />
@@ -376,8 +376,8 @@ function StoreDetail({ id, onClose }: { id: string; onClose: () => void }) {
       </div>
 
       <div className="flex flex-wrap items-center gap-2 rounded-[16px] border border-line p-4">
-        <span className="text-[14px] font-semibold text-ink">🎁 Try-on credits:</span>
-        <span className="text-[13px] text-muted">{d.tryon_credits ?? 0} left. Add some free, or take some away.</span>
+        <span className="text-[15px] font-semibold text-ink">🎁 Try-on credits:</span>
+        <span className="text-[14px] text-muted">{d.tryon_credits ?? 0} left. Add some free, or take some away.</span>
         <input
           type="number"
           min={1}
@@ -396,8 +396,8 @@ function StoreDetail({ id, onClose }: { id: string; onClose: () => void }) {
       </div>
 
       <div className="rounded-[16px] border border-sage/40 bg-sage-tint/20 p-4">
-        <p className="text-[14px] font-semibold text-ink">Give a free plan (no payment)</p>
-        <p className="mt-0.5 text-[12.5px] text-muted">
+        <p className="text-[15px] font-semibold text-ink">Give a free plan (no payment)</p>
+        <p className="mt-0.5 text-[13.5px] text-muted">
           The store gets the plan&apos;s product limit right away. Days are added on top of any time it has left.
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -412,7 +412,7 @@ function StoreDetail({ id, onClose }: { id: string; onClose: () => void }) {
               {n === "365" ? "1 year" : `${n} days`}
             </SmallButton>
           ))}
-          <label className="flex items-center gap-1 text-[12px] text-muted">
+          <label className="flex items-center gap-1 text-[13px] text-muted">
             or
             <input type="number" min={1} value={days} onChange={(e) => setDays(e.target.value)} className={`${inputClass} w-20`} aria-label="Days" />
             days
@@ -421,12 +421,12 @@ function StoreDetail({ id, onClose }: { id: string; onClose: () => void }) {
             {grant.isPending ? "Saving…" : "Give free plan"}
           </SmallButton>
         </div>
-        {grant.isSuccess && <p className="mt-2 text-[12.5px] font-medium text-sage-deep">✓ Plan given.</p>}
+        {grant.isSuccess && <p className="mt-2 text-[13.5px] font-medium text-sage-deep">✓ Plan given.</p>}
         {grant.isError && <div className="mt-2"><ErrorNote>{errorText(grant.error)}</ErrorNote></div>}
 
         {d.plan_active && (
           <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3">
-            <span className="text-[12.5px] text-muted">
+            <span className="text-[13.5px] text-muted">
               Stop this store&apos;s plan now; its products leave search.{d.auto_renew ? " PayPal auto-renew stays on until the owner cancels it." : ""}
             </span>
             {confirmEnd ? (
@@ -445,13 +445,13 @@ function StoreDetail({ id, onClose }: { id: string; onClose: () => void }) {
       </div>
 
       <div>
-        <p className="text-[13px] font-semibold text-ink">Payments</p>
+        <p className="text-[14px] font-semibold text-ink">Payments</p>
         {d.payments.length === 0 ? (
-          <p className="mt-1 text-[12.5px] text-muted">No payments yet.</p>
+          <p className="mt-1 text-[13.5px] text-muted">No payments yet.</p>
         ) : (
           <div className="mt-2 divide-y divide-line rounded-[14px] border border-line">
             {d.payments.map((p) => (
-              <div key={p.id} className="flex items-center justify-between gap-3 px-3 py-2 text-[12.5px]">
+              <div key={p.id} className="flex items-center justify-between gap-3 px-3 py-2 text-[13.5px]">
                 <span className="text-ink-soft">{p.plan_name ?? "Plan"} · {new Date(p.created_at).toLocaleString()}</span>
                 <span className="flex items-center gap-2">
                   {money(p.amount_cents, p.currency)}
@@ -464,10 +464,10 @@ function StoreDetail({ id, onClose }: { id: string; onClose: () => void }) {
       </div>
 
       <div>
-        <p className="text-[13px] font-semibold text-ink">Products ({d.products.length})</p>
+        <p className="text-[14px] font-semibold text-ink">Products ({d.products.length})</p>
         {(toggle.isError || remove.isError) && <div className="mt-2"><ErrorNote>{errorText(toggle.error ?? remove.error)}</ErrorNote></div>}
         {d.products.length === 0 ? (
-          <p className="mt-1 text-[12.5px] text-muted">No products yet.</p>
+          <p className="mt-1 text-[13.5px] text-muted">No products yet.</p>
         ) : (
           <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
             {d.products.map((p) => (
@@ -477,14 +477,14 @@ function StoreDetail({ id, onClose }: { id: string; onClose: () => void }) {
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={p.images[0]} alt={p.name} className="h-full w-full object-contain p-1.5" />
                   ) : (
-                    <div className="grid h-full place-items-center text-[11px] text-faint">No photo</div>
+                    <div className="grid h-full place-items-center text-[12px] text-faint">No photo</div>
                   )}
                 </div>
                 <div className="flex flex-1 flex-col p-2">
-                  <a href={p.product_url} target="_blank" rel="noopener noreferrer" className="line-clamp-2 text-[11.5px] leading-snug text-ink hover:underline">
+                  <a href={p.product_url} target="_blank" rel="noopener noreferrer" className="line-clamp-2 text-[12.5px] leading-snug text-ink hover:underline">
                     {p.name}
                   </a>
-                  <p className="mt-1 text-[12px] font-semibold text-ink">{money(p.price_cents, p.currency)}</p>
+                  <p className="mt-1 text-[13px] font-semibold text-ink">{money(p.price_cents, p.currency)}</p>
                   <div className="mt-auto flex flex-wrap gap-1 pt-2">
                     <SmallButton disabled={toggle.isPending} onClick={() => toggle.mutate({ productId: p.id, active: !p.is_active })}>
                       {p.is_active ? "Hide" : "Show"}

@@ -53,10 +53,10 @@ export function CompareSlider() {
           className="pointer-events-none absolute inset-x-0 top-0 z-[5] h-20 bg-gradient-to-b from-black/25 to-transparent"
         />
 
-        <span className="absolute left-4 top-4 z-[15] rounded-full bg-white/90 px-3 py-1.5 text-[11px] font-semibold text-[#1c1b17] backdrop-blur">
+        <span className="absolute left-4 top-4 z-[15] rounded-full bg-white/90 px-3 py-1.5 text-[12px] font-semibold text-[#1c1b17] backdrop-blur">
           Original
         </span>
-        <span className="absolute right-4 top-4 z-[15] rounded-full bg-sage px-3 py-1.5 text-[11px] font-semibold text-white">
+        <span className="absolute right-4 top-4 z-[15] rounded-full bg-sage px-3 py-1.5 text-[12px] font-semibold text-white">
           Try-on result
         </span>
 
@@ -82,8 +82,8 @@ export function CompareSlider() {
         />
 
         <div className="absolute bottom-4 right-4 z-[15] w-[220px] rounded-[18px] border border-line bg-surface/95 p-4 backdrop-blur">
-          <p className="text-[11px] text-muted">Illustrative preview</p>
-          <p className="mb-3 mt-1 text-[14px] font-semibold text-ink">
+          <p className="text-[12px] text-muted">Illustrative preview</p>
+          <p className="mb-3 mt-1 text-[15px] font-semibold text-ink">
             Sky Wrap Coat · $128.00
           </p>
           {/* This demo pairs stock photos, not a real try-on of a real

@@ -101,7 +101,7 @@ export function AdminShell<T extends string>({
           >
             <Icon name="menu" />
           </button>
-          <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-[13px]">
+          <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-[14px]">
             <span className="hidden text-faint sm:inline">{area.name}</span>
             <span className="hidden text-faint sm:inline" aria-hidden="true">/</span>
             <span className="hidden text-faint sm:inline">{activeGroup?.group}</span>
@@ -112,7 +112,7 @@ export function AdminShell<T extends string>({
             {headerExtra}
             <Link
               href="/"
-              className="tu-press hidden h-9 items-center gap-1.5 rounded-full border border-line px-3.5 text-[12.5px] text-ink-soft hover:border-line-strong hover:text-ink sm:inline-flex"
+              className="tu-press hidden h-9 items-center gap-1.5 rounded-full border border-line px-3.5 text-[13.5px] text-ink-soft hover:border-line-strong hover:text-ink sm:inline-flex"
             >
               <Icon name="external" size={15} />
               View site
@@ -173,7 +173,7 @@ function SidebarContent<T extends string>({
     <>
       <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-line px-5">
         <Logo size={26} href={area.home} />
-        <span className="rounded-md bg-sage px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-white">
+        <span className="rounded-md bg-sage px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-white">
           {area.name}
         </span>
       </div>
@@ -194,7 +194,7 @@ function SidebarContent<T extends string>({
           />
           {nav.map(({ group, tabs }) => (
             <div key={group} className="mb-5 last:mb-0">
-              <p className="mb-1.5 px-3 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-faint">{group}</p>
+              <p className="mb-1.5 px-3 text-[11.5px] font-semibold uppercase tracking-[0.12em] text-faint">{group}</p>
               <ul className="space-y-0.5">
                 {tabs.map((t) => {
                   const isActive = t.id === active;
@@ -205,7 +205,7 @@ function SidebarContent<T extends string>({
                         data-tab={t.id}
                         onClick={() => onSelect(t.id)}
                         aria-current={isActive ? "page" : undefined}
-                        className={`tu-tap group relative flex w-full items-center gap-3 rounded-[10px] px-3 py-2 text-left text-[13.5px] ${
+                        className={`tu-tap group relative flex w-full items-center gap-3 rounded-[10px] px-3 py-2 text-left text-[14.5px] ${
                           isActive ? "text-white" : "text-ink-soft hover:bg-paper-2 hover:text-ink"
                         }`}
                       >
@@ -229,20 +229,20 @@ function SidebarContent<T extends string>({
 
       <div className="shrink-0 border-t border-line p-3">
         <div className="flex items-center gap-2.5 rounded-[12px] px-2 py-2">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-sage text-[13px] font-semibold uppercase text-white">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-sage text-[14px] font-semibold uppercase text-white">
             {email.charAt(0)}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-[12.5px] font-medium text-ink" title={email}>
+            <p className="truncate text-[13.5px] font-medium text-ink" title={email}>
               {email}
             </p>
-            <p className="text-[11px] text-faint">{area.role}</p>
+            <p className="text-[12px] text-faint">{area.role}</p>
           </div>
         </div>
         <div className="mt-1 grid grid-cols-2 gap-2">
           <Link
             href="/"
-            className="tu-press inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-line text-[12px] text-ink-soft hover:border-line-strong hover:text-ink"
+            className="tu-press inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-line text-[13px] text-ink-soft hover:border-line-strong hover:text-ink"
           >
             <Icon name="external" size={14} />
             Site
@@ -251,7 +251,7 @@ function SidebarContent<T extends string>({
             type="button"
             disabled={logout.isPending}
             onClick={() => logout.mutate(undefined, { onSuccess: () => router.replace("/sign-in") })}
-            className="tu-press inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-line text-[12px] text-ink-soft hover:border-[#c0503a]/40 hover:text-[#a4553f] disabled:opacity-50"
+            className="tu-press inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-line text-[13px] text-ink-soft hover:border-[#c0503a]/40 hover:text-[#a4553f] disabled:opacity-50"
           >
             <Icon name="logout" size={14} />
             Sign out

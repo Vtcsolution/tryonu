@@ -12,7 +12,7 @@ export function GoogleButton({ next, divider = false }: { next?: string; divider
   return (
     <>
     {divider && (
-      <div className="my-5 flex items-center gap-3 text-[12px] text-faint">
+      <div className="my-5 flex items-center gap-3 text-[13px] text-faint">
         <span className="h-px flex-1 bg-line" />
         or
         <span className="h-px flex-1 bg-line" />
@@ -20,7 +20,7 @@ export function GoogleButton({ next, divider = false }: { next?: string; divider
     )}
     <a
       href={href}
-      className="group inline-flex h-11 w-full transform-gpu items-center justify-center gap-2.5 rounded-full border border-line-strong bg-surface text-[14px] font-medium text-ink transition-[transform,border-color] duration-200 hover:-translate-y-0.5 hover:border-ink/30"
+      className="group inline-flex h-11 w-full transform-gpu items-center justify-center gap-2.5 rounded-full border border-line-strong bg-surface text-[15px] font-medium text-ink transition-[transform,border-color] duration-200 hover:-translate-y-0.5 hover:border-ink/30"
     >
       <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
         <path

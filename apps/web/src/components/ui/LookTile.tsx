@@ -48,10 +48,10 @@ export function LookTile({
           fill="var(--color-sage-deep)"
         />
       </svg>
-      <span className="absolute bottom-3 left-3 rounded-full bg-surface/85 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-soft backdrop-blur">
+      <span className="absolute bottom-3 left-3 rounded-full bg-surface/85 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-soft backdrop-blur">
         {label}
       </span>
-      <span className="absolute right-3 top-3 font-display text-[13px] italic text-sage-deep/60">
+      <span className="absolute right-3 top-3 font-display text-[14px] italic text-sage-deep/60">
         TryOnU
       </span>
     </div>

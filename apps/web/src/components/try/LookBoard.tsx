@@ -143,7 +143,7 @@ function Card({
         className="relative aspect-square overflow-hidden rounded-[10px] bg-paper-2"
         style={productTile(item, src, natural)}
       />
-      <figcaption className="mt-1 truncate px-0.5 text-[11px] font-medium leading-tight text-ink">
+      <figcaption className="mt-1 truncate px-0.5 text-[12px] font-medium leading-tight text-ink">
         {number}. {shortLabel(item.name, item.slot)}
       </figcaption>
     </figure>
@@ -166,7 +166,7 @@ function LookStrip({
 
   return (
     <div className="mt-3">
-      <p className="mb-2 text-[11px] uppercase tracking-[0.14em] text-faint">Every item, close up</p>
+      <p className="mb-2 text-[12px] uppercase tracking-[0.14em] text-faint">Every item, close up</p>
       <div className="flex gap-2.5 overflow-x-auto pb-1.5">
         {items.map((item, i) => {
           return (
@@ -175,11 +175,11 @@ function LookStrip({
                 className="relative aspect-square overflow-hidden rounded-[12px] border border-line bg-paper-2"
                 style={productTile(item, src, natural)}
               >
-                <span className="absolute left-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-sage text-[10px] font-semibold text-white">
+                <span className="absolute left-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-sage text-[11px] font-semibold text-white">
                   {i + 1}
                 </span>
               </div>
-              <figcaption className="mt-1 truncate text-[11px] font-medium leading-tight text-ink" title={item.name}>
+              <figcaption className="mt-1 truncate text-[12px] font-medium leading-tight text-ink" title={item.name}>
                 {shortLabel(item.name, item.slot)}
               </figcaption>
             </figure>

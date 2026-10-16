@@ -92,7 +92,7 @@ export function CountryPicker({
   return (
     <div ref={boxRef} className="relative">
       {label && (
-        <label htmlFor={inputId} className="mb-1.5 block text-[13px] font-medium text-ink-soft">
+        <label htmlFor={inputId} className="mb-1.5 block text-[14px] font-medium text-ink-soft">
           {label}
         </label>
       )}
@@ -118,13 +118,13 @@ export function CountryPicker({
             setActive(0);
           }}
           onKeyDown={onKey}
-          className="h-11 w-full rounded-xl border border-line-strong bg-surface px-3.5 pr-10 text-[14px] text-ink outline-none transition-colors duration-200 placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25"
+          className="h-11 w-full rounded-xl border border-line-strong bg-surface px-3.5 pr-10 text-[15px] text-ink outline-none transition-colors duration-200 placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25"
         />
-        <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[12px] text-muted" aria-hidden="true">
+        <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[13px] text-muted" aria-hidden="true">
           {open ? "▲" : "▼"}
         </span>
       </div>
-      {hint && <p className="mt-1.5 text-[12px] text-muted">{hint}</p>}
+      {hint && <p className="mt-1.5 text-[13px] text-muted">{hint}</p>}
       {open && (
         <ul
           ref={listRef}
@@ -132,7 +132,7 @@ export function CountryPicker({
           role="listbox"
           className="absolute z-50 mt-1.5 max-h-64 w-full overflow-y-auto rounded-xl border border-line bg-surface py-1 shadow-lift"
         >
-          {options.length === 0 && <li className="px-3.5 py-2.5 text-[13.5px] text-muted">No country matches “{query}”</li>}
+          {options.length === 0 && <li className="px-3.5 py-2.5 text-[14.5px] text-muted">No country matches “{query}”</li>}
           {options.map((c, i) => (
             <li
               key={c.code}
@@ -143,14 +143,14 @@ export function CountryPicker({
               onMouseDown={(e) => e.preventDefault()}
               onMouseEnter={() => setActive(i)}
               onClick={() => choose(c.code)}
-              className={`flex cursor-pointer items-center gap-2.5 px-3.5 py-2.5 text-[14px] ${
+              className={`flex cursor-pointer items-center gap-2.5 px-3.5 py-2.5 text-[15px] ${
                 i === active ? "bg-sage-tint/60 text-ink" : "text-ink-soft"
               }`}
             >
               <span className="text-[18px]" aria-hidden="true">{countryFlag(c.code)}</span>
               <span className="flex-1">{c.name}</span>
               {suggested && c.code === suggested.toUpperCase() && !query && (
-                <span className="text-[11.5px] text-muted">Your location</span>
+                <span className="text-[12.5px] text-muted">Your location</span>
               )}
               {c.code === value && <span className="text-sage-deep" aria-hidden="true">✓</span>}
             </li>

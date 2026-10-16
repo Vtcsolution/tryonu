@@ -83,7 +83,7 @@ export function UsersTab({ currentAdminId }: { currentAdminId: string }) {
             rows={query.data.items.map((u) => [
               <div key="u">
                 <p className="font-medium">{u.email}</p>
-                {u.full_name && <p className="text-[12px] text-muted">{u.full_name}</p>}
+                {u.full_name && <p className="text-[13px] text-muted">{u.full_name}</p>}
               </div>,
               <UserBadges key="b" user={u} />,
               u.credits_balance,
@@ -158,7 +158,7 @@ function UserDetailPanel({ userId, isSelf, onClose }: { userId: string; isSelf: 
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="font-display text-[20px] text-ink">{detail.data.user.email}</p>
-              <p className="text-[13px] text-muted">
+              <p className="text-[14px] text-muted">
                 {detail.data.user.full_name || "No name"} · joined {when(detail.data.user.created_at)}
               </p>
               <div className="mt-2">
@@ -178,8 +178,8 @@ function UserDetailPanel({ userId, isSelf, onClose }: { userId: string; isSelf: 
 
           <div className="mt-5 grid gap-5 lg:grid-cols-2">
             <div className="rounded-[16px] border border-line bg-surface p-4">
-              <p className="text-[13px] font-semibold text-ink">Adjust credits</p>
-              <p className="mt-0.5 text-[12px] text-muted">
+              <p className="text-[14px] font-semibold text-ink">Adjust credits</p>
+              <p className="mt-0.5 text-[13px] text-muted">
                 Positive adds, negative removes. Recorded in the user&rsquo;s credit history and the audit log.
               </p>
               <form
@@ -214,9 +214,9 @@ function UserDetailPanel({ userId, isSelf, onClose }: { userId: string; isSelf: 
             </div>
 
             <div className="rounded-[16px] border border-line bg-surface p-4">
-              <p className="text-[13px] font-semibold text-ink">Account controls</p>
+              <p className="text-[14px] font-semibold text-ink">Account controls</p>
               {isSelf && (
-                <p className="mt-0.5 text-[12px] text-muted">This is your own account — you can&rsquo;t suspend or demote yourself.</p>
+                <p className="mt-0.5 text-[13px] text-muted">This is your own account — you can&rsquo;t suspend or demote yourself.</p>
               )}
               <div className="mt-3 flex flex-wrap gap-2">
                 {detail.data.user.is_active ? (
@@ -272,7 +272,7 @@ function UserDetailPanel({ userId, isSelf, onClose }: { userId: string; isSelf: 
             </div>
           </div>
 
-          <p className="mb-2 mt-5 text-[13px] font-semibold text-ink">Recent credit history</p>
+          <p className="mb-2 mt-5 text-[14px] font-semibold text-ink">Recent credit history</p>
           <Table
             columns={["When", "Change", "Balance", "Reason", "Note"]}
             rows={detail.data.recent_transactions.map((t) => [

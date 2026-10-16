@@ -94,14 +94,14 @@ export function StyledPicks({
     <section className="mt-5 animate-[tu-in-scale_0.35s_ease] overflow-hidden rounded-[28px] border border-line bg-surface shadow-[0_2px_10px_rgba(20,20,16,0.06)]">
       <header className="flex flex-wrap items-start justify-between gap-4 border-b border-line px-5 py-5 sm:px-6">
         <div className="min-w-0">
-          <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-sage-deep">Your look</p>
+          <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-sage-deep">Your look</p>
           <h3 className="mt-1 font-display text-[26px] leading-tight text-ink">
             {items.length === 1 ? "1 item" : `${items.length} items`}
             {total !== null && <span className="text-ink-soft"> · {formatPrice(total, items[0].product.currency)}</span>}
           </h3>
-          {summary && <p className="mt-2 max-w-3xl text-[14.5px] leading-relaxed text-ink-soft">{summary}</p>}
+          {summary && <p className="mt-2 max-w-3xl text-[15.5px] leading-relaxed text-ink-soft">{summary}</p>}
           {anyOptions && (
-            <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-sage-tint/60 px-3 py-1.5 text-[13.5px] text-ink">
+            <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-sage-tint/60 px-3 py-1.5 text-[14.5px] text-ink">
               <span aria-hidden="true">💡</span> Not happy with an item? Tap <b>Change</b> to see other options.
             </p>
           )}
@@ -111,7 +111,7 @@ export function StyledPicks({
             <button
               type="button"
               onClick={onUndo}
-              className="min-h-[40px] rounded-full border border-sage/50 px-4 text-[14px] font-medium text-sage-deep hover:bg-sage-tint/50"
+              className="min-h-[40px] rounded-full border border-sage/50 px-4 text-[15px] font-medium text-sage-deep hover:bg-sage-tint/50"
             >
               ↺ Undo
             </button>
@@ -119,7 +119,7 @@ export function StyledPicks({
           <button
             type="button"
             onClick={onClear}
-            className="min-h-[40px] rounded-full border border-line px-4 text-[14px] text-muted hover:border-line-strong hover:text-ink"
+            className="min-h-[40px] rounded-full border border-line px-4 text-[15px] text-muted hover:border-line-strong hover:text-ink"
           >
             Start again
           </button>
@@ -204,7 +204,7 @@ function ChangePanel({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="font-display text-[20px] text-ink">Choose a different {label.toLowerCase()}</p>
-          <p className="text-[13.5px] text-muted">{options.length} options · tap <b>Choose this</b> to put it in your look</p>
+          <p className="text-[14.5px] text-muted">{options.length} options · tap <b>Choose this</b> to put it in your look</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div role="group" aria-label="Sort options" className="flex rounded-full border border-line bg-surface p-1">
@@ -220,7 +220,7 @@ function ChangePanel({
                 type="button"
                 aria-pressed={sort === value}
                 onClick={() => onSort(value)}
-                className={`min-h-[36px] rounded-full px-3.5 text-[13px] font-medium transition-colors ${
+                className={`min-h-[36px] rounded-full px-3.5 text-[14px] font-medium transition-colors ${
                   sort === value ? "bg-ink text-surface" : "text-muted hover:text-ink"
                 }`}
               >
@@ -231,7 +231,7 @@ function ChangePanel({
           <button
             type="button"
             onClick={onClose}
-            className="min-h-[40px] rounded-full border border-line bg-surface px-4 text-[14px] text-ink hover:border-line-strong"
+            className="min-h-[40px] rounded-full border border-line bg-surface px-4 text-[15px] text-ink hover:border-line-strong"
           >
             Close ✕
           </button>

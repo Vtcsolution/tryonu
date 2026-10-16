@@ -449,7 +449,7 @@ export function TryFlow() {
     return (
       <section className="mx-auto w-[min(1440px,calc(100%-42px))] py-24 text-center">
         <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-line-strong border-t-sage" />
-        <p className="mt-4 text-[14px] text-muted">Checking your session…</p>
+        <p className="mt-4 text-[15px] text-muted">Checking your session…</p>
       </section>
     );
   }
@@ -457,14 +457,14 @@ export function TryFlow() {
   return (
     <section className="mx-auto w-[min(1440px,calc(100%-42px))] py-14 md:py-20">
       {/* progress header */}
-      <ol className="mb-10 flex items-center gap-3 text-[12px] sm:gap-4">
+      <ol className="mb-10 flex items-center gap-3 text-[13px] sm:gap-4">
         {STEPS.map((label, i) => {
           const done = i < activeStepIndex || step === 3;
           const active = i === activeStepIndex && step !== 3;
           return (
             <li key={label} className="flex flex-1 items-center gap-3">
               <span
-                className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border text-[12px] font-semibold transition-colors duration-300 ${
+                className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border text-[13px] font-semibold transition-colors duration-300 ${
                   done
                     ? "border-sage bg-sage text-white"
                     : active
@@ -475,7 +475,7 @@ export function TryFlow() {
                 {done ? "✓" : i + 1}
               </span>
               <span
-                className={`hidden font-display text-[14px] sm:block ${active || done ? "text-ink" : "text-faint"}`}
+                className={`hidden font-display text-[15px] sm:block ${active || done ? "text-ink" : "text-faint"}`}
               >
                 {label}
               </span>
@@ -491,7 +491,7 @@ export function TryFlow() {
           <h1 className="font-display text-[clamp(26px,4vw,40px)] leading-tight text-ink">
             Build your <em>fitting profile</em>
           </h1>
-          <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-muted">
+          <p className="mt-3 max-w-lg text-[16px] leading-relaxed text-muted">
             A clear front photo is all you need — add back and side photos for even better results. We reuse them for every
             try-on. Nothing is shared with retailers.
           </p>
@@ -510,7 +510,7 @@ export function TryFlow() {
               Continue <span aria-hidden="true">→</span>
             </Button>
             {!profileReady && (
-              <span className="text-[13px] text-faint">
+              <span className="text-[14px] text-faint">
                 Add at least a front or full-body photo to continue
               </span>
             )}
@@ -531,7 +531,7 @@ export function TryFlow() {
                   className="h-16 w-12 shrink-0 rounded-[10px] object-cover object-top"
                 />
               )}
-              <p className="min-w-0 flex-1 text-[13px] leading-snug text-ink-soft">
+              <p className="min-w-0 flex-1 text-[14px] leading-snug text-ink-soft">
                 Adding to your look · round {baseLook.look_round + 1} of {baseLook.max_look_rounds}.
                 Choose up to 5 more products; they&rsquo;re drawn onto your finished image, and a new item of
                 the same kind (earrings, a watch, a dress) replaces the one you have.
@@ -539,7 +539,7 @@ export function TryFlow() {
               <button
                 type="button"
                 onClick={() => setBaseLook(null)}
-                className="shrink-0 text-[12px] font-medium text-muted underline-offset-2 hover:text-ink hover:underline"
+                className="shrink-0 text-[13px] font-medium text-muted underline-offset-2 hover:text-ink hover:underline"
               >
                 Start a new look instead
               </button>
@@ -548,7 +548,7 @@ export function TryFlow() {
           <h1 className="font-display text-[clamp(26px,4vw,40px)] leading-tight text-ink">
             Choose a <em>product</em>
           </h1>
-          <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-muted">
+          <p className="mt-3 max-w-lg text-[16px] leading-relaxed text-muted">
             Describe a look and our AI stylist will pull real matches from connected retailers,
             upload something you already own to try it on, or browse the catalog below.
           </p>
@@ -583,8 +583,8 @@ export function TryFlow() {
                     >
                       <span className="mt-0.5 text-[16px]" aria-hidden="true">📎</span>
                       <span>
-                        <span className="block text-[13.5px] font-semibold text-ink">Upload your own item</span>
-                        <span className="block text-[12px] text-faint">
+                        <span className="block text-[14.5px] font-semibold text-ink">Upload your own item</span>
+                        <span className="block text-[13px] text-faint">
                           Try on a photo of something you already own
                         </span>
                       </span>
@@ -592,7 +592,7 @@ export function TryFlow() {
 
                     {wardrobeQuery.data && wardrobeQuery.data.filter((w) => w.image_url).length > 0 && (
                       <div className="mt-1 max-h-56 overflow-y-auto border-t border-line/70 pt-1">
-                        <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-faint">
+                        <p className="px-3 pb-1 pt-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-faint">
                           From your wardrobe
                         </p>
                         {wardrobeQuery.data
@@ -616,7 +616,7 @@ export function TryFlow() {
                                 alt={w.name}
                                 className="h-9 w-9 shrink-0 rounded-md object-cover object-top"
                               />
-                              <span className="truncate text-[13px] text-ink">{w.name}</span>
+                              <span className="truncate text-[14px] text-ink">{w.name}</span>
                             </button>
                           ))}
                       </div>
@@ -655,7 +655,7 @@ export function TryFlow() {
                     ? "What to add — e.g. gold necklace, gold ring, gold watch and pink khussa"
                     : "Ask your stylist — e.g. shalwar kameez with bangles and khussa"
                 }
-                className="h-11 flex-1 rounded-full bg-transparent px-2.5 text-[14px] text-ink outline-none placeholder:text-faint"
+                className="h-11 flex-1 rounded-full bg-transparent px-2.5 text-[15px] text-ink outline-none placeholder:text-faint"
               />
               <VoiceInputButton
                 onTranscript={(text) => setPrompt((p) => (p ? `${p} ${text}` : text))}
@@ -677,7 +677,7 @@ export function TryFlow() {
 
           {!lastStylistReply && (
             <div className="mt-3">
-              <p className="text-[11.5px] text-faint">
+              <p className="text-[12.5px] text-faint">
                 {personalPrompts.length > 0 ? (
                   <>
                     Suggested from your preferences — tap to ask ·{" "}
@@ -699,7 +699,7 @@ export function TryFlow() {
                       setPrompt(text);
                       askStylist.mutate(text);
                     }}
-                    className="tu-press rounded-full border border-line bg-surface px-3.5 py-1.5 text-left text-[12.5px] text-ink-soft transition-colors hover:border-sage hover:text-ink disabled:opacity-50"
+                    className="tu-press rounded-full border border-line bg-surface px-3.5 py-1.5 text-left text-[13.5px] text-ink-soft transition-colors hover:border-sage hover:text-ink disabled:opacity-50"
                   >
                     {text}
                   </button>
@@ -709,7 +709,7 @@ export function TryFlow() {
           )}
 
           {askStylist.isError && (
-            <p className="mt-3 text-[13px] text-[#a4553f]" role="alert">
+            <p className="mt-3 text-[14px] text-[#a4553f]" role="alert">
               {askStylist.error instanceof ApiError
                 ? askStylist.error.detail
                 : "Couldn't reach the stylist. Please try again."}
@@ -717,10 +717,10 @@ export function TryFlow() {
           )}
 
           {uploadCustomItem.isPending && (
-            <p className="mt-3 text-[13px] text-muted">Uploading your photo…</p>
+            <p className="mt-3 text-[14px] text-muted">Uploading your photo…</p>
           )}
           {uploadCustomItem.isError && (
-            <p className="mt-3 text-[13px] text-[#a4553f]" role="alert">
+            <p className="mt-3 text-[14px] text-[#a4553f]" role="alert">
               {uploadCustomItem.error instanceof ApiError
                 ? uploadCustomItem.error.detail
                 : "Couldn't upload that photo. Please try again."}
@@ -739,17 +739,17 @@ export function TryFlow() {
                   />
                 )}
                 <div className="min-w-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-sage-deep">
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-sage-deep">
                     Your own item
                   </p>
-                  <p className="truncate text-[13px] font-semibold text-ink">{customItem.name}</p>
-                  <p className="text-[11.5px] text-faint">Not shoppable — just your upload</p>
+                  <p className="truncate text-[14px] font-semibold text-ink">{customItem.name}</p>
+                  <p className="text-[12.5px] text-faint">Not shoppable — just your upload</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setCustomItem(null)}
-                className="shrink-0 text-[12px] text-faint underline-offset-2 hover:text-ink hover:underline"
+                className="shrink-0 text-[13px] text-faint underline-offset-2 hover:text-ink hover:underline"
               >
                 Clear
               </button>
@@ -757,7 +757,7 @@ export function TryFlow() {
           )}
 
           {lastStylistReply && !outfit && !product && (
-            <div className="mt-3 rounded-[18px] border border-dashed border-line p-4 text-[13px] text-muted">
+            <div className="mt-3 rounded-[18px] border border-dashed border-line p-4 text-[14px] text-muted">
               {lastStylistReply.summary || "No matching real products found for that — try a different prompt, or browse below."}
             </div>
           )}
@@ -801,14 +801,14 @@ export function TryFlow() {
           )}
 
           {(applyAlternative.isError || shopAlternative.isError) && (
-            <p role="alert" className="mt-3 text-[13px] text-[#a4553f]">
+            <p role="alert" className="mt-3 text-[14px] text-[#a4553f]">
               {(applyAlternative.error ?? shopAlternative.error) instanceof ApiError
                 ? ((applyAlternative.error ?? shopAlternative.error) as ApiError).detail
                 : "That option isn't available any more — try another one."}
             </p>
           )}
 
-          <div className="mt-8 flex items-center gap-3 text-[12px] text-faint">
+          <div className="mt-8 flex items-center gap-3 text-[13px] text-faint">
             <span className="h-px flex-1 bg-line" />
             or search for something specific
             <span className="h-px flex-1 bg-line" />
@@ -819,9 +819,9 @@ export function TryFlow() {
             value={browseQuery}
             onChange={(e) => setBrowseQuery(e.target.value)}
             placeholder="e.g. blue denim jacket"
-            className="mt-4 h-11 w-full rounded-xl border border-line-strong bg-paper px-3.5 text-[14px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25"
+            className="mt-4 h-11 w-full rounded-xl border border-line-strong bg-paper px-3.5 text-[15px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25"
           />
-          <p className="mt-2 text-[11.5px] text-faint">
+          <p className="mt-2 text-[12.5px] text-faint">
             Pulled live from connected retailers every time you search — nothing here is stored
             until you pick one.
           </p>
@@ -843,7 +843,7 @@ export function TryFlow() {
 
             {liveSearchQuery.isError && (
               <div className="rounded-[20px] border border-line bg-surface p-8 text-center">
-                <p className="text-[14px] text-muted">
+                <p className="text-[15px] text-muted">
                   {liveSearchQuery.error instanceof ApiError
                     ? liveSearchQuery.error.detail
                     : "Couldn't search right now."}
@@ -860,7 +860,7 @@ export function TryFlow() {
             )}
 
             {!liveSearchQuery.isFetching && liveSearchQuery.data && liveSearchQuery.data.length === 0 && (
-              <div className="rounded-[20px] border border-line bg-surface p-8 text-center text-[14px] text-muted">
+              <div className="rounded-[20px] border border-line bg-surface p-8 text-center text-[15px] text-muted">
                 {/[,]| and /i.test(browseQuery) ? (
                   <>
                     <p>This search looks for one product at a time. To find several at once, ask the stylist.</p>
@@ -926,7 +926,7 @@ export function TryFlow() {
           </div>
 
           {selectLive.isError && (
-            <p className="mt-3 text-[13px] text-[#a4553f]" role="alert">
+            <p className="mt-3 text-[14px] text-[#a4553f]" role="alert">
               {selectLive.error instanceof ApiError
                 ? selectLive.error.detail
                 : "Couldn't save that pick — it may no longer be available. Try again."}
@@ -934,7 +934,7 @@ export function TryFlow() {
           )}
 
           {createJob.isError && (
-            <p className="mt-4 text-[13px] text-[#a4553f]" role="alert">
+            <p className="mt-4 text-[14px] text-[#a4553f]" role="alert">
               {createJob.error instanceof ApiError
                 ? createJob.error.detail
                 : "Couldn't start the try-on. Please try again."}
@@ -947,7 +947,7 @@ export function TryFlow() {
           )}
 
           {canMultiAngle && (product || outfit || customItem) && (
-            <label className="mt-6 flex cursor-pointer items-start gap-3 rounded-[16px] border border-line bg-surface p-4 text-[13px]">
+            <label className="mt-6 flex cursor-pointer items-start gap-3 rounded-[16px] border border-line bg-surface p-4 text-[14px]">
               <input
                 type="checkbox"
                 checked={multiAngle}
@@ -958,7 +958,7 @@ export function TryFlow() {
                 <span className="font-semibold text-ink">
                   Also render {PHOTO_KIND_LABEL[secondaryPhoto!.kind].toLowerCase()}
                 </span>
-                <span className="block text-[12px] text-muted">
+                <span className="block text-[13px] text-muted">
                   Generates a second result from your {PHOTO_KIND_LABEL[secondaryPhoto!.kind].toLowerCase()} photo so
                   you can see both angles — uses a separate credit charge per angle.
                 </span>
@@ -972,7 +972,7 @@ export function TryFlow() {
               <div className="h-24 md:hidden" aria-hidden="true" />
               <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 px-4 py-3 shadow-[0_-6px_20px_rgba(20,20,16,0.08)] backdrop-blur md:hidden">
                 <div className="mx-auto flex max-w-xl items-center gap-3">
-                  <p className="min-w-0 flex-1 text-[13px] leading-snug text-ink-soft">
+                  <p className="min-w-0 flex-1 text-[14px] leading-snug text-ink-soft">
                     {sponsorName ? (
                       <>
                         🎁 <b className="text-ink">Free</b>
@@ -1012,7 +1012,7 @@ export function TryFlow() {
           {sponsorName && (
             <div className="mt-8 rounded-[20px] border border-sage/50 bg-sage-tint/30 p-5">
               <p className="font-display text-[22px] text-ink">🎁 Free try-on from {sponsorName}</p>
-              <p className="mt-1 max-w-2xl text-[14.5px] leading-relaxed text-ink-soft">
+              <p className="mt-1 max-w-2xl text-[15.5px] leading-relaxed text-ink-soft">
                 {sponsorName} pays for this try-on, so it costs you nothing. Your try-on picture will be shared with {sponsorName}{" "}
                 so they can see their product on real people. Your name and email are never shared.
               </p>
@@ -1053,14 +1053,14 @@ export function TryFlow() {
             </Button>
             )}
             {tryOnCost !== null && !sponsorName && (product || outfit || customItem) && (
-              <span className={`text-[12.5px] ${shortOfCredits ? "text-[#a4553f]" : "text-muted"}`}>
+              <span className={`text-[13.5px] ${shortOfCredits ? "text-[#a4553f]" : "text-muted"}`}>
                 Uses {tryOnCost} credits · you have {balance}
               </span>
             )}
             <button
               type="button"
               onClick={() => setStep(0)}
-              className="font-display text-[14px] text-muted transition-colors hover:text-ink"
+              className="font-display text-[15px] text-muted transition-colors hover:text-ink"
             >
               ← Back
             </button>
@@ -1095,7 +1095,7 @@ export function TryFlow() {
                     (jobsData[0].status === "processing" && jobsData[0].progress) ||
                     STAGE_LABEL[jobsData[0].status]}
             </p>
-            <p className="mt-2 text-[13px] text-muted">
+            <p className="mt-2 text-[14px] text-muted">
               {allTerminal && !anyCompleted
                 ? jobsData.find((j) => j.status === "failed")?.error_message ||
                   "The AI provider couldn't complete this render. Your credits were refunded."
@@ -1110,7 +1110,7 @@ export function TryFlow() {
               </div>
             )}
 
-            <div className="mx-auto mt-5 flex max-w-sm flex-wrap items-center justify-center gap-2 text-[11px] text-faint">
+            <div className="mx-auto mt-5 flex max-w-sm flex-wrap items-center justify-center gap-2 text-[12px] text-faint">
               {jobIds.map((id) => (
                 <span key={id} className="rounded-full border border-line px-2 py-1">
                   job #{id.slice(0, 8)}
@@ -1241,7 +1241,7 @@ function AngleGallery({
           key={j.id}
           type="button"
           onClick={() => onSelect(i)}
-          className={`rounded-full px-3 py-1.5 text-[11px] font-semibold shadow-sm transition-colors ${
+          className={`rounded-full px-3 py-1.5 text-[12px] font-semibold shadow-sm transition-colors ${
             i === activeIndex ? "bg-sage text-white" : "bg-surface/90 text-ink hover:bg-surface"
           }`}
         >
@@ -1272,7 +1272,7 @@ function ResultStep({
   return (
     <div key="s3" className="animate-[tu-in-scale_0.45s_cubic-bezier(0.22,1,0.36,1)]">
       <div className="flex items-center gap-2">
-        <span className="grid h-6 w-6 place-items-center rounded-full bg-sage text-[12px] text-white">✓</span>
+        <span className="grid h-6 w-6 place-items-center rounded-full bg-sage text-[13px] text-white">✓</span>
         <h1 className="font-display text-[clamp(24px,3.6vw,36px)] leading-tight text-ink">
           Here&rsquo;s <em>you</em>, in {product.name}
         </h1>
@@ -1285,7 +1285,7 @@ function ResultStep({
             alt={`AI try-on result — ${product.name} — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}
             placements={job.result!.placements}
             caption={
-              <p className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
+              <p className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[12.5px] leading-snug text-white/90">
             AI-generated visualization — not a guarantee of exact fit, sizing, or color.
           </p>
             }
@@ -1294,22 +1294,22 @@ function ResultStep({
               <div className="pointer-events-auto flex flex-wrap items-start gap-2">
                 <AngleGallery jobs={jobs} activeIndex={activeIndex} onSelect={setActiveIndex} />
               </div>
-              <span className="ml-auto rounded-full bg-sage px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm">
+              <span className="ml-auto rounded-full bg-sage px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm">
                 AI try-on result{jobs.length > 1 ? ` · ${PHOTO_KIND_LABEL[job.user_photo.kind]}` : ""}
               </span>
             </div>
           </LookBoard>
         </div>
         <div className="flex flex-col rounded-[26px] border border-line bg-surface p-6">
-          <p className="text-[11px] uppercase tracking-[0.14em] text-faint">
+          <p className="text-[12px] uppercase tracking-[0.14em] text-faint">
             {product.merchant_name ? `${product.retailer.name} · ${product.merchant_name}` : product.retailer.name}
           </p>
           <p className="mt-1 font-display text-[22px] text-ink">{product.name}</p>
-          <p className="mt-1 text-[15px] text-muted">
+          <p className="mt-1 text-[16px] text-muted">
             {(product.price_cents / 100).toFixed(2)} {product.currency.toUpperCase()}
           </p>
 
-          <div className="mt-5 space-y-2 text-[13px] text-muted">
+          <div className="mt-5 space-y-2 text-[14px] text-muted">
             <p className="flex items-center gap-2">
               <span className="h-1.5 w-1.5 rounded-full bg-sage" /> {totalCredits} credit
               {totalCredits === 1 ? "" : "s"} used · {jobs.length > 1 ? `${jobs.length} angles` : "job"} completed
@@ -1331,7 +1331,7 @@ function ResultStep({
             <button
               type="button"
               onClick={onStartOver}
-              className="w-full text-center font-display text-[13px] text-muted transition-colors hover:text-ink"
+              className="w-full text-center font-display text-[14px] text-muted transition-colors hover:text-ink"
             >
               Start over
             </button>
@@ -1361,7 +1361,7 @@ function OutfitItemThumb({
       }`}
     >
       {highlight && (
-        <span className="absolute right-1 top-1 z-10 rounded-full bg-sage px-1.5 py-0.5 text-[9px] font-semibold text-white">
+        <span className="absolute right-1 top-1 z-10 rounded-full bg-sage px-1.5 py-0.5 text-[10px] font-semibold text-white">
           Swapped in
         </span>
       )}
@@ -1372,14 +1372,14 @@ function OutfitItemThumb({
         )}
         <RetailerTag name={shopName(item.product.merchant_name, item.product.retailer?.name)} className="absolute left-1 top-1" />
         <span
-          className={`absolute bottom-1 left-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+          className={`absolute bottom-1 left-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
             rendered ? "bg-sage text-white" : "bg-surface/95 text-ink-soft"
           }`}
         >
           {number ? `${number} · on photo` : rendered ? "on photo" : "matched"}
         </span>
       </div>
-      <p className="truncate px-1.5 py-1 text-[10.5px] text-ink-soft">{item.product.name}</p>
+      <p className="truncate px-1.5 py-1 text-[11.5px] text-ink-soft">{item.product.name}</p>
     </div>
   );
 }
@@ -1405,7 +1405,7 @@ function OutfitResultStep({
   return (
     <div key="s3-outfit" className="animate-[tu-in-scale_0.45s_cubic-bezier(0.22,1,0.36,1)]">
       <div className="flex items-center gap-2">
-        <span className="grid h-6 w-6 place-items-center rounded-full bg-sage text-[12px] text-white">✓</span>
+        <span className="grid h-6 w-6 place-items-center rounded-full bg-sage text-[13px] text-white">✓</span>
         <h1 className="font-display text-[clamp(24px,3.6vw,36px)] leading-tight text-ink">
           Here&rsquo;s <em>you</em>, styled
         </h1>
@@ -1418,7 +1418,7 @@ function OutfitResultStep({
             alt={`AI try-on result — styled outfit — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}
             placements={job.result!.placements}
             caption={
-              <p className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
+              <p className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[12.5px] leading-snug text-white/90">
             {job.look_round > 1
               ? lookCaption(job.result?.placements)
               : renderedCount === outfit.items.length
@@ -1431,14 +1431,14 @@ function OutfitResultStep({
               <div className="pointer-events-auto flex flex-wrap items-start gap-2">
                 <AngleGallery jobs={jobs} activeIndex={activeIndex} onSelect={setActiveIndex} />
               </div>
-              <span className="ml-auto rounded-full bg-sage px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm">
+              <span className="ml-auto rounded-full bg-sage px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm">
                 AI try-on result{jobs.length > 1 ? ` · ${PHOTO_KIND_LABEL[job.user_photo.kind]}` : ""}
               </span>
             </div>
           </LookBoard>
         </div>
         <div className="flex flex-col rounded-[26px] border border-line bg-surface p-6">
-          <p className="text-[11px] uppercase tracking-[0.14em] text-faint">
+          <p className="text-[12px] uppercase tracking-[0.14em] text-faint">
             {outfit.items.length}-item outfit · {(outfit.total_price_cents / 100).toFixed(2)}{" "}
             {(outfit.items[0]?.product.currency ?? "usd").toUpperCase()}
           </p>
@@ -1456,10 +1456,10 @@ function OutfitResultStep({
 
           <div className="mt-5 space-y-2 border-t border-line pt-4">
             {outfit.items.map((item) => (
-              <div key={item.id} className="flex items-center justify-between gap-2 text-[12.5px]">
+              <div key={item.id} className="flex items-center justify-between gap-2 text-[13.5px]">
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-ink-soft">{item.product.name}</span>
-                  <span className="block text-[11px] text-faint">
+                  <span className="block text-[12px] text-faint">
                     {(item.product.price_cents / 100).toFixed(2)} {item.product.currency.toUpperCase()}
                     {shopName(item.product.merchant_name, item.product.retailer?.name) ? ` · ${shopName(item.product.merchant_name, item.product.retailer?.name)}` : ""}
                   </span>
@@ -1468,7 +1468,7 @@ function OutfitResultStep({
                   href={affiliateGoUrl(item.product.id, "tryon_result")}
                   size="sm"
                   variant="outline"
-                  className="!h-7 shrink-0 !px-2.5 !text-[11px]"
+                  className="!h-7 shrink-0 !px-2.5 !text-[12px]"
                 >
                   Shop now
                 </Button>
@@ -1478,7 +1478,7 @@ function OutfitResultStep({
 
           <EarlierRounds job={job} outfit={outfit} />
 
-          <div className="mt-5 space-y-2 text-[13px] text-muted">
+          <div className="mt-5 space-y-2 text-[14px] text-muted">
             <p className="flex items-center gap-2">
               <span className="h-1.5 w-1.5 rounded-full bg-sage" /> {totalCredits} credit
               {totalCredits === 1 ? "" : "s"} used · {jobs.length > 1 ? `${jobs.length} angles` : "job"} completed
@@ -1497,7 +1497,7 @@ function OutfitResultStep({
             <button
               type="button"
               onClick={onStartOver}
-              className="w-full text-center font-display text-[13px] text-muted transition-colors hover:text-ink"
+              className="w-full text-center font-display text-[14px] text-muted transition-colors hover:text-ink"
             >
               Start over
             </button>
@@ -1526,7 +1526,7 @@ function WardrobeResultStep({
   return (
     <div key="s3-wardrobe" className="animate-[tu-in-scale_0.45s_cubic-bezier(0.22,1,0.36,1)]">
       <div className="flex items-center gap-2">
-        <span className="grid h-6 w-6 place-items-center rounded-full bg-sage text-[12px] text-white">✓</span>
+        <span className="grid h-6 w-6 place-items-center rounded-full bg-sage text-[13px] text-white">✓</span>
         <h1 className="font-display text-[clamp(24px,3.6vw,36px)] leading-tight text-ink">
           Here&rsquo;s <em>you</em>, in {item.name}
         </h1>
@@ -1539,7 +1539,7 @@ function WardrobeResultStep({
             alt={`AI try-on result — ${item.name} — ${PHOTO_KIND_LABEL[job.user_photo.kind]}`}
             placements={job.result!.placements}
             caption={
-              <p className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[11.5px] leading-snug text-white/90">
+              <p className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/55 to-transparent px-4 pb-3 pt-8 text-[12.5px] leading-snug text-white/90">
             AI-generated visualization — not a guarantee of exact fit, sizing, or color.
           </p>
             }
@@ -1548,20 +1548,20 @@ function WardrobeResultStep({
               <div className="pointer-events-auto flex flex-wrap items-start gap-2">
                 <AngleGallery jobs={jobs} activeIndex={activeIndex} onSelect={setActiveIndex} />
               </div>
-              <span className="ml-auto rounded-full bg-sage px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm">
+              <span className="ml-auto rounded-full bg-sage px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm">
                 AI try-on result{jobs.length > 1 ? ` · ${PHOTO_KIND_LABEL[job.user_photo.kind]}` : ""}
               </span>
             </div>
           </LookBoard>
         </div>
         <div className="flex flex-col rounded-[26px] border border-line bg-surface p-6">
-          <p className="text-[11px] uppercase tracking-[0.14em] text-faint">Your own item</p>
+          <p className="text-[12px] uppercase tracking-[0.14em] text-faint">Your own item</p>
           <p className="mt-1 font-display text-[22px] text-ink">{item.name}</p>
-          <p className="mt-1 text-[13px] text-muted">
+          <p className="mt-1 text-[14px] text-muted">
             Not shoppable — this is your own upload, not a catalog product.
           </p>
 
-          <div className="mt-5 space-y-2 text-[13px] text-muted">
+          <div className="mt-5 space-y-2 text-[14px] text-muted">
             <p className="flex items-center gap-2">
               <span className="h-1.5 w-1.5 rounded-full bg-sage" /> {totalCredits} credit
               {totalCredits === 1 ? "" : "s"} used · {jobs.length > 1 ? `${jobs.length} angles` : "job"} completed
@@ -1579,7 +1579,7 @@ function WardrobeResultStep({
             <button
               type="button"
               onClick={onStartOver}
-              className="w-full text-center font-display text-[13px] text-muted transition-colors hover:text-ink"
+              className="w-full text-center font-display text-[14px] text-muted transition-colors hover:text-ink"
             >
               Start over
             </button>
@@ -1612,7 +1612,7 @@ function AddMoreButton({
   if (jobs.length !== 1 || !job.result) return null;
   if (job.look_round >= job.max_look_rounds) {
     return (
-      <p className="text-center text-[12px] text-faint">
+      <p className="text-center text-[13px] text-faint">
         This look has its {job.max_look_rounds} rounds. Start a new look to add more.
       </p>
     );
@@ -1635,13 +1635,13 @@ function EarlierRounds({ job, outfit }: { job: TryOnJob; outfit: Outfit }) {
   if (earlier.length === 0) return null;
   return (
     <div className="mt-5 border-t border-line pt-4">
-      <p className="text-[11px] uppercase tracking-[0.14em] text-faint">From earlier rounds</p>
+      <p className="text-[12px] uppercase tracking-[0.14em] text-faint">From earlier rounds</p>
       <div className="mt-2 space-y-2">
         {earlier.map((p, i) => (
-          <div key={`${p.product_id ?? p.name}-${i}`} className="flex items-center justify-between gap-2 text-[12.5px]">
+          <div key={`${p.product_id ?? p.name}-${i}`} className="flex items-center justify-between gap-2 text-[13.5px]">
             <span className="min-w-0 flex-1">
               <span className="block truncate text-ink-soft">{p.name}</span>
-              <span className="block text-[11px] text-faint">
+              <span className="block text-[12px] text-faint">
                 {p.drawn ? "on photo" : "matched"}
                 {retailerFromImage(p.image_url) ? ` · ${retailerFromImage(p.image_url)}` : ""}
               </span>
@@ -1651,7 +1651,7 @@ function EarlierRounds({ job, outfit }: { job: TryOnJob; outfit: Outfit }) {
                 href={affiliateGoUrl(p.product_id, "tryon_result")}
                 size="sm"
                 variant="outline"
-                className="!h-7 shrink-0 !px-2.5 !text-[11px]"
+                className="!h-7 shrink-0 !px-2.5 !text-[12px]"
               >
                 Shop now
               </Button>

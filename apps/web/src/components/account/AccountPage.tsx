@@ -19,7 +19,7 @@ export function AccountPage() {
 
   return (
     <section className="mx-auto w-[min(1000px,calc(100%-32px))] py-12 md:py-16">
-      <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-sage-deep">My account</p>
+      <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-sage-deep">My account</p>
       <h1 className="mt-1 font-display text-[clamp(28px,4vw,40px)] leading-tight text-ink">Profile & password</h1>
       <div className="mt-8">
         <AccountSettings user={user} />

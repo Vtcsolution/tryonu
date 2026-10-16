@@ -22,7 +22,7 @@ export const PasswordInput = forwardRef<HTMLInputElement, Props>(function Passwo
   return (
     <div>
       {label && (
-        <label htmlFor={inputId} className="mb-1.5 block text-[13px] font-medium text-ink-soft">
+        <label htmlFor={inputId} className="mb-1.5 block text-[14px] font-medium text-ink-soft">
           {label}
         </label>
       )}
@@ -31,7 +31,7 @@ export const PasswordInput = forwardRef<HTMLInputElement, Props>(function Passwo
           ref={ref}
           id={inputId}
           type={visible ? "text" : "password"}
-          className={`h-11 w-full rounded-xl border bg-surface px-3.5 pr-11 text-[14px] text-ink outline-none transition-colors duration-200 placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25 ${
+          className={`h-11 w-full rounded-xl border bg-surface px-3.5 pr-11 text-[15px] text-ink outline-none transition-colors duration-200 placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25 ${
             error ? "border-[#c0503a]" : "border-line-strong"
           } ${className}`}
           {...rest}
@@ -47,7 +47,7 @@ export const PasswordInput = forwardRef<HTMLInputElement, Props>(function Passwo
           {visible ? <EyeOffIcon /> : <EyeIcon />}
         </button>
       </div>
-      {error && <span className="mt-1.5 block text-[12px] text-[#a4553f]">{error}</span>}
+      {error && <span className="mt-1.5 block text-[13px] text-[#a4553f]">{error}</span>}
     </div>
   );
 });

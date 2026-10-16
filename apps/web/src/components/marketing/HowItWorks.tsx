@@ -51,7 +51,7 @@ export function HowItWorks() {
             delay={i * 90}
             className="flex flex-col overflow-hidden rounded-[24px] border border-line bg-surface"
           >
-            <div className="flex items-center gap-3 px-5 pt-5 text-[14px] font-semibold text-ink">
+            <div className="flex items-center gap-3 px-5 pt-5 text-[15px] font-semibold text-ink">
               <span className="grid h-8 w-8 place-items-center rounded-full bg-sage text-white">
                 {s.n}
               </span>
@@ -66,7 +66,7 @@ export function HowItWorks() {
                 sizes="(max-width: 768px) 100vw, 360px"
               />
             </div>
-            <p className="px-5 pb-6 text-[13.5px] leading-relaxed text-muted">
+            <p className="px-5 pb-6 text-[14.5px] leading-relaxed text-muted">
               {s.body}
             </p>
           </Reveal>
@@ -76,7 +76,7 @@ export function HowItWorks() {
       <Reveal className="mt-10 flex justify-center">
         <a
           href="/how-it-works"
-          className="group inline-flex items-center gap-2 font-display text-[15px] text-sage transition-colors hover:text-sage-deep"
+          className="group inline-flex items-center gap-2 font-display text-[16px] text-sage transition-colors hover:text-sage-deep"
         >
           See the full flow
           <span

@@ -114,7 +114,7 @@ function PackageForm({
         if (valid) save.mutate();
       }}
     >
-      <p className="text-[13px] font-semibold text-ink">{initial ? `Edit “${initial.name}”` : "New package"}</p>
+      <p className="text-[14px] font-semibold text-ink">{initial ? `Edit “${initial.name}”` : "New package"}</p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" maxLength={120} className={`${inputClass} w-44`} />
         <input

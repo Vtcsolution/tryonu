@@ -199,7 +199,7 @@ export function PreferencesWizard() {
 
   if (taxonomyQuery.isError) {
     return (
-      <section className="mx-auto w-[min(880px,calc(100%-42px))] py-24 text-center text-[14px] text-muted">
+      <section className="mx-auto w-[min(880px,calc(100%-42px))] py-24 text-center text-[15px] text-muted">
         Couldn&rsquo;t load categories. Please refresh the page.
       </section>
     );
@@ -228,7 +228,7 @@ export function PreferencesWizard() {
               {chosenAudiences.map((a) => (
                 <div key={a.id}>
                   {chosenAudiences.length > 1 && (
-                    <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.1em] text-faint">
+                    <p className="mb-3 text-[13px] font-semibold uppercase tracking-[0.1em] text-faint">
                       {a.icon} {a.label}
                     </p>
                   )}
@@ -259,13 +259,13 @@ export function PreferencesWizard() {
             <div className="tu-stagger mt-7 space-y-4">
               {chosenCategories.map(({ audience, category }) => (
                 <section key={category.id} className="rounded-[20px] border border-line bg-surface p-5">
-                  <h3 className="flex items-center gap-2 text-[15px] font-semibold text-ink">
+                  <h3 className="flex items-center gap-2 text-[16px] font-semibold text-ink">
                     <span aria-hidden="true">{category.icon}</span>
                     {category.label}
-                    {chosenAudiences.length > 1 && <span className="text-[12px] font-normal text-faint">· {audience.label}</span>}
+                    {chosenAudiences.length > 1 && <span className="text-[13px] font-normal text-faint">· {audience.label}</span>}
                   </h3>
                   {category.children.length === 0 ? (
-                    <p className="mt-2 text-[13px] text-muted">We&rsquo;ll show you everything in {category.label.toLowerCase()}.</p>
+                    <p className="mt-2 text-[14px] text-muted">We&rsquo;ll show you everything in {category.label.toLowerCase()}.</p>
                   ) : (
                     <div className="mt-3 space-y-3">
                       <ChipRow nodes={category.children} picked={picked} onToggle={toggle} />
@@ -273,7 +273,7 @@ export function PreferencesWizard() {
                         .filter((sub) => picked.has(sub.id) && sub.children.length > 0)
                         .map((sub) => (
                           <div key={sub.id} className="tu-pop rounded-[14px] bg-paper-2 p-3">
-                            <p className="mb-2 text-[12px] text-muted">
+                            <p className="mb-2 text-[13px] text-muted">
                               Which kind of <b className="text-ink">{sub.label.toLowerCase()}</b>? <span className="text-faint">(optional)</span>
                             </p>
                             <ChipRow nodes={sub.children} picked={picked} onToggle={toggle} small />
@@ -302,7 +302,7 @@ export function PreferencesWizard() {
               </Field>
               <Field label="Your country">
                 <CountrySelect value={country} onChange={setCountry} />
-                <p className="mt-1.5 text-[12px] text-faint">Stores from your country are shown to you first.</p>
+                <p className="mt-1.5 text-[13px] text-faint">Stores from your country are shown to you first.</p>
               </Field>
               <Field label="Budget per item (USD)">
                 <div className="mb-3 flex flex-wrap gap-1.5">
@@ -317,7 +317,7 @@ export function PreferencesWizard() {
                           setBudgetMin(on ? "" : (b.min?.toString() ?? ""));
                           setBudgetMax(on ? "" : (b.max?.toString() ?? ""));
                         }}
-                        className={`tu-press rounded-full border px-3 py-1.5 text-[12.5px] ${
+                        className={`tu-press rounded-full border px-3 py-1.5 text-[13.5px] ${
                           on ? "border-sage bg-sage text-white" : "border-line-strong bg-surface text-ink-soft hover:border-sage hover:text-ink"
                         }`}
                       >
@@ -338,7 +338,7 @@ export function PreferencesWizard() {
       </div>
 
       {save.isError && (
-        <p role="alert" className="mt-4 text-[13px] text-[#a4553f]">
+        <p role="alert" className="mt-4 text-[14px] text-[#a4553f]">
           {save.error instanceof ApiError ? save.error.detail : "Couldn't save your choices — please try again."}
         </p>
       )}
@@ -347,15 +347,15 @@ export function PreferencesWizard() {
       <div className="sticky bottom-0 z-30 mt-8 border-t border-line bg-paper/90 backdrop-blur">
         <div className="flex items-center gap-3 py-3">
           {step > 0 ? (
-            <button type="button" onClick={() => goTo(step - 1)} className="tu-press h-11 rounded-full px-4 text-[14px] text-ink-soft hover:text-ink">
+            <button type="button" onClick={() => goTo(step - 1)} className="tu-press h-11 rounded-full px-4 text-[15px] text-ink-soft hover:text-ink">
               ← Back
             </button>
           ) : (
-            <button type="button" onClick={() => router.push(next)} className="tu-press h-11 rounded-full px-4 text-[13px] text-faint hover:text-ink">
+            <button type="button" onClick={() => router.push(next)} className="tu-press h-11 rounded-full px-4 text-[14px] text-faint hover:text-ink">
               Skip for now
             </button>
           )}
-          <span className="ml-auto hidden text-[12.5px] text-muted sm:inline" aria-live="polite">
+          <span className="ml-auto hidden text-[13.5px] text-muted sm:inline" aria-live="polite">
             {chosenCategories.length > 0 &&
               `${chosenCategories.length} ${chosenCategories.length === 1 ? "category" : "categories"}${styleCount ? ` · ${styleCount} ${styleCount === 1 ? "style" : "styles"}` : ""}`}
           </span>
@@ -391,13 +391,13 @@ function StepHeader({ step, onJump, maxReachable }: { step: number; onJump: (s: 
               className="tu-tap flex items-center gap-2 disabled:cursor-default"
             >
               <span
-                className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border text-[12px] font-semibold transition-colors duration-300 ${
+                className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border text-[13px] font-semibold transition-colors duration-300 ${
                   done ? "border-sage bg-sage text-white" : active ? "border-sage text-sage-deep" : "border-line-strong text-faint"
                 }`}
               >
                 {done ? "✓" : i + 1}
               </span>
-              <span className={`hidden text-[13px] sm:inline ${active || done ? "text-ink" : "text-faint"}`}>{label}</span>
+              <span className={`hidden text-[14px] sm:inline ${active || done ? "text-ink" : "text-faint"}`}>{label}</span>
             </button>
             {i < STEPS.length - 1 && (
               <span className="relative h-px flex-1 overflow-hidden bg-line">
@@ -418,9 +418,9 @@ function StepHeader({ step, onJump, maxReachable }: { step: number; onJump: (s: 
 function Title({ kicker, title, hint }: { kicker: string; title: ReactNode; hint: string }) {
   return (
     <div>
-      <p className="text-[11.5px] font-semibold uppercase tracking-[0.12em] text-sage-deep">{kicker}</p>
+      <p className="text-[12.5px] font-semibold uppercase tracking-[0.12em] text-sage-deep">{kicker}</p>
       <h1 className="mt-2 font-display text-[clamp(26px,4vw,40px)] leading-tight text-ink">{title}</h1>
-      <p className="mt-2 max-w-xl text-[14.5px] leading-relaxed text-muted">{hint}</p>
+      <p className="mt-2 max-w-xl text-[15.5px] leading-relaxed text-muted">{hint}</p>
     </div>
   );
 }
@@ -464,8 +464,8 @@ function CategoryTile({
     >
       <span className="text-[26px] leading-none" aria-hidden="true">{node.icon}</span>
       <span>
-        <span className="block text-[14px] font-medium text-ink">{node.label}</span>
-        <span className="block text-[11.5px] text-faint">
+        <span className="block text-[15px] font-medium text-ink">{node.label}</span>
+        <span className="block text-[12.5px] text-faint">
           {selected && count > 0 ? `${count} picked` : `${node.children.length} types`}
         </span>
       </span>
@@ -478,7 +478,7 @@ function Check({ selected }: { selected: boolean }) {
   return (
     <span
       aria-hidden="true"
-      className={`absolute right-3 top-3 grid h-6 w-6 place-items-center rounded-full bg-sage text-[12px] text-white transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+      className={`absolute right-3 top-3 grid h-6 w-6 place-items-center rounded-full bg-sage text-[13px] text-white transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
         selected ? "scale-100 opacity-100" : "scale-50 opacity-0"
       }`}
     >
@@ -508,7 +508,7 @@ function ChipRow({
             type="button"
             aria-pressed={on}
             onClick={() => onToggle(node.id)}
-            className={`tu-press inline-flex items-center gap-1.5 rounded-full border ${small ? "px-3 py-1.5 text-[12.5px]" : "px-3.5 py-2 text-[13.5px]"} ${
+            className={`tu-press inline-flex items-center gap-1.5 rounded-full border ${small ? "px-3 py-1.5 text-[13.5px]" : "px-3.5 py-2 text-[14.5px]"} ${
               on ? "border-sage bg-sage text-white" : "border-line-strong bg-surface text-ink-soft hover:border-sage hover:text-ink"
             }`}
           >
@@ -525,7 +525,7 @@ function ChipRow({
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <span className="mb-2 block text-[13px] font-medium text-ink-soft">{label}</span>
+      <span className="mb-2 block text-[14px] font-medium text-ink-soft">{label}</span>
       {children}
     </div>
   );
@@ -534,7 +534,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function MoneyInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
   return (
     <div className="relative flex-1">
-      <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[14px] text-faint">$</span>
+      <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[15px] text-faint">$</span>
       <input
         type="number"
         min={0}
@@ -542,7 +542,7 @@ function MoneyInput({ value, onChange, placeholder }: { value: string; onChange:
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         aria-label={`${placeholder} budget`}
-        className="h-11 w-full rounded-xl border border-line-strong bg-paper pl-7 pr-3.5 text-[14px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25"
+        className="h-11 w-full rounded-xl border border-line-strong bg-paper pl-7 pr-3.5 text-[15px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25"
       />
     </div>
   );

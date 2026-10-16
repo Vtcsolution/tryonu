@@ -12,7 +12,7 @@ export function RetailerTag({ name, className = "" }: { name?: string | null; cl
   if (!name) return null;
   return (
     <span
-      className={`rounded-full bg-surface/95 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-ink-soft shadow-sm ${className}`}
+      className={`rounded-full bg-surface/95 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-soft shadow-sm ${className}`}
     >
       {name}
     </span>

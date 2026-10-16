@@ -127,7 +127,7 @@ export function SignUpForm() {
         />
 
         {error && (
-          <p role="alert" className="text-[13px] text-[#a4553f]">
+          <p role="alert" className="text-[14px] text-[#a4553f]">
             {error}
           </p>
         )}

@@ -40,7 +40,7 @@ export function Footer() {
             <p className="mt-4 max-w-xs font-display text-[18px] italic text-ink-soft">
               Try It. See You. Shop It.
             </p>
-            <p className="mt-3 max-w-xs text-[13px] leading-relaxed text-muted">
+            <p className="mt-3 max-w-xs text-[14px] leading-relaxed text-muted">
               AI-powered virtual fashion shopping. Try real products on your own
               photos, then buy from the original retailer.
             </p>
@@ -48,10 +48,10 @@ export function Footer() {
 
           {COLS.map((col) => (
             <div key={col.heading}>
-              <h4 className="text-[12px] font-semibold uppercase tracking-[0.14em] text-faint">
+              <h4 className="text-[13px] font-semibold uppercase tracking-[0.14em] text-faint">
                 {col.heading}
               </h4>
-              <ul className="mt-4 space-y-2.5 text-[13.5px] text-ink-soft">
+              <ul className="mt-4 space-y-2.5 text-[14.5px] text-ink-soft">
                 {col.links.map((l) => (
                   <li key={l.label}>
                     <a href={l.href} className="transition-colors hover:text-ink">
@@ -64,7 +64,7 @@ export function Footer() {
           ))}
         </div>
 
-        <div className="mt-12 flex flex-col gap-3 border-t border-line pt-6 text-[12px] text-faint sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-12 flex flex-col gap-3 border-t border-line pt-6 text-[13px] text-faint sm:flex-row sm:items-center sm:justify-between">
           <span>© {new Date().getFullYear()} TryOnU. All rights reserved.</span>
           <span>
             TryOnU is an independent try-on service and is not affiliated with the
