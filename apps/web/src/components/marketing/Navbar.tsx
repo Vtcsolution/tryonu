@@ -4,78 +4,63 @@ import { Logo } from "@/components/ui/Logo";
 import { Button } from "@/components/ui/Button";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { AccountMenu } from "@/components/marketing/AccountMenu";
-
-type MenuLink = { label: string; href: string; hint?: string };
-
-const PRODUCT_LINKS: MenuLink[] = [
-  { label: "Try-on studio", href: "/try", hint: "See a look on you" },
-  { label: "AI Stylist", href: "/stylist", hint: "Ask for a recommendation" },
-  { label: "Outfit builder", href: "/outfits", hint: "Combine real products" },
-  { label: "My wardrobe", href: "/wardrobe", hint: "What you already own" },
-  { label: "Saved looks", href: "/saved", hint: "Your lookbook" },
-  { label: "Marketplaces", href: "/#marketplaces", hint: "Amazon, eBay, Flipkart, Daraz" },
-  { label: "How it works", href: "/how-it-works", hint: "The full flow" },
-  { label: "Features", href: "/#features", hint: "What's inside" },
-];
-
-const COMPANY_LINKS: MenuLink[] = [
-  { label: "Sell on TryOnU", href: "/business", hint: "Open your store" },
-  { label: "Try-on API", href: "/developers/docs", hint: "Add try-on to your shop" },
-  { label: "About", href: "#" },
-  { label: "Blog", href: "#" },
-  { label: "Careers", href: "#" },
-  { label: "Contact", href: "#" },
-];
+import { MobileNav } from "@/components/marketing/MobileNav";
+import { BUSINESS, COMPANY, PRODUCT, TOP_LINKS, type NavGroup } from "@/components/marketing/navLinks";
 
 export function Navbar() {
   return (
     <header className="sticky top-0 z-50 border-b border-line/70 bg-paper/80 backdrop-blur-xl">
-      <div className="mx-auto flex h-[72px] w-[min(1600px,calc(100%-42px))] items-center justify-between">
+      <div className="mx-auto flex h-[72px] w-[min(1600px,calc(100%-32px))] items-center justify-between gap-4">
         <Logo size={30} />
 
-        <nav className="hidden items-center gap-9 md:flex">
-          <NavMenu label="Product">{PRODUCT_LINKS}</NavMenu>
-          <NavLink href="/how-it-works">How it works</NavLink>
-          <NavMenu label="Company">{COMPANY_LINKS}</NavMenu>
+        <nav aria-label="Main" className="hidden items-center gap-8 lg:flex">
+          <NavMenu group={PRODUCT} />
+          <NavMenu group={BUSINESS} />
+          {TOP_LINKS.map((l) => (
+            <NavLink key={l.href} href={l.href}>
+              {l.label}
+            </NavLink>
+          ))}
+          <NavMenu group={COMPANY} />
         </nav>
 
-        <div className="flex items-center gap-2 sm:gap-4">
+        <div className="flex items-center gap-2 sm:gap-3">
           <ThemeToggle />
           <AccountMenu />
-
-          <Button href="/try" size="sm">
-            Try it now <span aria-hidden="true">→</span>
-          </Button>
+          <span className="hidden sm:inline-flex">
+            <Button href="/try" size="sm">
+              Try it now <span aria-hidden="true">→</span>
+            </Button>
+          </span>
+          <MobileNav />
         </div>
       </div>
     </header>
   );
 }
 
-/* --- nav pieces: serif type, ink→muted on hover, carets that flip --- */
-
 function NavLink({ href, children }: { href: string; children: ReactNode }) {
   return (
     <Link
       href={href}
       prefetch={false}
-      className="group/nl relative font-display text-[16px] tracking-[-0.01em] text-ink transition-colors duration-200 hover:text-faint"
+      className="group/nl relative text-[15.5px] font-medium text-ink transition-colors duration-200 hover:text-sage-deep"
     >
       {children}
-      <span className="absolute -bottom-1.5 left-0 h-px w-full origin-left scale-x-0 bg-faint transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/nl:scale-x-100" />
+      <span className="absolute -bottom-1.5 left-0 h-px w-full origin-left scale-x-0 bg-sage transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/nl:scale-x-100" />
     </Link>
   );
 }
 
-function NavMenu({ label, children }: { label: string; children: MenuLink[] }) {
+function NavMenu({ group }: { group: NavGroup }) {
   return (
     <div className="group relative">
       <button
         type="button"
-        className="flex items-center gap-1.5 font-display text-[16px] tracking-[-0.01em] text-ink transition-colors duration-200 group-hover:text-faint group-focus-within:text-faint"
+        className="flex items-center gap-1.5 text-[15.5px] font-medium text-ink transition-colors duration-200 group-hover:text-sage-deep group-focus-within:text-sage-deep"
         aria-haspopup="true"
       >
-        {label}
+        {group.label}
         <svg
           width="11"
           height="11"
@@ -84,34 +69,22 @@ function NavMenu({ label, children }: { label: string; children: MenuLink[] }) {
           aria-hidden="true"
           className="mt-0.5 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:rotate-180 group-focus-within:rotate-180"
         >
-          <path
-            d="M2.5 4.5 6 8l3.5-3.5"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+          <path d="M2.5 4.5 6 8l3.5-3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
 
-      {/* pt-3 keeps a hover bridge between trigger and panel */}
+      {/* pt-3 keeps a hover bridge between the label and the panel */}
       <div className="invisible absolute left-1/2 top-full z-50 -translate-x-1/2 translate-y-1 pt-3 opacity-0 transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100">
-        <div className="min-w-[248px] rounded-2xl border border-line bg-surface p-2 shadow-lift">
-          {children.map((l) => (
+        <div className="w-[300px] rounded-2xl border border-line bg-surface p-2 shadow-lift">
+          {group.items.map((l) => (
             <Link
-              key={l.label}
+              key={l.href}
               href={l.href}
               prefetch={false}
               className="block rounded-xl px-3 py-2.5 transition-colors duration-200 hover:bg-paper-2"
             >
-              <span className="block font-display text-[15px] text-ink">
-                {l.label}
-              </span>
-              {l.hint && (
-                <span className="mt-0.5 block text-[13px] text-muted">
-                  {l.hint}
-                </span>
-              )}
+              <span className="block text-[15px] font-semibold text-ink">{l.label}</span>
+              {l.hint && <span className="mt-0.5 block text-[13px] leading-snug text-muted">{l.hint}</span>}
             </Link>
           ))}
         </div>

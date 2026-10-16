@@ -20,6 +20,7 @@ from app.api.v1.endpoints import (
     products,
     saved_products,
     search,
+    contact,
     referrals,
     shared_looks,
     stores,
@@ -63,3 +64,4 @@ api_router.include_router(developers.public_router)
 api_router.include_router(developers.admin_router)
 api_router.include_router(shared_looks.router)
 api_router.include_router(referrals.router)
+api_router.include_router(contact.router)

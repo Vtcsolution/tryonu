@@ -357,6 +357,29 @@ export const referrals = {
   claim: (ref: string) => apiFetch<{ claimed: boolean }>("/api/v1/referrals/claim", { method: "POST", body: { ref } }),
 };
 
+/** the Contact page, and the admin inbox it fills */
+export type ContactTopic = "general" | "tryon" | "store" | "developer" | "partnership" | "privacy";
+export type ContactMessage = {
+  id: string;
+  name: string;
+  email: string;
+  topic: ContactTopic;
+  topic_label: string;
+  message: string;
+  created_at: string;
+  handled_at: string | null;
+};
+export const contact = {
+  send: (input: { name: string; email: string; topic: ContactTopic; message: string }) =>
+    apiFetch<{ detail: string }>("/api/v1/contact", { method: "POST", body: input }),
+};
+export const adminMessages = {
+  list: (show: "open" | "all" = "open") => apiFetch<ContactMessage[]>(`/api/v1/admin/messages?show=${show}`),
+  count: () => apiFetch<{ open: number }>("/api/v1/admin/messages/count"),
+  handled: (id: string, undo = false) =>
+    apiFetch<ContactMessage>(`/api/v1/admin/messages/${id}/handled${undo ? "?undo=true" : ""}`, { method: "POST" }),
+};
+
 /** a look someone shared: the visitor tries the same products on themselves */
 export const shared = {
   tryThis: (token: string) =>
