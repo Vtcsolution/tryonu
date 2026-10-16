@@ -16,7 +16,7 @@ const playfair = Playfair_Display({
   style: ["normal", "italic"],
 });
 
-const SITE = "https://tryonu.ai";
+const SITE = "https://tryonu.app";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),

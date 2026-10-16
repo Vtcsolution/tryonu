@@ -23,7 +23,6 @@ export function CompareSlider() {
           src={PHOTOS.lookBlueCoat.src}
           alt={`Try-on result — ${PHOTOS.lookBlueCoat.alt}`}
           fill
-          priority
           className="object-cover object-[50%_20%]"
           sizes="(max-width: 1180px) 100vw, 1180px"
         />

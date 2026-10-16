@@ -1,7 +1,7 @@
 import { Reveal } from "@/components/ui/Reveal";
 import { Button } from "@/components/ui/Button";
 import { Section, SectionHead } from "./primitives";
-import { affiliateGoUrl, resolveMediaUrl } from "@/lib/api/client";
+import { affiliateGoUrl, resolveMediaUrl, relayedImageUrl } from "@/lib/api/client";
 import { serverFetch } from "@/lib/api/server";
 import type { Page, Product } from "@/lib/api/types";
 import { PHOTOS } from "@/lib/media";
@@ -75,8 +75,10 @@ export async function Marketplaces() {
             <div className="relative h-[300px] overflow-hidden">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={p.image}
+                src={relayedImageUrl(p.image, 600)}
                 alt={p.name}
+                loading="lazy"
+                decoding="async"
                 className="tu-hover-media h-full w-full object-cover object-top"
               />
               <span className="absolute left-3.5 top-3.5 rounded-lg bg-surface/95 px-2.5 py-1.5 text-[13px] font-semibold text-ink">
