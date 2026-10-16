@@ -99,7 +99,7 @@ function ShareAndEarn() {
       }`}
     >
       <div className="min-w-0 flex-1 basis-[320px]">
-        <p className="font-display text-[24px] text-ink">🎁 Share with friends &amp; earn credits</p>
+        <p className="font-display text-[24px] text-ink">Invite friends &amp; earn credits</p>
         <p className="mt-1 text-[15.5px] text-ink-soft">
           Share a look or your invite link. When a friend joins from it and buys credits, you get{" "}
           <b className="text-ink">{d.reward_credits} free credits</b>.

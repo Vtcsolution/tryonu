@@ -154,7 +154,7 @@ export function SavedLookDetail({ id }: { id: string }) {
           <div className="mt-auto space-y-3 pt-6">
             {look.tryon_job_id && <ShareLook jobId={look.tryon_job_id} variant="wide" />}
             <Button href="/saved#earn" size="md" variant="outline" className="w-full">
-              🎁 Share with friends &amp; earn credits
+              Invite friends &amp; earn credits
             </Button>
             <Button href="/try" size="md" variant="outline" className="w-full">
               Try another look

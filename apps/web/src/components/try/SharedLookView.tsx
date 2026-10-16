@@ -160,7 +160,7 @@ function TryThisLookButton({ token, compact = false }: { token: string; compact?
           compact ? "min-h-[44px] px-5 text-[15px]" : "min-h-[52px] w-full px-6 text-[17px]"
         }`}
       >
-        <span aria-hidden="true">✨</span> {label}
+        {label}
       </button>
       {start.isError && (
         <p role="alert" className="mt-2 text-[14px] text-[#a4553f]">
