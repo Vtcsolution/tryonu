@@ -4,7 +4,7 @@ import { RetailerMark } from "./RetailerMark";
 export function TrustedBand() {
   return (
     <section className="bg-sage text-white">
-      <div className="mx-auto flex w-[min(1440px,calc(100%-42px))] flex-col items-center gap-6 py-10 sm:flex-row sm:justify-between">
+      <div className="mx-auto flex w-[min(1600px,calc(100%-42px))] flex-col items-center gap-6 py-10 sm:flex-row sm:justify-between">
         <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-white/75">
           Real products from stores you already shop
         </p>

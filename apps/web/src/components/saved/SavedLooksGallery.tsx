@@ -25,14 +25,14 @@ export function SavedLooksGallery() {
 
   if (sessionLoading || !user) {
     return (
-      <section className="mx-auto w-[min(1440px,calc(100%-42px))] py-24 text-center">
+      <section className="mx-auto w-[min(1600px,calc(100%-42px))] py-24 text-center">
         <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-line-strong border-t-sage" />
       </section>
     );
   }
 
   return (
-    <section className="mx-auto w-[min(1440px,calc(100%-42px))] py-14 md:py-20">
+    <section className="mx-auto w-[min(1600px,calc(100%-42px))] py-14 md:py-20">
       <h1 className="font-display text-[clamp(26px,4vw,40px)] leading-tight text-ink">
         Your <em>saved looks</em>
       </h1>

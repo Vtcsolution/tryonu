@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { formatPrice } from "@/components/try/shop";
+import { relayedImageUrl } from "@/lib/api/client";
 
 export type CardAction = {
   label: ReactNode;
@@ -55,6 +56,9 @@ export function ProductCard({
   /** a narrower card for side-scrolling rows */
   compact?: boolean;
 }) {
+  // through TryOnU's server first; straight from the retailer if that fails
+  const [direct, setDirect] = useState<string | null>(null);
+  const src = image ? (direct === image ? image : relayedImageUrl(image, compact ? 400 : 600)) : "";
   return (
     <article
       className={`group flex h-full flex-col overflow-hidden rounded-[20px] border bg-surface transition-[box-shadow,transform,border-color] duration-200 ${
@@ -67,9 +71,11 @@ export function ProductCard({
         {image ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={image}
+            key={src}
+            src={src}
             alt={name}
             loading="lazy"
+            onError={() => image && direct !== image && setDirect(image)}
             className="h-full w-full object-contain p-3 transition-transform duration-300 group-hover:scale-[1.03]"
           />
         ) : (

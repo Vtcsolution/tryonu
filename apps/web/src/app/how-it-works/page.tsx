@@ -62,7 +62,7 @@ export default function HowItWorksPage() {
           aria-hidden="true"
           className="pointer-events-none absolute left-1/2 top-[-15%] -z-10 h-[460px] w-[460px] -translate-x-1/2 rounded-full bg-sage-tint/60 blur-[90px]"
         />
-        <div className="mx-auto w-[min(1440px,calc(100%-42px))] py-16 text-center md:py-24">
+        <div className="mx-auto w-[min(1600px,calc(100%-42px))] py-16 text-center md:py-24">
           <Reveal>
             <Kicker>How it works</Kicker>
             <h1 className="mx-auto max-w-3xl font-display text-[clamp(38px,6vw,68px)] leading-[1.02] text-ink">
@@ -209,7 +209,7 @@ export default function HowItWorksPage() {
 
       {/* cta */}
       <section className="pb-24">
-        <div className="mx-auto w-[min(1440px,calc(100%-42px))]">
+        <div className="mx-auto w-[min(1600px,calc(100%-42px))]">
           <Reveal className="rounded-[32px] bg-sage px-8 py-14 text-center text-white md:py-16">
             <h2 className="mx-auto max-w-xl font-display text-[clamp(26px,4vw,42px)] leading-tight">
               See your first look in <em>under a minute</em>

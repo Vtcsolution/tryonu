@@ -109,6 +109,15 @@ export function thumbnailUrl(url: string | null | undefined): string {
   return resolved.replace(/(i\.ebayimg\.com\/.*\/s-l)\d+(\.\w+)$/, "$1500$2");
 }
 
+/** A retailer's product photo through TryOnU's own server (api/v1/img): some
+ * shoppers' internet providers can't reach eBay's or AliExpress's image
+ * servers, and this one they can. Our own media is returned as it is. */
+export function relayedImageUrl(url: string | null | undefined, width = 600): string {
+  const resolved = resolveMediaUrl(url);
+  if (!resolved || (API_BASE_URL && resolved.startsWith(API_BASE_URL)) || !/^https?:\/\//.test(resolved)) return resolved;
+  return `${API_BASE_URL}/api/v1/img?u=${encodeURIComponent(resolved)}&w=${width}`;
+}
+
 export function affiliateGoUrl(productId: string, source?: string): string {
   const q = source ? `?source=${encodeURIComponent(source)}` : "";
   return `${API_BASE_URL}/api/v1/affiliate/go/${productId}${q}`;

@@ -14,7 +14,7 @@ export function Section({
 }) {
   return (
     <section id={id} className={`${tight ? "py-16" : "py-24 md:py-28"} ${className}`}>
-      <div className="mx-auto w-[min(1440px,calc(100%-42px))]">{children}</div>
+      <div className="mx-auto w-[min(1600px,calc(100%-42px))]">{children}</div>
     </section>
   );
 }
