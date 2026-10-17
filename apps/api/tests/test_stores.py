@@ -563,3 +563,12 @@ async def test_a_product_is_found_by_its_category_too(client, db):  # noqa: ANN0
     set_country("PK")
     found = await StoreProductProvider().search_live(query="women earrings", limit=10)
     assert [r.retailer_product_id for r in found] == [made["id"]]
+
+
+async def test_the_public_store_list_shows_only_live_stores(client, db):  # noqa: ANN001
+    store = await _company(client, name="Listed Couture")
+    assert all(s["slug"] != store["slug"] for s in (await client.get("/api/v1/stores/public")).json())  # not approved yet
+    await client.post("/api/v1/stores/me/plans/basic/purchase")
+    await _approve(db, store["id"])
+    listed = (await client.get("/api/v1/stores/public")).json()
+    assert any(s["slug"] == store["slug"] and s["name"] == "Listed Couture" for s in listed)

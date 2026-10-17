@@ -1,15 +1,18 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { ContentPage, InfoCard, SectionTitle, cardGrid } from "@/components/content/ContentPage";
 import { formatPrice } from "@/components/try/shop";
 import { Button } from "@/components/ui/Button";
 import { serverFetch } from "@/lib/api/server";
 import type { CreditPackage, StorePlan } from "@/lib/api/types";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Pricing",
-  description: "Simple credit packs for try-ons, plans for stores, and pay-as-you-go credits for the try-on API.",
-};
+export const metadata = pageMeta({
+  title: "TryOnU Pricing: Credit Packs, Store Plans & API",
+  description:
+    "Simple pay-as-you-go pricing: one-time credit packs for try-ons (no subscription), plans for shops, prepaid credits for the try-on API. Failed try-ons are free.",
+  path: "/pricing",
+  keywords: ["virtual try on price", "TryOnU price", "try on credits"],
+});
 
 export default async function PricingPage() {
   const [packs, cost, plans] = await Promise.all([

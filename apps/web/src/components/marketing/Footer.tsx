@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Logo } from "@/components/ui/Logo";
+import { LANDINGS } from "@/lib/seoContent";
 import { BUSINESS, COMPANY, LEGAL, PRODUCT, type NavItem } from "@/components/marketing/navLinks";
 
 const COLS: { heading: string; links: NavItem[] }[] = [
@@ -61,7 +62,26 @@ export function Footer() {
           ))}
         </div>
 
-        <div className="mt-12 flex flex-col gap-3 border-t border-line pt-6 text-[13.5px] text-faint lg:flex-row lg:items-center lg:justify-between">
+        {/* the topic pages, linked from every page */}
+        <div className="mt-12 border-t border-line pt-6">
+          <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-faint">Popular</p>
+          <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-[14.5px] text-ink-soft">
+            {LANDINGS.map((l) => (
+              <li key={l.slug}>
+                <Link href={`/${l.slug}`} prefetch={false} className="transition-colors hover:text-ink">
+                  {l.kicker}
+                </Link>
+              </li>
+            ))}
+            <li>
+              <Link href="/faq" prefetch={false} className="transition-colors hover:text-ink">
+                FAQ
+              </Link>
+            </li>
+          </ul>
+        </div>
+
+        <div className="mt-8 flex flex-col gap-3 border-t border-line pt-6 text-[13.5px] text-faint lg:flex-row lg:items-center lg:justify-between">
           <span>© {new Date().getFullYear()} TryOnU. All rights reserved.</span>
           <span className="max-w-3xl lg:text-right">
             Try-on pictures are made with AI and are a preview: fit, size and colour can differ in real life. TryOnU may earn a

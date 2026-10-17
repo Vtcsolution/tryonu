@@ -1,11 +1,14 @@
-import type { Metadata } from "next";
 import { Suspense } from "react";
 import { StoreSignUpForm } from "@/components/business/StoreSignUpForm";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Open your store",
-  description: "Create a store account on TryOnU: list your products where shoppers try them on before they buy.",
-};
+export const metadata = pageMeta({
+  title: "Open Your Store on TryOnU",
+  description:
+    "Create your store on TryOnU in minutes: add your products, choose a plan and let shoppers near you try your products on before they buy.",
+  path: "/business/sign-up",
+  keywords: ["open online clothing store", "sell on TryOnU"],
+});
 
 export default function StoreSignUpPage() {
   return (

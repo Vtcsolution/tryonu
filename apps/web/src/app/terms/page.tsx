@@ -5,6 +5,7 @@ import { ContentPage, LegalBody } from "@/components/content/ContentPage";
 export const metadata: Metadata = {
   title: "Terms of use",
   description: "The rules for using TryOnU: accounts, credits, try-ons, stores, developers and shop links.",
+  alternates: { canonical: "/terms" },
 };
 
 export default function TermsPage() {

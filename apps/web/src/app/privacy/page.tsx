@@ -5,6 +5,7 @@ import { ContentPage, LegalBody } from "@/components/content/ContentPage";
 export const metadata: Metadata = {
   title: "Privacy policy",
   description: "What personal information TryOnU collects, why, who it is shared with, and your choices.",
+  alternates: { canonical: "/privacy" },
 };
 
 export default function PrivacyPage() {

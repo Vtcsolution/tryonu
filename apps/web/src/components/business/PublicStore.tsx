@@ -5,13 +5,20 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { ProductCard } from "@/components/product/ProductCard";
 import { ApiError, affiliateGoUrl } from "@/lib/api/client";
 import { stores as storesApi } from "@/lib/api/endpoints";
-import type { StoreProduct } from "@/lib/api/types";
+import type { PublicStore as PublicStoreData, StoreProduct } from "@/lib/api/types";
 import { countryName, deliveryText } from "@/lib/countries";
 
 /** A company's own page on TryOnU: its details and every product it sells. */
-export function PublicStore({ slug }: { slug: string }) {
+export function PublicStore({ slug, initial }: { slug: string; initial?: PublicStoreData | null }) {
   const router = useRouter();
-  const store = useQuery({ queryKey: ["public-store", slug], queryFn: () => storesApi.publicStore(slug), retry: false });
+  // filled in on the server too, so search engines and AI crawlers (which often
+  // don't run JavaScript) see the store and its products
+  const store = useQuery({
+    queryKey: ["public-store", slug],
+    queryFn: () => storesApi.publicStore(slug),
+    retry: false,
+    initialData: initial ?? undefined,
+  });
   const tryOn = useMutation({
     mutationFn: (p: StoreProduct) => storesApi.selectProduct(slug, p.id),
     onSuccess: ({ product_id }) => router.push(`/try?product=${product_id}`),

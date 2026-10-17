@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { SiteChrome } from "@/components/layout/SiteChrome";
@@ -7,12 +6,16 @@ import { Button } from "@/components/ui/Button";
 import { Section, Kicker } from "@/components/marketing/primitives";
 import { Pipeline } from "@/components/marketing/Pipeline";
 import { PHOTOS, type Photo } from "@/lib/media";
+import { SITE_DEFINITION, pageMeta } from "@/lib/seo";
+import { JsonLd } from "@/components/seo/JsonLd";
 
-export const metadata: Metadata = {
-  title: "How it works",
+export const metadata = pageMeta({
+  title: "How Virtual Try-On Works: From Your Photo to Your Cart",
   description:
-    "From your photo to your cart: how TryOnU turns 7–10 photos into a reusable fitting profile and renders real retailer products on you with AI.",
-};
+    "How TryOnU works: add one photo, pick real products or ask the AI Stylist, see yourself wearing them in under a minute, then buy from the original store.",
+  path: "/how-it-works",
+  keywords: ["how virtual try on works", "how to try clothes online"],
+});
 
 type Step = {
   n: string;
@@ -33,7 +36,7 @@ const STEPS: Step[] = [
   {
     n: "02",
     title: "Choose any product",
-    body: "Browse products pulled from Amazon, eBay, Flipkart and Daraz, or paste a link. We normalise the listing — image, price, sizes — into a clean product card.",
+    body: "Browse real products from eBay, AliExpress, brand stores and local shops on TryOnU, or describe what you want to the AI Stylist. Each one comes with its photo, price and a link to the store.",
     meta: "Any connected retailer",
     photo: PHOTOS.clothingRail,
   },
@@ -54,8 +57,17 @@ const STEPS: Step[] = [
 ];
 
 export default function HowItWorksPage() {
+  const howTo = {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    name: "How to try clothes on your own photo with TryOnU",
+    description: SITE_DEFINITION,
+    totalTime: "PT3M",
+    step: STEPS.map((s, i) => ({ "@type": "HowToStep", position: i + 1, name: s.title, text: s.body })),
+  };
   return (
     <SiteChrome>
+      <JsonLd data={howTo} />
       {/* hero */}
       <section className="relative overflow-hidden">
         <div

@@ -1,14 +1,17 @@
-import type { Metadata } from "next";
 import { ContentPage, InfoCard, SectionTitle, cardGrid, Steps } from "@/components/content/ContentPage";
 import { formatPrice } from "@/components/try/shop";
 import { Button } from "@/components/ui/Button";
 import { serverFetch } from "@/lib/api/server";
 import type { StorePlan } from "@/lib/api/types";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Sell on TryOnU",
-  description: "Open a store on TryOnU: your products are recommended to shoppers near you, and shoppers can try them on before they buy.",
-};
+export const metadata = pageMeta({
+  title: "Sell on TryOnU: Get Local Shoppers to Try Your Products",
+  description:
+    "Open a store on TryOnU: your products are recommended first to shoppers where you deliver, and shoppers can try them on their own photo before they buy.",
+  path: "/sell",
+  keywords: ["sell clothes online Pakistan", "online store for clothing shop", "virtual try on for my shop"],
+});
 
 const BENEFITS: { title: string; text: string }[] = [
   {

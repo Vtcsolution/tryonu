@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { CORE_KEYWORDS, SITE, SITE_DEFINITION, SITE_NAME, SITE_TAGLINE } from "@/lib/seo";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -16,41 +18,66 @@ const playfair = Playfair_Display({
   style: ["normal", "italic"],
 });
 
-const SITE = "https://tryonu.app";
-
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),
   title: {
-    default: "TryOnU — Try It. See You. Shop It.",
+    default: "TryOnU: AI Virtual Try-On. See Clothes on You Before You Buy",
     template: "%s · TryOnU",
   },
   description:
-    "TryOnU is an AI-powered virtual fashion shopping experience. Try real products from top retailers on your own photos, then shop from the original store.",
-  keywords: [
-    "virtual try-on",
-    "AI fashion",
-    "TryOnU",
-    "online shopping",
-    "affiliate fashion",
-  ],
+    "Try real clothes, shoes and accessories on your own photo with AI, then buy from the original store. Whole outfits, an AI stylist, local shops first. Try it free.",
+  applicationName: SITE_NAME,
+  keywords: CORE_KEYWORDS,
+  alternates: { canonical: "/" },
+  category: "shopping",
   openGraph: {
     type: "website",
     url: SITE,
-    title: "TryOnU — Try It. See You. Shop It.",
-    description:
-      "Try real fashion on you before you buy. AI virtual try-on across top marketplaces.",
-    siteName: "TryOnU",
+    siteName: SITE_NAME,
+    title: "TryOnU: try real fashion on you before you buy",
+    description: "AI virtual try-on: real products from real stores, on your own photo. Then shop the original store.",
+    locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
-    title: "TryOnU — Try It. See You. Shop It.",
-    description: "Try real fashion on you before you buy.",
+    title: "TryOnU: try real fashion on you before you buy",
+    description: "AI virtual try-on: real products from real stores, on your own photo.",
   },
-  // Mitgo (Admitad) affiliate ad-space ownership check; a public token, not a secret
-  other: {
-    "mitgo-verification": "794de6ff-f7d7-4405-8164-728c91d75317",
+  // site ownership for Google Search Console and Bing Webmaster Tools (public tokens, set on the server)
+  verification: {
+    ...(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION ? { google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION } : {}),
+    other: {
+      // Mitgo (Admitad) affiliate ad-space ownership check; a public token, not a secret
+      "mitgo-verification": "794de6ff-f7d7-4405-8164-728c91d75317",
+      ...(process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION ? { "msvalidate.01": process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION } : {}),
+    },
   },
 };
+
+/** Who TryOnU is, for search engines and AI assistants (every page). */
+const ORGANIZATION = [
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "@id": `${SITE}/#organization`,
+    name: SITE_NAME,
+    url: SITE,
+    logo: `${SITE}/tryonu-logo-100.png`,
+    description: SITE_DEFINITION,
+    slogan: SITE_TAGLINE,
+    contactPoint: { "@type": "ContactPoint", contactType: "customer support", url: `${SITE}/contact` },
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": `${SITE}/#website`,
+    name: SITE_NAME,
+    url: SITE,
+    description: SITE_DEFINITION,
+    publisher: { "@id": `${SITE}/#organization` },
+    inLanguage: "en",
+  },
+];
 
 export const viewport: Viewport = {
   themeColor: [
@@ -77,6 +104,7 @@ export default function RootLayout({
     >
       <body className="grain">
         <script dangerouslySetInnerHTML={{ __html: NO_FLASH }} />
+        <JsonLd data={ORGANIZATION} />
         <Providers>{children}</Providers>
       </body>
     </html>

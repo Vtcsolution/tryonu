@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { BusinessDashboard } from "@/components/business/BusinessDashboard";
+import { PRIVATE_PAGE } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: "Sell on TryOnU",
   description: "Open your store on TryOnU: list your products where shoppers try them on, with local shoppers seeing you first.",
+  robots: PRIVATE_PAGE,
 };
 
 // A store gets its own panel with a sidebar (like the admin panel); before a

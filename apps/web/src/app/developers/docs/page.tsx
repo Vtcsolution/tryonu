@@ -1,13 +1,15 @@
-import type { Metadata } from "next";
 import { SiteChrome } from "@/components/layout/SiteChrome";
 import { DeveloperDocs } from "@/components/developers/DeveloperDocs";
 import { Button } from "@/components/ui/Button";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Try-on API for developers",
+export const metadata = pageMeta({
+  title: "Virtual Try-On API Docs, Widget & Plugins",
   description:
-    "Add AI virtual try-on to your shop or app with TryOnU's API: code for cURL, JavaScript, Python, PHP and WordPress. Pay per try-on.",
-};
+    "Add AI virtual try-on to any app or online store: REST API with code for cURL, JavaScript, Python and PHP, a one-line website widget, Shopify and WooCommerce.",
+  path: "/developers/docs",
+  keywords: ["virtual try on API", "try on widget", "WooCommerce try on plugin"],
+});
 
 export default function DeveloperDocsPage() {
   return (

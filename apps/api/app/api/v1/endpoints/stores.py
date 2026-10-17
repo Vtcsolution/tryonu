@@ -637,6 +637,17 @@ async def _live_store(db, slug: str) -> Store:  # noqa: ANN001
     return store
 
 
+@router.get("/public")
+async def public_store_list(db: DbSession):
+    """Every store shoppers can visit right now: for the sitemap and AI crawlers."""
+    stores = (await db.execute(select(Store).where(Store.status == "approved").order_by(Store.name))).scalars()
+    return [
+        {"slug": s.slug, "name": s.name, "country": s.country, "updated_at": s.updated_at}
+        for s in stores
+        if svc.is_live(s)
+    ]
+
+
 @router.get("/public/{slug}", response_model=PublicStoreOut)
 async def public_store(slug: str, db: DbSession):
     store = await _live_store(db, slug)

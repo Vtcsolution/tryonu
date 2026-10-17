@@ -1,12 +1,15 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { ContactForm } from "@/components/content/ContactForm";
 import { ContentPage } from "@/components/content/ContentPage";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Contact",
-  description: "Questions about try-ons, credits, selling on TryOnU, the developer API or your data: send us a message.",
-};
+export const metadata = pageMeta({
+  title: "Contact TryOnU",
+  description:
+    "Questions about try-ons, credits, selling on TryOnU, the developer API or your data? Send us a message and we'll reply by email.",
+  path: "/contact",
+  keywords: [],
+});
 
 const HELP: { title: string; text: string; href: string; link: string }[] = [
   { title: "Prices and credits", text: "What a try-on costs and the credit packs.", href: "/pricing", link: "See pricing" },

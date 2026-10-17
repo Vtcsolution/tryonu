@@ -5,6 +5,7 @@ import { ContentPage, LegalBody } from "@/components/content/ContentPage";
 export const metadata: Metadata = {
   title: "Photo & data policy",
   description: "How TryOnU treats the photos you upload and the try-on pictures made from them.",
+  alternates: { canonical: "/photo-policy" },
 };
 
 export default function PhotoPolicyPage() {

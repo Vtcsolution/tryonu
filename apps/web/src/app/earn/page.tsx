@@ -1,11 +1,14 @@
-import type { Metadata } from "next";
 import { ContentPage, SectionTitle, Steps } from "@/components/content/ContentPage";
 import { EarnPanel } from "@/components/content/EarnPanel";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Invite friends & earn credits",
-  description: "Share TryOnU with friends and shops. When they join from your link and use TryOnU, you earn free try-on credits.",
-};
+export const metadata = pageMeta({
+  title: "Invite Friends & Earn Free Try-On Credits",
+  description:
+    "Share TryOnU with friends and shops. When they join from your link and try on, or a shop buys a plan, free credits are added to your account.",
+  path: "/earn",
+  keywords: ["free try on credits", "TryOnU referral"],
+});
 
 export default function EarnPage() {
   return (

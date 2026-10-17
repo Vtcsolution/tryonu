@@ -1,11 +1,14 @@
-import type { Metadata } from "next";
 import { ContentPage, InfoCard, SectionTitle, Steps } from "@/components/content/ContentPage";
 import { Button } from "@/components/ui/Button";
+import { SITE_DEFINITION, pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "About TryOnU",
-  description: "TryOnU lets anyone see real products on their own photo before they buy, and helps stores and developers offer virtual try-on.",
-};
+export const metadata = pageMeta({
+  title: "About TryOnU: AI Virtual Try-On for Shoppers, Shops & Developers",
+  description:
+    "TryOnU lets anyone see real products on their own photo before they buy, helps local shops reach shoppers, and gives developers a try-on API.",
+  path: "/about",
+  keywords: ["about TryOnU", "TryOnU company"],
+});
 
 export default function AboutPage() {
   return (
@@ -18,11 +21,13 @@ export default function AboutPage() {
       }
       intro="Buying clothes online is guesswork: a product looks great on a model, then arrives and looks different on you. TryOnU puts real products from real stores on your own photo, so you can decide with confidence and shop from the original store."
     >
+      <p className="mb-12 max-w-3xl text-[18px] leading-relaxed text-ink">{SITE_DEFINITION}</p>
+
       <SectionTitle sub="One platform, three kinds of people.">Who TryOnU is for</SectionTitle>
       <div className="grid gap-4 md:grid-cols-3">
         <InfoCard title="Shoppers" footer={<Button href="/try" size="md">Try it now →</Button>}>
-          Upload your photo once. Try a single product or a whole outfit from Amazon, eBay, AliExpress, Daraz, local stores and
-          more, save your looks and share them with friends.
+          Upload your photo once. Try a single product or a whole outfit from eBay, AliExpress, brand stores and local shops,
+          save your looks and share them with friends.
         </InfoCard>
         <InfoCard title="Stores" footer={<Button href="/sell" size="md" variant="outline">Sell on TryOnU</Button>}>
           Open a store on TryOnU. Your products are recommended first to shoppers in the areas you deliver to, and shoppers can

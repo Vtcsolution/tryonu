@@ -11,7 +11,7 @@ export const PRODUCT: NavGroup = {
     { label: "Outfit builder", href: "/outfits", hint: "Put several pieces together" },
     { label: "My wardrobe", href: "/wardrobe", hint: "Try with clothes you own" },
     { label: "Saved looks", href: "/saved", hint: "Your lookbook, ready to share" },
-    { label: "Marketplaces", href: "/#marketplaces", hint: "Amazon, eBay, AliExpress, Daraz and more" },
+    { label: "Marketplaces", href: "/#marketplaces", hint: "eBay, AliExpress, brand stores and local shops" },
   ],
 };
 
@@ -29,6 +29,7 @@ export const COMPANY: NavGroup = {
   label: "Company",
   items: [
     { label: "About TryOnU", href: "/about", hint: "Who we are and what we do" },
+    { label: "Questions & answers", href: "/faq", hint: "How it works, prices, privacy" },
     { label: "Invite & earn", href: "/earn", hint: "Earn credits when friends join" },
     { label: "Contact", href: "/contact", hint: "Questions, stores, partnerships" },
   ],
