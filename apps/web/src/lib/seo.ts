@@ -17,6 +17,15 @@ export const SITE_DEFINITION =
 
 export const SITE_TAGLINE = "Try it. See you. Shop it.";
 
+/** TryOnU's official social accounts: linked from the footer and named in the
+ * site's structured data (sameAs), so search engines and AI assistants know
+ * these profiles are the same brand. */
+export const SOCIAL_LINKS: { name: "Facebook" | "Instagram" | "TikTok"; url: string; handle: string }[] = [
+  { name: "Instagram", url: "https://www.instagram.com/tryonu.app/", handle: "@tryonu.app" },
+  { name: "TikTok", url: "https://www.tiktok.com/@tryonuapp", handle: "@tryonuapp" },
+  { name: "Facebook", url: "https://www.facebook.com/tryonu", handle: "facebook.com/tryonu" },
+];
+
 export const CORE_KEYWORDS = [
   "virtual try-on",
   "virtual try on clothes",

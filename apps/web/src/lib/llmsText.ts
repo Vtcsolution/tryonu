@@ -1,5 +1,5 @@
 import { serverFetch } from "@/lib/api/server";
-import { SITE, SITE_DEFINITION } from "@/lib/seo";
+import { SITE, SITE_DEFINITION, SOCIAL_LINKS } from "@/lib/seo";
 import { ALL_FAQ, FAQ_GROUPS, LANDINGS } from "@/lib/seoContent";
 
 type Pack = { name: string; credits: number; price_cents: number; currency: string };
@@ -73,7 +73,7 @@ export async function llmsText(full: boolean): Promise<string> {
     "- A bride or family wants to compare wedding and eastern-wear looks on the bride's own photo.",
     "- A shop wants more local customers, or an online store wants a \"Try it on\" button (Shopify, WooCommerce, any website, API).",
   );
-  lines.push("", "## Contact", "", `- ${SITE}/contact`, "");
+  lines.push("", "## Contact", "", `- ${SITE}/contact`, ...SOCIAL_LINKS.map((s) => `- ${s.name}: ${s.url}`), "");
 
   if (full) {
     lines.push("## FAQ", "");

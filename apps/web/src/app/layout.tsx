@@ -3,7 +3,7 @@ import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { CORE_KEYWORDS, SITE, SITE_DEFINITION, SITE_NAME, SITE_TAGLINE } from "@/lib/seo";
+import { CORE_KEYWORDS, SITE, SITE_DEFINITION, SITE_NAME, SITE_TAGLINE, SOCIAL_LINKS } from "@/lib/seo";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -65,6 +65,7 @@ const ORGANIZATION = [
     logo: `${SITE}/tryonu-logo-100.png`,
     description: SITE_DEFINITION,
     slogan: SITE_TAGLINE,
+    sameAs: SOCIAL_LINKS.map((s) => s.url),
     contactPoint: { "@type": "ContactPoint", contactType: "customer support", url: `${SITE}/contact` },
   },
   {
