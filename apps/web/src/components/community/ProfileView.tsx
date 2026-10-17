@@ -96,8 +96,16 @@ export function ProfileView({ handle }: { handle: string }) {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={resolveMediaUrl(post.image_url)} alt={post.caption || "A look"} loading="lazy" className="h-full w-full object-cover object-top transition-transform group-hover:scale-[1.02]" />
               )}
-              <span className="absolute bottom-2 left-2 rounded-full bg-black/55 px-2.5 py-1 text-[12.5px] font-semibold text-white">
-                ♥ {post.like_count} · 💬 {post.comment_count}
+              <span className="absolute bottom-2 left-2 flex items-center gap-3 rounded-full bg-black/55 px-2.5 py-1 text-[12.5px] font-semibold text-white">
+                <span className="flex items-center gap-1">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20.3s-7.6-4.6-9.3-9.4C1.6 7.6 3.6 4.5 6.9 4.5c2.1 0 3.5 1.2 4.4 2.6h1.4c.9-1.4 2.3-2.6 4.4-2.6 3.3 0 5.3 3.1 4.2 6.4-1.7 4.8-9.3 9.4-9.3 9.4z" /></svg>
+                  {post.like_count}
+                </span>
+                <span className="flex items-center gap-1">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 5.5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9.5L5 21v-3.5H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z" /></svg>
+                  {post.comment_count}
+                </span>
+                <span className="sr-only">likes and comments</span>
               </span>
             </Link>
           ))}
@@ -179,8 +187,8 @@ function AvatarPicker({ profile, onChanged }: { profile: CommunityProfile; onCha
         <span className="absolute inset-0 grid place-items-center rounded-full bg-black/45 text-[12.5px] font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100">
           {upload.isPending ? "Uploading…" : "Change"}
         </span>
-        <span aria-hidden="true" className="absolute -bottom-0.5 -right-0.5 grid h-8 w-8 place-items-center rounded-full border-2 border-surface bg-sage text-[15px] text-white">
-          📷
+        <span aria-hidden="true" className="absolute -bottom-0.5 -right-0.5 grid h-8 w-8 place-items-center rounded-full border-2 border-surface bg-sage text-white">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" /><circle cx="12" cy="13" r="3.5" /></svg>
         </span>
         <span className="sr-only">Upload a profile picture</span>
       </label>

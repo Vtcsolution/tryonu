@@ -51,7 +51,12 @@ export function PostToCommunity({ jobId, imageUrl }: { jobId: string; imageUrl?:
         onClick={() => setOpen(true)}
         className="tu-press flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full border border-line-strong bg-surface px-5 text-[15.5px] font-semibold text-ink hover:border-ink/40"
       >
-        <span aria-hidden="true">👥</span> Post to community
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+          <circle cx="9" cy="8" r="3.5" />
+          <path d="M2.5 20c.6-3.5 3.3-5.5 6.5-5.5s5.9 2 6.5 5.5" />
+          <path d="M16 4.8a3.3 3.3 0 0 1 0 6.4M18.5 14.7c1.6.8 2.7 2.6 3 5.3" />
+        </svg>
+        Post to community
       </button>
       {open &&
         createPortal(

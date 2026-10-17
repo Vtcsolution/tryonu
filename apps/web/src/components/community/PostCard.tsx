@@ -154,47 +154,15 @@ export function PostCard({
         </Link>
       )}
 
-      <div className="px-4 pb-4 pt-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => like.mutate()}
-            aria-pressed={p.liked_by_me}
-            className={`tu-press inline-flex min-h-[40px] items-center gap-1.5 rounded-full border px-3.5 text-[14.5px] font-semibold ${
-              p.liked_by_me ? "border-[#c0503a]/40 bg-[#c0503a]/10 text-[#c0503a]" : "border-line text-ink hover:border-line-strong"
-            }`}
-          >
-            <span aria-hidden="true">{p.liked_by_me ? "♥" : "♡"}</span> {p.like_count}
-            <span className="sr-only">likes</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowComments((v) => !v)}
-            className="tu-press inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-line px-3.5 text-[14.5px] font-semibold text-ink hover:border-line-strong"
-          >
-            <span aria-hidden="true">💬</span> {p.comment_count}
-            <span className="sr-only">comments</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => tryIt.mutate()}
-            disabled={tryIt.isPending}
-            className="tu-press ml-auto inline-flex min-h-[40px] items-center rounded-full bg-sage px-4 text-[14.5px] font-semibold text-white hover:bg-sage-deep"
-          >
-            {tryIt.isPending ? "Getting it ready…" : p.is_mine ? "Try again" : "Try this look"}
-          </button>
-        </div>
-        {tryIt.isError && <p className="mt-2 text-[14px] text-[#a4553f]">{tryIt.error instanceof ApiError ? tryIt.error.detail : "Couldn't open this look."}</p>}
-        {notice && <p className="mt-2 rounded-xl bg-sage-tint/40 px-3 py-2 text-[14px] text-ink">{notice}</p>}
-
+      <div className="px-4 pb-1 pt-3">
         {p.caption && (
-          <p className="mt-3 whitespace-pre-wrap text-[15.5px] leading-relaxed text-ink">
+          <p className="whitespace-pre-wrap text-[15.5px] leading-relaxed text-ink">
             <Link href={`/u/${p.author.handle}`} className="font-semibold">@{p.author.handle}</Link> {p.caption}
           </p>
         )}
 
         {p.products.length > 0 && (
-          <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+          <div className={`flex gap-2 overflow-x-auto pb-1 ${p.caption ? "mt-3" : ""}`}>
             {p.products.map((prod) => (
               <a
                 key={prod.id}
@@ -217,7 +185,44 @@ export function PostCard({
           </div>
         )}
 
+        {/* the counts, quietly, like LinkedIn and Facebook */}
+        {(p.like_count > 0 || p.comment_count > 0) && (
+          <div className="mt-3 flex items-center justify-between text-[13.5px] text-muted">
+            <span className="flex items-center gap-1.5">
+              {p.like_count > 0 && (
+                <>
+                  <span className="grid h-[18px] w-[18px] place-items-center rounded-full bg-[#c0503a] text-white">
+                    <HeartIcon filled size={10} />
+                  </span>
+                  {p.like_count} {p.like_count === 1 ? "like" : "likes"}
+                </>
+              )}
+            </span>
+            {p.comment_count > 0 && (
+              <button type="button" onClick={() => setShowComments(true)} className="hover:text-ink hover:underline">
+                {p.comment_count} {p.comment_count === 1 ? "comment" : "comments"}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* the action bar */}
+        <div className="mt-3 flex items-center justify-around border-t border-line pt-1 sm:grid sm:grid-cols-3">
+          <ActionButton onClick={() => like.mutate()} pressed={p.liked_by_me} active={p.liked_by_me} label={p.liked_by_me ? "Liked" : "Like"}>
+            <HeartIcon filled={p.liked_by_me} />
+          </ActionButton>
+          <ActionButton onClick={() => setShowComments((v) => !v)} active={showComments} label="Comment">
+            <CommentIcon />
+          </ActionButton>
+          <ActionButton onClick={() => tryIt.mutate()} disabled={tryIt.isPending} label={tryIt.isPending ? "Opening…" : "Try it on"} accent>
+            <HangerIcon />
+          </ActionButton>
+        </div>
+        {tryIt.isError && <p className="mt-2 text-[14px] text-[#a4553f]">{tryIt.error instanceof ApiError ? tryIt.error.detail : "Couldn't open this look."}</p>}
+        {notice && <p className="mt-2 rounded-xl bg-sage-tint/40 px-3 py-2 text-[14px] text-ink">{notice}</p>}
+
         {showComments && <Comments post={p} onCount={(n) => update({ ...p, comment_count: n })} />}
+        <div className="h-3" />
       </div>
     </article>
   );
@@ -318,5 +323,64 @@ function Comments({ post, onCount }: { post: CommunityPost; onCount: (n: number)
         {add.isError && <p className="mt-2 text-[14px] text-[#a4553f]">{add.error instanceof ApiError ? add.error.detail : "Couldn't post your comment."}</p>}
       </form>
     </div>
+  );
+}
+
+/** One button of the action bar under a post: an outline icon and a word. */
+function ActionButton({
+  children,
+  label,
+  onClick,
+  pressed,
+  active = false,
+  accent = false,
+  disabled = false,
+}: {
+  children: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  pressed?: boolean;
+  active?: boolean;
+  accent?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={pressed}
+      className={`flex min-h-[44px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-[14px] font-semibold transition-colors hover:bg-paper-2 disabled:opacity-60 sm:gap-2 sm:text-[14.5px] ${
+        active ? (pressed ? "text-[#c0503a]" : "text-ink") : accent ? "text-sage-deep" : "text-ink-soft hover:text-ink"
+      }`}
+    >
+      {children}
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function HeartIcon({ filled = false, size = 19 }: { filled?: boolean; size?: number }) {
+  return (
+    <svg className="shrink-0" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth={filled ? 0 : 1.9} strokeLinejoin="round">
+      <path d="M12 20.3s-7.6-4.6-9.3-9.4C1.6 7.6 3.6 4.5 6.9 4.5c2.1 0 3.5 1.2 4.4 2.6h1.4c.9-1.4 2.3-2.6 4.4-2.6 3.3 0 5.3 3.1 4.2 6.4-1.7 4.8-9.3 9.4-9.3 9.4z" />
+    </svg>
+  );
+}
+
+function CommentIcon() {
+  return (
+    <svg className="shrink-0" width={19} height={19} viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round">
+      <path d="M4 5.5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9.5L5 21v-3.5H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z" />
+    </svg>
+  );
+}
+
+function HangerIcon() {
+  return (
+    <svg className="shrink-0" width={20} height={20} viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 7.5a2 2 0 1 1 2-2" />
+      <path d="M12 7.5v1.6L3.4 15.2a1.4 1.4 0 0 0 .8 2.5h15.6a1.4 1.4 0 0 0 .8-2.5L12 9.1" />
+    </svg>
   );
 }
