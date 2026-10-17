@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Logo } from "@/components/ui/Logo";
-import { SOCIAL_LINKS } from "@/lib/seo";
+import { SOCIAL_LINKS, type SocialName } from "@/lib/seo";
 import { LANDINGS } from "@/lib/seoContent";
 import { BUSINESS, COMPANY, LEGAL, PRODUCT, type NavItem } from "@/components/marketing/navLinks";
 
@@ -113,8 +113,17 @@ export function Footer() {
   );
 }
 
-function SocialIcon({ name }: { name: "Facebook" | "Instagram" | "TikTok" }) {
+function SocialIcon({ name }: { name: SocialName }) {
   const common = { width: 18, height: 18, viewBox: "0 0 24 24", "aria-hidden": true } as const;
+  if (name === "LinkedIn") {
+    return (
+      <svg {...common} fill="currentColor">
+        <rect x="3.5" y="9" width="3.6" height="11" rx=".4" />
+        <circle cx="5.3" cy="5.3" r="2.1" />
+        <path d="M9.6 9h3.4v1.6c.6-1 1.8-1.9 3.6-1.9 3 0 3.9 1.9 3.9 4.8V20h-3.6v-5.8c0-1.4-.3-2.6-1.8-2.6s-2 1.1-2 2.6V20H9.6V9z" />
+      </svg>
+    );
+  }
   if (name === "Instagram") {
     return (
       <svg {...common} fill="none" stroke="currentColor" strokeWidth="2">

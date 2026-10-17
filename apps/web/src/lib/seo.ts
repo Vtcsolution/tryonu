@@ -20,10 +20,12 @@ export const SITE_TAGLINE = "Try it. See you. Shop it.";
 /** TryOnU's official social accounts: linked from the footer and named in the
  * site's structured data (sameAs), so search engines and AI assistants know
  * these profiles are the same brand. */
-export const SOCIAL_LINKS: { name: "Facebook" | "Instagram" | "TikTok"; url: string; handle: string }[] = [
+export type SocialName = "Facebook" | "Instagram" | "TikTok" | "LinkedIn";
+export const SOCIAL_LINKS: { name: SocialName; url: string; handle: string }[] = [
   { name: "Instagram", url: "https://www.instagram.com/tryonu.app/", handle: "@tryonu.app" },
   { name: "TikTok", url: "https://www.tiktok.com/@tryonuapp", handle: "@tryonuapp" },
   { name: "Facebook", url: "https://www.facebook.com/tryonu", handle: "facebook.com/tryonu" },
+  { name: "LinkedIn", url: "https://www.linkedin.com/company/tryonuofficial", handle: "linkedin.com/company/tryonuofficial" },
 ];
 
 export const CORE_KEYWORDS = [
