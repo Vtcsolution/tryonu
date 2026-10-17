@@ -19,6 +19,9 @@ const PRIVATE = [
   "/reset-password",
   "/forgot-password",
   "/extension/connect",
+  // members only: people's own photos
+  "/community",
+  "/u/",
 ];
 const OPEN_AGAIN = ["/business/sign-up", "/developers/docs", "/developers/sign-up"];
 

@@ -14,6 +14,7 @@ import { ApiError, affiliateGoUrl, resolveMediaUrl } from "@/lib/api/client";
 import { StyledPicks } from "@/components/try/StyledPicks";
 import { ProductCard } from "@/components/product/ProductCard";
 import { ShareLook } from "@/components/try/ShareLook";
+import { PostToCommunity } from "@/components/community/PostToCommunity";
 import { FEATURED, RECOMMENDED, RetailerTag, fromTryOnUStore, retailerFromImage, shopName } from "@/components/try/shop";
 import {
   credits as creditsApi,
@@ -1339,6 +1340,7 @@ function ResultStep({
             </Button>
             <SaveLookButton tryonResultId={job.result!.id} />
             <ShareLook jobId={job.id} variant="wide" />
+            <PostToCommunity jobId={job.id} imageUrl={job.result?.image_url} />
             <AddMoreButton jobs={jobs} job={job} onAddMore={onAddMore} />
             <Button variant="outline" size="md" className="w-full" onClick={onTryAnother}>
               Try another product
@@ -1507,6 +1509,7 @@ function OutfitResultStep({
           <div className="mt-auto space-y-3 pt-6">
             <SaveLookButton tryonResultId={job.result!.id} />
             <ShareLook jobId={job.id} variant="wide" />
+            <PostToCommunity jobId={job.id} imageUrl={job.result?.image_url} />
             <AddMoreButton jobs={jobs} job={job} onAddMore={onAddMore} />
             <Button variant="outline" size="md" className="w-full" onClick={onTryAnother}>
               Try another look
@@ -1592,6 +1595,7 @@ function WardrobeResultStep({
           <div className="mt-auto space-y-3 pt-6">
             <SaveLookButton tryonResultId={job.result!.id} />
             <ShareLook jobId={job.id} variant="wide" />
+            <PostToCommunity jobId={job.id} imageUrl={job.result?.image_url} />
             <Button variant="outline" size="md" className="w-full" onClick={onTryAnother}>
               Try another item
             </Button>

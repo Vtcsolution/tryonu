@@ -22,6 +22,11 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    # community: @handle (unique, made on first use, the member can change it), a short bio,
+    # and when an admin blocked them from posting and commenting
+    handle: Mapped[str | None] = mapped_column(String(30), unique=True, index=True, nullable=True)
+    bio: Mapped[str | None] = mapped_column(String(280), nullable=True)
+    community_banned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     auth_provider: Mapped[AuthProvider] = mapped_column(
         Enum(AuthProvider, native_enum=False, length=32),

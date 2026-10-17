@@ -38,6 +38,7 @@ export const COMPANY: NavGroup = {
 };
 
 export const TOP_LINKS: NavItem[] = [
+  { label: "Community", href: "/community" },
   { label: "Pricing", href: "/pricing" },
   { label: "How it works", href: "/how-it-works" },
 ];

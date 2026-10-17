@@ -33,7 +33,7 @@ export function MobileNav() {
         onClick={() => setOpen(true)}
         aria-label="Open menu"
         aria-expanded={open}
-        className="grid h-11 w-11 place-items-center rounded-full border border-line text-ink hover:border-line-strong lg:hidden"
+        className="grid h-11 w-11 place-items-center rounded-full border border-line text-ink hover:border-line-strong xl:hidden"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
           <path d="M4 7h16M4 12h16M4 17h16" />
@@ -41,7 +41,7 @@ export function MobileNav() {
       </button>
       {open &&
         createPortal(
-          <div className="fixed inset-0 z-[100] lg:hidden" role="dialog" aria-modal="true" aria-label="Menu">
+          <div className="fixed inset-0 z-[100] xl:hidden" role="dialog" aria-modal="true" aria-label="Menu">
             <div className="absolute inset-0 bg-black/50" onClick={() => setOpen(false)} />
             <nav className="absolute inset-y-0 right-0 flex w-[min(380px,100%)] flex-col overflow-y-auto bg-surface shadow-lift">
               <div className="flex items-center justify-between border-b border-line px-5 py-4">

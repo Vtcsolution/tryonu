@@ -22,7 +22,7 @@ export function AccountMenu() {
     return (
       <Link
         href="/sign-in"
-        className="group/si relative hidden font-display text-[16px] tracking-[-0.01em] text-ink transition-colors duration-200 sm:inline-block"
+        className="group/si relative hidden whitespace-nowrap font-display text-[16px] tracking-[-0.01em] text-ink transition-colors duration-200 sm:inline-block"
       >
         Sign in
         <span className="absolute -bottom-1 left-0 h-px w-full origin-left scale-x-0 bg-ink transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/si:scale-x-100" />
@@ -88,6 +88,8 @@ export function AccountMenu() {
             { href: "/outfits", label: "Outfit builder" },
             { href: "/wardrobe", label: "My wardrobe" },
             { href: "/saved", label: "Saved looks" },
+            { href: "/community", label: "Community" },
+            { href: "/community/me", label: "My community profile" },
             { href: "/saved#earn", label: "Invite friends & earn credits" },
             { href: "/preferences", label: "My style picks" },
             { href: "/credits", label: "Buy credits" },

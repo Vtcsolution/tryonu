@@ -52,3 +52,31 @@ async def look_products(db: AsyncSession, job: TryOnJob) -> tuple[list[tuple[Pro
                     seen.add(item.product.id)
                     out.append((item.product, item.slot))
     return out, drawn
+
+
+async def copy_look(db: AsyncSession, user_id: str, job: TryOnJob, *, include_hidden: bool = False) -> tuple[str | None, str | None]:
+    """Another person's look, ready for this person to try on with their own
+    photo: (outfit_id, None) for several products, (None, product_id) for one.
+    include_hidden: also products only reachable through a look (a page tried on
+    with the browser extension); they become part of an outfit, which never
+    needs them to be in search. Returns (None, None) when nothing is left."""
+    from app.models.outfit import Outfit
+    from app.services.outfit_compatibility import score_outfit
+    from app.services.outfit_slots import slot_for
+
+    pairs, _ = await look_products(db, job)
+    pairs = [(p, slot) for p, slot in pairs if p.is_active or include_hidden][:10]
+    if not pairs:
+        return None, None
+    if len(pairs) == 1 and pairs[0][0].is_active:
+        return None, pairs[0][0].id
+    slots = [slot if slot not in (None, OutfitSlot.OTHER) else slot_for(p.name) for p, slot in pairs]
+    products = [p for p, _ in pairs]
+    coherence = score_outfit(products, slots)
+    outfit = Outfit(user_id=user_id, name="Shared look", compatibility_score=coherence.overall, compatibility_notes=coherence.notes or None)
+    db.add(outfit)
+    await db.flush()
+    for pos, (product, slot) in enumerate(zip(products, slots)):
+        db.add(OutfitItem(outfit_id=outfit.id, product_id=product.id, slot=slot, position=pos))
+    await db.commit()
+    return outfit.id, None

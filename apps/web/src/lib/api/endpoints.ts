@@ -384,6 +384,96 @@ export const adminReferrals = {
     ),
 };
 
+/** the community (members only): posts, likes, comments, profiles, follows, reports */
+export type CommunityAuthor = { handle: string; name: string | null; avatar_url: string | null };
+export type CommunityProduct = {
+  id: string;
+  name: string;
+  price_cents: number;
+  currency: string;
+  image_url: string | null;
+  shop: string | null;
+  buy_url: string;
+};
+export type CommunityPost = {
+  id: string;
+  author: CommunityAuthor;
+  image_url: string | null;
+  caption: string | null;
+  like_count: number;
+  comment_count: number;
+  liked_by_me: boolean;
+  following_author: boolean;
+  is_mine: boolean;
+  products: CommunityProduct[];
+  created_at: string;
+};
+export type CommunityComment = {
+  id: string;
+  author: CommunityAuthor;
+  body: string;
+  parent_id: string | null;
+  is_mine: boolean;
+  can_delete: boolean;
+  created_at: string;
+  replies: CommunityComment[];
+};
+export type CommunityProfile = {
+  handle: string;
+  name: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  posts: number;
+  followers: number;
+  following: number;
+  followed_by_me: boolean;
+  is_me: boolean;
+};
+export type CommunityFeed = { posts: CommunityPost[]; next_offset: number | null };
+export type CommunityReportRow = {
+  id: string;
+  reason: string;
+  reporter_email: string;
+  kind: "post" | "comment";
+  target_id: string;
+  author_handle: string | null;
+  author_email: string | null;
+  text: string | null;
+  image_url: string | null;
+  hidden: boolean;
+  created_at: string;
+  resolved_at: string | null;
+};
+const C = "/api/v1/community";
+export const community = {
+  feed: (tab: "for_you" | "following", offset = 0) => apiFetch<CommunityFeed>(`${C}/feed?tab=${tab}&offset=${offset}`),
+  post: (id: string) => apiFetch<CommunityPost>(`${C}/posts/${id}`),
+  create: (input: { tryon_job_id: string; caption?: string; accept_rules: boolean }) =>
+    apiFetch<CommunityPost>(`${C}/posts`, { method: "POST", body: input }),
+  postForJob: (jobId: string) => apiFetch<{ post_id: string | null }>(`${C}/posts/by-job/${jobId}`),
+  remove: (id: string) => apiFetch<void>(`${C}/posts/${id}`, { method: "DELETE" }),
+  like: (id: string) => apiFetch<{ liked: boolean; like_count: number }>(`${C}/posts/${id}/like`, { method: "POST" }),
+  unlike: (id: string) => apiFetch<{ liked: boolean; like_count: number }>(`${C}/posts/${id}/like`, { method: "DELETE" }),
+  tryLook: (id: string) => apiFetch<{ outfit_id: string | null; product_id: string | null }>(`${C}/posts/${id}/try`, { method: "POST" }),
+  comments: (id: string) => apiFetch<CommunityComment[]>(`${C}/posts/${id}/comments`),
+  comment: (id: string, body: string, parent_id?: string) =>
+    apiFetch<CommunityComment>(`${C}/posts/${id}/comments`, { method: "POST", body: { body, parent_id } }),
+  removeComment: (id: string) => apiFetch<void>(`${C}/comments/${id}`, { method: "DELETE" }),
+  me: () => apiFetch<CommunityProfile>(`${C}/me`),
+  updateMe: (input: { handle?: string; bio?: string }) => apiFetch<CommunityProfile>(`${C}/me`, { method: "PATCH", body: input }),
+  profile: (handle: string) => apiFetch<CommunityProfile>(`${C}/profiles/${encodeURIComponent(handle)}`),
+  profilePosts: (handle: string, offset = 0) => apiFetch<CommunityFeed>(`${C}/profiles/${encodeURIComponent(handle)}/posts?offset=${offset}`),
+  follow: (handle: string) => apiFetch<CommunityProfile>(`${C}/profiles/${encodeURIComponent(handle)}/follow`, { method: "POST" }),
+  unfollow: (handle: string) => apiFetch<CommunityProfile>(`${C}/profiles/${encodeURIComponent(handle)}/follow`, { method: "DELETE" }),
+  report: (input: { post_id?: string; comment_id?: string; reason: string }) =>
+    apiFetch<{ detail: string }>(`${C}/reports`, { method: "POST", body: input }),
+};
+export const adminCommunity = {
+  reports: (show: "open" | "all" = "open") => apiFetch<CommunityReportRow[]>(`/api/v1/admin/community/reports?show=${show}`),
+  resolve: (id: string, action: "hide" | "dismiss" | "ban") =>
+    apiFetch<{ detail: string }>(`/api/v1/admin/community/reports/${id}/resolve`, { method: "POST", body: { action } }),
+};
+
 /** the browser extensions: connect this browser, see and disconnect connected ones */
 export type ExtensionKind = "shopper" | "store";
 export type ConnectedBrowser = { id: string; kind: ExtensionKind; label: string | null; created_at: string; last_used_at: string | null };

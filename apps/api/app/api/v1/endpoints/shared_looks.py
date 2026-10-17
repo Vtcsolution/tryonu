@@ -170,31 +170,13 @@ async def shared_look(token: str, db: DbSession):
 async def try_this_look(token: str, user: CurrentUser, db: DbSession):
     """A visitor tries a shared look on themselves: the same products, as
     their own outfit, ready on the try-on page with their own photo."""
-    from app.services.outfit_compatibility import score_outfit
-    from app.services.outfit_slots import slot_for
+    from app.services.look_products import copy_look
 
     _, job = await _live(db, token)
-    pairs, _ = await look_products(db, job)
-    pairs = [(p, slot) for p, slot in pairs if p.is_active][:10]
-    if not pairs:
+    outfit_id, product_id = await copy_look(db, user.id, job)
+    if outfit_id is None and product_id is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="The products in this look aren't available anymore.")
-    if len(pairs) == 1:
-        return TryThisLookOut(product_id=pairs[0][0].id)
-    slots = [slot if slot not in (None, OutfitSlot.OTHER) else slot_for(p.name) for p, slot in pairs]
-    products = [p for p, _ in pairs]
-    coherence = score_outfit(products, slots)
-    outfit = Outfit(
-        user_id=user.id,
-        name="Shared look",
-        compatibility_score=coherence.overall,
-        compatibility_notes=coherence.notes or None,
-    )
-    db.add(outfit)
-    await db.flush()
-    for pos, (product, slot) in enumerate(zip(products, slots)):
-        db.add(OutfitItem(outfit_id=outfit.id, product_id=product.id, slot=slot, position=pos))
-    await db.commit()
-    return TryThisLookOut(outfit_id=outfit.id)
+    return TryThisLookOut(outfit_id=outfit_id, product_id=product_id)
 
 
 @router.get(

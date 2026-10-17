@@ -13,7 +13,7 @@ export function Navbar() {
       <div className="mx-auto flex h-[72px] tu-container items-center justify-between gap-4">
         <Logo size={30} />
 
-        <nav aria-label="Main" className="hidden items-center gap-8 lg:flex">
+        <nav aria-label="Main" className="hidden items-center gap-6 whitespace-nowrap xl:flex 2xl:gap-8">
           <NavMenu group={PRODUCT} />
           <NavMenu group={BUSINESS} />
           {TOP_LINKS.map((l) => (
@@ -28,7 +28,7 @@ export function Navbar() {
           <ThemeToggle />
           <AccountMenu />
           <span className="hidden sm:inline-flex">
-            <Button href="/try" size="sm">
+            <Button href="/try" size="sm" className="whitespace-nowrap">
               Try it now <span aria-hidden="true">→</span>
             </Button>
           </span>

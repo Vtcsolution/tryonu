@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { PostToCommunity } from "@/components/community/PostToCommunity";
 import { ShareLook } from "@/components/try/ShareLook";
 import { RetailerTag, formatPrice } from "@/components/try/shop";
 import { Button } from "@/components/ui/Button";
@@ -153,6 +154,7 @@ export function SavedLookDetail({ id }: { id: string }) {
 
           <div className="mt-auto space-y-3 pt-6">
             {look.tryon_job_id && <ShareLook jobId={look.tryon_job_id} variant="wide" />}
+            {look.tryon_job_id && <PostToCommunity jobId={look.tryon_job_id} imageUrl={look.image_url} />}
             <Button href="/saved#earn" size="md" variant="outline" className="w-full">
               Invite friends &amp; earn credits
             </Button>
