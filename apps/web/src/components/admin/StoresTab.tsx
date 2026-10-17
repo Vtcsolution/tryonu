@@ -200,6 +200,7 @@ function PlanRow({ plan, tryonCostCents, onSaved }: { plan: StorePlan; tryonCost
   const [limit, setLimit] = useState(String(plan.product_limit));
   const [featured, setFeatured] = useState(String(plan.featured_limit ?? 0));
   const [tryons, setTryons] = useState(String(plan.tryon_credits ?? 0));
+  const [inviterReward, setInviterReward] = useState(String(plan.referral_credits ?? 0));
   const [days, setDays] = useState(String(plan.duration_days));
   const save = useMutation({
     mutationFn: (patch: Parameters<typeof adminStores.updatePlan>[1]) => adminStores.updatePlan(plan.id, patch),
@@ -230,6 +231,10 @@ function PlanRow({ plan, tryonCostCents, onSaved }: { plan: StorePlan; tryonCost
         ★ Featured
         <input type="number" min={0} value={featured} onChange={(e) => setFeatured(e.target.value)} className={`${inputClass} w-20`} />
       </label>
+      <label className="flex items-center gap-1 text-[13px] text-muted" title="Credits for the person who invited the shop, when the shop buys this plan">
+        Inviter reward
+        <input type="number" min={0} value={inviterReward} onChange={(e) => setInviterReward(e.target.value)} className={`${inputClass} w-20`} />
+      </label>
       <label className="flex items-center gap-1 text-[13px] text-muted">
         Days
         <input type="number" min={1} value={days} onChange={(e) => setDays(e.target.value)} className={`${inputClass} w-20`} />
@@ -244,6 +249,7 @@ function PlanRow({ plan, tryonCostCents, onSaved }: { plan: StorePlan; tryonCost
             product_limit: Number(limit),
             featured_limit: Number(featured),
             tryon_credits: Number(tryons),
+            referral_credits: Math.max(0, Number(inviterReward) || 0),
             duration_days: Number(days),
           })
         }

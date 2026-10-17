@@ -96,6 +96,10 @@ async def settle(db: AsyncSession, payment: Payment) -> PurchaseCreditsResponse:
         payment.status = PaymentStatus.SUCCEEDED
         if plan is not None and store is not None:
             activate_plan(store, plan)
+            # share and earn: whoever invited this store's owner earns by plan
+            from app.services.referral_service import reward_store_plan
+
+            await reward_store_plan(db, store.owner_user_id, plan)
         else:
             logger.error("payment_store_plan_missing", payment_id=payment.id)
         await db.commit()

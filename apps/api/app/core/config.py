@@ -107,8 +107,10 @@ class Settings(BaseSettings):
     # (they run without the operator's FASHN approval, within paid credits)
     DEV_API_DAILY_TRYON_CAP: int = 200
     # share and earn: credits for the person who shared, when a friend who
-    # joined from their link first buys credits (0 = off)
-    REFERRAL_REWARD_CREDITS: int = 10
+    # joined from their link first tries something on (paid with their own credits)
+    REFERRAL_TRYON_CREDITS: int = 2
+    # ... and when that friend first buys credits (0 = off; stores have their own per-plan reward)
+    REFERRAL_REWARD_CREDITS: int = 0
     # the website widget: try-ons one visitor (IP) may make per hour on one shop's key
     WIDGET_TRYONS_PER_VISITOR_HOUR: int = 10
     # Shoppers' try-ons run automatically (they paid with credits), but never

@@ -157,9 +157,12 @@ SPECS: tuple[SettingSpec, ...] = (
     SettingSpec("DEV_API_DAILY_TRYON_CAP", "Developer API: try-ons per day (all developers)", "credits", "int",
                 help="Developer try-ons run automatically within the credits developers paid for, but never more than "
                 "this many a day in total. Each one uses FASHN credits.", min_value=0),
-    SettingSpec("REFERRAL_REWARD_CREDITS", "Share & earn: credits per friend who buys", "credits", "int",
+    SettingSpec("REFERRAL_TRYON_CREDITS", "Share & earn: credits per friend who tries on", "credits", "int",
                 help="A shopper who shares a look or their invite link earns this many credits when a friend who "
-                "joined from it buys credits for the first time. 0 = off.", min_value=0),
+                "joined from it does their first try-on (with their own credits). Once per friend. 0 = off.", min_value=0),
+    SettingSpec("REFERRAL_REWARD_CREDITS", "Share & earn: extra credits when that friend first buys", "credits", "int",
+                help="Optional extra reward when the invited friend buys credits for the first time. 0 = off. "
+                "Stores pay their own reward per plan (Company stores -> plans).", min_value=0),
     SettingSpec("STORE_USD_TO_PKR", "PKR per US dollar", "credits", "int",
                 help="To compare try-on costs with store plan prices in dollars.", min_value=1),
 )

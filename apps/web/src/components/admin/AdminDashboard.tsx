@@ -24,6 +24,7 @@ import { CreditPackagesTab } from "./CreditPackagesTab";
 import { StoresTab } from "./StoresTab";
 import { DevelopersTab } from "./DevelopersTab";
 import { MessagesTab } from "./MessagesTab";
+import { ReferralsTab } from "./ReferralsTab";
 import { FashnCreditsTab } from "./FashnCreditsTab";
 import { SettingsTab } from "./SettingsTab";
 import { TryOnsTab } from "./TryOnsTab";
@@ -48,7 +49,8 @@ type Tab =
   | "audit"
   | "account"
   | "developers"
-  | "messages";
+  | "messages"
+  | "referrals";
 
 const NAV: readonly NavGroup<Tab>[] = [
   {
@@ -69,6 +71,7 @@ const NAV: readonly NavGroup<Tab>[] = [
       { id: "packs", label: "Credit packs", icon: "packs" },
       { id: "stores", label: "Company stores", icon: "retailers" },
       { id: "developers", label: "Developer API", icon: "ai" },
+      { id: "referrals", label: "Invites & rewards", icon: "users" },
     ],
   },
   {
@@ -182,6 +185,7 @@ export function AdminDashboard() {
         {tab === "stores" && <StoresTab />}
         {tab === "developers" && <DevelopersTab />}
         {tab === "messages" && <MessagesTab />}
+        {tab === "referrals" && <ReferralsTab />}
         {tab === "settings" && <SettingsTab />}
         {tab === "fashn" && <FashnCreditsTab />}
         {tab === "system" && <SystemTab />}

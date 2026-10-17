@@ -19,6 +19,8 @@ class StorePlanOut(BaseModel):
     tryon_credits: int = 0
     duration_days: int
     is_active: bool = True
+    # credits for whoever invited the store, when it buys this plan
+    referral_credits: int = 0
 
 
 class StoreCreate(BaseModel):
@@ -150,6 +152,7 @@ class AdminStorePlanUpdate(BaseModel):
     product_limit: int | None = Field(default=None, gt=0, le=1_000_000)
     featured_limit: int | None = Field(default=None, ge=0, le=1_000_000)
     tryon_credits: int | None = Field(default=None, ge=0, le=1_000_000)
+    referral_credits: int | None = Field(default=None, ge=0, le=100_000)
     duration_days: int | None = Field(default=None, gt=0, le=3650)
     is_active: bool | None = None
 

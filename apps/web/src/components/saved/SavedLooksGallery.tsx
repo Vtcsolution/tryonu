@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { EarnRules, earnRuleLines } from "@/components/referrals/EarnRules";
 import { LookThumb, lookPrice, lookTitle } from "@/components/saved/SavedLookDetail";
 import { ShareLook } from "@/components/try/ShareLook";
 import { Button } from "@/components/ui/Button";
@@ -89,7 +90,7 @@ function ShareAndEarn() {
       document.getElementById("earn")?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }, []);
-  if (!me.data || me.data.reward_credits <= 0) return null;
+  if (!me.data || earnRuleLines(me.data).length === 0) return null;
   const d = me.data;
   return (
     <div
@@ -100,13 +101,13 @@ function ShareAndEarn() {
     >
       <div className="min-w-0 flex-1 basis-[320px]">
         <p className="font-display text-[24px] text-ink">Invite friends &amp; earn credits</p>
-        <p className="mt-1 text-[15.5px] text-ink-soft">
-          Share a look or your invite link. When a friend joins from it and buys credits, you get{" "}
-          <b className="text-ink">{d.reward_credits} free credits</b>.
-        </p>
-        <p className="mt-2 text-[14px] text-muted">
-          Friends joined: <b className="text-ink">{d.friends_joined}</b> · bought credits: <b className="text-ink">{d.friends_bought}</b> ·
-          you earned: <b className="text-ink">{d.credits_earned} credits</b>
+        <div className="mt-2">
+          <EarnRules summary={d} compact />
+        </div>
+        <p className="mt-3 text-[14px] text-muted">
+          Friends joined: <b className="text-ink">{d.friends_joined}</b> · tried on: <b className="text-ink">{d.friends_tried}</b> · shops:{" "}
+          <b className="text-ink">{d.stores_bought}</b> · you earned: <b className="text-ink">{d.credits_earned} credits</b> ·{" "}
+          <a href="/earn" className="font-semibold text-sage-deep hover:underline">How it works</a>
         </p>
       </div>
       <div className="w-full sm:w-auto sm:min-w-[300px]">

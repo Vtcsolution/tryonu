@@ -1,6 +1,7 @@
 """Share and earn: a friend who joined from someone's link (a shared look or
-their invite link). The sharer earns credits once, when that friend first
-buys credits (never for the sign-up alone, so fake accounts earn nothing)."""
+their invite link). The sharer earns credits when that friend first tries
+something on with their own credits, and when a friend who opened a store
+buys its first plan. Never for the sign-up alone, so fake accounts earn nothing."""
 
 from __future__ import annotations
 
@@ -24,7 +25,14 @@ class Referral(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     # "look:<token>" or "link"
     source: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # the friend's first credit purchase was rewarded (off unless REFERRAL_REWARD_CREDITS > 0)
     rewarded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # the friend's first try-on was rewarded (REFERRAL_TRYON_CREDITS)
+    tryon_rewarded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # the friend opened a store and bought its first plan (that plan's referral_credits)
+    store_rewarded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    store_plan_name: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    # everything this friend has earned the person who invited them
     reward_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 

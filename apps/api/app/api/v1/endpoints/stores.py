@@ -278,6 +278,9 @@ async def buy_plan(code: str, user: CurrentUser, db: DbSession):
     if checkout.status == "succeeded":  # a provider that settles at once (the mock, in development)
         payment.status = PaymentStatus.SUCCEEDED
         svc.activate_plan(store, plan)
+        from app.services.referral_service import reward_store_plan
+
+        await reward_store_plan(db, store.owner_user_id, plan)
         await db.commit()
         return PurchaseCreditsResponse(payment_id=payment.id, status="succeeded")
     await db.commit()

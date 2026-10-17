@@ -589,6 +589,8 @@ export type StorePlan = {
   featured_limit: number;
   /** shopper try-ons the store pays for, included with the plan */
   tryon_credits: number;
+  /** credits for whoever invited the store, when it buys this plan */
+  referral_credits?: number;
   duration_days: number;
   is_active: boolean;
 };

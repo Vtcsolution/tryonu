@@ -645,6 +645,9 @@ async def sync_subscription(db: AsyncSession, store: Store, provider) -> str:  #
                     store_id=store.id,
                 )
             )
+            from app.services.referral_service import reward_store_plan
+
+            await reward_store_plan(db, store.owner_user_id, plan)  # only the first plan ever counts
             result = "renewed"
         else:
             result = "active"

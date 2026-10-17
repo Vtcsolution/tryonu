@@ -32,6 +32,8 @@ class StorePlan(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # shopper try-ons the store pays for, included with the plan
     tryon_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     duration_days: Mapped[int] = mapped_column(Integer, nullable=False, default=30)
+    # share and earn: what the person who invited a store earns when it buys this plan
+    referral_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # the PayPal product + billing plan used for auto-renewing subscriptions to

@@ -346,15 +346,42 @@ export const outfits = {
 /** share and earn: your invite link and what it earned; a new account says which link it came from */
 export type ReferralSummary = {
   code: string;
+  /** for friends: tryonu.app/?ref=… */
   link: string;
+  /** for shops: tryonu.app/sell?ref=… */
+  store_link: string;
+  /** extra, when a friend first buys credits (0 = off) */
   reward_credits: number;
+  /** when a friend does their first try-on */
+  tryon_credits: number;
+  /** when a shop from your link buys its first plan */
+  store_rewards: { plan: string; credits: number }[];
   friends_joined: number;
+  friends_tried: number;
   friends_bought: number;
+  stores_bought: number;
+  credits_earned: number;
+};
+export type AdminReferral = {
+  id: string;
+  inviter_email: string;
+  friend_email: string;
+  source: string;
+  joined_at: string;
+  tried_on_at: string | null;
+  store_plan: string | null;
+  store_bought_at: string | null;
   credits_earned: number;
 };
 export const referrals = {
   me: () => apiFetch<ReferralSummary>("/api/v1/referrals/me"),
   claim: (ref: string) => apiFetch<{ claimed: boolean }>("/api/v1/referrals/claim", { method: "POST", body: { ref } }),
+};
+export const adminReferrals = {
+  list: () =>
+    apiFetch<{ invites: number; tried_on: number; stores_bought: number; credits_paid: number; rows: AdminReferral[] }>(
+      "/api/v1/admin/referrals",
+    ),
 };
 
 /** the Contact page, and the admin inbox it fills */
@@ -502,7 +529,7 @@ export const adminStores = {
   setStatus: (id: string, status: string, note?: string) =>
     apiFetch<AdminStore>(`/api/v1/admin/stores/${id}/status`, { method: "POST", body: { status, note: note || null } }),
   plans: () => apiFetch<StorePlan[]>("/api/v1/admin/stores/plans"),
-  updatePlan: (id: string, input: Partial<Pick<StorePlan, "name" | "price_cents" | "product_limit" | "featured_limit" | "tryon_credits" | "duration_days" | "is_active">>) =>
+  updatePlan: (id: string, input: Partial<Pick<StorePlan, "name" | "price_cents" | "product_limit" | "featured_limit" | "tryon_credits" | "referral_credits" | "duration_days" | "is_active">>) =>
     apiFetch<StorePlan>(`/api/v1/admin/stores/plans/${id}`, { method: "PATCH", body: input }),
   summary: () => apiFetch<AdminStoreSummary>("/api/v1/admin/stores/summary"),
   detail: (id: string) => apiFetch<AdminStoreDetail>(`/api/v1/admin/stores/${id}`),

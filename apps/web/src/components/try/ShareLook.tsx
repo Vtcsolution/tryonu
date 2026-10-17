@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { referrals as referralsApi, tryon as tryonApi } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
+import { earnRuleLines } from "@/components/referrals/EarnRules";
 import { ApiError } from "@/lib/api/client";
 
 type Props = {
@@ -30,7 +31,7 @@ const LOOK_TEXT = "Here's my look, made with TryOnU. Try it on yourself:";
 export function ShareLook({ jobId, url, variant = "pill", label, title = "Share this look", message = LOOK_TEXT, earns }: Props) {
   const { user } = useSession();
   const earn = useQuery({ queryKey: ["referrals", "me"], queryFn: referralsApi.me, enabled: !!user, staleTime: 5 * 60_000 });
-  const reward = earn.data?.reward_credits ?? 0;
+  const rules = earn.data ? earnRuleLines(earn.data) : [];
   const [open, setOpen] = useState(false);
   const [link, setLink] = useState<string | null>(url ?? null);
   const [copied, setCopied] = useState(false);
@@ -99,7 +100,7 @@ export function ShareLook({ jobId, url, variant = "pill", label, title = "Share 
       ]
     : [];
   const canNativeShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
-  const showReward = reward > 0 && (earns ?? !!jobId);
+  const showReward = rules.length > 0 && (earns ?? !!jobId);
 
   const trigger =
     variant === "wide" ? (
@@ -225,10 +226,14 @@ export function ShareLook({ jobId, url, variant = "pill", label, title = "Share 
                 <span className="mt-0.5 text-sage-deep">
                   <GiftIcon />
                 </span>
-                <p className="text-[14px] leading-relaxed text-ink-soft">
-                  You earn <span className="font-semibold text-ink">{reward} credits</span> for each friend who signs up through
-                  this link and makes their first purchase.
-                </p>
+                <div className="text-[14px] leading-relaxed text-ink-soft">
+                  <p className="font-semibold text-ink">Share and earn free credits</p>
+                  <ul className="mt-1 space-y-0.5">
+                    {rules.map((r) => (
+                      <li key={r}>{r}</li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             )}
 

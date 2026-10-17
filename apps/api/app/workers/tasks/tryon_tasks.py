@@ -1389,6 +1389,10 @@ async def _complete_sequence(session, job: TryOnJob, provider: VirtualTryOnProvi
     )
     job.status = JobStatus.COMPLETED
     job.completed_at = datetime.now(timezone.utc)
+    # share and earn: whoever invited this shopper earns on their first try-on
+    from app.services.referral_service import reward_first_tryon
+
+    await reward_first_tryon(session, job)
     job.provider = provider.name
     job.provider_model = provider.model
     job.provider_job_id = output.provider_job_id
@@ -1653,6 +1657,10 @@ async def _complete_job(  # noqa: ANN001
     session.add(TryOnResult(job_id=job.id, storage_key=key, image_url=url, placements=placements))
     job.status = JobStatus.COMPLETED
     job.completed_at = datetime.now(timezone.utc)
+    # share and earn: whoever invited this shopper earns on their first try-on
+    from app.services.referral_service import reward_first_tryon
+
+    await reward_first_tryon(session, job)
     # the engine that actually drew it — the one recorded at creation can be
     # stale if the provider was switched while the job was queued
     job.provider = provider_name
