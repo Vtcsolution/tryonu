@@ -384,6 +384,16 @@ export const adminReferrals = {
     ),
 };
 
+/** the browser extensions: connect this browser, see and disconnect connected ones */
+export type ExtensionKind = "shopper" | "store";
+export type ConnectedBrowser = { id: string; kind: ExtensionKind; label: string | null; created_at: string; last_used_at: string | null };
+export const extension = {
+  connect: (kind: ExtensionKind, label: string) =>
+    apiFetch<{ token: string }>("/api/v1/extension/token", { method: "POST", body: { kind, label } }),
+  list: () => apiFetch<ConnectedBrowser[]>("/api/v1/extension/tokens"),
+  disconnectAll: () => apiFetch<void>("/api/v1/extension/tokens", { method: "DELETE" }),
+};
+
 /** the Contact page, and the admin inbox it fills */
 export type ContactTopic = "general" | "tryon" | "store" | "developer" | "partnership" | "privacy";
 export type ContactMessage = {

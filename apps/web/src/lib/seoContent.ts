@@ -54,6 +54,10 @@ export const FAQ_GROUPS: { title: string; items: QA[] }[] = [
         a: "Yes. Describe what you want to the TryOnU AI Stylist, for example \"a navy chino, white shirt and brown loafers for an office in Lahore\", and it picks real products that match and puts them on your photo.",
       },
       {
+        q: "Can I try on clothes from eBay, AliExpress or other shops?",
+        a: "Yes. Install the free TryOnU browser extension: on any product page, on eBay, AliExpress or any shop, click the TryOnU button (or right-click the product picture) and the product goes onto your own photo, using your TryOnU credits.",
+      },
+      {
         q: "Can I share my try-on look with friends?",
         a: "Yes. Press Share on a finished look to send a link on WhatsApp, Facebook, LinkedIn, X or email. Your friends see the picture and the products, and can try the same look on themselves.",
       },

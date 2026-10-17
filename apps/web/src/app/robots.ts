@@ -18,6 +18,7 @@ const PRIVATE = [
   "/verify-email",
   "/reset-password",
   "/forgot-password",
+  "/extension/connect",
 ];
 const OPEN_AGAIN = ["/business/sign-up", "/developers/docs", "/developers/sign-up"];
 

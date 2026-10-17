@@ -20,6 +20,7 @@ from app.models.preference import UserPreference  # noqa: F401
 from app.models.product import Product, ProductImage  # noqa: F401
 from app.models.saved_product import SavedProduct  # noqa: F401
 from app.models.contact import ContactMessage  # noqa: F401
+from app.models.extension import ExtensionToken  # noqa: F401
 from app.models.referral import Referral, ReferralCode  # noqa: F401
 from app.models.shared_look import SharedLook  # noqa: F401
 from app.models.store import Store, StorePlan, StoreProduct, StoreProductView  # noqa: F401

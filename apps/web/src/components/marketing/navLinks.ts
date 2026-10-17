@@ -11,6 +11,7 @@ export const PRODUCT: NavGroup = {
     { label: "Outfit builder", href: "/outfits", hint: "Put several pieces together" },
     { label: "My wardrobe", href: "/wardrobe", hint: "Try with clothes you own" },
     { label: "Saved looks", href: "/saved", hint: "Your lookbook, ready to share" },
+    { label: "Browser extension", href: "/extension", hint: "Try on from eBay, AliExpress, any shop" },
     { label: "Marketplaces", href: "/#marketplaces", hint: "eBay, AliExpress, brand stores and local shops" },
   ],
 };
@@ -20,6 +21,7 @@ export const BUSINESS: NavGroup = {
   items: [
     { label: "Sell on TryOnU", href: "/sell", hint: "Open a store, reach shoppers near you" },
     { label: "Store dashboard", href: "/business", hint: "Products, plans and shopper try-ons" },
+    { label: "Store extension", href: "/extension#stores", hint: "Add products from any page in one click" },
     { label: "Try-on API", href: "/developers", hint: "Virtual try-on for your app or site" },
     { label: "API docs & plugins", href: "/developers/docs", hint: "Shopify, WordPress, any website" },
   ],

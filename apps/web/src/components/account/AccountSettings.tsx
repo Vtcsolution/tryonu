@@ -7,7 +7,7 @@ import { CountryPicker } from "@/components/ui/CountryPicker";
 import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { ApiError } from "@/lib/api/client";
-import { auth, preferences } from "@/lib/api/endpoints";
+import { auth, extension, preferences } from "@/lib/api/endpoints";
 import type { User } from "@/lib/api/types";
 import { SESSION_QUERY_KEY } from "@/lib/auth/useSession";
 
@@ -20,6 +20,7 @@ export function AccountSettings({ user }: { user: User }) {
     <div className="grid gap-5 lg:grid-cols-2">
       <ProfileCard user={user} />
       <PasswordCard user={user} />
+      <ConnectedBrowsers />
     </div>
   );
 }
@@ -180,6 +181,44 @@ function PasswordCard({ user }: { user: User }) {
           {change.isPending ? "Changing…" : hasPassword ? "Change password" : "Set password"}
         </Button>
       </form>
+    </section>
+  );
+}
+
+/** Browsers where a TryOnU extension is connected to this account. */
+function ConnectedBrowsers() {
+  const qc = useQueryClient();
+  const list = useQuery({ queryKey: ["extension-tokens"], queryFn: extension.list });
+  const off = useMutation({
+    mutationFn: extension.disconnectAll,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["extension-tokens"] }),
+  });
+  const rows = list.data ?? [];
+  if (!list.isLoading && rows.length === 0) return null;
+  return (
+    <section className={card}>
+      <h2 className="font-display text-[22px] text-ink">Browser extensions</h2>
+      <p className="mt-1 text-[14.5px] text-muted">Browsers where a TryOnU extension is connected to your account.</p>
+      <ul className="mt-4 divide-y divide-line rounded-[16px] border border-line">
+        {rows.map((b) => (
+          <li key={b.id} className="px-4 py-3 text-[14.5px]">
+            <span className="font-medium text-ink">{b.kind === "store" ? "TryOnU for Stores" : "TryOnU – Try It On"}</span>
+            <span className="text-muted">
+              {b.label ? ` · ${b.label}` : ""} · connected {new Date(b.created_at).toLocaleDateString()}
+              {b.last_used_at ? ` · last used ${new Date(b.last_used_at).toLocaleDateString()}` : ""}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <Button
+        variant="outline"
+        size="md"
+        className="mt-4"
+        disabled={off.isPending || rows.length === 0}
+        onClick={() => off.mutate()}
+      >
+        {off.isPending ? "Disconnecting…" : "Disconnect all browsers"}
+      </Button>
     </section>
   );
 }

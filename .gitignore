@@ -50,3 +50,6 @@ __pycache__/
 Google_Auth_Credientials.json
 *client_secret*.json
 *credentials*.json
+
+# browser extension build output (the zips in apps/web/public/downloads are what ships)
+integrations/browser-extension/dist/

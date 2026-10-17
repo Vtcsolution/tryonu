@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "TryOnU for Stores",
+  "short_name": "TryOnU Stores",
+  "version": "1.0.0",
+  "description": "Add products to your TryOnU store from any page, your own website included, in one click. Shoppers can then try them on.",
+  "homepage_url": "https://tryonu.app/extension",
+  "icons": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
+  "action": {
+    "default_title": "Add to my TryOnU store",
+    "default_popup": "popup.html",
+    "default_icon": { "16": "icons/icon16.png", "32": "icons/icon32.png" }
+  },
+  "background": { "service_worker": "background.js", "type": "module" },
+  "permissions": ["storage", "activeTab", "scripting", "contextMenus"],
+  "host_permissions": ["https://api.tryonu.app/*"],
+  "content_scripts": [
+    { "matches": ["https://tryonu.app/extension/connect*"], "js": ["kind.js", "connect.js"], "run_at": "document_idle" }
+  ]
+}
