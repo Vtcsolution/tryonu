@@ -55,20 +55,31 @@ export function PostCard({
   const [showComments, setShowComments] = useState(openComments);
   const [menu, setMenu] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const update = (next: CommunityPost) => {
-    setP(next);
-    onChange?.(next);
-  };
 
+  // like or unlike is decided at the click and passed along: the heart turns
+  // red at once, and the request must not re-read that already-changed state
+  // (it did, so a first like was sent as an unlike)
   const like = useMutation({
-    mutationFn: () => (p.liked_by_me ? community.unlike(p.id) : community.like(p.id)),
-    onMutate: () => update({ ...p, liked_by_me: !p.liked_by_me, like_count: p.like_count + (p.liked_by_me ? -1 : 1) }),
-    onSuccess: (res) => update({ ...p, liked_by_me: res.liked, like_count: res.like_count }),
+    mutationFn: (want: boolean) => (want ? community.like(p.id) : community.unlike(p.id)),
+    onMutate: (want: boolean) =>
+      setP((prev) => {
+        const next = { ...prev, liked_by_me: want, like_count: Math.max(0, prev.like_count + (want ? 1 : -1)) };
+        onChange?.(next);
+        return next;
+      }),
+    onSuccess: (res) =>
+      setP((prev) => {
+        const next = { ...prev, liked_by_me: res.liked, like_count: res.like_count };
+        onChange?.(next);
+        return next;
+      }),
+    onError: (_err, want) =>
+      setP((prev) => ({ ...prev, liked_by_me: !want, like_count: Math.max(0, prev.like_count + (want ? -1 : 1)) })),
   });
   const follow = useMutation({
     mutationFn: () => community.follow(p.author.handle),
     onSuccess: () => {
-      update({ ...p, following_author: true });
+      setP((prev) => ({ ...prev, following_author: true }));
       qc.invalidateQueries({ queryKey: ["community", "profile", p.author.handle] });
     },
   });
@@ -208,7 +219,7 @@ export function PostCard({
 
         {/* the action bar */}
         <div className="mt-3 flex items-center justify-around border-t border-line pt-1 sm:grid sm:grid-cols-3">
-          <ActionButton onClick={() => like.mutate()} pressed={p.liked_by_me} active={p.liked_by_me} label={p.liked_by_me ? "Liked" : "Like"}>
+          <ActionButton onClick={() => !like.isPending && like.mutate(!p.liked_by_me)} pressed={p.liked_by_me} active={p.liked_by_me} label={p.liked_by_me ? "Liked" : "Like"}>
             <HeartIcon filled={p.liked_by_me} />
           </ActionButton>
           <ActionButton onClick={() => setShowComments((v) => !v)} active={showComments} label="Comment">
@@ -221,7 +232,7 @@ export function PostCard({
         {tryIt.isError && <p className="mt-2 text-[14px] text-[#a4553f]">{tryIt.error instanceof ApiError ? tryIt.error.detail : "Couldn't open this look."}</p>}
         {notice && <p className="mt-2 rounded-xl bg-sage-tint/40 px-3 py-2 text-[14px] text-ink">{notice}</p>}
 
-        {showComments && <Comments post={p} onCount={(n) => update({ ...p, comment_count: n })} />}
+        {showComments && <Comments post={p} onCount={(n) => setP((prev) => ({ ...prev, comment_count: n }))} />}
         <div className="h-3" />
       </div>
     </article>
@@ -351,7 +362,7 @@ function ActionButton({
       disabled={disabled}
       aria-pressed={pressed}
       className={`flex min-h-[44px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-[14px] font-semibold transition-colors hover:bg-paper-2 disabled:opacity-60 sm:gap-2 sm:text-[14.5px] ${
-        active ? (pressed ? "text-[#c0503a]" : "text-ink") : accent ? "text-sage-deep" : "text-ink-soft hover:text-ink"
+        active ? (pressed ? "text-[#c0503a]" : "text-ink") : accent ? "tu-attention bg-sage-tint/40 text-sage-deep" : "text-ink-soft hover:text-ink"
       }`}
     >
       {children}
