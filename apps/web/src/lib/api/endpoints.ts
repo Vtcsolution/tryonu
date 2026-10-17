@@ -463,6 +463,12 @@ export const community = {
   removeComment: (id: string) => apiFetch<void>(`${C}/comments/${id}`, { method: "DELETE" }),
   me: () => apiFetch<CommunityProfile>(`${C}/me`),
   updateMe: (input: { handle?: string; bio?: string }) => apiFetch<CommunityProfile>(`${C}/me`, { method: "PATCH", body: input }),
+  uploadAvatar: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return apiFetch<CommunityProfile>(`${C}/me/avatar`, { method: "POST", body: form, isFormData: true });
+  },
+  removeAvatar: () => apiFetch<CommunityProfile>(`${C}/me/avatar`, { method: "DELETE" }),
   profile: (handle: string) => apiFetch<CommunityProfile>(`${C}/profiles/${encodeURIComponent(handle)}`),
   profilePosts: (handle: string, offset = 0) => apiFetch<CommunityFeed>(`${C}/profiles/${encodeURIComponent(handle)}/posts?offset=${offset}`),
   follow: (handle: string) => apiFetch<CommunityProfile>(`${C}/profiles/${encodeURIComponent(handle)}/follow`, { method: "POST" }),

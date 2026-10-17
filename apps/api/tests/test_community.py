@@ -87,3 +87,25 @@ async def test_reports_hide_content_and_bans_stop_posting(client, db, monkeypatc
 
     await _as(client, a)  # the blocked member can't post or comment
     assert (await client.post(f"/api/v1/community/posts/{post['id']}/comments", json={"body": "hi"})).status_code == 403
+
+
+async def test_a_member_uploads_changes_and_removes_a_profile_picture(client):  # noqa: ANN001
+    from tests.conftest import small_jpeg_bytes
+
+    await register_and_login(client)
+    assert (await client.post("/api/v1/community/me/avatar", files={"file": ("x.txt", b"not a photo", "text/plain")})).status_code == 400
+    up = await client.post("/api/v1/community/me/avatar", files={"file": ("me.jpg", small_jpeg_bytes((900, 1200)), "image/jpeg")})
+    assert up.status_code == 200, up.text
+    url = up.json()["avatar_url"]
+    assert url.startswith("/api/v1/community/avatar/")
+    img = await client.get(url)
+    assert img.status_code == 200 and img.headers["content-type"] == "image/jpeg"
+    from io import BytesIO
+
+    from PIL import Image
+
+    assert Image.open(BytesIO(img.content)).size == (400, 400)  # a neat square
+
+    again = (await client.post("/api/v1/community/me/avatar", files={"file": ("me2.jpg", small_jpeg_bytes((600, 600)), "image/jpeg")})).json()
+    assert again["avatar_url"] != url and (await client.get(url)).status_code == 404  # the old one is gone
+    assert (await client.delete("/api/v1/community/me/avatar")).json()["avatar_url"] is None

@@ -7,8 +7,8 @@ import { useEffect, useState } from "react";
 import { Avatar } from "@/components/community/PostCard";
 import { Button } from "@/components/ui/Button";
 import { ApiError, resolveMediaUrl } from "@/lib/api/client";
-import { community } from "@/lib/api/endpoints";
-import { useSession } from "@/lib/auth/useSession";
+import { community, type CommunityProfile } from "@/lib/api/endpoints";
+import { SESSION_QUERY_KEY, useSession } from "@/lib/auth/useSession";
 
 /** /u/<handle>: a member's looks, followers and following, Follow / Edit profile. */
 export function ProfileView({ handle }: { handle: string }) {
@@ -50,7 +50,11 @@ export function ProfileView({ handle }: { handle: string }) {
     <section className="tu-container py-8 md:py-12">
       <div className="mx-auto max-w-[1000px]">
         <div className="flex flex-wrap items-center gap-5 rounded-[24px] border border-line bg-surface p-5 md:p-7">
-          <Avatar name={p.name} handle={p.handle} url={p.avatar_url} size={84} />
+          {p.is_me ? (
+            <AvatarPicker profile={p} onChanged={(np) => qc.setQueryData(key, np)} />
+          ) : (
+            <Avatar name={p.name} handle={p.handle} url={p.avatar_url} size={84} />
+          )}
           <div className="min-w-0 flex-1">
             <h1 className="truncate font-display text-[28px] leading-tight text-ink">{p.name || p.handle}</h1>
             <p className="text-[15px] text-muted">@{p.handle}</p>
@@ -137,6 +141,56 @@ function EditProfile({ handle, bio, onDone }: { handle: string; bio: string | nu
           {save.isPending ? "Saving…" : "Save"}
         </button>
       </div>
+    </div>
+  );
+}
+
+/** My own profile picture: tap to upload or change it; remove it from the small menu. */
+function AvatarPicker({ profile, onChanged }: { profile: CommunityProfile; onChanged: (p: CommunityProfile) => void }) {
+  const qc = useQueryClient();
+  const [error, setError] = useState<string | null>(null);
+  const done = (p: CommunityProfile) => {
+    setError(null);
+    onChanged(p);
+    // the account button and every post of mine show the new picture
+    qc.invalidateQueries({ queryKey: SESSION_QUERY_KEY });
+    qc.invalidateQueries({ queryKey: ["community"] });
+  };
+  const upload = useMutation({
+    mutationFn: (file: File) => community.uploadAvatar(file),
+    onSuccess: done,
+    onError: (err) => setError(err instanceof ApiError ? err.detail : "Couldn't upload that photo."),
+  });
+  const remove = useMutation({ mutationFn: community.removeAvatar, onSuccess: done });
+  return (
+    <div className="flex flex-col items-center gap-1.5">
+      <label className="group relative cursor-pointer" title="Change profile picture">
+        <input
+          type="file"
+          accept="image/*"
+          className="sr-only"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) upload.mutate(file);
+            e.target.value = "";
+          }}
+        />
+        <Avatar name={profile.name} handle={profile.handle} url={profile.avatar_url} size={84} />
+        <span className="absolute inset-0 grid place-items-center rounded-full bg-black/45 text-[12.5px] font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100">
+          {upload.isPending ? "Uploading…" : "Change"}
+        </span>
+        <span aria-hidden="true" className="absolute -bottom-0.5 -right-0.5 grid h-8 w-8 place-items-center rounded-full border-2 border-surface bg-sage text-[15px] text-white">
+          📷
+        </span>
+        <span className="sr-only">Upload a profile picture</span>
+      </label>
+      {upload.isPending && <span className="text-[12.5px] text-muted">Uploading…</span>}
+      {profile.avatar_url && !upload.isPending && (
+        <button type="button" onClick={() => remove.mutate()} disabled={remove.isPending} className="text-[12.5px] text-muted hover:text-[#a4553f]">
+          Remove photo
+        </button>
+      )}
+      {error && <span className="max-w-[140px] text-center text-[12.5px] text-[#a4553f]">{error}</span>}
     </div>
   );
 }

@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/Button";
 import { CountryPicker } from "@/components/ui/CountryPicker";
 import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
-import { ApiError } from "@/lib/api/client";
-import { auth, extension, preferences } from "@/lib/api/endpoints";
+import { ApiError, resolveMediaUrl } from "@/lib/api/client";
+import { auth, community, extension, preferences } from "@/lib/api/endpoints";
 import type { User } from "@/lib/api/types";
 import { SESSION_QUERY_KEY } from "@/lib/auth/useSession";
 
@@ -51,6 +51,7 @@ function ProfileCard({ user }: { user: User }) {
   return (
     <section className={card}>
       <h2 className="font-display text-[22px] text-ink">Your details</h2>
+      <ProfilePhoto user={user} />
       <form
         className="mt-5 space-y-4"
         onSubmit={(e) => {
@@ -220,5 +221,54 @@ function ConnectedBrowsers() {
         {off.isPending ? "Disconnecting…" : "Disconnect all browsers"}
       </Button>
     </section>
+  );
+}
+
+/** The profile picture people see in the community (and on the account button). */
+function ProfilePhoto({ user }: { user: User }) {
+  const qc = useQueryClient();
+  const [error, setError] = useState<string | null>(null);
+  const refresh = () => {
+    setError(null);
+    qc.invalidateQueries({ queryKey: SESSION_QUERY_KEY });
+    qc.invalidateQueries({ queryKey: ["community"] });
+  };
+  const upload = useMutation({
+    mutationFn: (file: File) => community.uploadAvatar(file),
+    onSuccess: refresh,
+    onError: (err) => setError(err instanceof ApiError ? err.detail : "Couldn't upload that photo."),
+  });
+  const remove = useMutation({ mutationFn: community.removeAvatar, onSuccess: refresh });
+  const letter = (user.full_name || user.email).trim().charAt(0).toUpperCase();
+  return (
+    <div className="mt-5 flex items-center gap-4">
+      {user.avatar_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={resolveMediaUrl(user.avatar_url)} alt="" className="h-16 w-16 rounded-full object-cover" />
+      ) : (
+        <span className="grid h-16 w-16 place-items-center rounded-full bg-sage text-[26px] font-semibold text-white">{letter}</span>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="tu-press inline-flex min-h-[40px] cursor-pointer items-center rounded-full border border-line-strong px-4 text-[14px] font-semibold text-ink hover:border-ink/40">
+          {upload.isPending ? "Uploading…" : user.avatar_url ? "Change photo" : "Add a profile photo"}
+          <input
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) upload.mutate(file);
+              e.target.value = "";
+            }}
+          />
+        </label>
+        {user.avatar_url && (
+          <button type="button" onClick={() => remove.mutate()} disabled={remove.isPending} className="text-[14px] text-muted hover:text-[#a4553f]">
+            Remove
+          </button>
+        )}
+        {error && <span className="w-full text-[13.5px] text-[#a4553f]">{error}</span>}
+      </div>
+    </div>
   );
 }

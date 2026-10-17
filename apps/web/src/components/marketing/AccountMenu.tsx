@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { resolveMediaUrl } from "@/lib/api/client";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
@@ -39,9 +40,14 @@ export function AccountMenu() {
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-2.5 rounded-full border border-line py-1 pl-1 pr-3 transition-colors hover:border-line-strong"
       >
-        <span className="grid h-7 w-7 place-items-center rounded-full bg-sage text-[13px] font-semibold text-white">
-          {initial}
-        </span>
+        {user.avatar_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={resolveMediaUrl(user.avatar_url)} alt="" className="h-7 w-7 rounded-full object-cover" />
+        ) : (
+          <span className="grid h-7 w-7 place-items-center rounded-full bg-sage text-[13px] font-semibold text-white">
+            {initial}
+          </span>
+        )}
         {/* The balance, verified or not — the red dot below is what asks
             for verification, and replacing the number with "Verify email"
             left shoppers unable to see credits they actually hold. */}

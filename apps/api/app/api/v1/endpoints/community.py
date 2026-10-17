@@ -13,7 +13,7 @@ import re
 import secrets
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import selectinload
@@ -522,6 +522,80 @@ async def update_my_profile(payload: ProfileUpdateIn, me: CurrentUser, db: DbSes
         me.bio = (data["bio"] or "").strip() or None
     await db.commit()
     return await _profile_out(db, me, me)
+
+
+# ------------------------------------------------------------------ profile pictures
+
+AVATAR_PREFIX = "avatars/"
+AVATAR_URL = "/api/v1/community/avatar/"
+
+
+def _square_avatar(raw: bytes) -> bytes:
+    """Any photo (JPEG, PNG, HEIC…), turned upright, cropped to a centred square, 400×400 JPEG."""
+    import io
+
+    from PIL import Image, ImageOps, UnidentifiedImageError
+
+    from app.services import image_service  # noqa: F401 (registers the HEIC decoder)
+
+    try:
+        img = Image.open(io.BytesIO(raw))
+        img = ImageOps.exif_transpose(img).convert("RGB")
+    except (UnidentifiedImageError, OSError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="That file isn't a photo we can read. Try a JPG or PNG.") from exc
+    img = ImageOps.fit(img, (400, 400), Image.LANCZOS, centering=(0.5, 0.35))  # faces sit a little above the middle
+    out = io.BytesIO()
+    img.save(out, "JPEG", quality=86, optimize=True)
+    return out.getvalue()
+
+
+def _remove_old_avatar(user: User) -> None:
+    if user.avatar_url and user.avatar_url.startswith(AVATAR_URL):
+        try:
+            get_storage().delete(AVATAR_PREFIX + user.avatar_url.removeprefix(AVATAR_URL))
+        except Exception:  # noqa: BLE001 — a leftover file is harmless
+            pass
+
+
+@router.post(
+    "/me/avatar",
+    response_model=ProfileOut,
+    dependencies=[Depends(rate_limiter("community_avatar", limit=20, window_seconds=3600))],
+)
+async def upload_avatar(me: CurrentUser, db: DbSession, file: UploadFile = File(...)):
+    raw = await file.read()
+    if len(raw) > 15 * 1024 * 1024:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="That photo is too big. Please use one under 15 MB.")
+    content = _square_avatar(raw)
+    name = f"{me.id}-{secrets.token_urlsafe(8)}.jpg"
+    get_storage().put(AVATAR_PREFIX + name, content, "image/jpeg")
+    _remove_old_avatar(me)
+    me.avatar_url = AVATAR_URL + name
+    await ensure_handle(db, me)
+    await db.commit()
+    return await _profile_out(db, me, me)
+
+
+@router.delete("/me/avatar", response_model=ProfileOut)
+async def remove_avatar(me: CurrentUser, db: DbSession):
+    _remove_old_avatar(me)
+    me.avatar_url = None
+    await db.commit()
+    return await _profile_out(db, me, me)
+
+
+@router.get("/avatar/{name}")
+async def avatar_image(name: str):
+    """A member's profile picture. Each upload gets a new random name, so it can be cached for good."""
+    from fastapi import Response
+
+    if not re.fullmatch(r"[A-Za-z0-9_-]{8,80}\.jpg", name):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    try:
+        data = get_storage().read(AVATAR_PREFIX + name)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
+    return Response(content=data, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
 @router.get("/profiles/{handle}", response_model=ProfileOut)
