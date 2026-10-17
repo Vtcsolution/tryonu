@@ -469,14 +469,22 @@ body {
 /* Large screens: the whole site a little bigger, as if zoomed in, so text
    stays easy to read on wide monitors at 100% scaling. Laptops and phones
    are unchanged. */
+html {
+  /* the enlargement below, for full-screen views that must divide it back out
+     (zoom also scales 100vh/100dvh, so "full height" would overflow). Set on
+     html, like the media queries below, so they override it. */
+  --page-zoom: 1;
+}
 @media (min-width: 1800px) {
   html {
     zoom: 1.12;
+    --page-zoom: 1.12;
   }
 }
 @media (min-width: 2300px) {
   html {
     zoom: 1.25;
+    --page-zoom: 1.25;
   }
 }
 
@@ -516,4 +524,9 @@ body {
   .tu-attention {
     animation: none;
   }
+}
+
+/* exactly one screen tall, whatever the large-screen enlargement */
+.tu-screen-h {
+  height: calc(100dvh / var(--page-zoom, 1));
 }

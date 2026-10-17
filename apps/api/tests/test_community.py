@@ -109,3 +109,60 @@ async def test_a_member_uploads_changes_and_removes_a_profile_picture(client):  
     again = (await client.post("/api/v1/community/me/avatar", files={"file": ("me2.jpg", small_jpeg_bytes((600, 600)), "image/jpeg")})).json()
     assert again["avatar_url"] != url and (await client.get(url)).status_code == 404  # the old one is gone
     assert (await client.delete("/api/v1/community/me/avatar")).json()["avatar_url"] is None
+
+
+# ------------------------------------------------------------------ members' own photos and videos
+
+
+def _post_media(client, name, data, ctype, caption="My look"):  # noqa: ANN001, ANN202
+    return client.post(
+        "/api/v1/community/posts/media",
+        files={"file": (name, data, ctype)},
+        data={"caption": caption, "accept_rules": "true"},
+    )
+
+
+async def test_a_member_posts_a_photo_and_a_video(client, monkeypatch):  # noqa: ANN001
+    from tests.conftest import small_jpeg_bytes
+
+    await register_and_login(client)
+    refused = await client.post("/api/v1/community/posts/media", files={"file": ("a.jpg", small_jpeg_bytes(), "image/jpeg")}, data={"accept_rules": "false"})
+    assert refused.status_code == 400  # rules first
+    photo = await _post_media(client, "me.jpg", small_jpeg_bytes((800, 1000)), "image/jpeg")
+    assert photo.status_code == 201, photo.text
+    assert photo.json()["media_kind"] == "image" and photo.json()["image_url"] and photo.json()["products"] == []
+    assert (await client.post(f"/api/v1/community/posts/{photo.json()['id']}/try")).status_code == 400  # nothing to try on
+
+    # a server without ffmpeg keeps the video as uploaded
+    monkeypatch.setattr("app.services.community_media.shutil.which", lambda name: None)
+    fake_mp4 = b"\x00\x00\x00\x18ftypisom\x00\x00\x02\x00isomiso2" + b"\x00" * 2000
+    video = await _post_media(client, "clip.mp4", fake_mp4, "video/mp4")
+    assert video.status_code == 201, video.text
+    assert video.json()["media_kind"] == "video" and video.json()["video_url"] and video.json()["image_url"] is None
+    assert (await _post_media(client, "notes.txt", b"just text, not media", "text/plain")).status_code in (400, 415)
+
+    feed = (await client.get("/api/v1/community/feed")).json()["posts"]
+    kinds = {p["id"]: p["media_kind"] for p in feed}
+    assert kinds[photo.json()["id"]] == "image" and kinds[video.json()["id"]] == "video"
+    assert (await client.delete(f"/api/v1/community/posts/{video.json()['id']}")).status_code == 204
+
+
+async def test_videos_are_converted_with_a_cover_picture_when_ffmpeg_is_installed(client, tmp_path):  # noqa: ANN001
+    import shutil
+    import subprocess
+
+    import pytest
+
+    if not (shutil.which("ffmpeg") and shutil.which("ffprobe")):
+        pytest.skip("ffmpeg isn't installed here")
+    clip = tmp_path / "clip.mov"
+    subprocess.run(
+        ["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=1080x1920:rate=24", "-t", "2", "-pix_fmt", "yuv420p", str(clip)],
+        check=True, timeout=120,
+    )
+    await register_and_login(client)
+    posted = await _post_media(client, "clip.mov", clip.read_bytes(), "video/quicktime")
+    assert posted.status_code == 201, posted.text
+    body = posted.json()
+    assert body["media_kind"] == "video" and ".mp4" in body["video_url"] and body["poster_url"]
+    assert (await client.get(body["video_url"])).headers["content-type"] == "video/mp4"

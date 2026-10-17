@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { PostALook } from "@/components/community/PostALook";
+import { CreatePost } from "@/components/community/CreatePost";
 import { Avatar, PostCard } from "@/components/community/PostCard";
 import { COMMUNITY_RULES } from "@/components/community/PostToCommunity";
 import { Button } from "@/components/ui/Button";
@@ -56,7 +56,19 @@ export function CommunityFeed() {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h1 className="font-display text-[clamp(28px,4vw,40px)] leading-tight text-ink">Community</h1>
-            <PostALook />
+            <div className="flex items-center gap-2">
+              <Link
+                href="/community/reels"
+                className="tu-press inline-flex min-h-[44px] items-center gap-2 rounded-full border border-line-strong px-4 text-[15px] font-semibold text-ink hover:border-ink/40"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="3" y="3" width="18" height="18" rx="4" />
+                  <path d="M10 8.5v7l6-3.5z" fill="currentColor" />
+                </svg>
+                Reels
+              </Link>
+              <CreatePost />
+            </div>
           </div>
           <div className="mt-4 flex">
             <div role="tablist" aria-label="Feed" className="flex rounded-full border border-line p-1">
@@ -91,7 +103,7 @@ export function CommunityFeed() {
                   <p className="text-[16px] text-muted">No looks yet. Be the first to post yours!</p>
                 )}
                 <div className="mt-5 flex justify-center">
-                  <PostALook />
+                  <CreatePost />
                 </div>
               </div>
             )}
@@ -126,9 +138,9 @@ export function CommunityFeed() {
             )}
             <div className="rounded-[20px] border border-line bg-surface p-5">
               <p className="text-[16px] font-semibold text-ink">Share your look</p>
-              <p className="mt-1 text-[14.5px] text-muted">Post one of your saved looks or try-ons, or make a new one.</p>
+              <p className="mt-1 text-[14.5px] text-muted">Post a try-on look, or your own photo or video.</p>
               <div className="mt-4">
-                <PostALook variant="wide" />
+                <CreatePost variant="wide" />
               </div>
               <Link href="/try" className="mt-3 block text-center text-[14.5px] font-semibold text-sage-deep hover:underline">
                 Make a new look →

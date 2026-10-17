@@ -18,7 +18,13 @@ class CommunityPost(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __table_args__ = (UniqueConstraint("user_id", "tryon_job_id", name="uq_community_posts_user_job"),)
 
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
-    tryon_job_id: Mapped[str] = mapped_column(String(36), ForeignKey("tryon_jobs.id", ondelete="CASCADE"), nullable=False)
+    # a try-on look (tryon_job_id), or a photo/video the member uploaded (media_key)
+    tryon_job_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("tryon_jobs.id", ondelete="CASCADE"), nullable=True)
+    media_kind: Mapped[str] = mapped_column(String(16), nullable=False, default="tryon")  # tryon | image | video
+    media_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    poster_key: Mapped[str | None] = mapped_column(String(512), nullable=True)  # a video's cover picture
+    media_width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    media_height: Mapped[int | None] = mapped_column(Integer, nullable=True)
     caption: Mapped[str | None] = mapped_column(Text, nullable=True)
     like_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     comment_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

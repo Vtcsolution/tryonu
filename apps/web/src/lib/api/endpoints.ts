@@ -1,4 +1,4 @@
-import { apiFetch } from "./client";
+import { apiFetch, uploadWithProgress } from "./client";
 import type {
   AdminAIUsage,
   AdminAffiliateClick,
@@ -398,7 +398,11 @@ export type CommunityProduct = {
 export type CommunityPost = {
   id: string;
   author: CommunityAuthor;
+  /** a try-on look, or a photo / video the member uploaded */
+  media_kind?: "tryon" | "image" | "video";
   image_url: string | null;
+  video_url?: string | null;
+  poster_url?: string | null;
   caption: string | null;
   like_count: number;
   comment_count: number;
@@ -440,6 +444,7 @@ export type CommunityReportRow = {
   author_email: string | null;
   text: string | null;
   image_url: string | null;
+  video_url?: string | null;
   hidden: boolean;
   created_at: string;
   resolved_at: string | null;
@@ -451,6 +456,14 @@ export const community = {
   create: (input: { tryon_job_id: string; caption?: string; accept_rules: boolean }) =>
     apiFetch<CommunityPost>(`${C}/posts`, { method: "POST", body: input }),
   postForJob: (jobId: string) => apiFetch<{ post_id: string | null }>(`${C}/posts/by-job/${jobId}`),
+  /** my own photo or video, with upload progress (0-100) */
+  createMedia: (file: File, caption: string, onProgress: (pct: number) => void) => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("caption", caption);
+    form.append("accept_rules", "true");
+    return uploadWithProgress<CommunityPost>(`${C}/posts/media`, form, onProgress);
+  },
   myLooks: () =>
     apiFetch<{ job_id: string; image_url: string; saved: boolean; post_id: string | null; created_at: string }[]>(`${C}/my-looks`),
   remove: (id: string) => apiFetch<void>(`${C}/posts/${id}`, { method: "DELETE" }),

@@ -94,6 +94,8 @@ export function PostCard({
   });
 
   const image = resolveMediaUrl(p.image_url);
+  // a try-on look has products to put on yourself; a member's own photo or video doesn't
+  const canTry = (p.media_kind ?? "tryon") === "tryon";
   return (
     <article className="overflow-hidden rounded-[22px] border border-line bg-surface">
       <header className="flex items-center gap-3 px-4 py-3">
@@ -158,11 +160,24 @@ export function PostCard({
         </div>
       </header>
 
-      {image && (
-        <Link href={`/community/post/${p.id}`} className="block bg-paper-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={image} alt={p.caption || `A look by @${p.author.handle}`} loading="lazy" className="mx-auto max-h-[720px] w-full object-contain" />
-        </Link>
+      {p.media_kind === "video" && p.video_url ? (
+        <div className="bg-black">
+          <video
+            src={resolveMediaUrl(p.video_url)}
+            poster={p.poster_url ? resolveMediaUrl(p.poster_url) : undefined}
+            controls
+            playsInline
+            preload="metadata"
+            className="mx-auto max-h-[720px] w-full object-contain"
+          />
+        </div>
+      ) : (
+        image && (
+          <Link href={`/community/post/${p.id}`} className="block bg-paper-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={image} alt={p.caption || `A post by @${p.author.handle}`} loading="lazy" className="mx-auto max-h-[720px] w-full object-contain" />
+          </Link>
+        )
       )}
 
       <div className="px-4 pb-1 pt-3">
@@ -218,16 +233,18 @@ export function PostCard({
         )}
 
         {/* the action bar */}
-        <div className="mt-3 flex items-center justify-around border-t border-line pt-1 sm:grid sm:grid-cols-3">
+        <div className={`mt-3 flex items-center justify-around border-t border-line pt-1 sm:grid ${canTry ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
           <ActionButton onClick={() => !like.isPending && like.mutate(!p.liked_by_me)} pressed={p.liked_by_me} active={p.liked_by_me} label={p.liked_by_me ? "Liked" : "Like"}>
             <HeartIcon filled={p.liked_by_me} />
           </ActionButton>
           <ActionButton onClick={() => setShowComments((v) => !v)} active={showComments} label="Comment">
             <CommentIcon />
           </ActionButton>
-          <ActionButton onClick={() => tryIt.mutate()} disabled={tryIt.isPending} label={tryIt.isPending ? "Opening…" : "Try it on"} accent>
-            <HangerIcon />
-          </ActionButton>
+          {canTry && (
+            <ActionButton onClick={() => tryIt.mutate()} disabled={tryIt.isPending} label={tryIt.isPending ? "Opening…" : "Try it on"} accent>
+              <HangerIcon />
+            </ActionButton>
+          )}
         </div>
         {tryIt.isError && <p className="mt-2 text-[14px] text-[#a4553f]">{tryIt.error instanceof ApiError ? tryIt.error.detail : "Couldn't open this look."}</p>}
         {notice && <p className="mt-2 rounded-xl bg-sage-tint/40 px-3 py-2 text-[14px] text-ink">{notice}</p>}
@@ -239,7 +256,7 @@ export function PostCard({
   );
 }
 
-function Comments({ post, onCount }: { post: CommunityPost; onCount: (n: number) => void }) {
+export function Comments({ post, onCount }: { post: CommunityPost; onCount: (n: number) => void }) {
   const qc = useQueryClient();
   const key = ["community", "comments", post.id];
   const list = useQuery({ queryKey: key, queryFn: () => community.comments(post.id) });
@@ -371,7 +388,7 @@ function ActionButton({
   );
 }
 
-function HeartIcon({ filled = false, size = 19 }: { filled?: boolean; size?: number }) {
+export function HeartIcon({ filled = false, size = 19 }: { filled?: boolean; size?: number }) {
   return (
     <svg className="shrink-0" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth={filled ? 0 : 1.9} strokeLinejoin="round">
       <path d="M12 20.3s-7.6-4.6-9.3-9.4C1.6 7.6 3.6 4.5 6.9 4.5c2.1 0 3.5 1.2 4.4 2.6h1.4c.9-1.4 2.3-2.6 4.4-2.6 3.3 0 5.3 3.1 4.2 6.4-1.7 4.8-9.3 9.4-9.3 9.4z" />
@@ -379,7 +396,7 @@ function HeartIcon({ filled = false, size = 19 }: { filled?: boolean; size?: num
   );
 }
 
-function CommentIcon() {
+export function CommentIcon() {
   return (
     <svg className="shrink-0" width={19} height={19} viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round">
       <path d="M4 5.5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9.5L5 21v-3.5H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z" />
@@ -387,7 +404,7 @@ function CommentIcon() {
   );
 }
 
-function HangerIcon() {
+export function HangerIcon() {
   return (
     <svg className="shrink-0" width={20} height={20} viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 7.5a2 2 0 1 1 2-2" />

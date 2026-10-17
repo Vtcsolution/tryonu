@@ -13,7 +13,7 @@ import re
 import secrets
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import selectinload
@@ -84,7 +84,10 @@ class LookProductOut(BaseModel):
 class PostOut(BaseModel):
     id: str
     author: AuthorOut
+    media_kind: str = "tryon"  # tryon | image | video
     image_url: str | None
+    video_url: str | None = None
+    poster_url: str | None = None
     caption: str | None
     like_count: int
     comment_count: int
@@ -104,16 +107,41 @@ async def _posts_out(db: DbSession, posts: list[CommunityPost], me: User) -> lis
     following = set(
         (await db.execute(select(Follow.followee_id).where(Follow.follower_id == me.id, Follow.followee_id.in_(authors.keys())))).scalars()
     )
-    jobs = {
-        j.id: j
-        for j in (
-            await db.execute(select(TryOnJob).where(TryOnJob.id.in_([p.tryon_job_id for p in posts])).options(selectinload(TryOnJob.result)))
-        ).scalars()
-    }
+    job_ids = [p.tryon_job_id for p in posts if p.tryon_job_id]
+    jobs = (
+        {
+            j.id: j
+            for j in (
+                await db.execute(select(TryOnJob).where(TryOnJob.id.in_(job_ids)).options(selectinload(TryOnJob.result)))
+            ).scalars()
+        }
+        if job_ids
+        else {}
+    )
     storage = get_storage()
     api = get_settings().PUBLIC_API_BASE_URL.rstrip("/")
     out: list[PostOut] = []
     for p in posts:
+        if p.media_key:  # a photo or video the member uploaded
+            out.append(
+                PostOut(
+                    id=p.id,
+                    author=_author(authors[p.user_id]),
+                    media_kind=p.media_kind,
+                    image_url=storage.signed_url(p.media_key) if p.media_kind == "image" else None,
+                    video_url=storage.signed_url(p.media_key) if p.media_kind == "video" else None,
+                    poster_url=storage.signed_url(p.poster_key) if p.poster_key else None,
+                    caption=p.caption,
+                    like_count=p.like_count,
+                    comment_count=p.comment_count,
+                    liked_by_me=p.id in liked,
+                    following_author=p.user_id in following,
+                    is_mine=p.user_id == me.id,
+                    products=[],
+                    created_at=p.created_at,
+                )
+            )
+            continue
         job = jobs.get(p.tryon_job_id)
         if job is None or job.result is None:
             continue
@@ -276,6 +304,45 @@ async def my_looks(me: CurrentUser, db: DbSession, limit: int = 30):
     return sorted(out, key=lambda x: (not x.saved, -x.created_at.timestamp()))
 
 
+@router.post(
+    "/posts/media",
+    response_model=PostOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limiter("community_media", limit=15, window_seconds=3600))],
+)
+async def create_media_post(
+    me: CurrentUser,
+    db: DbSession,
+    file: UploadFile = File(...),
+    caption: str | None = Form(default=None, max_length=1000),
+    accept_rules: bool = Form(default=False),
+):
+    """A member posts their own photo or video (videos: up to 60 seconds)."""
+    from app.services import community_media
+
+    _can_write(me)
+    if not accept_rules:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Please agree to the community rules to post.")
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Please choose a photo or video.")
+    if community_media.video_kind(raw) is not None:
+        key, poster, width, height = await community_media.save_video(me.id, raw)
+        kind = "video"
+    else:
+        key, width, height = await community_media.save_image(me.id, raw)
+        poster, kind = None, "image"
+    await ensure_handle(db, me)
+    post = CommunityPost(
+        user_id=me.id, media_kind=kind, media_key=key, poster_key=poster, media_width=width, media_height=height,
+        caption=(caption or "").strip() or None,
+    )
+    db.add(post)
+    await db.commit()
+    await db.refresh(post)
+    return (await _posts_out(db, [post], me))[0]
+
+
 @router.get("/posts/by-job/{job_id}")
 async def post_for_job(job_id: str, me: CurrentUser, db: DbSession):
     """Is this look of mine already in the community?"""
@@ -304,8 +371,12 @@ async def delete_post(post_id: str, me: CurrentUser, db: DbSession):
     post = await db.get(CommunityPost, post_id)
     if post is None or (post.user_id != me.id and not me.is_admin):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
+    media = (post.media_key, post.poster_key)
     await db.delete(post)
     await db.commit()
+    from app.services.community_media import delete_files
+
+    delete_files(*media)
 
 
 async def _recount_likes(db: DbSession, post: CommunityPost) -> None:
@@ -342,6 +413,8 @@ class TryThisOut(BaseModel):
 async def try_post_look(post_id: str, me: CurrentUser, db: DbSession):
     """The same products, ready to try on with my own photo."""
     post = await _visible_post(db, post_id, me)
+    if not post.tryon_job_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This post has no products to try on.")
     job = await db.scalar(select(TryOnJob).where(TryOnJob.id == post.tryon_job_id).options(selectinload(TryOnJob.result)))
     if job is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
@@ -673,6 +746,7 @@ class AdminReportOut(BaseModel):
     author_email: str | None
     text: str | None
     image_url: str | None
+    video_url: str | None = None
     hidden: bool
     created_at: datetime
     resolved_at: datetime | None
@@ -692,15 +766,20 @@ async def admin_reports(_: AdminUser, db: DbSession, show: str = "open"):
             if post is None:
                 continue
             author = await db.get(User, post.user_id)
-            job = await db.scalar(select(TryOnJob).where(TryOnJob.id == post.tryon_job_id).options(selectinload(TryOnJob.result)))
-            image = storage.signed_url(job.result.storage_key) if job and job.result else None
+            video = None
+            if post.media_key:
+                image = storage.signed_url(post.poster_key or post.media_key) if (post.media_kind == "image" or post.poster_key) else None
+                video = storage.signed_url(post.media_key) if post.media_kind == "video" else None
+            else:
+                job = await db.scalar(select(TryOnJob).where(TryOnJob.id == post.tryon_job_id).options(selectinload(TryOnJob.result)))
+                image = storage.signed_url(job.result.storage_key) if job and job.result else None
             kind, target, text, hidden = "post", post.id, post.caption, post.is_hidden
         else:
             comment = await db.get(PostComment, r.comment_id) if r.comment_id else None
             if comment is None:
                 continue
             author = await db.get(User, comment.user_id)
-            kind, target, text, hidden, image = "comment", comment.id, comment.body, comment.is_hidden, None
+            kind, target, text, hidden, image, video = "comment", comment.id, comment.body, comment.is_hidden, None, None
         out.append(
             AdminReportOut(
                 id=r.id,
@@ -712,6 +791,7 @@ async def admin_reports(_: AdminUser, db: DbSession, show: str = "open"):
                 author_email=author.email if author else None,
                 text=text,
                 image_url=image,
+                video_url=video,
                 hidden=hidden,
                 created_at=r.created_at,
                 resolved_at=r.resolved_at,

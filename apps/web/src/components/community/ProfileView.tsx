@@ -92,9 +92,23 @@ export function ProfileView({ handle }: { handle: string }) {
         <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
           {items.map((post) => (
             <Link key={post.id} href={`/community/post/${post.id}`} className="group relative block aspect-[3/4] overflow-hidden rounded-[16px] bg-paper-2">
-              {post.image_url && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={resolveMediaUrl(post.image_url)} alt={post.caption || "A look"} loading="lazy" className="h-full w-full object-cover object-top transition-transform group-hover:scale-[1.02]" />
+              {post.media_kind === "video" ? (
+                <>
+                  {post.poster_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={resolveMediaUrl(post.poster_url)} alt={post.caption || "A video"} loading="lazy" className="h-full w-full object-cover" />
+                  ) : (
+                    <video src={resolveMediaUrl(post.video_url)} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+                  )}
+                  <span aria-hidden="true" className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/55 text-white">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+                  </span>
+                </>
+              ) : (
+                post.image_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={resolveMediaUrl(post.image_url)} alt={post.caption || "A look"} loading="lazy" className="h-full w-full object-cover object-top transition-transform group-hover:scale-[1.02]" />
+                )
               )}
               <span className="absolute bottom-2 left-2 flex items-center gap-3 rounded-full bg-black/55 px-2.5 py-1 text-[12.5px] font-semibold text-white">
                 <span className="flex items-center gap-1">

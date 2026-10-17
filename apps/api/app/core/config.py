@@ -111,6 +111,9 @@ class Settings(BaseSettings):
     REFERRAL_TRYON_CREDITS: int = 2
     # ... and when that friend first buys credits (0 = off; stores have their own per-plan reward)
     REFERRAL_REWARD_CREDITS: int = 0
+    # community: members' own videos
+    COMMUNITY_VIDEO_MAX_MB: int = 60
+    COMMUNITY_VIDEO_MAX_SECONDS: int = 60
     # the website widget: try-ons one visitor (IP) may make per hour on one shop's key
     WIDGET_TRYONS_PER_VISITOR_HOUR: int = 10
     # Shoppers' try-ons run automatically (they paid with credits), but never

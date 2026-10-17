@@ -96,6 +96,39 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
 
 /** Resolves an API-relative media URL (e.g. local-disk `/media/...`) to an
  * absolute one; leaves already-absolute URLs (S3/R2/CDN, Unsplash) alone. */
+/** A file upload that reports progress (0-100), e.g. a video. Same session
+ * handling as apiFetch: an expired sign-in is refreshed once, then retried. */
+export function uploadWithProgress<T>(path: string, form: FormData, onProgress: (pct: number) => void): Promise<T> {
+  const send = () =>
+    new Promise<{ status: number; body: unknown }>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `${API_BASE_URL}${path}`);
+      xhr.withCredentials = true;
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+      };
+      xhr.onload = () => {
+        let body: unknown = null;
+        try {
+          body = JSON.parse(xhr.responseText);
+        } catch {
+          body = null;
+        }
+        resolve({ status: xhr.status, body });
+      };
+      xhr.onerror = () => reject(new ApiError(0, "Upload failed. Check your internet connection and try again."));
+      xhr.send(form);
+    });
+  return (async () => {
+    let res = await send();
+    if (res.status === 401 && (await refreshSession())) res = await send();
+    if (res.status >= 200 && res.status < 300) return res.body as T;
+    const detail = (res.body as { detail?: unknown } | null)?.detail;
+    if (res.status === 413) throw new ApiError(413, typeof detail === "string" ? detail : "That file is too big to upload.");
+    throw new ApiError(res.status, typeof detail === "string" ? detail : "Upload failed. Please try again.");
+  })();
+}
+
 export function resolveMediaUrl(url: string | null | undefined): string {
   if (!url) return "";
   return url.startsWith("/") ? `${API_BASE_URL}${url}` : url;

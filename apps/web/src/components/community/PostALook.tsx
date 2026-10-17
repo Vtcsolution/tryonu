@@ -10,9 +10,18 @@ import { community } from "@/lib/api/endpoints";
 
 /** "Post a look" on the community page: pick one of my finished looks (saved
  * ones first), add a caption, post. No looks yet: make one first. */
-export function PostALook({ variant = "primary" }: { variant?: "primary" | "wide" }) {
+export function PostALook({
+  variant = "primary",
+  startOpen = false,
+  onClosed,
+}: {
+  variant?: "primary" | "wide" | "none";
+  /** opened from the Create post chooser: no button of its own */
+  startOpen?: boolean;
+  onClosed?: () => void;
+}) {
   const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
   const [chosen, setChosen] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
   const [agree, setAgree] = useState(false);
@@ -39,6 +48,7 @@ export function PostALook({ variant = "primary" }: { variant?: "primary" | "wide
 
   const close = () => {
     setOpen(false);
+    onClosed?.();
     setChosen(null);
     setCaption("");
     setAgree(false);
@@ -68,7 +78,7 @@ export function PostALook({ variant = "primary" }: { variant?: "primary" | "wide
 
   return (
     <>
-      {trigger}
+      {variant !== "none" && trigger}
       {open &&
         createPortal(
           <div

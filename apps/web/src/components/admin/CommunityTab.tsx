@@ -36,9 +36,13 @@ export function CommunityTab() {
       <div className="space-y-3">
         {list.data?.map((r) => (
           <article key={r.id} className="flex flex-wrap gap-4 rounded-[18px] border border-line bg-surface p-4">
-            {r.image_url && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={resolveMediaUrl(r.image_url)} alt="" className="h-32 w-24 shrink-0 rounded-xl bg-paper-2 object-cover object-top" />
+            {r.video_url ? (
+              <video src={resolveMediaUrl(r.video_url)} controls playsInline preload="metadata" className="h-40 w-28 shrink-0 rounded-xl bg-black object-cover" />
+            ) : (
+              r.image_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={resolveMediaUrl(r.image_url)} alt="" className="h-32 w-24 shrink-0 rounded-xl bg-paper-2 object-cover object-top" />
+              )
             )}
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
