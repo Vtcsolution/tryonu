@@ -23,6 +23,8 @@ async def test_members_post_like_comment_follow_and_try_a_look(client, db, monke
     assert post["is_mine"] and post["products"][0]["id"] == product.id and post["image_url"]
     assert (await client.post("/api/v1/community/posts", json={"tryon_job_id": job_id, "accept_rules": True})).status_code == 409
     a_handle = (await client.get("/api/v1/community/me")).json()["handle"]
+    looks = (await client.get("/api/v1/community/my-looks")).json()  # what the Post a look picker shows
+    assert [x["job_id"] for x in looks] == [job_id] and looks[0]["post_id"] == post["id"] and looks[0]["image_url"]
     assert (await client.get(f"/api/v1/community/posts/by-job/{job_id}")).json() == {"post_id": post["id"]}
 
     await client.post("/api/v1/auth/logout")

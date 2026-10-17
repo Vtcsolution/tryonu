@@ -219,6 +219,63 @@ async def create_post(payload: NewPostIn, me: CurrentUser, db: DbSession):
     return (await _posts_out(db, [post], me))[0]
 
 
+class MyLookOut(BaseModel):
+    job_id: str
+    image_url: str
+    saved: bool
+    post_id: str | None
+    created_at: datetime
+
+
+@router.get("/my-looks", response_model=list[MyLookOut])
+async def my_looks(me: CurrentUser, db: DbSession, limit: int = 30):
+    """My finished looks to choose from on the community page: saved ones first,
+    with the ones already posted marked."""
+    from app.models.developer import DeveloperTryOn
+    from app.models.outfit import SavedLook
+
+    jobs = (
+        await db.execute(
+            select(TryOnJob)
+            .where(
+                TryOnJob.user_id == me.id,
+                TryOnJob.status == JobStatus.COMPLETED,
+                TryOnJob.id.notin_(select(DeveloperTryOn.tryon_job_id)),  # not try-ons made for API customers
+            )
+            .options(selectinload(TryOnJob.result))
+            .order_by(TryOnJob.created_at.desc())
+            .limit(min(max(limit, 1), 60))
+        )
+    ).scalars().all()
+    jobs = [j for j in jobs if j.result is not None]
+    if not jobs:
+        return []
+    saved = set(
+        (await db.execute(select(SavedLook.tryon_result_id).where(SavedLook.user_id == me.id))).scalars()
+    )
+    posted = dict(
+        (
+            await db.execute(
+                select(CommunityPost.tryon_job_id, CommunityPost.id).where(
+                    CommunityPost.user_id == me.id, CommunityPost.tryon_job_id.in_([j.id for j in jobs])
+                )
+            )
+        ).all()
+    )
+    storage = get_storage()
+    out = [
+        MyLookOut(
+            job_id=j.id,
+            image_url=storage.signed_url(j.result.storage_key),
+            saved=j.result.id in saved,
+            post_id=posted.get(j.id),
+            created_at=j.created_at,
+        )
+        for j in jobs
+    ]
+    return sorted(out, key=lambda x: (not x.saved, -x.created_at.timestamp()))
+
+
 @router.get("/posts/by-job/{job_id}")
 async def post_for_job(job_id: str, me: CurrentUser, db: DbSession):
     """Is this look of mine already in the community?"""

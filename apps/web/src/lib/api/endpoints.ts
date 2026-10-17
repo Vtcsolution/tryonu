@@ -451,6 +451,8 @@ export const community = {
   create: (input: { tryon_job_id: string; caption?: string; accept_rules: boolean }) =>
     apiFetch<CommunityPost>(`${C}/posts`, { method: "POST", body: input }),
   postForJob: (jobId: string) => apiFetch<{ post_id: string | null }>(`${C}/posts/by-job/${jobId}`),
+  myLooks: () =>
+    apiFetch<{ job_id: string; image_url: string; saved: boolean; post_id: string | null; created_at: string }[]>(`${C}/my-looks`),
   remove: (id: string) => apiFetch<void>(`${C}/posts/${id}`, { method: "DELETE" }),
   like: (id: string) => apiFetch<{ liked: boolean; like_count: number }>(`${C}/posts/${id}/like`, { method: "POST" }),
   unlike: (id: string) => apiFetch<{ liked: boolean; like_count: number }>(`${C}/posts/${id}/like`, { method: "DELETE" }),

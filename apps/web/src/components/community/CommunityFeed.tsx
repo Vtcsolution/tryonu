@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { PostALook } from "@/components/community/PostALook";
 import { Avatar, PostCard } from "@/components/community/PostCard";
 import { COMMUNITY_RULES } from "@/components/community/PostToCommunity";
 import { Button } from "@/components/ui/Button";
@@ -55,6 +56,9 @@ export function CommunityFeed() {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h1 className="font-display text-[clamp(28px,4vw,40px)] leading-tight text-ink">Community</h1>
+            <PostALook />
+          </div>
+          <div className="mt-4 flex">
             <div role="tablist" aria-label="Feed" className="flex rounded-full border border-line p-1">
               {(
                 [
@@ -84,9 +88,11 @@ export function CommunityFeed() {
                 {tab === "following" ? (
                   <p className="text-[16px] text-muted">Follow members whose looks you like, and their new posts show up here.</p>
                 ) : (
-                  <p className="text-[16px] text-muted">No looks yet. Be the first: make a try-on and press “Post to community”.</p>
+                  <p className="text-[16px] text-muted">No looks yet. Be the first to post yours!</p>
                 )}
-                <Button href="/try" size="md" className="mt-5">Make a look</Button>
+                <div className="mt-5 flex justify-center">
+                  <PostALook />
+                </div>
               </div>
             )}
             {posts.map((p) => (
@@ -120,8 +126,13 @@ export function CommunityFeed() {
             )}
             <div className="rounded-[20px] border border-line bg-surface p-5">
               <p className="text-[16px] font-semibold text-ink">Share your look</p>
-              <p className="mt-1 text-[14.5px] text-muted">Make a try-on, then press “Post to community” on the result or on any saved look.</p>
-              <Button href="/try" size="md" className="mt-4 w-full">Make a look</Button>
+              <p className="mt-1 text-[14.5px] text-muted">Post one of your saved looks or try-ons, or make a new one.</p>
+              <div className="mt-4">
+                <PostALook variant="wide" />
+              </div>
+              <Link href="/try" className="mt-3 block text-center text-[14.5px] font-semibold text-sage-deep hover:underline">
+                Make a new look →
+              </Link>
             </div>
             <div className="rounded-[20px] border border-line bg-surface p-5">
               <p className="text-[15px] font-semibold text-ink">Community rules</p>
