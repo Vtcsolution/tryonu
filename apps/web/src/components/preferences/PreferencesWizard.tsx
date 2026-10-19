@@ -344,7 +344,7 @@ export function PreferencesWizard() {
       )}
 
       {/* sticky, not fixed: stays in view while choosing, then scrolls away before the footer */}
-      <div className="sticky bottom-0 z-30 mt-8 border-t border-line bg-paper/90 backdrop-blur">
+      <div className="sticky bottom-[var(--tabbar-h)] z-30 mt-8 border-t border-line bg-paper/90 backdrop-blur">
         <div className="flex items-center gap-3 py-3">
           {step > 0 ? (
             <button type="button" onClick={() => goTo(step - 1)} className="tu-press h-11 rounded-full px-4 text-[15px] text-ink-soft hover:text-ink">

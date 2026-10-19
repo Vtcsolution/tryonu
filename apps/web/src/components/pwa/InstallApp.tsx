@@ -160,7 +160,7 @@ export function PwaSetup() {
     setShow(false);
   };
   return (
-    <div className="fixed inset-x-3 bottom-3 z-[65] max-h-[80vh] overflow-y-auto rounded-2xl border border-line bg-surface p-4 shadow-lift sm:left-auto sm:right-4 sm:w-[400px]" role="dialog" aria-label="Get the TryOnU app">
+    <div className="fixed inset-x-3 bottom-[calc(var(--tabbar-h)+12px)] z-[65] max-h-[80vh] overflow-y-auto rounded-2xl border border-line bg-surface p-4 shadow-lift sm:left-auto sm:right-4 sm:w-[400px]" role="dialog" aria-label="Get the TryOnU app">
       <div className="flex items-start gap-3">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/pwa/icon-192.png" alt="" className="h-12 w-12 shrink-0 rounded-xl" />

@@ -88,6 +88,8 @@ export const viewport: Viewport = {
     { media: "(prefers-color-scheme: dark)", color: "#141410" },
   ],
   colorScheme: "light dark",
+  // phones with a notch or a home bar: the app's bottom tabs keep clear of it
+  viewportFit: "cover",
 };
 
 /**

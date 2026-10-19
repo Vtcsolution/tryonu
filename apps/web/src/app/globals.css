@@ -521,6 +521,45 @@ html {
   animation: tu-attention 2.8s ease-out infinite;
 }
 
+/* ------------------------------------------------------------------ phones: feel like an app */
+:root {
+  --tabbar-h: 0px;
+}
+@media (max-width: 1023px) {
+  html {
+    --tabbar-h: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+  /* iPhones zoom into any field smaller than 16px when you tap it */
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+a,
+button,
+label,
+summary,
+[role="button"] {
+  touch-action: manipulation; /* no double-tap-zoom delay on taps */
+}
+/* each page fades in, like an app screen (opacity only: a transform would
+   change where fixed pop-ups inside the page are placed) */
+@keyframes tu-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.tu-enter {
+  animation: tu-enter 0.22s ease-out;
+}
+
 /* Find the look: a soft light moving down the photo while it is searched */
 @keyframes tu-scan {
   0% {
@@ -535,7 +574,8 @@ html {
 }
 @media (prefers-reduced-motion: reduce) {
   .tu-attention,
-  .tu-scan {
+  .tu-scan,
+  .tu-enter {
     animation: none;
   }
 }

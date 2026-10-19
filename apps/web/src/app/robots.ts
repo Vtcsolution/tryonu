@@ -23,6 +23,7 @@ const PRIVATE = [
   "/community",
   "/u/",
   "/notifications",
+  "/me",
 ];
 const OPEN_AGAIN = ["/business/sign-up", "/developers/docs", "/developers/sign-up"];
 

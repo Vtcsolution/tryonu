@@ -998,7 +998,7 @@ export function TryFlow() {
             <>
               {/* phones: the next step always in reach at the bottom of the screen */}
               <div className="h-24 md:hidden" aria-hidden="true" />
-              <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 px-4 py-3 shadow-[0_-6px_20px_rgba(20,20,16,0.08)] backdrop-blur md:hidden">
+              <div className="fixed inset-x-0 bottom-[var(--tabbar-h)] z-40 border-t border-line bg-surface/95 px-4 py-3 shadow-[0_-6px_20px_rgba(20,20,16,0.08)] backdrop-blur md:hidden">
                 <div className="mx-auto flex max-w-xl items-center gap-3">
                   <p className="min-w-0 flex-1 text-[14px] leading-snug text-ink-soft">
                     {sponsorName ? (

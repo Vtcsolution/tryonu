@@ -7,13 +7,14 @@ import { AccountMenu } from "@/components/marketing/AccountMenu";
 import { MobileNav } from "@/components/marketing/MobileNav";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { LensHeaderButton } from "@/components/lens/LensHeaderButton";
+import { PhoneAccount } from "@/components/app/PhoneAccount";
 import { BUSINESS, COMPANY, PRODUCT, TOP_LINKS, type NavGroup } from "@/components/marketing/navLinks";
 
 export function Navbar() {
   return (
     <header className="sticky top-0 z-50 border-b border-line/70 bg-paper/80 backdrop-blur-xl">
-      <div className="mx-auto flex h-[72px] tu-container items-center justify-between gap-4">
-        <Logo size={30} />
+      <div className="mx-auto flex h-14 tu-container items-center justify-between gap-3 lg:h-[72px] lg:gap-4">
+        <Logo size={28} />
 
         <nav aria-label="Main" className="hidden items-center gap-6 whitespace-nowrap xl:flex 2xl:gap-8">
           <NavMenu group={PRODUCT} />
@@ -26,12 +27,17 @@ export function Navbar() {
           <NavMenu group={COMPANY} />
         </nav>
 
-        <div className="flex items-center gap-2 sm:gap-3">
-          <ThemeToggle />
+        <div className="flex items-center gap-1 sm:gap-2 lg:gap-3">
+          <span className="hidden lg:inline-flex">
+            <ThemeToggle />
+          </span>
           <LensHeaderButton />
           <NotificationBell />
-          <AccountMenu />
-          <span className="hidden sm:inline-flex">
+          <span className="hidden lg:block">
+            <AccountMenu />
+          </span>
+          <PhoneAccount />
+          <span className="hidden lg:inline-flex">
             <Button href="/try" size="sm" className="whitespace-nowrap">
               Try it now <span aria-hidden="true">→</span>
             </Button>

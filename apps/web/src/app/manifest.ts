@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "TryOnU: try clothes on your own photo",
     short_name: "TryOnU",
     description: "See real products on your own photo before you buy, then shop from the original store.",
-    start_url: "/?source=app",
+    start_url: "/for-you?source=app",
     scope: "/",
     display: "standalone",
     orientation: "portrait",

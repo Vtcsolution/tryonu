@@ -152,7 +152,7 @@ export function StylistChat() {
 
       <form
         onSubmit={onSubmit}
-        className="sticky bottom-4 mt-3 flex flex-col gap-2 rounded-[26px] border border-line bg-surface p-2 shadow-lift"
+        className="sticky bottom-[calc(var(--tabbar-h)+16px)] mt-3 flex flex-col gap-2 rounded-[26px] border border-line bg-surface p-2 shadow-lift"
       >
         <div className="flex items-center gap-1.5">
           <input
