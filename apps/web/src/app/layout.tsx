@@ -27,6 +27,8 @@ export const metadata: Metadata = {
   description:
     "Try real clothes, shoes and accessories on your own photo with AI, then buy from the original store. Whole outfits, an AI stylist, local shops first. Try it free.",
   applicationName: SITE_NAME,
+  // added to an iPhone's home screen: opens full screen, named TryOnU
+  appleWebApp: { capable: true, title: "TryOnU", statusBarStyle: "default" },
   keywords: CORE_KEYWORDS,
   alternates: { canonical: "/" },
   category: "shopping",

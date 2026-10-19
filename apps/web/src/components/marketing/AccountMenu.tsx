@@ -99,6 +99,7 @@ export function AccountMenu() {
             { href: "/community", label: "Community" },
             { href: "/community/me", label: "My community profile" },
             { href: "/notifications", label: "Notifications" },
+            { href: "/app", label: "Get the app" },
             { href: "/saved#earn", label: "Invite friends & earn credits" },
             { href: "/preferences", label: "My style picks" },
             { href: "/preferences#size", label: "My size" },

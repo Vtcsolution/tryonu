@@ -58,6 +58,18 @@ export function MobileNav() {
                 </button>
               </div>
               <div className="flex-1 space-y-6 px-5 py-5">
+                <Link
+                  href="/app"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-3 rounded-2xl border border-sage/40 bg-sage-tint/30 p-3"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/pwa/icon-192.png" alt="" className="h-11 w-11 rounded-xl" />
+                  <span className="min-w-0">
+                    <span className="block text-[16px] font-semibold text-ink">Get the TryOnU app</span>
+                    <span className="block text-[13.5px] text-muted">On your home screen, free, no app store</span>
+                  </span>
+                </Link>
                 {[PRODUCT, BUSINESS, COMPANY].map((g) => (
                   <div key={g.label}>
                     <p className="text-[12.5px] font-semibold uppercase tracking-[0.12em] text-faint">{g.label}</p>

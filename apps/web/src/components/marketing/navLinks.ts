@@ -13,6 +13,7 @@ export const PRODUCT: NavGroup = {
     { label: "My wardrobe", href: "/wardrobe", hint: "Try with clothes you own" },
     { label: "Saved looks", href: "/saved", hint: "Your lookbook, ready to share" },
     { label: "Browser extension", href: "/extension", hint: "Try on from eBay, AliExpress, any shop" },
+    { label: "Get the phone app", href: "/app", hint: "TryOnU on your iPhone or Android home screen" },
     { label: "Marketplaces", href: "/#marketplaces", hint: "eBay, AliExpress, brand stores and local shops" },
   ],
 };
