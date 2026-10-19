@@ -96,6 +96,7 @@ export function AccountMenu() {
             { href: "/saved", label: "Saved looks" },
             { href: "/community", label: "Community" },
             { href: "/community/me", label: "My community profile" },
+            { href: "/notifications", label: "Notifications" },
             { href: "/saved#earn", label: "Invite friends & earn credits" },
             { href: "/preferences", label: "My style picks" },
             { href: "/credits", label: "Buy credits" },

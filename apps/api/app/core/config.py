@@ -114,6 +114,14 @@ class Settings(BaseSettings):
     # community: members' own videos
     COMMUNITY_VIDEO_MAX_MB: int = 60
     COMMUNITY_VIDEO_MAX_SECONDS: int = 60
+    # notifications: phone notifications (Web Push) need a VAPID key pair —
+    # make one with `python -m app.scripts.vapid_keys`; without them only the
+    # bell and the daily email work
+    VAPID_PUBLIC_KEY: str | None = None
+    VAPID_PRIVATE_KEY: str | None = None
+    VAPID_SUBJECT: str = "https://tryonu.app"
+    # the daily "what happened" email: at most one per member per this many hours
+    NOTIFY_DIGEST_HOURS: int = 20
     # the website widget: try-ons one visitor (IP) may make per hour on one shop's key
     WIDGET_TRYONS_PER_VISITOR_HOUR: int = 10
     # Shoppers' try-ons run automatically (they paid with credits), but never

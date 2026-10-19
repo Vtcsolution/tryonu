@@ -21,6 +21,7 @@ from app.api.v1.endpoints import (
     saved_products,
     search,
     community,
+    notifications,
     contact,
     extension,
     referrals,
@@ -70,4 +71,5 @@ api_router.include_router(referrals.admin_router)
 api_router.include_router(contact.router)
 api_router.include_router(community.router)
 api_router.include_router(community.admin_router)
+api_router.include_router(notifications.router)
 api_router.include_router(extension.router)

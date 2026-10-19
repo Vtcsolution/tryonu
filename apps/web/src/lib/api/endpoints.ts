@@ -610,6 +610,33 @@ export const adminCommunity = {
   unblock: (userId: string) => apiFetch<{ detail: string }>(`${AC}/users/${userId}/unban`, { method: "POST" }),
 };
 
+/** the bell: notifications, the daily-email setting, phones that want notifications */
+export type AppNotification = {
+  id: string;
+  kind: "post_like" | "comment" | "reply" | "comment_like" | "follow" | "referral_joined" | "reward" | "credits_added" | string;
+  text: string;
+  url: string;
+  actor: { handle: string | null; name: string | null; avatar_url: string | null } | null;
+  image_url: string | null;
+  credits: number | null;
+  read: boolean;
+  created_at: string;
+};
+export type NotificationSettings = { email: boolean; push_key: string | null; phones: number };
+const N = "/api/v1/notifications";
+export const notifications = {
+  list: (offset = 0, limit = 20) =>
+    apiFetch<{ items: AppNotification[]; unread: number; next_offset: number | null }>(`${N}?offset=${offset}&limit=${limit}`),
+  unread: () => apiFetch<{ unread: number }>(`${N}/unread-count`),
+  read: (id: string) => apiFetch<{ unread: number }>(`${N}/${id}/read`, { method: "POST" }),
+  readAll: () => apiFetch<{ unread: number }>(`${N}/read-all`, { method: "POST" }),
+  settings: () => apiFetch<NotificationSettings>(`${N}/settings`),
+  setEmail: (email: boolean) => apiFetch<NotificationSettings>(`${N}/settings`, { method: "PATCH", body: { email } }),
+  addPhone: (sub: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+    apiFetch<NotificationSettings>(`${N}/push`, { method: "POST", body: sub }),
+  removePhone: (endpoint: string) => apiFetch<NotificationSettings>(`${N}/push/remove`, { method: "POST", body: { endpoint } }),
+};
+
 /** the browser extensions: connect this browser, see and disconnect connected ones */
 export type ExtensionKind = "shopper" | "store";
 export type ConnectedBrowser = { id: string; kind: ExtensionKind; label: string | null; created_at: string; last_used_at: string | null };

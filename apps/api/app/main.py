@@ -57,6 +57,10 @@ async def lifespan(app: FastAPI):  # noqa: ANN201
     from app.services.payment_settlement import settle_pending_forever
 
     app.state.payment_sweeper = asyncio.create_task(settle_pending_forever())
+    # the daily "what happened" email for notifications nobody has seen yet
+    from app.services.notification_service import digest_forever
+
+    app.state.digest_sweeper = asyncio.create_task(digest_forever())
 
     app.state.debug_sweeper = None
     if settings.TRYON_SAVE_DEBUG:
@@ -70,6 +74,7 @@ async def lifespan(app: FastAPI):  # noqa: ANN201
     yield
     app.state.stuck_sweeper.cancel()
     app.state.payment_sweeper.cancel()
+    app.state.digest_sweeper.cancel()
     if app.state.debug_sweeper is not None:
         app.state.debug_sweeper.cancel()
     logger.info("shutdown")

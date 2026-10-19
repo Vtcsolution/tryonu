@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { AccountMenu } from "@/components/marketing/AccountMenu";
 import { MobileNav } from "@/components/marketing/MobileNav";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { BUSINESS, COMPANY, PRODUCT, TOP_LINKS, type NavGroup } from "@/components/marketing/navLinks";
 
 export function Navbar() {
@@ -26,6 +27,7 @@ export function Navbar() {
 
         <div className="flex items-center gap-2 sm:gap-3">
           <ThemeToggle />
+          <NotificationBell />
           <AccountMenu />
           <span className="hidden sm:inline-flex">
             <Button href="/try" size="sm" className="whitespace-nowrap">

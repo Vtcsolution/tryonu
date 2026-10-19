@@ -47,3 +47,6 @@ rembg==2.0.85
 python-slugify==8.0.4
 tenacity==9.0.0           # retry logic for AI/provider calls
 structlog==24.4.0
+
+# --- phone notifications (Web Push, VAPID keys in .env) ---
+pywebpush==2.0.3

@@ -29,6 +29,7 @@ from app.models.enums import JobStatus
 from app.models.tryon import TryOnJob
 from app.models.user import User
 from app.services.community_links import LinkPreviewOut, clean_text, previews
+from app.services.notification_service import notify, snippet
 from app.services.look_products import copy_look, look_products
 from app.services.storage_service import get_storage
 
@@ -427,6 +428,7 @@ async def like_post(post_id: str, me: CurrentUser, db: DbSession):
     if await db.scalar(select(PostLike.id).where(PostLike.post_id == post.id, PostLike.user_id == me.id)) is None:
         db.add(PostLike(post_id=post.id, user_id=me.id))
         await db.flush()
+        await notify(db, user_id=post.user_id, kind="post_like", actor_id=me.id, post_id=post.id)
     await _recount_likes(db, post)
     await db.commit()
     return {"liked": True, "like_count": post.like_count}
@@ -666,6 +668,11 @@ async def add_comment(post_id: str, payload: NewCommentIn, me: CurrentUser, db: 
     )
     db.add(comment)
     await db.flush()
+    said = snippet(body) or ("added a photo" if image_key else "added a look" if job_id else None)
+    if parent is not None:
+        await notify(db, user_id=parent.user_id, kind="reply", actor_id=me.id, post_id=post.id, comment_id=comment.id, text=said)
+    if parent is None or parent.user_id != post.user_id:
+        await notify(db, user_id=post.user_id, kind="comment", actor_id=me.id, post_id=post.id, comment_id=comment.id, text=said)
     await _recount_comments(db, post)
     await db.commit()
     await db.refresh(comment)
@@ -730,6 +737,7 @@ async def like_comment(comment_id: str, me: CurrentUser, db: DbSession):
     if await db.scalar(select(CommentLike.id).where(CommentLike.comment_id == comment.id, CommentLike.user_id == me.id)) is None:
         db.add(CommentLike(comment_id=comment.id, user_id=me.id))
         await db.flush()
+        await notify(db, user_id=comment.user_id, kind="comment_like", actor_id=me.id, post_id=comment.post_id, comment_id=comment.id)
     await _recount_comment_likes(db, comment)
     await db.commit()
     return {"liked": True, "like_count": comment.like_count}
@@ -938,6 +946,7 @@ async def follow(handle: str, me: CurrentUser, db: DbSession):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You can't follow yourself.")
     if await db.scalar(select(Follow.id).where(Follow.follower_id == me.id, Follow.followee_id == user.id)) is None:
         db.add(Follow(follower_id=me.id, followee_id=user.id))
+        await notify(db, user_id=user.id, kind="follow", actor_id=me.id)
         await db.commit()
     return await _profile_out(db, user, me)
 

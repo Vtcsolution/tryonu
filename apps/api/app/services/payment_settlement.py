@@ -128,6 +128,9 @@ async def settle(db: AsyncSession, payment: Payment) -> PurchaseCreditsResponse:
         reference_id=payment.id,
         note=f"Purchased {package.name}",
     )
+    from app.services.notification_service import notify
+
+    await notify(db, user_id=payment.user_id, kind="credits_added", credits=package.credits, text=package.name)
     await db.commit()
     return PurchaseCreditsResponse(
         payment_id=payment.id, status="succeeded", credits_granted=package.credits, new_balance=entry.balance_after

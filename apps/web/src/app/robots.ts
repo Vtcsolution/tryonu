@@ -22,6 +22,7 @@ const PRIVATE = [
   // members only: people's own photos
   "/community",
   "/u/",
+  "/notifications",
 ];
 const OPEN_AGAIN = ["/business/sign-up", "/developers/docs", "/developers/sign-up"];
 

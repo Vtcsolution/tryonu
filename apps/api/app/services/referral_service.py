@@ -77,6 +77,9 @@ async def claim(db: AsyncSession, user: User, ref: str) -> bool:
         return False
     db.add(Referral(referrer_user_id=referrer_id, referred_user_id=user.id, source=source))
     await db.flush()
+    from app.services.notification_service import notify
+
+    await notify(db, user_id=referrer_id, kind="referral_joined", actor_id=user.id)
     return True
 
 
@@ -101,6 +104,7 @@ async def reward_first_purchase(db: AsyncSession, buyer_id: str) -> int:
         reference_id=referral.id,
         note="A friend you invited bought credits",
     )
+    await _tell_reward(db, referral.referrer_user_id, amount, "a friend you invited bought credits")
     return amount
 
 
@@ -134,6 +138,7 @@ async def reward_first_tryon(db: AsyncSession, job) -> int:  # noqa: ANN001
         reference_id=referral.id,
         note="A friend you invited did their first try-on",
     )
+    await _tell_reward(db, referral.referrer_user_id, amount, "a friend you invited did their first try-on")
     return amount
 
 
@@ -164,7 +169,14 @@ async def reward_store_plan(db: AsyncSession, owner_user_id: str, plan) -> int: 
         reference_id=referral.id,
         note=f"A store you invited bought the {plan.name} plan",
     )
+    await _tell_reward(db, referral.referrer_user_id, amount, f"a store you invited bought the {plan.name} plan")
     return amount
+
+
+async def _tell_reward(db: AsyncSession, user_id: str, amount: int, why: str) -> None:
+    from app.services.notification_service import notify
+
+    await notify(db, user_id=user_id, kind="reward", credits=amount, text=why)
 
 
 async def store_plan_rewards(db: AsyncSession) -> list[dict]:
