@@ -25,7 +25,7 @@ from app.models.user import User
 
 # the same person liking, unliking and liking again tells the owner once
 ONCE_PER_ACTOR = {"post_like", "comment_like", "follow", "poll_vote"}
-_PENDING = "tryonu_new_notifications"
+PENDING_KEY = _PENDING = "tryonu_new_notifications"
 
 
 async def notify(
@@ -104,6 +104,9 @@ def words(n: Notification, actor: User | None) -> str:
         return f"{who} voted “{'Buy it' if n.text == 'buy' else 'Skip it'}” on your look"
     if n.kind == "challenge_win":
         return f"You won {n.text}" + (f": {n.credits} free credits!" if n.credits else "!")
+    if n.kind == "challenge_started":
+        prize = f" and win up to {n.credits} free credits" if n.credits else ""
+        return f"New style challenge: “{n.text}”. Post your look{prize}!"
     if n.kind == "challenge_ended":
         return f"The “{n.text}” challenge has ended. See the winners"
     return n.text or "Something new on TryOnU"

@@ -166,6 +166,8 @@ async def admin_create(payload: ChallengeIn, me: AdminUser, db: DbSession):
     ch = Challenge(title="", starts_at=payload.starts_at, ends_at=payload.ends_at)
     await _apply(db, ch, payload)
     db.add(ch)
+    await db.flush()
+    await svc.announce(db, ch)  # starting now: every member hears at once
     await db.commit()
     await db.refresh(ch)
     return await _out(db, ch, me)
@@ -179,6 +181,7 @@ async def admin_update(challenge_id: str, payload: ChallengeIn, me: AdminUser, d
     if ch.finished_at is not None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This challenge has ended and its prizes were given.")
     await _apply(db, ch, payload)
+    await svc.announce(db, ch)
     await db.commit()
     return await _out(db, ch, me)
 
@@ -205,5 +208,6 @@ async def admin_hide(challenge_id: str, payload: HiddenIn, me: AdminUser, db: Db
     if ch is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Challenge not found")
     ch.is_hidden = payload.hidden
+    await svc.announce(db, ch)  # shown again and not yet announced
     await db.commit()
     return await _out(db, ch, me)

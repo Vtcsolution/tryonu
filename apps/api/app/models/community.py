@@ -120,6 +120,8 @@ class Challenge(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # a store can sponsor a challenge (shown with its name and logo)
     sponsor_store_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("stores.id", ondelete="SET NULL"), nullable=True)
     is_hidden: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # when every member was told it started
+    announced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # when the winners were chosen and paid
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

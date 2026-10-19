@@ -137,3 +137,45 @@ async def test_a_weekly_challenge_from_start_to_winners(client, db, monkeypatch)
     await _as(client, b)
     assert later["id"] not in [c["id"] for c in (await client.get("/api/v1/community/challenges")).json()["ended"]]
     assert (await client.post("/api/v1/admin/community/challenges", json={"title": "Nope", "starts_at": _when(), "ends_at": _when(days=1)})).status_code == 403
+
+
+async def test_every_member_hears_when_a_challenge_starts(client, db):  # noqa: ANN001
+    member = await register_and_login(client)
+    member_cookies = dict(client.cookies)
+    del member
+    client.cookies.clear()
+    admin = await register_and_login(client)
+    await make_admin(db, admin["user"]["id"])
+    admin_cookies = dict(client.cookies)
+
+    now_live = (
+        await client.post(
+            "/api/v1/admin/community/challenges",
+            json={"title": "Wedding Guest Look", "starts_at": _when(minutes=-1), "ends_at": _when(days=7)},
+        )
+    ).json()
+    later = (
+        await client.post(
+            "/api/v1/admin/community/challenges",
+            json={"title": "Winter Layers", "starts_at": _when(days=8), "ends_at": _when(days=15)},
+        )
+    ).json()
+
+    async def started_notes() -> list[dict]:
+        items = (await client.get("/api/v1/notifications?limit=50")).json()["items"]
+        return [n for n in items if n["kind"] == "challenge_started"]
+
+    await _as(client, member_cookies)
+    notes = await started_notes()
+    assert [n["url"] for n in notes] == [f"/community/challenges/{now_live['id']}"]  # told at once; not yet about the later one
+    assert "Wedding Guest Look" in notes[0]["text"] and "50 free credits" in notes[0]["text"]
+
+    # the later one's start time comes: everyone is told, once
+    await db.execute(update(Challenge).where(Challenge.id == later["id"]).values(starts_at=datetime.now(timezone.utc) - timedelta(minutes=1)))
+    await db.commit()
+    await challenge_service.announce_due(db)
+    await challenge_service.announce_due(db)
+    notes = await started_notes()
+    assert [n["url"] for n in notes] == [f"/community/challenges/{later['id']}", f"/community/challenges/{now_live['id']}"]
+    await _as(client, admin_cookies)
+    assert len(await started_notes()) == 2  # the admin is a member too

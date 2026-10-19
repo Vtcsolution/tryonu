@@ -8,12 +8,13 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import func, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import logger
 from app.models.community import Challenge, ChallengeWinner, CommunityPost, PostLike
 from app.models.enums import CreditReason
+from app.models.notification import Notification
 from app.models.user import User
 
 ORDINAL = {1: "1st", 2: "2nd", 3: "3rd"}
@@ -60,6 +61,50 @@ async def ranked_entries(db: AsyncSession, challenge_id: str) -> list[tuple[Comm
         )
     ).all()
     return [(post, int(n)) for post, n in rows]
+
+
+async def announce(db: AsyncSession, ch: Challenge) -> int:
+    """Tell every member a challenge has started (once): the bell, and phones that said yes."""
+    from app.db.base import new_uuid
+    from app.services.notification_service import PENDING_KEY
+
+    if ch.announced_at is not None or ch.is_hidden or state(ch) != "live":
+        return 0
+    ch.announced_at = datetime.now(timezone.utc)
+    members = (
+        await db.execute(select(User.id).where(User.is_active.is_(True), User.community_banned_at.is_(None)))
+    ).scalars().all()
+    ids: list[str] = []
+    for start in range(0, len(members), 1000):
+        rows = [
+            {"id": new_uuid(), "user_id": uid, "kind": "challenge_started", "challenge_id": ch.id, "credits": ch.prize_1, "text": ch.title}
+            for uid in members[start : start + 1000]
+        ]
+        await db.execute(insert(Notification), rows)
+        ids.extend(r["id"] for r in rows)
+    db.sync_session.info.setdefault(PENDING_KEY, []).extend(ids)  # phone notifications go out once saved
+    return len(ids)
+
+
+async def announce_due(db: AsyncSession) -> int:
+    """Challenges whose start time has come and nobody was told yet."""
+    now = datetime.now(timezone.utc)
+    due = (
+        await db.execute(
+            select(Challenge).where(
+                Challenge.announced_at.is_(None),
+                Challenge.is_hidden.is_(False),
+                Challenge.finished_at.is_(None),
+                Challenge.starts_at <= now,
+                Challenge.ends_at > now,
+            )
+        )
+    ).scalars().all()
+    told = 0
+    for ch in due:
+        told += await announce(db, ch)
+    await db.commit()
+    return told
 
 
 async def finish(db: AsyncSession, ch: Challenge) -> list[ChallengeWinner]:
@@ -127,12 +172,14 @@ CHECK_EVERY_SECONDS = 5 * 60
 async def finish_forever() -> None:
     from app.db.session import AsyncSessionLocal
 
+    await asyncio.sleep(30)  # soon after a restart: a challenge may have started meanwhile
     while True:
-        await asyncio.sleep(CHECK_EVERY_SECONDS)
         try:
             async with AsyncSessionLocal() as db:
+                told = await announce_due(db)
                 done = await finish_due(db)
-            if done:
-                logger.info("challenges_finished", count=done)
+            if told or done:
+                logger.info("challenges_checked", members_told=told, finished=done)
         except Exception as exc:  # noqa: BLE001 — never let the loop die
-            logger.warning("challenge_finish_failed", error=str(exc)[:200])
+            logger.warning("challenge_check_failed", error=str(exc)[:200])
+        await asyncio.sleep(CHECK_EVERY_SECONDS)
