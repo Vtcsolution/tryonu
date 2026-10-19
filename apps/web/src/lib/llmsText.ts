@@ -33,6 +33,7 @@ export async function llmsText(full: boolean): Promise<string> {
     "- Upload one photo of themselves once and reuse it for every try-on.",
     "- Try a single product, or a whole outfit of up to five pieces (clothes, shoes, bag, glasses, watch, jewellery) in one picture, in about 20-60 seconds.",
     "- Ask the AI Stylist in plain words (\"office outfit, navy and white\") and get real products to try on.",
+    "- Find the look (search by photo, like Google Lens): upload a photo or screenshot of an outfit and TryOnU finds each item (clothes, shoes, bags, jewellery) in real shops, exact matches and the closest alternatives, ready to try on: https://tryonu.app/find-look",
     "- Buy each piece from the original store with the Shop now button (eBay, AliExpress, brand stores through affiliate networks, and local shops on TryOnU). TryOnU does not sell products itself.",
     "- Save looks and share them; friends can try the same look on themselves.",
     "- Shops can sell on TryOnU; developers can add try-on to their own sites (API, widget, Shopify, WordPress/WooCommerce).",

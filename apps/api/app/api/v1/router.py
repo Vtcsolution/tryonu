@@ -22,6 +22,7 @@ from app.api.v1.endpoints import (
     search,
     challenges,
     community,
+    lens,
     notifications,
     contact,
     extension,
@@ -75,4 +76,5 @@ api_router.include_router(community.admin_router)
 api_router.include_router(notifications.router)
 api_router.include_router(challenges.router)
 api_router.include_router(challenges.admin_router)
+api_router.include_router(lens.router)
 api_router.include_router(extension.router)

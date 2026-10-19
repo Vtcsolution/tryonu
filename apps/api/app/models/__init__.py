@@ -31,6 +31,7 @@ from app.models.community import (  # noqa: F401
     PostLike,
 )
 from app.models.notification import Notification, PushSubscription  # noqa: F401
+from app.models.visual_search import VisualSearch  # noqa: F401
 from app.models.contact import ContactMessage  # noqa: F401
 from app.models.extension import ExtensionToken  # noqa: F401
 from app.models.referral import Referral, ReferralCode  # noqa: F401

@@ -91,6 +91,7 @@ export function AccountMenu() {
             { href: "/for-you", label: "For you" },
             { href: "/try", label: "Try-on studio" },
             { href: "/stylist", label: "AI Stylist" },
+            { href: "/find-look", label: "Find a look by photo" },
             { href: "/outfits", label: "Outfit builder" },
             { href: "/wardrobe", label: "My wardrobe" },
             { href: "/saved", label: "Saved looks" },

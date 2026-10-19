@@ -187,6 +187,18 @@ export function PostCard({
         <ChallengeChip post={p} />
 
         <ProductChips products={p.products} className={p.caption ? "mt-3" : ""} />
+        {(p.media_kind === "image" || p.media_kind === "video") && (
+          <Link
+            href={`/find-look?post=${p.id}`}
+            className="mt-3 inline-flex min-h-[40px] items-center gap-2 rounded-full border border-line-strong px-4 text-[14px] font-semibold text-ink hover:border-sage"
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2" />
+              <circle cx="12" cy="12" r="3.5" />
+            </svg>
+            Find these products
+          </Link>
+        )}
 
         {p.poll && (
           <PollBox

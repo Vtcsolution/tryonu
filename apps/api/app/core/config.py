@@ -120,6 +120,8 @@ class Settings(BaseSettings):
     VAPID_PUBLIC_KEY: str | None = None
     VAPID_PRIVATE_KEY: str | None = None
     VAPID_SUBJECT: str = "https://tryonu.app"
+    # Find the look (search by photo): photo searches one member may run per day
+    LENS_DAILY_LIMIT: int = 30
     # the daily "what happened" email: at most one per member per this many hours
     NOTIFY_DIGEST_HOURS: int = 20
     # the website widget: try-ons one visitor (IP) may make per hour on one shop's key

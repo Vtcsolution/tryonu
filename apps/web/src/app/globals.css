@@ -520,8 +520,22 @@ html {
 .tu-attention {
   animation: tu-attention 2.8s ease-out infinite;
 }
+
+/* Find the look: a soft light moving down the photo while it is searched */
+@keyframes tu-scan {
+  0% {
+    top: -4rem;
+  }
+  100% {
+    top: 100%;
+  }
+}
+.tu-scan {
+  animation: tu-scan 2.2s ease-in-out infinite;
+}
 @media (prefers-reduced-motion: reduce) {
-  .tu-attention {
+  .tu-attention,
+  .tu-scan {
     animation: none;
   }
 }

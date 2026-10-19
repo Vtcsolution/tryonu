@@ -663,6 +663,32 @@ export const adminCommunity = {
   unblock: (userId: string) => apiFetch<{ detail: string }>(`${AC}/users/${userId}/unban`, { method: "POST" }),
 };
 
+/** Find the look: search the shops with a photo (like Google Lens) */
+export type LensMatch = { product: LiveProduct; score: number; match: "exact" | "close" | "similar" };
+export type LensItem = {
+  label: string;
+  category: string;
+  query: string;
+  color: string | null;
+  details: string | null;
+  /** x0, y0, x1, y1 as fractions of the photo */
+  box: number[];
+  matches: LensMatch[];
+};
+export type LensResult = { id: string; image_url: string; width: number; height: number; summary: string | null; items: LensItem[]; created_at: string };
+export type LensSummary = { id: string; image_url: string; summary: string | null; items: number; created_at: string };
+export const lens = {
+  search: (file: File, onProgress: (pct: number) => void) => {
+    const form = new FormData();
+    form.append("file", file);
+    return uploadWithProgress<LensResult>("/api/v1/lens", form, onProgress);
+  },
+  from: (input: { tryon_job_id?: string; post_id?: string }) => apiFetch<LensResult>("/api/v1/lens/from", { method: "POST", body: input }),
+  list: () => apiFetch<LensSummary[]>("/api/v1/lens"),
+  get: (id: string) => apiFetch<LensResult>(`/api/v1/lens/${id}`),
+  remove: (id: string) => apiFetch<void>(`/api/v1/lens/${id}`, { method: "DELETE" }),
+};
+
 /** the bell: notifications, the daily-email setting, phones that want notifications */
 export type AppNotification = {
   id: string;

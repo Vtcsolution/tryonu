@@ -7,6 +7,7 @@ export const PRODUCT: NavGroup = {
   label: "Product",
   items: [
     { label: "Try-on studio", href: "/try", hint: "See any product on your own photo" },
+    { label: "Find a look by photo", href: "/find-look", hint: "Upload a photo, get the products in it" },
     { label: "AI Stylist", href: "/stylist", hint: "Describe a look, get real products" },
     { label: "Outfit builder", href: "/outfits", hint: "Put several pieces together" },
     { label: "My wardrobe", href: "/wardrobe", hint: "Try with clothes you own" },
