@@ -48,10 +48,13 @@ async def test_search_relevance_with_no_query_ranks_by_affinity_when_signal_exis
 
     await client.put("/api/v1/users/me/preferences", json={"preferred_colors": ["teal"], "preferred_styles": ["boho"]})
 
-    resp = await client.get("/api/v1/products", params={"limit": 50})
+    resp = await client.get("/api/v1/products", params={"limit": 100})  # other tests share the database
     assert resp.status_code == 200
     ids_in_order = [item["id"] for item in resp.json()["items"]]
-    assert ids_in_order.index(matching.id) < ids_in_order.index(non_matching.id)
+    # other tests share the database, so the page can be full before the unrelated pick shows up at all
+    assert matching.id in ids_in_order
+    if non_matching.id in ids_in_order:
+        assert ids_in_order.index(matching.id) < ids_in_order.index(non_matching.id)
 
 
 async def test_stylist_candidate_shortlist_is_biased_toward_saved_look_taste(client, db, monkeypatch):

@@ -1,10 +1,13 @@
 """The TryOnU community (signed-in members only).
 
-Members post finished looks with a caption; others like them, comment (with
-one level of replies), follow the people whose style they like, and press
-"Try this look" to put the same products on their own photo. Anyone can
-report a post or comment; admins hide content or block a member from the
-community (Admin -> Community)."""
+Members post finished looks, photos and videos with a caption; others like
+them, comment (replies to replies, like Facebook; a comment can carry a photo
+or one of the member's own looks, and can be liked), follow the people whose
+style they like, and press "Try this look" to put the same products on their
+own photo. Only TryOnU links (stores, products, looks, posts) may be shared:
+any other link is taken out before it is saved. Anyone can report a post or
+comment; admins see every member's activity and every comment, and hide
+content or block a member (Admin -> Community)."""
 
 from __future__ import annotations
 
@@ -15,16 +18,17 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
 from app.core.deps import AdminUser, CurrentUser, DbSession
 from app.core.rate_limit import rate_limiter
-from app.models.community import CommunityPost, CommunityReport, Follow, PostComment, PostLike
+from app.models.community import CommentLike, CommunityPost, CommunityReport, Follow, PostComment, PostLike
 from app.models.enums import JobStatus
 from app.models.tryon import TryOnJob
 from app.models.user import User
+from app.services.community_links import LinkPreviewOut, clean_text, previews
 from app.services.look_products import copy_look, look_products
 from app.services.storage_service import get_storage
 
@@ -96,6 +100,29 @@ class PostOut(BaseModel):
     is_mine: bool
     products: list[LookProductOut]
     created_at: datetime
+    # a few of the people who liked it, newest first (the small faces by the counts)
+    likers: list[AuthorOut] = []
+    previews: list[LinkPreviewOut] = []
+    links_removed: int = 0  # only on the answer to the one who just posted it
+
+
+async def _recent_likers(db: DbSession, post_ids: list[str], per_post: int = 3) -> dict[str, list[AuthorOut]]:
+    if not post_ids:
+        return {}
+    rank = func.row_number().over(partition_by=PostLike.post_id, order_by=PostLike.created_at.desc()).label("rank")
+    inner = select(PostLike.post_id, PostLike.user_id, rank).where(PostLike.post_id.in_(post_ids)).subquery()
+    rows = (
+        await db.execute(
+            select(inner.c.post_id, User)
+            .join(User, User.id == inner.c.user_id)
+            .where(inner.c.rank <= per_post)
+            .order_by(inner.c.post_id, inner.c.rank)
+        )
+    ).all()
+    out: dict[str, list[AuthorOut]] = {}
+    for post_id, user in rows:
+        out.setdefault(post_id, []).append(_author(user))
+    return out
 
 
 async def _posts_out(db: DbSession, posts: list[CommunityPost], me: User) -> list[PostOut]:
@@ -120,8 +147,10 @@ async def _posts_out(db: DbSession, posts: list[CommunityPost], me: User) -> lis
     )
     storage = get_storage()
     api = get_settings().PUBLIC_API_BASE_URL.rstrip("/")
+    likers = await _recent_likers(db, ids)
     out: list[PostOut] = []
     for p in posts:
+        extra = {"likers": likers.get(p.id, []), "previews": await previews(db, p.caption)}
         if p.media_key:  # a photo or video the member uploaded
             out.append(
                 PostOut(
@@ -139,6 +168,7 @@ async def _posts_out(db: DbSession, posts: list[CommunityPost], me: User) -> lis
                     is_mine=p.user_id == me.id,
                     products=[],
                     created_at=p.created_at,
+                    **extra,
                 )
             )
             continue
@@ -171,6 +201,7 @@ async def _posts_out(db: DbSession, posts: list[CommunityPost], me: User) -> lis
                     for prod, _ in pairs
                 ],
                 created_at=p.created_at,
+                **extra,
             )
         )
     return out
@@ -240,11 +271,14 @@ async def create_post(payload: NewPostIn, me: CurrentUser, db: DbSession):
     if existing is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="You've already posted this look.")
     await ensure_handle(db, me)
-    post = CommunityPost(user_id=me.id, tryon_job_id=job.id, caption=(payload.caption or "").strip() or None)
+    caption, removed = clean_text(payload.caption)
+    post = CommunityPost(user_id=me.id, tryon_job_id=job.id, caption=caption or None, links_removed=removed)
     db.add(post)
     await db.commit()
     await db.refresh(post)
-    return (await _posts_out(db, [post], me))[0]
+    out = (await _posts_out(db, [post], me))[0]
+    out.links_removed = removed
+    return out
 
 
 class MyLookOut(BaseModel):
@@ -333,14 +367,17 @@ async def create_media_post(
         key, width, height = await community_media.save_image(me.id, raw)
         poster, kind = None, "image"
     await ensure_handle(db, me)
+    text, removed = clean_text(caption)
     post = CommunityPost(
         user_id=me.id, media_kind=kind, media_key=key, poster_key=poster, media_width=width, media_height=height,
-        caption=(caption or "").strip() or None,
+        caption=text or None, links_removed=removed,
     )
     db.add(post)
     await db.commit()
     await db.refresh(post)
-    return (await _posts_out(db, [post], me))[0]
+    out = (await _posts_out(db, [post], me))[0]
+    out.links_removed = removed
+    return out
 
 
 @router.get("/posts/by-job/{job_id}")
@@ -404,6 +441,22 @@ async def unlike_post(post_id: str, me: CurrentUser, db: DbSession):
     return {"liked": False, "like_count": post.like_count}
 
 
+@router.get("/posts/{post_id}/likes", response_model=list[AuthorOut])
+async def post_likers(post_id: str, me: CurrentUser, db: DbSession):
+    """Who liked a post, newest first."""
+    post = await _visible_post(db, post_id, me)
+    rows = (
+        await db.execute(
+            select(User)
+            .join(PostLike, PostLike.user_id == User.id)
+            .where(PostLike.post_id == post.id, User.community_banned_at.is_(None))
+            .order_by(PostLike.created_at.desc())
+            .limit(300)
+        )
+    ).scalars()
+    return [_author(u) for u in rows]
+
+
 class TryThisOut(BaseModel):
     outfit_id: str | None = None
     product_id: str | None = None
@@ -427,20 +480,34 @@ async def try_post_look(post_id: str, me: CurrentUser, db: DbSession):
 # ------------------------------------------------------------------ comments
 
 
+class CommentLookOut(BaseModel):
+    image_url: str
+    products: list[LookProductOut]
+
+
 class CommentOut(BaseModel):
     id: str
     author: AuthorOut
     body: str
     parent_id: str | None
+    reply_to: str | None = None  # the @handle this answers (shown on deep replies)
     is_mine: bool
     can_delete: bool
     created_at: datetime
+    like_count: int = 0
+    liked_by_me: bool = False
+    image_url: str | None = None
+    look: CommentLookOut | None = None
+    previews: list[LinkPreviewOut] = []
+    links_removed: int = 0  # only on the answer to the one who just wrote it
     replies: list["CommentOut"] = []
 
 
 class NewCommentIn(BaseModel):
-    body: str = Field(min_length=1, max_length=1000)
+    body: str = Field(default="", max_length=1000)
     parent_id: str | None = None
+    image_key: str | None = Field(default=None, max_length=512)  # from POST /community/comment-images
+    tryon_job_id: str | None = None  # one of my own finished looks
 
 
 async def _recount_comments(db: DbSession, post: CommunityPost) -> None:
@@ -452,8 +519,68 @@ async def _recount_comments(db: DbSession, post: CommunityPost) -> None:
     )
 
 
+def _product_out(prod) -> LookProductOut:  # noqa: ANN001
+    api = get_settings().PUBLIC_API_BASE_URL.rstrip("/")
+    return LookProductOut(
+        id=prod.id,
+        name=prod.name,
+        price_cents=prod.price_cents,
+        currency=prod.currency,
+        image_url=prod.primary_image_url,
+        shop=prod.merchant_name or (prod.retailer.name if prod.retailer else None),
+        buy_url=f"{api}/api/v1/affiliate/go/{prod.id}?source=community",
+    )
+
+
+async def _comments_out(
+    db: DbSession, rows: list[tuple[PostComment, User]], me: User, post_owner_id: str
+) -> dict[str, CommentOut]:
+    """Each comment ready to show (without its replies), by id."""
+    if not rows:
+        return {}
+    ids = [c.id for c, _ in rows]
+    liked = set(
+        (await db.execute(select(CommentLike.comment_id).where(CommentLike.user_id == me.id, CommentLike.comment_id.in_(ids)))).scalars()
+    )
+    job_ids = [c.tryon_job_id for c, _ in rows if c.tryon_job_id]
+    jobs = (
+        {
+            j.id: j
+            for j in (await db.execute(select(TryOnJob).where(TryOnJob.id.in_(job_ids)).options(selectinload(TryOnJob.result)))).scalars()
+        }
+        if job_ids
+        else {}
+    )
+    handles = {c.id: u.handle or "member" for c, u in rows}
+    storage = get_storage()
+    out: dict[str, CommentOut] = {}
+    for c, u in rows:
+        look = None
+        job = jobs.get(c.tryon_job_id) if c.tryon_job_id else None
+        if job is not None and job.result is not None:
+            pairs, _ = await look_products(db, job)
+            look = CommentLookOut(image_url=storage.signed_url(job.result.storage_key), products=[_product_out(p) for p, _ in pairs])
+        out[c.id] = CommentOut(
+            id=c.id,
+            author=_author(u),
+            body=c.body,
+            parent_id=c.parent_id,
+            reply_to=handles.get(c.parent_id) if c.parent_id else None,
+            is_mine=c.user_id == me.id,
+            can_delete=c.user_id == me.id or post_owner_id == me.id or me.is_admin,
+            created_at=c.created_at,
+            like_count=c.like_count,
+            liked_by_me=c.id in liked,
+            image_url=storage.signed_url(c.image_key) if c.image_key else None,
+            look=look,
+            previews=await previews(db, c.body),
+        )
+    return out
+
+
 @router.get("/posts/{post_id}/comments", response_model=list[CommentOut])
 async def list_comments(post_id: str, me: CurrentUser, db: DbSession):
+    """The whole conversation as a tree: comments, replies, replies to replies."""
     post = await _visible_post(db, post_id, me)
     rows = (
         await db.execute(
@@ -463,22 +590,39 @@ async def list_comments(post_id: str, me: CurrentUser, db: DbSession):
             .order_by(PostComment.created_at)
         )
     ).all()
-    by_id: dict[str, CommentOut] = {}
+    by_id = await _comments_out(db, [(c, u) for c, u in rows], me, post.user_id)
     top: list[CommentOut] = []
-    for c, u in rows:
-        out = CommentOut(
-            id=c.id,
-            author=_author(u),
-            body=c.body,
-            parent_id=c.parent_id,
-            is_mine=c.user_id == me.id,
-            can_delete=c.user_id == me.id or post.user_id == me.id or me.is_admin,
-            created_at=c.created_at,
-        )
-        by_id[c.id] = out
-        parent = by_id.get(c.parent_id) if c.parent_id else None
-        (parent.replies if parent else top).append(out)
+    placed: set[str] = set()
+    for c, _ in rows:  # oldest first, so a parent is always placed before its replies
+        out = by_id[c.id]
+        if c.parent_id is None:
+            top.append(out)
+        elif c.parent_id in placed:
+            by_id[c.parent_id].replies.append(out)
+        else:
+            continue  # its parent was hidden or removed: the reply goes with it
+        placed.add(c.id)
     return top
+
+
+@router.post(
+    "/comment-images",
+    dependencies=[Depends(rate_limiter("community_comment_image", limit=40, window_seconds=3600))],
+)
+async def upload_comment_image(me: CurrentUser, file: UploadFile = File(...)):
+    """A photo for a comment, uploaded first so the member sees it before posting."""
+    from app.services import community_media
+
+    _can_write(me)
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Please choose a photo.")
+    if len(raw) > 15 * 1024 * 1024:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="That photo is too big. Please use one under 15 MB.")
+    if community_media.video_kind(raw) is not None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Comments take photos. Post a video as its own post.")
+    key, _, _ = await community_media.save_image(me.id, raw)
+    return {"image_key": key, "image_url": get_storage().signed_url(key)}
 
 
 @router.post(
@@ -490,23 +634,56 @@ async def list_comments(post_id: str, me: CurrentUser, db: DbSession):
 async def add_comment(post_id: str, payload: NewCommentIn, me: CurrentUser, db: DbSession):
     _can_write(me)
     post = await _visible_post(db, post_id, me)
-    parent_id = None
+    parent = None
     if payload.parent_id:
         parent = await db.get(PostComment, payload.parent_id)
-        if parent is None or parent.post_id != post.id:
+        if parent is None or parent.post_id != post.id or parent.is_hidden:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
-        parent_id = parent.parent_id or parent.id  # replies stay one level deep
+    image_key = None
+    if payload.image_key:
+        # only a photo this member uploaded themselves
+        if not re.fullmatch(rf"community/{re.escape(me.id)}/[A-Za-z0-9_-]+\.(?:jpg|jpeg|png|webp)", payload.image_key):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Please add the photo again.")
+        image_key = payload.image_key
+    job_id = None
+    if payload.tryon_job_id:
+        job = await db.scalar(select(TryOnJob).where(TryOnJob.id == payload.tryon_job_id).options(selectinload(TryOnJob.result)))
+        if job is None or job.user_id != me.id or job.status != JobStatus.COMPLETED or job.result is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Look not found")
+        job_id = job.id
+    body, removed = clean_text(payload.body)
+    if not body and not image_key and not job_id:
+        detail = (
+            "Links to other websites can't be shared here. You can share TryOnU store and product links."
+            if removed
+            else "Write a comment, or add a photo or a look."
+        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
     await ensure_handle(db, me)
-    comment = PostComment(post_id=post.id, user_id=me.id, parent_id=parent_id, body=payload.body.strip())
+    comment = PostComment(
+        post_id=post.id, user_id=me.id, parent_id=parent.id if parent else None, body=body, image_key=image_key,
+        tryon_job_id=job_id, links_removed=removed,
+    )
     db.add(comment)
     await db.flush()
     await _recount_comments(db, post)
     await db.commit()
     await db.refresh(comment)
-    return CommentOut(
-        id=comment.id, author=_author(me), body=comment.body, parent_id=comment.parent_id, is_mine=True, can_delete=True,
-        created_at=comment.created_at,
-    )
+    out = (await _comments_out(db, [(comment, me)], me, post.user_id))[comment.id]
+    if parent is not None:
+        parent_author = await db.get(User, parent.user_id)
+        out.reply_to = parent_author.handle if parent_author else None
+    out.links_removed = removed
+    return out
+
+
+async def _thread_ids(db: DbSession, root_id: str) -> list[str]:
+    """A comment and every reply under it, however deep."""
+    ids, frontier = [root_id], [root_id]
+    while frontier:
+        frontier = list((await db.execute(select(PostComment.id).where(PostComment.parent_id.in_(frontier)))).scalars())
+        ids.extend(frontier)
+    return ids
 
 
 @router.delete("/comments/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -515,11 +692,73 @@ async def delete_comment(comment_id: str, me: CurrentUser, db: DbSession):
     post = await db.get(CommunityPost, comment.post_id) if comment else None
     if comment is None or post is None or not (comment.user_id == me.id or post.user_id == me.id or me.is_admin):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
-    await db.execute(delete(PostComment).where(PostComment.parent_id == comment.id))
-    await db.delete(comment)
+    ids = await _thread_ids(db, comment.id)
+    images = list(
+        (await db.execute(select(PostComment.image_key).where(PostComment.id.in_(ids), PostComment.image_key.is_not(None)))).scalars()
+    )
+    await db.execute(delete(CommentLike).where(CommentLike.comment_id.in_(ids)))
+    await db.execute(delete(CommunityReport).where(CommunityReport.comment_id.in_(ids)))
+    for cid in reversed(ids):  # the deepest replies first
+        await db.execute(delete(PostComment).where(PostComment.id == cid))
+    db.expunge(comment)
     await db.flush()
     await _recount_comments(db, post)
     await db.commit()
+    from app.services.community_media import delete_files
+
+    delete_files(*images)
+
+
+async def _visible_comment(db: DbSession, comment_id: str, me: User) -> PostComment:
+    comment = await db.get(PostComment, comment_id)
+    if comment is None or comment.is_hidden:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
+    await _visible_post(db, comment.post_id, me)
+    return comment
+
+
+async def _recount_comment_likes(db: DbSession, comment: PostComment) -> None:
+    comment.like_count = int(
+        await db.scalar(select(func.count()).select_from(CommentLike).where(CommentLike.comment_id == comment.id)) or 0
+    )
+
+
+@router.post("/comments/{comment_id}/like", dependencies=[Depends(rate_limiter("community_like", limit=400, window_seconds=3600))])
+async def like_comment(comment_id: str, me: CurrentUser, db: DbSession):
+    _can_write(me)
+    comment = await _visible_comment(db, comment_id, me)
+    if await db.scalar(select(CommentLike.id).where(CommentLike.comment_id == comment.id, CommentLike.user_id == me.id)) is None:
+        db.add(CommentLike(comment_id=comment.id, user_id=me.id))
+        await db.flush()
+    await _recount_comment_likes(db, comment)
+    await db.commit()
+    return {"liked": True, "like_count": comment.like_count}
+
+
+@router.delete("/comments/{comment_id}/like")
+async def unlike_comment(comment_id: str, me: CurrentUser, db: DbSession):
+    comment = await _visible_comment(db, comment_id, me)
+    await db.execute(delete(CommentLike).where(CommentLike.comment_id == comment.id, CommentLike.user_id == me.id))
+    await _recount_comment_likes(db, comment)
+    await db.commit()
+    return {"liked": False, "like_count": comment.like_count}
+
+
+@router.post("/comments/{comment_id}/try", response_model=TryThisOut)
+async def try_comment_look(comment_id: str, me: CurrentUser, db: DbSession):
+    """The look someone added to a comment, ready to try on with my own photo."""
+    comment = await _visible_comment(db, comment_id, me)
+    job = (
+        await db.scalar(select(TryOnJob).where(TryOnJob.id == comment.tryon_job_id).options(selectinload(TryOnJob.result)))
+        if comment.tryon_job_id
+        else None
+    )
+    if job is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This comment has no look to try on.")
+    outfit_id, product_id = await copy_look(db, me.id, job, include_hidden=True)
+    if outfit_id is None and product_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="The products in this look aren't available anymore.")
+    return TryThisOut(outfit_id=outfit_id, product_id=product_id)
 
 
 # ------------------------------------------------------------------ profiles and following
@@ -844,5 +1083,327 @@ async def admin_unban(user_id: str, _: AdminUser, db: DbSession):
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     user.community_banned_at = None
+    await db.commit()
+    return {"detail": "Done"}
+
+
+# ------------------------------------------------------------------ admin: everything members do
+
+
+class AdminStatsOut(BaseModel):
+    members: int
+    active_7d: int
+    posts: int
+    posts_7d: int
+    comments: int
+    comments_7d: int
+    likes: int
+    likes_7d: int
+    comment_likes: int
+    follows: int
+    links_removed: int
+    hidden: int
+    blocked: int
+    open_reports: int
+
+
+@admin_router.get("/stats", response_model=AdminStatsOut)
+async def admin_stats(_: AdminUser, db: DbSession):
+    from datetime import timedelta
+
+    week = datetime.now(timezone.utc) - timedelta(days=7)
+
+    async def count(model, *where) -> int:  # noqa: ANN001
+        return int(await db.scalar(select(func.count()).select_from(model).where(*where)) or 0)
+
+    active = set((await db.execute(select(CommunityPost.user_id).where(CommunityPost.created_at >= week))).scalars())
+    active |= set((await db.execute(select(PostComment.user_id).where(PostComment.created_at >= week))).scalars())
+    active |= set((await db.execute(select(PostLike.user_id).where(PostLike.created_at >= week))).scalars())
+    links = int(await db.scalar(select(func.coalesce(func.sum(PostComment.links_removed), 0))) or 0) + int(
+        await db.scalar(select(func.coalesce(func.sum(CommunityPost.links_removed), 0))) or 0
+    )
+    return AdminStatsOut(
+        members=await count(User, User.handle.is_not(None)),
+        active_7d=len(active),
+        posts=await count(CommunityPost),
+        posts_7d=await count(CommunityPost, CommunityPost.created_at >= week),
+        comments=await count(PostComment),
+        comments_7d=await count(PostComment, PostComment.created_at >= week),
+        likes=await count(PostLike),
+        likes_7d=await count(PostLike, PostLike.created_at >= week),
+        comment_likes=await count(CommentLike),
+        follows=await count(Follow),
+        links_removed=links,
+        hidden=await count(CommunityPost, CommunityPost.is_hidden.is_(True)) + await count(PostComment, PostComment.is_hidden.is_(True)),
+        blocked=await count(User, User.community_banned_at.is_not(None)),
+        open_reports=await count(CommunityReport, CommunityReport.resolved_at.is_(None)),
+    )
+
+
+class AdminMemberOut(BaseModel):
+    user_id: str
+    handle: str
+    name: str | None
+    email: str
+    avatar_url: str | None
+    posts: int
+    comments: int
+    likes_given: int
+    likes_received: int
+    followers: int
+    following: int
+    links_removed: int
+    last_active_at: datetime | None
+    blocked_at: datetime | None
+    joined_at: datetime
+
+
+class AdminMembersOut(BaseModel):
+    total: int
+    rows: list[AdminMemberOut]
+
+
+def _grouped(col, label: str = "n", value=None):  # noqa: ANN001, ANN202
+    """One number per member (a count, or the given sum / latest time)."""
+    return select(col.label("uid"), (value if value is not None else func.count()).label(label)).group_by(col).subquery()
+
+
+@admin_router.get("/members", response_model=AdminMembersOut)
+async def admin_members(_: AdminUser, db: DbSession, q: str = "", sort: str = "engaged", offset: int = 0, limit: int = 25):
+    """Every community member with how much they take part: most engaged first."""
+    posts = _grouped(CommunityPost.user_id)
+    comments = _grouped(PostComment.user_id)
+    given = _grouped(PostLike.user_id)
+    received = (
+        select(CommunityPost.user_id.label("uid"), func.count(PostLike.id).label("n"))
+        .join(PostLike, PostLike.post_id == CommunityPost.id)
+        .group_by(CommunityPost.user_id)
+        .subquery()
+    )
+    followers = _grouped(Follow.followee_id)
+    following = _grouped(Follow.follower_id)
+    p_links = _grouped(CommunityPost.user_id, value=func.sum(CommunityPost.links_removed))
+    c_links = _grouped(PostComment.user_id, value=func.sum(PostComment.links_removed))
+    p_last = _grouped(CommunityPost.user_id, "t", func.max(CommunityPost.created_at))
+    c_last = _grouped(PostComment.user_id, "t", func.max(PostComment.created_at))
+    l_last = _grouped(PostLike.user_id, "t", func.max(PostLike.created_at))
+
+    def n(sq):  # noqa: ANN001, ANN202
+        return func.coalesce(sq.c.n, 0)
+
+    score = n(posts) * 3 + n(comments) * 2 + n(given) + n(received)
+    query = select(
+        User, n(posts), n(comments), n(given), n(received), n(followers), n(following), n(p_links) + n(c_links),
+        p_last.c.t, c_last.c.t, l_last.c.t,
+    )
+    for sq in (posts, comments, given, received, followers, following, p_links, c_links, p_last, c_last, l_last):
+        query = query.outerjoin(sq, sq.c.uid == User.id)
+    query = query.where(User.handle.is_not(None))
+    if q.strip():
+        like = f"%{q.strip().lower().lstrip('@')}%"
+        query = query.where(
+            or_(func.lower(User.handle).like(like), func.lower(User.email).like(like), func.lower(User.full_name).like(like))
+        )
+    if sort == "blocked":
+        query = query.where(User.community_banned_at.is_not(None))
+    total = int(await db.scalar(select(func.count()).select_from(query.with_only_columns(User.id).subquery())) or 0)
+    order = User.created_at.desc() if sort == "newest" else score.desc()
+    rows = (
+        await db.execute(query.order_by(order, User.created_at.desc()).offset(max(offset, 0)).limit(min(max(limit, 1), 100)))
+    ).all()
+
+    def latest(*times):  # noqa: ANN001, ANN202
+        found = [t if t.tzinfo else t.replace(tzinfo=timezone.utc) for t in times if t is not None]
+        return max(found) if found else None
+
+    return AdminMembersOut(
+        total=total,
+        rows=[
+            AdminMemberOut(
+                user_id=u.id, handle=u.handle or "member", name=u.full_name, email=u.email, avatar_url=u.avatar_url,
+                posts=np, comments=nc, likes_given=ng, likes_received=nr, followers=nf, following=nfg, links_removed=nl,
+                last_active_at=latest(t1, t2, t3), blocked_at=u.community_banned_at, joined_at=u.created_at,
+            )
+            for u, np, nc, ng, nr, nf, nfg, nl, t1, t2, t3 in rows
+        ],
+    )
+
+
+class AdminCommentOut(BaseModel):
+    id: str
+    post_id: str
+    post_caption: str | None
+    post_author_handle: str | None
+    author: AuthorOut
+    author_email: str
+    author_id: str
+    body: str
+    reply_to: str | None
+    image_url: str | None
+    look_image_url: str | None
+    like_count: int
+    links_removed: int
+    hidden: bool
+    created_at: datetime
+
+
+class AdminCommentsOut(BaseModel):
+    total: int
+    rows: list[AdminCommentOut]
+
+
+async def _jobs_with_results(db: DbSession, job_ids: list[str]) -> dict[str, TryOnJob]:
+    if not job_ids:
+        return {}
+    rows = await db.execute(select(TryOnJob).where(TryOnJob.id.in_(job_ids)).options(selectinload(TryOnJob.result)))
+    return {j.id: j for j in rows.scalars()}
+
+
+@admin_router.get("/comments", response_model=AdminCommentsOut)
+async def admin_comments(
+    _: AdminUser, db: DbSession, q: str = "", member: str = "", show: str = "all", offset: int = 0, limit: int = 25
+):
+    """Every comment and reply, newest first; by one member, or with a word in it."""
+    query = select(PostComment, User).join(User, User.id == PostComment.user_id)
+    if member.strip():
+        query = query.where(User.handle == member.strip().lower().lstrip("@"))
+    if q.strip():
+        query = query.where(func.lower(PostComment.body).like(f"%{q.strip().lower()}%"))
+    if show == "hidden":
+        query = query.where(PostComment.is_hidden.is_(True))
+    elif show == "links":
+        query = query.where(PostComment.links_removed > 0)
+    total = int(await db.scalar(select(func.count()).select_from(query.with_only_columns(PostComment.id).subquery())) or 0)
+    rows = (
+        await db.execute(query.order_by(PostComment.created_at.desc()).offset(max(offset, 0)).limit(min(max(limit, 1), 100)))
+    ).all()
+    post_ids = {c.post_id for c, _ in rows}
+    posts = {p.id: p for p in (await db.execute(select(CommunityPost).where(CommunityPost.id.in_(post_ids)))).scalars()}
+    parent_ids = {c.parent_id for c, _ in rows if c.parent_id}
+    parents = dict((await db.execute(select(PostComment.id, PostComment.user_id).where(PostComment.id.in_(parent_ids)))).all())
+    user_ids = {p.user_id for p in posts.values()} | set(parents.values())
+    handles = dict((await db.execute(select(User.id, User.handle).where(User.id.in_(user_ids)))).all())
+    jobs = await _jobs_with_results(db, [c.tryon_job_id for c, _ in rows if c.tryon_job_id])
+    storage = get_storage()
+    out = []
+    for c, u in rows:
+        post = posts.get(c.post_id)
+        job = jobs.get(c.tryon_job_id) if c.tryon_job_id else None
+        out.append(
+            AdminCommentOut(
+                id=c.id,
+                post_id=c.post_id,
+                post_caption=post.caption if post else None,
+                post_author_handle=handles.get(post.user_id) if post else None,
+                author=_author(u),
+                author_email=u.email,
+                author_id=u.id,
+                body=c.body,
+                reply_to=handles.get(parents.get(c.parent_id)) if c.parent_id else None,
+                image_url=storage.signed_url(c.image_key) if c.image_key else None,
+                look_image_url=storage.signed_url(job.result.storage_key) if job and job.result else None,
+                like_count=c.like_count,
+                links_removed=c.links_removed,
+                hidden=c.is_hidden,
+                created_at=c.created_at,
+            )
+        )
+    return AdminCommentsOut(total=total, rows=out)
+
+
+class AdminPostOut(BaseModel):
+    id: str
+    author: AuthorOut
+    author_email: str
+    author_id: str
+    media_kind: str
+    image_url: str | None
+    video_url: str | None
+    caption: str | None
+    like_count: int
+    comment_count: int
+    links_removed: int
+    hidden: bool
+    created_at: datetime
+
+
+class AdminPostsOut(BaseModel):
+    total: int
+    rows: list[AdminPostOut]
+
+
+@admin_router.get("/posts", response_model=AdminPostsOut)
+async def admin_posts(_: AdminUser, db: DbSession, member: str = "", sort: str = "newest", offset: int = 0, limit: int = 24):
+    """Every post (hidden ones too), newest or most engaged first."""
+    query = select(CommunityPost, User).join(User, User.id == CommunityPost.user_id)
+    if member.strip():
+        query = query.where(User.handle == member.strip().lower().lstrip("@"))
+    if sort == "hidden":
+        query = query.where(CommunityPost.is_hidden.is_(True))
+    total = int(await db.scalar(select(func.count()).select_from(query.with_only_columns(CommunityPost.id).subquery())) or 0)
+    order = (
+        (CommunityPost.like_count + 2 * CommunityPost.comment_count).desc() if sort == "engaged" else CommunityPost.created_at.desc()
+    )
+    rows = (
+        await db.execute(
+            query.order_by(order, CommunityPost.created_at.desc()).offset(max(offset, 0)).limit(min(max(limit, 1), 96))
+        )
+    ).all()
+    jobs = await _jobs_with_results(db, [p.tryon_job_id for p, _ in rows if p.tryon_job_id and not p.media_key])
+    storage = get_storage()
+    out = []
+    for p, u in rows:
+        if p.media_key:
+            image = storage.signed_url(p.poster_key or p.media_key) if (p.poster_key or p.media_kind == "image") else None
+            video = storage.signed_url(p.media_key) if p.media_kind == "video" else None
+        else:
+            job = jobs.get(p.tryon_job_id)
+            image, video = (storage.signed_url(job.result.storage_key) if job and job.result else None), None
+        out.append(
+            AdminPostOut(
+                id=p.id, author=_author(u), author_email=u.email, author_id=u.id, media_kind=p.media_kind, image_url=image,
+                video_url=video, caption=p.caption, like_count=p.like_count, comment_count=p.comment_count,
+                links_removed=p.links_removed, hidden=p.is_hidden, created_at=p.created_at,
+            )
+        )
+    return AdminPostsOut(total=total, rows=out)
+
+
+class HiddenIn(BaseModel):
+    hidden: bool
+
+
+@admin_router.post("/comments/{comment_id}/hidden")
+async def admin_hide_comment(comment_id: str, payload: HiddenIn, _: AdminUser, db: DbSession):
+    comment = await db.get(PostComment, comment_id)
+    if comment is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
+    comment.is_hidden = payload.hidden
+    await db.flush()
+    if post := await db.get(CommunityPost, comment.post_id):
+        await _recount_comments(db, post)
+    await db.commit()
+    return {"hidden": comment.is_hidden}
+
+
+@admin_router.post("/posts/{post_id}/hidden")
+async def admin_hide_post(post_id: str, payload: HiddenIn, _: AdminUser, db: DbSession):
+    post = await db.get(CommunityPost, post_id)
+    if post is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
+    post.is_hidden = payload.hidden
+    await db.commit()
+    return {"hidden": post.is_hidden}
+
+
+@admin_router.post("/users/{user_id}/ban")
+async def admin_ban(user_id: str, _: AdminUser, db: DbSession):
+    """Block a member from the community: they can't post or comment, and their posts and comments disappear."""
+    user = await db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if user.is_admin:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="An admin can't be blocked.")
+    user.community_banned_at = datetime.now(timezone.utc)
     await db.commit()
     return {"detail": "Done"}

@@ -28,6 +28,8 @@ class CommunityPost(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     caption: Mapped[str | None] = mapped_column(Text, nullable=True)
     like_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     comment_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # outside links taken out of the caption (only TryOnU links may be shared)
+    links_removed: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     # hidden by an admin (after a report): gone from every feed
     is_hidden: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
 
@@ -45,10 +47,24 @@ class PostComment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     post_id: Mapped[str] = mapped_column(String(36), ForeignKey("community_posts.id", ondelete="CASCADE"), index=True, nullable=False)
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
-    # a reply to another comment on the same post (one level)
-    parent_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("community_comments.id", ondelete="CASCADE"), nullable=True)
+    # a reply to another comment on the same post (replies to replies too, like Facebook)
+    parent_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("community_comments.id", ondelete="CASCADE"), index=True, nullable=True)
     body: Mapped[str] = mapped_column(Text, nullable=False)
+    # a photo the member added, or one of their own try-on looks
+    image_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    tryon_job_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("tryon_jobs.id", ondelete="SET NULL"), nullable=True)
+    like_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    # outside links taken out (only TryOnU links may be shared)
+    links_removed: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     is_hidden: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class CommentLike(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "community_comment_likes"
+    __table_args__ = (UniqueConstraint("comment_id", "user_id", name="uq_community_comment_likes_pair"),)
+
+    comment_id: Mapped[str] = mapped_column(String(36), ForeignKey("community_comments.id", ondelete="CASCADE"), index=True, nullable=False)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
 
 
 class Follow(UUIDPrimaryKeyMixin, TimestampMixin, Base):

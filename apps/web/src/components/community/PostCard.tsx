@@ -3,41 +3,28 @@
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
-import { formatPrice } from "@/components/try/shop";
-import { ApiError, relayedImageUrl, resolveMediaUrl } from "@/lib/api/client";
-import { community, type CommunityComment, type CommunityPost } from "@/lib/api/endpoints";
+import { useEffect, useRef, useState } from "react";
+import { Comments } from "@/components/community/CommentThread";
+import {
+  Avatar,
+  CommentIcon,
+  HangerIcon,
+  LinkCards,
+  ProductChips,
+  RichText,
+  SendIcon,
+  ThumbIcon,
+  timeAgo,
+} from "@/components/community/parts";
+import { ApiError, resolveMediaUrl } from "@/lib/api/client";
+import { community, type CommunityPost } from "@/lib/api/endpoints";
 
-export function timeAgo(iso: string): string {
-  const s = Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
-  if (s < 60) return "just now";
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m}m`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `${h}h`;
-  const d = Math.round(h / 24);
-  if (d < 7) return `${d}d`;
-  return new Date(iso).toLocaleDateString();
-}
+// kept here too, for the pages that import them from the post card
+export { Avatar, CommentIcon, HangerIcon, HeartIcon, ThumbIcon, timeAgo } from "@/components/community/parts";
+export { Comments } from "@/components/community/CommentThread";
 
-export function Avatar({ name, handle, url, size = 40 }: { name: string | null; handle: string; url?: string | null; size?: number }) {
-  const letter = (name || handle || "?").trim().charAt(0).toUpperCase();
-  return url ? (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={resolveMediaUrl(url)} alt="" width={size} height={size} className="shrink-0 rounded-full object-cover" style={{ width: size, height: size }} />
-  ) : (
-    <span
-      aria-hidden="true"
-      className="grid shrink-0 place-items-center rounded-full bg-sage font-semibold text-white"
-      style={{ width: size, height: size, fontSize: size * 0.42 }}
-    >
-      {letter}
-    </span>
-  );
-}
-
-/** One look in the community: who posted it, the picture, the products, and
- * like / comment / try it on yourself. */
+/** One post in the community: who posted it, the picture or video, the
+ * products, and a LinkedIn-style bar (you · like · comment · send · who liked it). */
 export function PostCard({
   post,
   onChange,
@@ -55,15 +42,23 @@ export function PostCard({
   const [showComments, setShowComments] = useState(openComments);
   const [menu, setMenu] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [showLikers, setShowLikers] = useState(false);
+  const me = useQuery({ queryKey: ["community", "me"], queryFn: community.me });
 
-  // like or unlike is decided at the click and passed along: the heart turns
-  // red at once, and the request must not re-read that already-changed state
-  // (it did, so a first like was sent as an unlike)
+  // like or unlike is decided at the click and passed along: the request
+  // must not re-read the already-changed state (a first like was sent as an unlike)
   const like = useMutation({
     mutationFn: (want: boolean) => (want ? community.like(p.id) : community.unlike(p.id)),
     onMutate: (want: boolean) =>
       setP((prev) => {
-        const next = { ...prev, liked_by_me: want, like_count: Math.max(0, prev.like_count + (want ? 1 : -1)) };
+        const mine = me.data ? { handle: me.data.handle, name: me.data.name, avatar_url: me.data.avatar_url } : null;
+        const others = (prev.likers ?? []).filter((x) => x.handle !== mine?.handle);
+        const next = {
+          ...prev,
+          liked_by_me: want,
+          like_count: Math.max(0, prev.like_count + (want ? 1 : -1)),
+          likers: want && mine ? [mine, ...others].slice(0, 3) : others,
+        };
         onChange?.(next);
         return next;
       }),
@@ -96,6 +91,7 @@ export function PostCard({
   const image = resolveMediaUrl(p.image_url);
   // a try-on look has products to put on yourself; a member's own photo or video doesn't
   const canTry = (p.media_kind ?? "tryon") === "tryon";
+  const likers = p.likers ?? [];
   return (
     <article className="overflow-hidden rounded-[22px] border border-line bg-surface">
       <header className="flex items-center gap-3 px-4 py-3">
@@ -182,233 +178,229 @@ export function PostCard({
 
       <div className="px-4 pb-1 pt-3">
         {p.caption && (
-          <p className="whitespace-pre-wrap text-[15.5px] leading-relaxed text-ink">
-            <Link href={`/u/${p.author.handle}`} className="font-semibold">@{p.author.handle}</Link> {p.caption}
+          <p className="whitespace-pre-wrap break-words text-[15.5px] leading-relaxed text-ink">
+            <Link href={`/u/${p.author.handle}`} className="font-semibold">@{p.author.handle}</Link> <RichText text={p.caption} />
           </p>
         )}
+        <LinkCards previews={p.previews} />
 
-        {p.products.length > 0 && (
-          <div className={`flex gap-2 overflow-x-auto pb-1 ${p.caption ? "mt-3" : ""}`}>
-            {p.products.map((prod) => (
-              <a
-                key={prod.id}
-                href={prod.buy_url}
-                target="_blank"
-                rel="noopener sponsored"
-                className="flex w-[150px] shrink-0 items-center gap-2 rounded-xl border border-line p-1.5 hover:border-line-strong"
-                title={prod.name}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={relayedImageUrl(prod.image_url, 200)} alt="" loading="lazy" className="h-11 w-11 shrink-0 rounded-lg bg-white object-contain" />
-                <span className="min-w-0">
-                  <span className="block truncate text-[12.5px] text-ink">{prod.name}</span>
-                  <span className="block text-[12px] font-semibold text-sage-deep">
-                    {prod.price_cents > 0 ? formatPrice(prod.price_cents, prod.currency) : "Shop"} →
-                  </span>
-                </span>
-              </a>
-            ))}
-          </div>
+        <ProductChips products={p.products} className={p.caption ? "mt-3" : ""} />
+
+        {canTry && (
+          <button
+            type="button"
+            onClick={() => tryIt.mutate()}
+            disabled={tryIt.isPending}
+            className="tu-press tu-attention mt-3 flex min-h-[46px] w-full items-center justify-center gap-2 rounded-full bg-sage-tint/45 text-[15px] font-semibold text-sage-deep hover:bg-sage-tint/70 disabled:opacity-60"
+          >
+            <HangerIcon />
+            {tryIt.isPending ? "Opening…" : "Try this look on yourself"}
+          </button>
         )}
+        {tryIt.isError && <p className="mt-2 text-[14px] text-[#a4553f]">{tryIt.error instanceof ApiError ? tryIt.error.detail : "Couldn't open this look."}</p>}
 
-        {/* the counts, quietly, like LinkedIn and Facebook */}
-        {(p.like_count > 0 || p.comment_count > 0) && (
-          <div className="mt-3 flex items-center justify-between text-[13.5px] text-muted">
-            <span className="flex items-center gap-1.5">
-              {p.like_count > 0 && (
-                <>
-                  <span className="grid h-[18px] w-[18px] place-items-center rounded-full bg-[#c0503a] text-white">
-                    <HeartIcon filled size={10} />
-                  </span>
-                  {p.like_count} {p.like_count === 1 ? "like" : "likes"}
-                </>
-              )}
-            </span>
-            {p.comment_count > 0 && (
-              <button type="button" onClick={() => setShowComments(true)} className="hover:text-ink hover:underline">
-                {p.comment_count} {p.comment_count === 1 ? "comment" : "comments"}
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* the action bar */}
-        <div className={`mt-3 flex items-center justify-around border-t border-line pt-1 sm:grid ${canTry ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
-          <ActionButton onClick={() => !like.isPending && like.mutate(!p.liked_by_me)} pressed={p.liked_by_me} active={p.liked_by_me} label={p.liked_by_me ? "Liked" : "Like"}>
-            <HeartIcon filled={p.liked_by_me} />
-          </ActionButton>
-          <ActionButton onClick={() => setShowComments((v) => !v)} active={showComments} label="Comment">
-            <CommentIcon />
-          </ActionButton>
-          {canTry && (
-            <ActionButton onClick={() => tryIt.mutate()} disabled={tryIt.isPending} label={tryIt.isPending ? "Opening…" : "Try it on"} accent>
-              <HangerIcon />
-            </ActionButton>
+        {/* the bar, like LinkedIn: you · like · comment · send ........ who liked it */}
+        <div className="mt-3 flex items-center gap-0.5 border-t border-line pt-2 sm:gap-1">
+          {me.data && (
+            <Link href={`/u/${me.data.handle}`} title="Your profile" className="mr-1 shrink-0 rounded-full">
+              <Avatar name={me.data.name} handle={me.data.handle} url={me.data.avatar_url} size={28} />
+            </Link>
+          )}
+          <BarButton
+            label={p.liked_by_me ? "Unlike" : "Like"}
+            count={p.like_count}
+            pressed={p.liked_by_me}
+            onClick={() => !like.isPending && like.mutate(!p.liked_by_me)}
+            className={p.liked_by_me ? "text-sage-deep" : undefined}
+          >
+            <ThumbIcon filled={p.liked_by_me} />
+          </BarButton>
+          <BarButton label="Comment" count={p.comment_count} pressed={showComments} onClick={() => setShowComments((v) => !v)}>
+            <CommentIcon size={20} />
+          </BarButton>
+          <ShareButton post={p} />
+          <span className="flex-1" />
+          {likers.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowLikers(true)}
+              title="See who liked this"
+              aria-label={`See who liked this (${p.like_count})`}
+              className="flex shrink-0 items-center rounded-full p-1 hover:bg-paper-2"
+            >
+              {likers.slice(0, 3).map((x, i) => (
+                <Avatar
+                  key={x.handle}
+                  name={x.name}
+                  handle={x.handle}
+                  url={x.avatar_url}
+                  size={24}
+                  className={`ring-2 ring-surface ${i > 0 ? "-ml-2" : ""}`}
+                />
+              ))}
+            </button>
           )}
         </div>
-        {tryIt.isError && <p className="mt-2 text-[14px] text-[#a4553f]">{tryIt.error instanceof ApiError ? tryIt.error.detail : "Couldn't open this look."}</p>}
         {notice && <p className="mt-2 rounded-xl bg-sage-tint/40 px-3 py-2 text-[14px] text-ink">{notice}</p>}
 
         {showComments && <Comments post={p} onCount={(n) => setP((prev) => ({ ...prev, comment_count: n }))} />}
         <div className="h-3" />
       </div>
+      {showLikers && <LikersDialog postId={p.id} onClose={() => setShowLikers(false)} />}
     </article>
   );
 }
 
-export function Comments({ post, onCount }: { post: CommunityPost; onCount: (n: number) => void }) {
-  const qc = useQueryClient();
-  const key = ["community", "comments", post.id];
-  const list = useQuery({ queryKey: key, queryFn: () => community.comments(post.id) });
-  const [text, setText] = useState("");
-  const [replyTo, setReplyTo] = useState<CommunityComment | null>(null);
-  const [reported, setReported] = useState<string[]>([]);
-  const count = (items: CommunityComment[]) => items.reduce((n, c) => n + 1 + c.replies.length, 0);
-  const add = useMutation({
-    mutationFn: () => community.comment(post.id, text.trim(), replyTo?.id),
-    onSuccess: async () => {
-      setText("");
-      setReplyTo(null);
-      const fresh = await qc.fetchQuery({ queryKey: key, queryFn: () => community.comments(post.id) });
-      onCount(count(fresh));
-    },
-  });
-  const remove = useMutation({
-    mutationFn: (id: string) => community.removeComment(id),
-    onSuccess: async () => {
-      const fresh = await qc.fetchQuery({ queryKey: key, queryFn: () => community.comments(post.id) });
-      onCount(count(fresh));
-    },
-  });
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    if (text.trim()) add.mutate();
-  };
-
-  const row = (c: CommunityComment, reply = false) => (
-    <div key={c.id} className={`flex gap-2.5 ${reply ? "ml-10 mt-2" : "mt-3"}`}>
-      <Link href={`/u/${c.author.handle}`}>
-        <Avatar name={c.author.name} handle={c.author.handle} url={c.author.avatar_url} size={30} />
-      </Link>
-      <div className="min-w-0 flex-1">
-        <div className="rounded-2xl bg-paper-2 px-3 py-2">
-          <Link href={`/u/${c.author.handle}`} className="text-[13.5px] font-semibold text-ink">@{c.author.handle}</Link>
-          <p className="whitespace-pre-wrap text-[14.5px] leading-snug text-ink">{c.body}</p>
-        </div>
-        <div className="mt-1 flex gap-3 pl-2 text-[12.5px] text-muted">
-          <span>{timeAgo(c.created_at)}</span>
-          <button type="button" onClick={() => setReplyTo(c)} className="font-semibold hover:text-ink">Reply</button>
-          {c.can_delete && (
-            <button type="button" onClick={() => remove.mutate(c.id)} className="hover:text-[#a4553f]">Delete</button>
-          )}
-          {!c.is_mine &&
-            (reported.includes(c.id) ? (
-              <span>Reported ✓</span>
-            ) : (
-              <button
-                type="button"
-                onClick={() => community.report({ comment_id: c.id, reason: "Comment reported" }).then(() => setReported((r) => [...r, c.id]))}
-                className="hover:text-ink"
-              >
-                Report
-              </button>
-            ))}
-        </div>
-        {c.replies.map((r) => row(r, true))}
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="mt-4 border-t border-line pt-2">
-      {list.isLoading && <p className="mt-3 text-[14px] text-muted">Loading comments…</p>}
-      {list.data && list.data.length === 0 && <p className="mt-3 text-[14px] text-muted">No comments yet. Be the first!</p>}
-      {list.data?.map((c) => row(c))}
-      <form onSubmit={submit} className="mt-4">
-        {replyTo && (
-          <p className="mb-1.5 text-[13px] text-muted">
-            Replying to @{replyTo.author.handle}{" "}
-            <button type="button" onClick={() => setReplyTo(null)} className="font-semibold text-ink">Cancel</button>
-          </p>
-        )}
-        <div className="flex gap-2">
-          <input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            maxLength={1000}
-            placeholder={replyTo ? "Write a reply…" : "Add a kind comment…"}
-            aria-label="Comment"
-            className="h-11 min-w-0 flex-1 rounded-full border border-line-strong bg-paper px-4 text-[15px] text-ink"
-          />
-          <button
-            type="submit"
-            disabled={!text.trim() || add.isPending}
-            className="tu-press min-h-[44px] shrink-0 rounded-full bg-sage px-4 text-[14.5px] font-semibold text-white disabled:opacity-50"
-          >
-            Post
-          </button>
-        </div>
-        {add.isError && <p className="mt-2 text-[14px] text-[#a4553f]">{add.error instanceof ApiError ? add.error.detail : "Couldn't post your comment."}</p>}
-      </form>
-    </div>
-  );
-}
-
-/** One button of the action bar under a post: an outline icon and a word. */
-function ActionButton({
+/** A button of the bar: an outline icon and its count. */
+function BarButton({
   children,
   label,
+  count,
   onClick,
   pressed,
-  active = false,
-  accent = false,
-  disabled = false,
+  className,
 }: {
   children: React.ReactNode;
   label: string;
+  count?: number;
   onClick: () => void;
   pressed?: boolean;
-  active?: boolean;
-  accent?: boolean;
-  disabled?: boolean;
+  className?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled}
       aria-pressed={pressed}
-      className={`flex min-h-[44px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-[14px] font-semibold transition-colors hover:bg-paper-2 disabled:opacity-60 sm:gap-2 sm:text-[14.5px] ${
-        active ? (pressed ? "text-[#c0503a]" : "text-ink") : accent ? "tu-attention bg-sage-tint/40 text-sage-deep" : "text-ink-soft hover:text-ink"
+      aria-label={count ? `${label} (${count})` : label}
+      title={label}
+      className={`flex h-10 min-w-[44px] items-center justify-center gap-1.5 rounded-lg px-2.5 text-[14.5px] font-semibold transition-colors hover:bg-paper-2 ${
+        className ?? "text-ink-soft hover:text-ink"
       }`}
     >
       {children}
-      <span>{label}</span>
+      {count ? <span className="tabular-nums">{count}</span> : null}
     </button>
   );
 }
 
-export function HeartIcon({ filled = false, size = 19 }: { filled?: boolean; size?: number }) {
+/** Send: copy the link or share it to WhatsApp, Facebook, LinkedIn or X. */
+function ShareButton({ post }: { post: CommunityPost }) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+
+  const url = typeof window !== "undefined" ? `${window.location.origin}/community/post/${post.id}` : "";
+  const text = post.caption ? `${post.caption} — on TryOnU` : `A look by @${post.author.handle} on TryOnU`;
+  const enc = encodeURIComponent;
+  const targets = [
+    { name: "WhatsApp", href: `https://wa.me/?text=${enc(`${text} ${url}`)}` },
+    { name: "Facebook", href: `https://www.facebook.com/sharer/sharer.php?u=${enc(url)}` },
+    { name: "LinkedIn", href: `https://www.linkedin.com/sharing/share-offsite/?url=${enc(url)}` },
+    { name: "X", href: `https://twitter.com/intent/tweet?text=${enc(text)}&url=${enc(url)}` },
+  ];
   return (
-    <svg className="shrink-0" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth={filled ? 0 : 1.9} strokeLinejoin="round">
-      <path d="M12 20.3s-7.6-4.6-9.3-9.4C1.6 7.6 3.6 4.5 6.9 4.5c2.1 0 3.5 1.2 4.4 2.6h1.4c.9-1.4 2.3-2.6 4.4-2.6 3.3 0 5.3 3.1 4.2 6.4-1.7 4.8-9.3 9.4-9.3 9.4z" />
-    </svg>
+    <div ref={ref} className="relative">
+      <BarButton label="Send" pressed={open} onClick={() => setOpen((v) => !v)}>
+        <SendIcon />
+      </BarButton>
+      {open && (
+        <div role="menu" className="absolute bottom-full left-0 z-20 mb-2 w-60 rounded-xl border border-line bg-surface p-1 shadow-lift">
+          <button
+            type="button"
+            role="menuitem"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(url);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              } catch {
+                window.prompt("Copy this link", url);
+              }
+            }}
+            className="w-full rounded-lg px-3 py-2.5 text-left text-[14.5px] font-semibold text-ink hover:bg-paper-2"
+          >
+            {copied ? "Link copied ✓" : "Copy link"}
+          </button>
+          {targets.map((t) => (
+            <a
+              key={t.name}
+              role="menuitem"
+              href={t.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setOpen(false)}
+              className="block rounded-lg px-3 py-2.5 text-[14.5px] text-ink hover:bg-paper-2"
+            >
+              Share on {t.name}
+            </a>
+          ))}
+          {typeof navigator !== "undefined" && "share" in navigator && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                navigator.share({ title: "TryOnU", text, url }).catch(() => undefined);
+              }}
+              className="w-full rounded-lg px-3 py-2.5 text-left text-[14.5px] text-ink hover:bg-paper-2"
+            >
+              More…
+            </button>
+          )}
+          <p className="px-3 pb-1.5 pt-1 text-[12px] text-faint">Friends sign in to TryOnU to see community posts.</p>
+        </div>
+      )}
+    </div>
   );
 }
 
-export function CommentIcon() {
+/** Everyone who liked a post. */
+function LikersDialog({ postId, onClose }: { postId: string; onClose: () => void }) {
+  const list = useQuery({ queryKey: ["community", "likers", postId], queryFn: () => community.likers(postId) });
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", esc);
+    return () => document.removeEventListener("keydown", esc);
+  }, [onClose]);
   return (
-    <svg className="shrink-0" width={19} height={19} viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round">
-      <path d="M4 5.5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9.5L5 21v-3.5H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z" />
-    </svg>
-  );
-}
-
-export function HangerIcon() {
-  return (
-    <svg className="shrink-0" width={20} height={20} viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 7.5a2 2 0 1 1 2-2" />
-      <path d="M12 7.5v1.6L3.4 15.2a1.4 1.4 0 0 0 .8 2.5h15.6a1.4 1.4 0 0 0 .8-2.5L12 9.1" />
-    </svg>
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-black/40 p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div role="dialog" aria-modal="true" aria-label="Likes" className="flex max-h-[70vh] w-full max-w-[420px] flex-col rounded-[20px] bg-surface shadow-lift">
+        <div className="flex items-center justify-between border-b border-line px-5 py-3">
+          <p className="text-[16px] font-semibold text-ink">Liked by</p>
+          <button type="button" onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-lg text-[22px] text-muted hover:bg-paper-2">
+            ×
+          </button>
+        </div>
+        <div className="overflow-y-auto p-2">
+          {list.isLoading && <p className="p-3 text-[14px] text-muted">Loading…</p>}
+          {list.data?.map((x) => (
+            <Link key={x.handle} href={`/u/${x.handle}`} className="flex items-center gap-3 rounded-xl px-3 py-2 hover:bg-paper-2">
+              <span className="relative">
+                <Avatar name={x.name} handle={x.handle} url={x.avatar_url} size={40} />
+                <span className="absolute -bottom-0.5 -right-0.5 grid h-[18px] w-[18px] place-items-center rounded-full bg-sage-deep text-white ring-2 ring-surface">
+                  <ThumbIcon filled size={10} />
+                </span>
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-[15px] font-semibold text-ink">{x.name || `@${x.handle}`}</span>
+                <span className="block truncate text-[13px] text-muted">@{x.handle}</span>
+              </span>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }

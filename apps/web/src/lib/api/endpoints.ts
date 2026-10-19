@@ -411,17 +411,41 @@ export type CommunityPost = {
   is_mine: boolean;
   products: CommunityProduct[];
   created_at: string;
+  /** a few of the people who liked it, newest first */
+  likers?: CommunityAuthor[];
+  previews?: LinkPreview[];
+  /** outside links taken out of the caption (only on the answer to a new post) */
+  links_removed?: number;
+};
+/** a card for a TryOnU store, product, look or post link */
+export type LinkPreview = {
+  url: string;
+  kind: "store" | "product" | "look" | "post";
+  title: string;
+  subtitle: string | null;
+  image_url: string | null;
+  price_cents: number | null;
+  currency: string | null;
 };
 export type CommunityComment = {
   id: string;
   author: CommunityAuthor;
   body: string;
   parent_id: string | null;
+  /** the @handle this answers */
+  reply_to?: string | null;
   is_mine: boolean;
   can_delete: boolean;
   created_at: string;
+  like_count: number;
+  liked_by_me: boolean;
+  image_url: string | null;
+  look: { image_url: string; products: CommunityProduct[] } | null;
+  previews: LinkPreview[];
+  links_removed?: number;
   replies: CommunityComment[];
 };
+export type NewComment = { body: string; parent_id?: string; image_key?: string; tryon_job_id?: string };
 export type CommunityProfile = {
   handle: string;
   name: string | null;
@@ -471,9 +495,19 @@ export const community = {
   unlike: (id: string) => apiFetch<{ liked: boolean; like_count: number }>(`${C}/posts/${id}/like`, { method: "DELETE" }),
   tryLook: (id: string) => apiFetch<{ outfit_id: string | null; product_id: string | null }>(`${C}/posts/${id}/try`, { method: "POST" }),
   comments: (id: string) => apiFetch<CommunityComment[]>(`${C}/posts/${id}/comments`),
-  comment: (id: string, body: string, parent_id?: string) =>
-    apiFetch<CommunityComment>(`${C}/posts/${id}/comments`, { method: "POST", body: { body, parent_id } }),
+  comment: (id: string, input: NewComment) => apiFetch<CommunityComment>(`${C}/posts/${id}/comments`, { method: "POST", body: input }),
   removeComment: (id: string) => apiFetch<void>(`${C}/comments/${id}`, { method: "DELETE" }),
+  /** a photo for a comment, uploaded before the comment is posted */
+  commentImage: (file: File, onProgress: (pct: number) => void) => {
+    const form = new FormData();
+    form.append("file", file);
+    return uploadWithProgress<{ image_key: string; image_url: string }>(`${C}/comment-images`, form, onProgress);
+  },
+  likeComment: (id: string) => apiFetch<{ liked: boolean; like_count: number }>(`${C}/comments/${id}/like`, { method: "POST" }),
+  unlikeComment: (id: string) => apiFetch<{ liked: boolean; like_count: number }>(`${C}/comments/${id}/like`, { method: "DELETE" }),
+  tryCommentLook: (id: string) =>
+    apiFetch<{ outfit_id: string | null; product_id: string | null }>(`${C}/comments/${id}/try`, { method: "POST" }),
+  likers: (id: string) => apiFetch<CommunityAuthor[]>(`${C}/posts/${id}/likes`),
   me: () => apiFetch<CommunityProfile>(`${C}/me`),
   updateMe: (input: { handle?: string; bio?: string }) => apiFetch<CommunityProfile>(`${C}/me`, { method: "PATCH", body: input }),
   uploadAvatar: (file: File) => {
@@ -489,10 +523,91 @@ export const community = {
   report: (input: { post_id?: string; comment_id?: string; reason: string }) =>
     apiFetch<{ detail: string }>(`${C}/reports`, { method: "POST", body: input }),
 };
+export type AdminCommunityStats = {
+  members: number;
+  active_7d: number;
+  posts: number;
+  posts_7d: number;
+  comments: number;
+  comments_7d: number;
+  likes: number;
+  likes_7d: number;
+  comment_likes: number;
+  follows: number;
+  links_removed: number;
+  hidden: number;
+  blocked: number;
+  open_reports: number;
+};
+export type AdminCommunityMember = {
+  user_id: string;
+  handle: string;
+  name: string | null;
+  email: string;
+  avatar_url: string | null;
+  posts: number;
+  comments: number;
+  likes_given: number;
+  likes_received: number;
+  followers: number;
+  following: number;
+  links_removed: number;
+  last_active_at: string | null;
+  blocked_at: string | null;
+  joined_at: string;
+};
+export type AdminCommunityComment = {
+  id: string;
+  post_id: string;
+  post_caption: string | null;
+  post_author_handle: string | null;
+  author: CommunityAuthor;
+  author_email: string;
+  author_id: string;
+  body: string;
+  reply_to: string | null;
+  image_url: string | null;
+  look_image_url: string | null;
+  like_count: number;
+  links_removed: number;
+  hidden: boolean;
+  created_at: string;
+};
+export type AdminCommunityPost = {
+  id: string;
+  author: CommunityAuthor;
+  author_email: string;
+  author_id: string;
+  media_kind: "tryon" | "image" | "video";
+  image_url: string | null;
+  video_url: string | null;
+  caption: string | null;
+  like_count: number;
+  comment_count: number;
+  links_removed: number;
+  hidden: boolean;
+  created_at: string;
+};
+const AC = "/api/v1/admin/community";
 export const adminCommunity = {
-  reports: (show: "open" | "all" = "open") => apiFetch<CommunityReportRow[]>(`/api/v1/admin/community/reports?show=${show}`),
+  reports: (show: "open" | "all" = "open") => apiFetch<CommunityReportRow[]>(`${AC}/reports?show=${show}`),
   resolve: (id: string, action: "hide" | "dismiss" | "ban") =>
-    apiFetch<{ detail: string }>(`/api/v1/admin/community/reports/${id}/resolve`, { method: "POST", body: { action } }),
+    apiFetch<{ detail: string }>(`${AC}/reports/${id}/resolve`, { method: "POST", body: { action } }),
+  stats: () => apiFetch<AdminCommunityStats>(`${AC}/stats`),
+  members: (p: { q?: string; sort?: "engaged" | "newest" | "blocked"; offset?: number }) =>
+    apiFetch<{ total: number; rows: AdminCommunityMember[] }>(`${AC}/members?${qs({ q: p.q ?? "", sort: p.sort ?? "engaged", offset: p.offset ?? 0 })}`),
+  comments: (p: { q?: string; member?: string; show?: "all" | "hidden" | "links"; offset?: number }) =>
+    apiFetch<{ total: number; rows: AdminCommunityComment[] }>(
+      `${AC}/comments?${qs({ q: p.q ?? "", member: p.member ?? "", show: p.show ?? "all", offset: p.offset ?? 0 })}`,
+    ),
+  posts: (p: { member?: string; sort?: "newest" | "engaged" | "hidden"; offset?: number }) =>
+    apiFetch<{ total: number; rows: AdminCommunityPost[] }>(
+      `${AC}/posts?${qs({ member: p.member ?? "", sort: p.sort ?? "newest", offset: p.offset ?? 0 })}`,
+    ),
+  hideComment: (id: string, hidden: boolean) => apiFetch<{ hidden: boolean }>(`${AC}/comments/${id}/hidden`, { method: "POST", body: { hidden } }),
+  hidePost: (id: string, hidden: boolean) => apiFetch<{ hidden: boolean }>(`${AC}/posts/${id}/hidden`, { method: "POST", body: { hidden } }),
+  block: (userId: string) => apiFetch<{ detail: string }>(`${AC}/users/${userId}/ban`, { method: "POST" }),
+  unblock: (userId: string) => apiFetch<{ detail: string }>(`${AC}/users/${userId}/unban`, { method: "POST" }),
 };
 
 /** the browser extensions: connect this browser, see and disconnect connected ones */

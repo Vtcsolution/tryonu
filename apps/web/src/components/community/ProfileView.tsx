@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Avatar } from "@/components/community/PostCard";
+import { Avatar, ThumbIcon } from "@/components/community/parts";
 import { Button } from "@/components/ui/Button";
 import { ApiError, resolveMediaUrl } from "@/lib/api/client";
 import { community, type CommunityProfile } from "@/lib/api/endpoints";
@@ -112,7 +112,7 @@ export function ProfileView({ handle }: { handle: string }) {
               )}
               <span className="absolute bottom-2 left-2 flex items-center gap-3 rounded-full bg-black/55 px-2.5 py-1 text-[12.5px] font-semibold text-white">
                 <span className="flex items-center gap-1">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20.3s-7.6-4.6-9.3-9.4C1.6 7.6 3.6 4.5 6.9 4.5c2.1 0 3.5 1.2 4.4 2.6h1.4c.9-1.4 2.3-2.6 4.4-2.6 3.3 0 5.3 3.1 4.2 6.4-1.7 4.8-9.3 9.4-9.3 9.4z" /></svg>
+                  <ThumbIcon filled size={13} />
                   {post.like_count}
                 </span>
                 <span className="flex items-center gap-1">
