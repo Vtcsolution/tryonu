@@ -416,6 +416,14 @@ export type CommunityPost = {
   previews?: LinkPreview[];
   /** outside links taken out of the caption (only on the answer to a new post) */
   links_removed?: number;
+  /** "Buy or skip?" */
+  poll?: boolean;
+  poll_buy?: number;
+  poll_skip?: number;
+  my_vote?: "buy" | "skip" | null;
+  /** an entry in a style challenge, and its place if it won */
+  challenge?: { id: string; title: string } | null;
+  award?: number | null;
 };
 /** a card for a TryOnU store, product, look or post link */
 export type LinkPreview = {
@@ -456,7 +464,34 @@ export type CommunityProfile = {
   following: number;
   followed_by_me: boolean;
   is_me: boolean;
+  trophies?: { challenge_id: string; title: string; place: number; post_id: string | null }[];
 };
+export type Challenge = {
+  id: string;
+  title: string;
+  description: string | null;
+  starts_at: string;
+  ends_at: string;
+  state: "upcoming" | "live" | "ended";
+  prizes: number[];
+  sponsor: { name: string; slug: string; logo_url: string | null } | null;
+  entries: number;
+  my_entry_post_id: string | null;
+  winners: { place: number; credits: number; likes: number; author: CommunityAuthor; post_id: string | null }[];
+  hidden?: boolean;
+};
+export type ChallengeInput = {
+  title: string;
+  description?: string;
+  starts_at: string;
+  ends_at: string;
+  prize_1: number;
+  prize_2: number;
+  prize_3: number;
+  sponsor_store_slug?: string;
+};
+/** what a new post can also do: ask "Buy or skip?", enter a challenge */
+export type PostExtras = { poll?: boolean; challenge_id?: string | null };
 export type CommunityFeed = { posts: CommunityPost[]; next_offset: number | null };
 export type CommunityReportRow = {
   id: string;
@@ -477,15 +512,17 @@ const C = "/api/v1/community";
 export const community = {
   feed: (tab: "for_you" | "following", offset = 0) => apiFetch<CommunityFeed>(`${C}/feed?tab=${tab}&offset=${offset}`),
   post: (id: string) => apiFetch<CommunityPost>(`${C}/posts/${id}`),
-  create: (input: { tryon_job_id: string; caption?: string; accept_rules: boolean }) =>
+  create: (input: { tryon_job_id: string; caption?: string; accept_rules: boolean } & PostExtras) =>
     apiFetch<CommunityPost>(`${C}/posts`, { method: "POST", body: input }),
   postForJob: (jobId: string) => apiFetch<{ post_id: string | null }>(`${C}/posts/by-job/${jobId}`),
   /** my own photo or video, with upload progress (0-100) */
-  createMedia: (file: File, caption: string, onProgress: (pct: number) => void) => {
+  createMedia: (file: File, caption: string, onProgress: (pct: number) => void, extras: PostExtras = {}) => {
     const form = new FormData();
     form.append("file", file);
     form.append("caption", caption);
     form.append("accept_rules", "true");
+    if (extras.poll) form.append("poll", "true");
+    if (extras.challenge_id) form.append("challenge_id", extras.challenge_id);
     return uploadWithProgress<CommunityPost>(`${C}/posts/media`, form, onProgress);
   },
   myLooks: () =>
@@ -493,6 +530,16 @@ export const community = {
   remove: (id: string) => apiFetch<void>(`${C}/posts/${id}`, { method: "DELETE" }),
   like: (id: string) => apiFetch<{ liked: boolean; like_count: number }>(`${C}/posts/${id}/like`, { method: "POST" }),
   unlike: (id: string) => apiFetch<{ liked: boolean; like_count: number }>(`${C}/posts/${id}/like`, { method: "DELETE" }),
+  vote: (id: string, choice: "buy" | "skip") =>
+    apiFetch<{ my_vote: "buy" | "skip" | null; poll_buy: number; poll_skip: number }>(`${C}/posts/${id}/vote`, {
+      method: "POST",
+      body: { choice },
+    }),
+  unvote: (id: string) =>
+    apiFetch<{ my_vote: "buy" | "skip" | null; poll_buy: number; poll_skip: number }>(`${C}/posts/${id}/vote`, { method: "DELETE" }),
+  challenges: () => apiFetch<{ live: Challenge[]; upcoming: Challenge[]; ended: Challenge[] }>(`${C}/challenges`),
+  challenge: (id: string, offset = 0) =>
+    apiFetch<{ challenge: Challenge; entries: CommunityFeed }>(`${C}/challenges/${id}?offset=${offset}`),
   tryLook: (id: string) => apiFetch<{ outfit_id: string | null; product_id: string | null }>(`${C}/posts/${id}/try`, { method: "POST" }),
   comments: (id: string) => apiFetch<CommunityComment[]>(`${C}/posts/${id}/comments`),
   comment: (id: string, input: NewComment) => apiFetch<CommunityComment>(`${C}/posts/${id}/comments`, { method: "POST", body: input }),
@@ -606,6 +653,12 @@ export const adminCommunity = {
     ),
   hideComment: (id: string, hidden: boolean) => apiFetch<{ hidden: boolean }>(`${AC}/comments/${id}/hidden`, { method: "POST", body: { hidden } }),
   hidePost: (id: string, hidden: boolean) => apiFetch<{ hidden: boolean }>(`${AC}/posts/${id}/hidden`, { method: "POST", body: { hidden } }),
+  challenges: () => apiFetch<Challenge[]>(`${AC}/challenges`),
+  createChallenge: (input: ChallengeInput) => apiFetch<Challenge>(`${AC}/challenges`, { method: "POST", body: input }),
+  updateChallenge: (id: string, input: ChallengeInput) => apiFetch<Challenge>(`${AC}/challenges/${id}`, { method: "PUT", body: input }),
+  finishChallenge: (id: string) => apiFetch<Challenge>(`${AC}/challenges/${id}/finish`, { method: "POST" }),
+  hideChallenge: (id: string, hidden: boolean) =>
+    apiFetch<Challenge>(`${AC}/challenges/${id}/hidden`, { method: "POST", body: { hidden } }),
   block: (userId: string) => apiFetch<{ detail: string }>(`${AC}/users/${userId}/ban`, { method: "POST" }),
   unblock: (userId: string) => apiFetch<{ detail: string }>(`${AC}/users/${userId}/unban`, { method: "POST" }),
 };
@@ -777,6 +830,8 @@ export const stores = {
   payments: () => apiFetch<StorePayment[]>("/api/v1/stores/me/payments"),
   tryons: () => apiFetch<StoreTryOns>("/api/v1/stores/me/tryons"),
   publicStore: (slug: string) => apiFetch<PublicStore>(`/api/v1/stores/public/${encodeURIComponent(slug)}`),
+  /** every store shoppers can visit now (name and link name) */
+  publicStores: () => apiFetch<{ slug: string; name: string; country: string }[]>("/api/v1/stores/public"),
   selectProduct: (slug: string, productId: string) =>
     apiFetch<{ product_id: string }>(`/api/v1/stores/public/${encodeURIComponent(slug)}/products/${productId}/select`, {
       method: "POST",

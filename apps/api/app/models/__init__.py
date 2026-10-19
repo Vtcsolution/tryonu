@@ -19,7 +19,17 @@ from app.models.photo import UserPhoto  # noqa: F401
 from app.models.preference import UserPreference  # noqa: F401
 from app.models.product import Product, ProductImage  # noqa: F401
 from app.models.saved_product import SavedProduct  # noqa: F401
-from app.models.community import CommentLike, CommunityPost, CommunityReport, Follow, PostComment, PostLike  # noqa: F401
+from app.models.community import (  # noqa: F401
+    Challenge,
+    ChallengeWinner,
+    CommentLike,
+    CommunityPost,
+    CommunityReport,
+    Follow,
+    PollVote,
+    PostComment,
+    PostLike,
+)
 from app.models.notification import Notification, PushSubscription  # noqa: F401
 from app.models.contact import ContactMessage  # noqa: F401
 from app.models.extension import ExtensionToken  # noqa: F401

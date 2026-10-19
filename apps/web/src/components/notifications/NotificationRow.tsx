@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { TrophyIcon } from "@/components/community/extras";
 import { Avatar, CommentIcon, ThumbIcon, timeAgo } from "@/components/community/parts";
 import { resolveMediaUrl } from "@/lib/api/client";
 import type { AppNotification } from "@/lib/api/endpoints";
@@ -18,11 +19,11 @@ export function NotificationRow({ n, onOpen, compact = false }: { n: AppNotifica
           <Avatar name={n.actor.name} handle={n.actor.handle ?? "?"} url={n.actor.avatar_url} size={compact ? 40 : 46} />
         ) : (
           <span
-            className="grid place-items-center rounded-full bg-sage-deep text-white"
+            className={`grid place-items-center rounded-full text-white ${n.kind.startsWith("challenge") ? "bg-[#c9a13b]" : "bg-sage-deep"}`}
             style={{ width: compact ? 40 : 46, height: compact ? 40 : 46 }}
             aria-hidden="true"
           >
-            <CoinIcon />
+            {n.kind.startsWith("challenge") ? <TrophyIcon size={21} color="#fff" /> : <CoinIcon />}
           </span>
         )}
         <KindBadge kind={n.kind} />
@@ -42,7 +43,7 @@ export function NotificationRow({ n, onOpen, compact = false }: { n: AppNotifica
 
 function KindBadge({ kind }: { kind: string }) {
   const icon =
-    kind === "post_like" || kind === "comment_like" ? (
+    kind === "post_like" || kind === "comment_like" || kind === "poll_vote" ? (
       <ThumbIcon filled size={10} />
     ) : kind === "comment" || kind === "reply" ? (
       <CommentIcon size={10} />

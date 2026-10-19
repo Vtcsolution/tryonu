@@ -20,6 +20,7 @@ from app.api.v1.endpoints import (
     products,
     saved_products,
     search,
+    challenges,
     community,
     notifications,
     contact,
@@ -72,4 +73,6 @@ api_router.include_router(contact.router)
 api_router.include_router(community.router)
 api_router.include_router(community.admin_router)
 api_router.include_router(notifications.router)
+api_router.include_router(challenges.router)
+api_router.include_router(challenges.admin_router)
 api_router.include_router(extension.router)

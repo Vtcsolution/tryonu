@@ -33,6 +33,7 @@ class CreditReason(StrEnum):
     ADMIN_ADJUSTMENT = "admin_adjustment"
     PURCHASE_REFUND = "purchase_refund"
     REFERRAL_REWARD = "referral_reward"
+    CHALLENGE_PRIZE = "challenge_prize"
 
 
 class SubscriptionPlan(StrEnum):

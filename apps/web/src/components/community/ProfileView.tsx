@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Medal, PLACE } from "@/components/community/extras";
 import { Avatar, ThumbIcon } from "@/components/community/parts";
 import { Button } from "@/components/ui/Button";
 import { ApiError, resolveMediaUrl } from "@/lib/api/client";
@@ -64,6 +65,19 @@ export function ProfileView({ handle }: { handle: string }) {
               <span><b className="text-ink">{p.followers}</b> followers</span>
               <span><b className="text-ink">{p.following}</b> following</span>
             </div>
+            {p.trophies && p.trophies.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {p.trophies.map((t) => (
+                  <Link
+                    key={t.challenge_id}
+                    href={`/community/challenges/${t.challenge_id}`}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-[#c9a13b]/50 bg-[#c9a13b]/[0.08] px-3 py-1 text-[13px] font-semibold text-[#8a6d1f] hover:border-[#c9a13b]"
+                  >
+                    <Medal place={t.place} size={18} /> {PLACE[t.place]} place · {t.title}
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
           {p.is_me ? (
             <button type="button" onClick={() => setEditing(true)} className="tu-press min-h-[44px] rounded-full border border-line-strong px-5 text-[15px] font-semibold text-ink">

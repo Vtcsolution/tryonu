@@ -24,7 +24,17 @@ from sqlalchemy.orm import selectinload
 from app.core.config import get_settings
 from app.core.deps import AdminUser, CurrentUser, DbSession
 from app.core.rate_limit import rate_limiter
-from app.models.community import CommentLike, CommunityPost, CommunityReport, Follow, PostComment, PostLike
+from app.models.community import (
+    Challenge,
+    ChallengeWinner,
+    CommentLike,
+    CommunityPost,
+    CommunityReport,
+    Follow,
+    PollVote,
+    PostComment,
+    PostLike,
+)
 from app.models.enums import JobStatus
 from app.models.tryon import TryOnJob
 from app.models.user import User
@@ -105,6 +115,19 @@ class PostOut(BaseModel):
     likers: list[AuthorOut] = []
     previews: list[LinkPreviewOut] = []
     links_removed: int = 0  # only on the answer to the one who just posted it
+    # "Buy or skip?"
+    poll: bool = False
+    poll_buy: int = 0
+    poll_skip: int = 0
+    my_vote: str | None = None
+    # a style-challenge entry, and its place if it won
+    challenge: "ChallengeRefOut | None" = None
+    award: int | None = None
+
+
+class ChallengeRefOut(BaseModel):
+    id: str
+    title: str
 
 
 async def _recent_likers(db: DbSession, post_ids: list[str], per_post: int = 3) -> dict[str, list[AuthorOut]]:
@@ -149,9 +172,33 @@ async def _posts_out(db: DbSession, posts: list[CommunityPost], me: User) -> lis
     storage = get_storage()
     api = get_settings().PUBLIC_API_BASE_URL.rstrip("/")
     likers = await _recent_likers(db, ids)
+    votes = dict(
+        (await db.execute(select(PollVote.post_id, PollVote.choice).where(PollVote.user_id == me.id, PollVote.post_id.in_(ids)))).all()
+    )
+    challenge_ids = {p.challenge_id for p in posts if p.challenge_id}
+    challenges = (
+        {
+            c.id: ChallengeRefOut(id=c.id, title=c.title)
+            for c in (await db.execute(select(Challenge).where(Challenge.id.in_(challenge_ids), Challenge.is_hidden.is_(False)))).scalars()
+        }
+        if challenge_ids
+        else {}
+    )
+    awards = dict(
+        (await db.execute(select(ChallengeWinner.post_id, ChallengeWinner.place).where(ChallengeWinner.post_id.in_(ids)))).all()
+    )
     out: list[PostOut] = []
     for p in posts:
-        extra = {"likers": likers.get(p.id, []), "previews": await previews(db, p.caption)}
+        extra = {
+            "likers": likers.get(p.id, []),
+            "previews": await previews(db, p.caption),
+            "poll": p.poll,
+            "poll_buy": p.poll_buy,
+            "poll_skip": p.poll_skip,
+            "my_vote": votes.get(p.id),
+            "challenge": challenges.get(p.challenge_id) if p.challenge_id else None,
+            "award": awards.get(p.id),
+        }
         if p.media_key:  # a photo or video the member uploaded
             out.append(
                 PostOut(
@@ -251,6 +298,27 @@ class NewPostIn(BaseModel):
     tryon_job_id: str
     caption: str | None = Field(default=None, max_length=1000)
     accept_rules: bool = False
+    poll: bool = False  # ask the community: Buy or skip?
+    challenge_id: str | None = None  # enter this week's style challenge
+
+
+async def _challenge_entry(db: DbSession, challenge_id: str | None, me: User) -> str | None:
+    """The challenge this post enters: running now, and one entry per member."""
+    if not challenge_id:
+        return None
+    from app.services.challenge_service import state
+
+    ch = await db.get(Challenge, challenge_id)
+    if ch is None or ch.is_hidden:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Challenge not found")
+    if state(ch) != "live":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This challenge isn't open for entries right now.")
+    already = await db.scalar(
+        select(CommunityPost.id).where(CommunityPost.challenge_id == ch.id, CommunityPost.user_id == me.id)
+    )
+    if already is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="You've already entered this challenge with one look.")
+    return ch.id
 
 
 @router.post(
@@ -271,9 +339,13 @@ async def create_post(payload: NewPostIn, me: CurrentUser, db: DbSession):
     existing = await db.scalar(select(CommunityPost).where(CommunityPost.user_id == me.id, CommunityPost.tryon_job_id == job.id))
     if existing is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="You've already posted this look.")
+    challenge_id = await _challenge_entry(db, payload.challenge_id, me)
     await ensure_handle(db, me)
     caption, removed = clean_text(payload.caption)
-    post = CommunityPost(user_id=me.id, tryon_job_id=job.id, caption=caption or None, links_removed=removed)
+    post = CommunityPost(
+        user_id=me.id, tryon_job_id=job.id, caption=caption or None, links_removed=removed, poll=payload.poll,
+        challenge_id=challenge_id,
+    )
     db.add(post)
     await db.commit()
     await db.refresh(post)
@@ -351,6 +423,8 @@ async def create_media_post(
     file: UploadFile = File(...),
     caption: str | None = Form(default=None, max_length=1000),
     accept_rules: bool = Form(default=False),
+    poll: bool = Form(default=False),
+    challenge_id: str | None = Form(default=None),
 ):
     """A member posts their own photo or video (videos: up to 60 seconds)."""
     from app.services import community_media
@@ -358,6 +432,7 @@ async def create_media_post(
     _can_write(me)
     if not accept_rules:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Please agree to the community rules to post.")
+    entry = await _challenge_entry(db, challenge_id, me)
     raw = await file.read()
     if not raw:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Please choose a photo or video.")
@@ -371,7 +446,7 @@ async def create_media_post(
     text, removed = clean_text(caption)
     post = CommunityPost(
         user_id=me.id, media_kind=kind, media_key=key, poster_key=poster, media_width=width, media_height=height,
-        caption=text or None, links_removed=removed,
+        caption=text or None, links_removed=removed, poll=poll, challenge_id=entry,
     )
     db.add(post)
     await db.commit()
@@ -457,6 +532,53 @@ async def post_likers(post_id: str, me: CurrentUser, db: DbSession):
         )
     ).scalars()
     return [_author(u) for u in rows]
+
+
+class VoteIn(BaseModel):
+    choice: str = Field(pattern=r"^(buy|skip)$")
+
+
+class PollOut(BaseModel):
+    my_vote: str | None
+    poll_buy: int
+    poll_skip: int
+
+
+async def _recount_votes(db: DbSession, post: CommunityPost) -> None:
+    counts = dict(
+        (await db.execute(select(PollVote.choice, func.count()).where(PollVote.post_id == post.id).group_by(PollVote.choice))).all()
+    )
+    post.poll_buy, post.poll_skip = int(counts.get("buy", 0)), int(counts.get("skip", 0))
+
+
+@router.post("/posts/{post_id}/vote", response_model=PollOut, dependencies=[Depends(rate_limiter("community_vote", limit=400, window_seconds=3600))])
+async def vote(post_id: str, payload: VoteIn, me: CurrentUser, db: DbSession):
+    """Buy it or skip it: one vote per member, which they can change."""
+    _can_write(me)
+    post = await _visible_post(db, post_id, me)
+    if not post.poll:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This post isn't asking for votes.")
+    if post.user_id == me.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This is your own look: let the community decide!")
+    mine = await db.scalar(select(PollVote).where(PollVote.post_id == post.id, PollVote.user_id == me.id))
+    if mine is None:
+        db.add(PollVote(post_id=post.id, user_id=me.id, choice=payload.choice))
+    else:
+        mine.choice = payload.choice
+    await db.flush()
+    await _recount_votes(db, post)
+    await notify(db, user_id=post.user_id, kind="poll_vote", actor_id=me.id, post_id=post.id, text=payload.choice)
+    await db.commit()
+    return PollOut(my_vote=payload.choice, poll_buy=post.poll_buy, poll_skip=post.poll_skip)
+
+
+@router.delete("/posts/{post_id}/vote", response_model=PollOut)
+async def unvote(post_id: str, me: CurrentUser, db: DbSession):
+    post = await _visible_post(db, post_id, me)
+    await db.execute(delete(PollVote).where(PollVote.post_id == post.id, PollVote.user_id == me.id))
+    await _recount_votes(db, post)
+    await db.commit()
+    return PollOut(my_vote=None, poll_buy=post.poll_buy, poll_skip=post.poll_skip)
 
 
 class TryThisOut(BaseModel):
@@ -782,6 +904,14 @@ class ProfileOut(BaseModel):
     following: int
     followed_by_me: bool
     is_me: bool
+    trophies: list["TrophyOut"] = []
+
+
+class TrophyOut(BaseModel):
+    challenge_id: str
+    title: str
+    place: int
+    post_id: str | None
 
 
 async def _profile_out(db: DbSession, user: User, me: User) -> ProfileOut:
@@ -791,6 +921,17 @@ async def _profile_out(db: DbSession, user: User, me: User) -> ProfileOut:
     followers = await db.scalar(select(func.count()).select_from(Follow).where(Follow.followee_id == user.id))
     following = await db.scalar(select(func.count()).select_from(Follow).where(Follow.follower_id == user.id))
     mine = await db.scalar(select(Follow.id).where(Follow.follower_id == me.id, Follow.followee_id == user.id))
+    trophies = [
+        TrophyOut(challenge_id=c.id, title=c.title, place=w.place, post_id=w.post_id)
+        for w, c in (
+            await db.execute(
+                select(ChallengeWinner, Challenge)
+                .join(Challenge, Challenge.id == ChallengeWinner.challenge_id)
+                .where(ChallengeWinner.user_id == user.id, Challenge.is_hidden.is_(False))
+                .order_by(ChallengeWinner.created_at.desc())
+            )
+        ).all()
+    ]
     return ProfileOut(
         handle=user.handle or "member",
         name=user.full_name,
@@ -801,6 +942,7 @@ async def _profile_out(db: DbSession, user: User, me: User) -> ProfileOut:
         following=int(following or 0),
         followed_by_me=mine is not None,
         is_me=user.id == me.id,
+        trophies=trophies,
     )
 
 

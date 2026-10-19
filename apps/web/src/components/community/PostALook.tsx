@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { PostOptions } from "@/components/community/extras";
 import { COMMUNITY_RULES } from "@/components/community/PostToCommunity";
 import { ApiError, resolveMediaUrl } from "@/lib/api/client";
-import { community } from "@/lib/api/endpoints";
+import { community, type PostExtras } from "@/lib/api/endpoints";
 
 /** "Post a look" on the community page: pick one of my finished looks (saved
  * ones first), add a caption, post. No looks yet: make one first. */
@@ -14,20 +15,24 @@ export function PostALook({
   variant = "primary",
   startOpen = false,
   onClosed,
+  extras: startExtras = {},
 }: {
   variant?: "primary" | "wide" | "none";
   /** opened from the Create post chooser: no button of its own */
   startOpen?: boolean;
   onClosed?: () => void;
+  /** e.g. opened from "Join the challenge": that challenge already ticked */
+  extras?: PostExtras;
 }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(startOpen);
   const [chosen, setChosen] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
   const [agree, setAgree] = useState(false);
+  const [extras, setExtras] = useState<PostExtras>(startExtras);
   const looks = useQuery({ queryKey: ["community", "my-looks"], queryFn: community.myLooks, enabled: open });
   const post = useMutation({
-    mutationFn: () => community.create({ tryon_job_id: chosen!, caption: caption.trim() || undefined, accept_rules: agree }),
+    mutationFn: () => community.create({ tryon_job_id: chosen!, caption: caption.trim() || undefined, accept_rules: agree, ...extras }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["community"] });
     },
@@ -130,6 +135,7 @@ export function PostALook({
                         className="min-w-0 flex-1 rounded-xl border border-line-strong bg-paper p-3 text-[15px] text-ink"
                       />
                     </div>
+                    <PostOptions value={extras} onChange={setExtras} />
                     <div className="mt-4 rounded-xl bg-paper-2 p-3">
                       <p className="text-[13.5px] font-semibold text-ink">Community rules</p>
                       <ul className="mt-1 list-disc space-y-0.5 pl-5 text-[13.5px] text-ink-soft">

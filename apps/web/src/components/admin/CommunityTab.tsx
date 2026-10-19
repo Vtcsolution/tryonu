@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Avatar } from "@/components/community/parts";
+import { ChallengesAdmin } from "./ChallengesAdmin";
 import { resolveMediaUrl } from "@/lib/api/client";
 import { adminCommunity, type AdminCommunityComment } from "@/lib/api/endpoints";
 import {
@@ -20,7 +21,7 @@ import {
   when,
 } from "./ui";
 
-type View = "overview" | "members" | "comments" | "posts" | "reports";
+type View = "overview" | "members" | "comments" | "posts" | "challenges" | "reports";
 
 /** Everything members do in the community: who takes part and how much,
  * every comment and post, and the reports to review. */
@@ -37,6 +38,7 @@ export function CommunityTab() {
     ["members", "Members"],
     ["comments", "Comments"],
     ["posts", "Posts"],
+    ["challenges", "Challenges"],
     ["reports", stats.data?.open_reports ? `Reports (${stats.data.open_reports})` : "Reports"],
   ];
   return (
@@ -48,7 +50,7 @@ export function CommunityTab() {
           </SmallButton>
         ))}
       </div>
-      {member && view !== "overview" && view !== "members" && (
+      {member && (view === "comments" || view === "posts") && (
         <p className="flex items-center gap-2 text-[14px] text-ink-soft">
           Showing only <b className="text-ink">@{member}</b>
           <SmallButton onClick={() => setMember("")}>Show everyone</SmallButton>
@@ -58,6 +60,7 @@ export function CommunityTab() {
       {view === "members" && <Members onOpen={open} />}
       {view === "comments" && <CommentsList member={member} />}
       {view === "posts" && <PostsList member={member} />}
+      {view === "challenges" && <ChallengesAdmin />}
       {view === "reports" && <Reports />}
     </div>
   );

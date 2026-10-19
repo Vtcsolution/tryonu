@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Comments } from "@/components/community/CommentThread";
+import { ChallengeChip, PollBox } from "@/components/community/extras";
 import {
   Avatar,
   CommentIcon,
@@ -183,8 +184,22 @@ export function PostCard({
           </p>
         )}
         <LinkCards previews={p.previews} />
+        <ChallengeChip post={p} />
 
         <ProductChips products={p.products} className={p.caption ? "mt-3" : ""} />
+
+        {p.poll && (
+          <PollBox
+            post={p}
+            onChange={(patch) =>
+              setP((prev) => {
+                const next = { ...prev, ...patch };
+                onChange?.(next);
+                return next;
+              })
+            }
+          />
+        )}
 
         {canTry && (
           <button

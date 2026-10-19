@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { PostOptions } from "@/components/community/extras";
 import { PostALook } from "@/components/community/PostALook";
 import { COMMUNITY_RULES } from "@/components/community/PostToCommunity";
 import { ApiError } from "@/lib/api/client";
-import { community, type CommunityPost } from "@/lib/api/endpoints";
+import { community, type CommunityPost, type PostExtras } from "@/lib/api/endpoints";
 
 const MAX_VIDEO_MB = 60;
 const MAX_VIDEO_SECONDS = 60;
@@ -41,19 +42,36 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 }
 
 /** "+ Create post": post a try-on look, or upload my own photo or video. */
-export function CreatePost({ variant = "primary" }: { variant?: "primary" | "wide" }) {
-  const [step, setStep] = useState<"closed" | "choose" | "look" | "media">("closed");
+export function CreatePost({
+  variant = "primary",
+  extras = {},
+  startOpen = false,
+  onClosed,
+}: {
+  variant?: "primary" | "wide" | "none";
+  /** e.g. from "Join the challenge": that challenge already ticked */
+  extras?: PostExtras;
+  startOpen?: boolean;
+  onClosed?: () => void;
+}) {
+  const [step, setStepRaw] = useState<"closed" | "choose" | "look" | "media">(startOpen ? "choose" : "closed");
+  const setStep = (s: "closed" | "choose" | "look" | "media") => {
+    setStepRaw(s);
+    if (s === "closed") onClosed?.();
+  };
   const button =
     variant === "wide"
       ? "tu-press flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full bg-sage px-5 text-[15.5px] font-semibold text-white hover:bg-sage-deep"
       : "tu-press inline-flex min-h-[44px] items-center gap-2 rounded-full bg-sage px-5 text-[15px] font-semibold text-white hover:bg-sage-deep";
   return (
     <>
-      <button type="button" onClick={() => setStep("choose")} className={button}>
-        <span aria-hidden="true" className="text-[18px] leading-none">＋</span> Create post
-      </button>
+      {variant !== "none" && (
+        <button type="button" onClick={() => setStep("choose")} className={button}>
+          <span aria-hidden="true" className="text-[18px] leading-none">＋</span> Create post
+        </button>
+      )}
       {step === "choose" && (
-        <Modal title="Create a post" onClose={() => setStep("closed")}>
+        <Modal title={extras.challenge_id ? "Enter the challenge" : "Create a post"} onClose={() => setStep("closed")}>
           <div className="grid gap-3 sm:grid-cols-2">
             <ChoiceCard
               title="Post a try-on look"
@@ -77,8 +95,8 @@ export function CreatePost({ variant = "primary" }: { variant?: "primary" | "wid
           </div>
         </Modal>
       )}
-      {step === "look" && <PostALook variant="none" startOpen onClosed={() => setStep("closed")} />}
-      {step === "media" && <MediaComposer onClose={() => setStep("closed")} />}
+      {step === "look" && <PostALook variant="none" startOpen extras={extras} onClosed={() => setStep("closed")} />}
+      {step === "media" && <MediaComposer extras={extras} onClose={() => setStep("closed")} />}
     </>
   );
 }
@@ -111,8 +129,9 @@ function videoDuration(file: File): Promise<number> {
 }
 
 /** Upload my own photo or video: preview, caption, rules, and a progress bar. */
-function MediaComposer({ onClose }: { onClose: () => void }) {
+function MediaComposer({ onClose, extras: startExtras }: { onClose: () => void; extras: PostExtras }) {
   const qc = useQueryClient();
+  const [extras, setExtras] = useState<PostExtras>(startExtras);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
@@ -157,7 +176,7 @@ function MediaComposer({ onClose }: { onClose: () => void }) {
     setError(null);
     setProgress(0);
     try {
-      const created = await community.createMedia(file, caption.trim(), setProgress);
+      const created = await community.createMedia(file, caption.trim(), setProgress, extras);
       setDone(created);
       qc.invalidateQueries({ queryKey: ["community"] });
     } catch (err) {
@@ -228,6 +247,7 @@ function MediaComposer({ onClose }: { onClose: () => void }) {
               </button>
             </div>
           </div>
+          <PostOptions value={extras} onChange={setExtras} />
           <div className="mt-4 rounded-xl bg-paper-2 p-3">
             <p className="text-[13.5px] font-semibold text-ink">Community rules</p>
             <ul className="mt-1 list-disc space-y-0.5 pl-5 text-[13.5px] text-ink-soft">

@@ -61,6 +61,10 @@ async def lifespan(app: FastAPI):  # noqa: ANN201
     from app.services.notification_service import digest_forever
 
     app.state.digest_sweeper = asyncio.create_task(digest_forever())
+    # style challenges that have ended: choose and pay the winners
+    from app.services.challenge_service import finish_forever
+
+    app.state.challenge_sweeper = asyncio.create_task(finish_forever())
 
     app.state.debug_sweeper = None
     if settings.TRYON_SAVE_DEBUG:
@@ -75,6 +79,7 @@ async def lifespan(app: FastAPI):  # noqa: ANN201
     app.state.stuck_sweeper.cancel()
     app.state.payment_sweeper.cancel()
     app.state.digest_sweeper.cancel()
+    app.state.challenge_sweeper.cancel()
     if app.state.debug_sweeper is not None:
         app.state.debug_sweeper.cancel()
     logger.info("shutdown")

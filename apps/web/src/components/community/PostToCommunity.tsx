@@ -5,7 +5,8 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { ApiError, resolveMediaUrl } from "@/lib/api/client";
-import { community } from "@/lib/api/endpoints";
+import { PostOptions } from "@/components/community/extras";
+import { community, type PostExtras } from "@/lib/api/endpoints";
 
 export const COMMUNITY_RULES = [
   "Post only looks made with your own photo.",
@@ -19,9 +20,10 @@ export function PostToCommunity({ jobId, imageUrl }: { jobId: string; imageUrl?:
   const [open, setOpen] = useState(false);
   const [caption, setCaption] = useState("");
   const [agree, setAgree] = useState(false);
+  const [extras, setExtras] = useState<PostExtras>({});
   const existing = useQuery({ queryKey: ["community", "by-job", jobId], queryFn: () => community.postForJob(jobId) });
   const post = useMutation({
-    mutationFn: () => community.create({ tryon_job_id: jobId, caption: caption.trim() || undefined, accept_rules: agree }),
+    mutationFn: () => community.create({ tryon_job_id: jobId, caption: caption.trim() || undefined, accept_rules: agree, ...extras }),
     onSuccess: () => existing.refetch(),
   });
 
@@ -64,7 +66,7 @@ export function PostToCommunity({ jobId, imageUrl }: { jobId: string; imageUrl?:
             className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 sm:items-center sm:p-4"
             onMouseDown={(e) => e.target === e.currentTarget && setOpen(false)}
           >
-            <div role="dialog" aria-modal="true" aria-label="Post to community" className="w-full max-w-[480px] rounded-t-[20px] border border-line bg-surface p-5 sm:rounded-[20px] sm:p-6">
+            <div role="dialog" aria-modal="true" aria-label="Post to community" className="max-h-[92vh] w-full max-w-[480px] overflow-y-auto rounded-t-[20px] border border-line bg-surface p-5 sm:rounded-[20px] sm:p-6">
               {post.isSuccess ? (
                 <div className="py-4 text-center">
                   <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-sage text-[26px] text-white">✓</div>
@@ -98,6 +100,7 @@ export function PostToCommunity({ jobId, imageUrl }: { jobId: string; imageUrl?:
                       className="min-w-0 flex-1 rounded-xl border border-line-strong bg-paper p-3 text-[15px] text-ink"
                     />
                   </div>
+                  <PostOptions value={extras} onChange={setExtras} />
                   <div className="mt-4 rounded-xl bg-paper-2 p-3">
                     <p className="text-[13.5px] font-semibold text-ink">Community rules</p>
                     <ul className="mt-1 list-disc space-y-0.5 pl-5 text-[13.5px] text-ink-soft">

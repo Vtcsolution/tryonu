@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { CreatePost } from "@/components/community/CreatePost";
+import { ChallengeBanner, TrophyIcon, useLiveChallenge } from "@/components/community/extras";
 import { Avatar, PostCard } from "@/components/community/PostCard";
 import { COMMUNITY_RULES } from "@/components/community/PostToCommunity";
 import { Button } from "@/components/ui/Button";
@@ -23,6 +24,8 @@ export function CommunityFeed() {
     enabled: !!user,
   });
   const [removed, setRemoved] = useState<string[]>([]);
+  const { live } = useLiveChallenge();
+  const [joining, setJoining] = useState(false);
 
   if (isLoading) {
     return <div className="mx-auto my-24 h-8 w-8 animate-spin rounded-full border-2 border-line-strong border-t-sage" />;
@@ -70,6 +73,14 @@ export function CommunityFeed() {
               <CreatePost />
             </div>
           </div>
+          {live && (
+            <div className="mt-5">
+              <ChallengeBanner challenge={live} onJoin={() => setJoining(true)} />
+            </div>
+          )}
+          {joining && live && (
+            <CreatePost variant="none" startOpen extras={{ challenge_id: live.id }} onClosed={() => setJoining(false)} />
+          )}
           <div className="mt-4 flex">
             <div role="tablist" aria-label="Feed" className="flex rounded-full border border-line p-1">
               {(
@@ -146,6 +157,18 @@ export function CommunityFeed() {
                 Make a new look →
               </Link>
             </div>
+            <Link
+              href="/community/challenges"
+              className="flex items-center gap-3 rounded-[20px] border border-[#c9a13b]/40 bg-surface p-4 hover:border-[#c9a13b]"
+            >
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#c9a13b]/15">
+                <TrophyIcon size={21} color="#a8842a" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[15.5px] font-semibold text-ink">Style challenges</span>
+                <span className="block text-[13.5px] text-muted">Weekly themes · win free credits</span>
+              </span>
+            </Link>
             <div className="rounded-[20px] border border-line bg-surface p-5">
               <p className="text-[15px] font-semibold text-ink">Community rules</p>
               <ul className="mt-2 list-disc space-y-1 pl-5 text-[14px] text-ink-soft">
