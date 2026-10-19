@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { Reveal } from "@/components/ui/Reveal";
 import { Button } from "@/components/ui/Button";
+import { LensIcon } from "@/components/lens/LensIcon";
 import { RetailerMark } from "./RetailerMark";
 import { PHOTOS } from "@/lib/media";
 
@@ -113,11 +114,14 @@ export function Hero() {
               or
               <span className="h-px flex-1 bg-line" />
             </div>
+            <Button href="/find-look" size="md" variant="outline" className="w-full">
+              <LensIcon size={18} /> Saw an outfit? Search with a photo
+            </Button>
             <a
               href="#studio"
-              className="block text-center text-[14px] font-semibold text-sage hover:text-sage-deep"
+              className="mt-3 block text-center text-[14px] font-semibold text-sage hover:text-sage-deep"
             >
-              try a demo look
+              or try a demo look
             </a>
             <p className="mt-2.5 text-center text-[12px] text-faint">
               No credit card required

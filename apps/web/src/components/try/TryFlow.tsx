@@ -15,6 +15,7 @@ import { StyledPicks } from "@/components/try/StyledPicks";
 import { ProductCard } from "@/components/product/ProductCard";
 import { ShareLook } from "@/components/try/ShareLook";
 import { PriceAlertButton } from "@/components/alerts/PriceAlerts";
+import { LensIcon } from "@/components/lens/LensIcon";
 import { YourSize } from "@/components/size/MySize";
 import { PostToCommunity } from "@/components/community/PostToCommunity";
 import { FEATURED, RECOMMENDED, RetailerTag, fromTryOnUStore, retailerFromImage, shopName } from "@/components/try/shop";
@@ -830,13 +831,24 @@ export function TryFlow() {
             <span className="h-px flex-1 bg-line" />
           </div>
 
-          <input
-            type="text"
-            value={browseQuery}
-            onChange={(e) => setBrowseQuery(e.target.value)}
-            placeholder="e.g. blue denim jacket"
-            className="mt-4 h-11 w-full rounded-xl border border-line-strong bg-paper px-3.5 text-[15px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25"
-          />
+          <div className="mt-4 flex gap-2">
+            <input
+              type="text"
+              value={browseQuery}
+              onChange={(e) => setBrowseQuery(e.target.value)}
+              placeholder="e.g. blue denim jacket"
+              className="h-11 min-w-0 flex-1 rounded-xl border border-line-strong bg-paper px-3.5 text-[15px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25"
+            />
+            <Link
+              href="/find-look"
+              title="Upload a photo of an outfit and find its products"
+              className="inline-flex h-11 shrink-0 items-center gap-2 rounded-xl border border-line-strong bg-surface px-3.5 text-[14.5px] font-semibold text-ink hover:border-sage"
+            >
+              <LensIcon size={18} />
+              <span className="hidden sm:inline">Search by photo</span>
+              <span className="sm:hidden">Photo</span>
+            </Link>
+          </div>
           <p className="mt-2 text-[12.5px] text-faint">
             Pulled live from connected retailers every time you search — nothing here is stored
             until you pick one.

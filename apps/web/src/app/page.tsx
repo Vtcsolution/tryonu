@@ -7,6 +7,7 @@ import { Features } from "@/components/marketing/Features";
 import { Marketplaces } from "@/components/marketing/Marketplaces";
 import { HowItWorks } from "@/components/marketing/HowItWorks";
 import { FinalCTA } from "@/components/marketing/FinalCTA";
+import { FindLookPromo } from "@/components/marketing/FindLookPromo";
 import { HomeFaq } from "@/components/marketing/HomeFaq";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { serverFetch } from "@/lib/api/server";
@@ -48,6 +49,7 @@ export default async function HomePage() {
       "Shop now links to the original store for every product",
       "Local shops that deliver to you shown first",
       "Share a look; friends can try it on themselves",
+      "Find the look: search the shops with a photo or screenshot of an outfit",
     ],
     publisher: { "@id": `${SITE}/#organization` },
     ...(prices.length
@@ -87,6 +89,7 @@ export default async function HomePage() {
         <CompareSlider />
       </Section>
 
+      <FindLookPromo />
       <Features />
       <Marketplaces />
       <HowItWorks />

@@ -6,6 +6,7 @@ import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { AccountMenu } from "@/components/marketing/AccountMenu";
 import { MobileNav } from "@/components/marketing/MobileNav";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { LensHeaderButton } from "@/components/lens/LensHeaderButton";
 import { BUSINESS, COMPANY, PRODUCT, TOP_LINKS, type NavGroup } from "@/components/marketing/navLinks";
 
 export function Navbar() {
@@ -27,6 +28,7 @@ export function Navbar() {
 
         <div className="flex items-center gap-2 sm:gap-3">
           <ThemeToggle />
+          <LensHeaderButton />
           <NotificationBell />
           <AccountMenu />
           <span className="hidden sm:inline-flex">
