@@ -29,9 +29,11 @@ from app.models.community import (  # noqa: F401
     PollVote,
     PostComment,
     PostLike,
+    SavedPost,
 )
 from app.models.notification import Notification, PushSubscription  # noqa: F401
 from app.models.visual_search import VisualSearch  # noqa: F401
+from app.models.price_watch import PriceWatch  # noqa: F401
 from app.models.contact import ContactMessage  # noqa: F401
 from app.models.extension import ExtensionToken  # noqa: F401
 from app.models.referral import Referral, ReferralCode  # noqa: F401

@@ -233,6 +233,30 @@ function CommentComposer({
   const [error, setError] = useState<string | null>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const looks = useQuery({ queryKey: ["community", "my-looks"], queryFn: community.myLooks, enabled: picking });
+  // "@sa" just typed: suggest members to mention
+  const [mentioning, setMentioning] = useState<string | null>(null);
+  const people = useQuery({
+    queryKey: ["community", "people", mentioning],
+    queryFn: () => community.people(mentioning ?? ""),
+    enabled: mentioning !== null,
+    staleTime: 30_000,
+  });
+  const watchMention = (value: string, caret: number) => {
+    const m = value.slice(0, caret).match(/(?:^|\s)@([A-Za-z0-9_.]{0,30})$/);
+    setMentioning(m ? m[1] : null);
+  };
+  const pickMention = (handle: string) => {
+    const el = box.current;
+    const caret = el?.selectionStart ?? text.length;
+    const before = text.slice(0, caret).replace(/@([A-Za-z0-9_.]{0,30})$/, `@${handle} `);
+    const next = before + text.slice(caret);
+    setText(next);
+    setMentioning(null);
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(before.length, before.length);
+    });
+  };
 
   useEffect(() => {
     if (autoFocus) box.current?.focus();
@@ -308,15 +332,47 @@ function CommentComposer({
             maxLength={1000}
             onChange={(e) => {
               setText(e.target.value);
+              watchMention(e.target.value, e.target.selectionStart ?? e.target.value.length);
               grow();
             }}
             onKeyDown={(e) => {
+              if (mentioning !== null && people.data?.length && (e.key === "Enter" || e.key === "Tab")) {
+                e.preventDefault();
+                pickMention(people.data[0].handle);
+                return;
+              }
+              if (e.key === "Escape") setMentioning(null);
               if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) submit();
             }}
-            placeholder={parent ? `Reply to @${parent.author.handle}…` : "Add a comment…"}
+            onBlur={() => setTimeout(() => setMentioning(null), 150)}
+            placeholder={parent ? `Reply to @${parent.author.handle}…` : "Add a comment… (type @ to mention someone)"}
             aria-label={parent ? `Reply to @${parent.author.handle}` : "Add a comment"}
             className="block w-full resize-none bg-transparent px-4 pt-2.5 text-[15px] leading-snug text-ink outline-none placeholder:text-faint"
           />
+
+          {mentioning !== null && (people.data?.length ?? 0) > 0 && (
+            <div className="mx-2 mt-1 overflow-hidden rounded-xl border border-line bg-surface shadow-lift" role="listbox" aria-label="Mention someone">
+              {people.data!.slice(0, 6).map((p, i) => (
+                <button
+                  key={p.handle}
+                  type="button"
+                  role="option"
+                  aria-selected={i === 0}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    pickMention(p.handle);
+                  }}
+                  className={`flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-paper-2 ${i === 0 ? "bg-paper-2/60" : ""}`}
+                >
+                  <Avatar name={p.name} handle={p.handle} url={p.avatar_url} size={26} />
+                  <span className="min-w-0">
+                    <span className="block truncate text-[14px] font-semibold text-ink">{p.name || `@${p.handle}`}</span>
+                    <span className="block truncate text-[12.5px] text-muted">@{p.handle}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
 
           {(photo || progress !== null || look) && (
             <div className="flex flex-wrap gap-2 px-3 pt-2">

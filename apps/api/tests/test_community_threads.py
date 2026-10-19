@@ -123,3 +123,17 @@ async def test_threads_likes_photos_looks_and_links_in_comments(client, db, monk
 
     # members can't use the admin views
     assert (await client.get("/api/v1/admin/community/members")).status_code == 403
+
+
+async def test_members_bookmark_posts(client, db, monkeypatch):  # noqa: ANN001
+    job_id, _ = await _finished_look(client, db, monkeypatch)
+    post = (await client.post("/api/v1/community/posts", json={"tryon_job_id": job_id, "accept_rules": True})).json()
+    client.cookies.clear()
+    await register_and_login(client)
+    assert (await client.post(f"/api/v1/community/posts/{post['id']}/save")).json() == {"saved": True}
+    assert (await client.post(f"/api/v1/community/posts/{post['id']}/save")).json() == {"saved": True}  # once
+    assert (await client.get(f"/api/v1/community/posts/{post['id']}")).json()["saved_by_me"] is True
+    saved = (await client.get("/api/v1/community/saved")).json()["posts"]
+    assert [p["id"] for p in saved] == [post["id"]]
+    assert (await client.delete(f"/api/v1/community/posts/{post['id']}/save")).json() == {"saved": False}
+    assert (await client.get("/api/v1/community/saved")).json()["posts"] == []

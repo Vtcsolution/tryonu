@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import { formatPrice } from "@/components/try/shop";
 import { relayedImageUrl, resolveMediaUrl } from "@/lib/api/client";
 import type { CommunityProduct, LinkPreview } from "@/lib/api/endpoints";
@@ -67,14 +67,37 @@ function linkTarget(raw: string): { href: string; internal: boolean } {
   }
 }
 
-/** Text with its TryOnU links clickable. */
+// @username: a link to that member's profile (no regex look-behind: older iPhones can't read it)
+const MENTION_RE = /@[A-Za-z0-9_.]{3,30}/g;
+
+function WithMentions({ text }: { text: string }) {
+  const out: ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(MENTION_RE)) {
+    const at = m.index ?? 0;
+    const before = at > 0 ? text[at - 1] : "";
+    if (/[\w@]/.test(before)) continue; // part of an email or a word
+    const handle = m[0].slice(1).replace(/\.+$/, "");
+    out.push(text.slice(last, at));
+    out.push(
+      <Link key={at} href={`/u/${handle.toLowerCase()}`} className="font-semibold text-sage-deep hover:underline">
+        @{handle}
+      </Link>,
+    );
+    last = at + 1 + handle.length;
+  }
+  out.push(text.slice(last));
+  return <>{out}</>;
+}
+
+/** Text with its TryOnU links and @mentions clickable. */
 export function RichText({ text, mention }: { text: string; mention?: string | null }) {
   const parts = text.split(LINK_RE);
   return (
     <>
       {mention && <span className="font-semibold text-sage-deep">@{mention} </span>}
       {parts.map((part, i) => {
-        if (i % 2 === 0) return <Fragment key={i}>{part}</Fragment>;
+        if (i % 2 === 0) return <WithMentions key={i} text={part} />;
         const trail = part.match(TRAILING)?.[0] ?? "";
         const raw = trail ? part.slice(0, -trail.length) : part;
         const { href, internal } = linkTarget(raw);
@@ -205,6 +228,14 @@ export function SendIcon({ size = 19 }: IconProps) {
     <svg className="shrink-0" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M21.5 2.5 10.8 13.2" />
       <path d="M21.5 2.5 14.7 21.2a.5.5 0 0 1-.9 0l-3-8-8-3a.5.5 0 0 1 0-.9z" />
+    </svg>
+  );
+}
+
+export function BookmarkIcon({ filled = false, size = 19 }: { filled?: boolean; size?: number }) {
+  return (
+    <svg className="shrink-0" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
+      <path d="M6 3.5h12a1 1 0 0 1 1 1V21l-7-4.5L5 21V4.5a1 1 0 0 1 1-1z" />
     </svg>
   );
 }

@@ -1344,20 +1344,29 @@ function StatsSection() {
   return (
     <Section
       title="Performance"
-      hint={`The last ${s.days} days. Views: your products shown to shoppers. Shop clicks open your product page. Try-ons: shoppers trying your products on their own photo.`}
+      hint={`The last ${s.days} days. Views: your products shown to shoppers. Shop clicks open your product page. Try-ons: shoppers trying your products on their own photo. Saved and liked: shoppers who saved a look with your product, and likes on community posts wearing it. Price alerts: shoppers waiting for your price to drop.`}
     >
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Views" value={s.views.toLocaleString()} />
         <Stat label="Shop clicks" value={s.clicks.toLocaleString()} />
         <Stat label="Click rate" value={s.views ? `${((s.clicks / s.views) * 100).toFixed(1)}%` : "—"} />
         <Stat label="Try-ons" value={s.tryons.toLocaleString()} />
+        <Stat label="Saved in looks" value={(s.saves ?? 0).toLocaleString()} />
+        <Stat label="Community likes" value={(s.likes ?? 0).toLocaleString()} />
+        <Stat label="Price alerts" value={(s.alerts ?? 0).toLocaleString()} />
+        <Stat label="Try-on rate" value={s.views ? `${((s.tryons / s.views) * 100).toFixed(1)}%` : "—"} />
       </div>
       {s.top.length > 0 ? (
         <div className="mt-4 divide-y divide-line rounded-[16px] border border-line">
           {s.top.map((row) => (
             <div key={row.store_product_id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-[14px]">
               <span className="min-w-0 flex-1 truncate text-ink-soft">{row.name}</span>
-              <span className="shrink-0 text-muted">{row.views} views · {row.clicks} clicks · {row.tryons} try-ons</span>
+              <span className="shrink-0 text-right text-muted">
+                {row.views} views · {row.clicks} clicks · {row.tryons} try-ons
+                {row.saves ? ` · ${row.saves} saved` : ""}
+                {row.likes ? ` · ${row.likes} likes` : ""}
+                {row.alerts ? ` · ${row.alerts} waiting for a lower price` : ""}
+              </span>
             </div>
           ))}
         </div>

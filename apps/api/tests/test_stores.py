@@ -233,6 +233,42 @@ async def test_a_company_sees_shop_clicks_on_its_products(client, db):  # noqa: 
     assert stats["clicks"] == 1 and stats["top"][0]["name"] == "Pink Bridal Lehenga"
 
 
+async def test_a_company_sees_saves_likes_and_price_alerts(client, db):  # noqa: ANN001
+    """How much shoppers loved a product: looks with it saved, likes on community posts
+    wearing it, and shoppers waiting for its price to drop."""
+    from app.models.community import CommunityPost, PostLike
+    from app.models.enums import JobStatus, PhotoKind
+    from app.models.outfit import SavedLook
+    from app.models.photo import UserPhoto
+    from app.models.price_watch import PriceWatch
+    from app.models.tryon import TryOnJob, TryOnResult
+
+    store, product = await _live_store_with_product(client, db)
+    owner = (await client.get("/api/v1/auth/me")).json()["id"]
+    picked = (await client.post(f"/api/v1/stores/public/{store['slug']}/products/{product['id']}/select")).json()
+    pid = picked["product_id"]
+    photo = UserPhoto(user_id=owner, kind=PhotoKind.FRONT, storage_key="p.jpg", url="p", width=10, height=10, content_type="image/jpeg", byte_size=1)
+    db.add(photo)
+    await db.flush()
+    job = TryOnJob(
+        user_id=owner, user_photo_id=photo.id, product_id=pid, provider="mock", provider_model="mock", status=JobStatus.COMPLETED, credit_cost=1
+    )
+    db.add(job)
+    await db.flush()
+    result = TryOnResult(job_id=job.id, storage_key="x.jpg", image_url="x")
+    db.add(result)
+    await db.flush()
+    post = CommunityPost(user_id=owner, tryon_job_id=job.id)
+    db.add_all([SavedLook(user_id=owner, tryon_result_id=result.id), post])
+    await db.flush()
+    db.add_all([PostLike(post_id=post.id, user_id=owner), PriceWatch(user_id=owner, product_id=pid, start_price_cents=100, last_price_cents=100)])
+    await db.commit()
+
+    stats = (await client.get("/api/v1/stores/me/stats")).json()
+    assert (stats["saves"], stats["likes"], stats["alerts"]) == (1, 1, 1)
+    assert (stats["top"][0]["saves"], stats["top"][0]["likes"], stats["top"][0]["alerts"]) == (1, 1, 1)
+
+
 async def test_a_file_upload_adds_many_products_within_the_plan(client, db):  # noqa: ANN001
     store = await _company(client)
     await client.post("/api/v1/stores/me/plans/basic/purchase")

@@ -424,6 +424,8 @@ export type CommunityPost = {
   /** an entry in a style challenge, and its place if it won */
   challenge?: { id: string; title: string } | null;
   award?: number | null;
+  /** bookmarked to come back to */
+  saved_by_me?: boolean;
 };
 /** a card for a TryOnU store, product, look or post link */
 export type LinkPreview = {
@@ -555,6 +557,11 @@ export const community = {
   tryCommentLook: (id: string) =>
     apiFetch<{ outfit_id: string | null; product_id: string | null }>(`${C}/comments/${id}/try`, { method: "POST" }),
   likers: (id: string) => apiFetch<CommunityAuthor[]>(`${C}/posts/${id}/likes`),
+  save: (id: string) => apiFetch<{ saved: boolean }>(`${C}/posts/${id}/save`, { method: "POST" }),
+  unsave: (id: string) => apiFetch<{ saved: boolean }>(`${C}/posts/${id}/save`, { method: "DELETE" }),
+  saved: (offset = 0) => apiFetch<CommunityFeed>(`${C}/saved?offset=${offset}`),
+  /** members to @mention: people I follow first */
+  people: (q: string) => apiFetch<CommunityAuthor[]>(`${C}/people?q=${encodeURIComponent(q)}`),
   me: () => apiFetch<CommunityProfile>(`${C}/me`),
   updateMe: (input: { handle?: string; bio?: string }) => apiFetch<CommunityProfile>(`${C}/me`, { method: "PATCH", body: input }),
   uploadAvatar: (file: File) => {
@@ -661,6 +668,55 @@ export const adminCommunity = {
     apiFetch<Challenge>(`${AC}/challenges/${id}/hidden`, { method: "POST", body: { hidden } }),
   block: (userId: string) => apiFetch<{ detail: string }>(`${AC}/users/${userId}/ban`, { method: "POST" }),
   unblock: (userId: string) => apiFetch<{ detail: string }>(`${AC}/users/${userId}/unban`, { method: "POST" }),
+};
+
+/** your size: measurements and the size they suggest */
+export type SizeSuggestion = {
+  audience: "women" | "men";
+  letter: string;
+  uk: string | null;
+  us: string | null;
+  eu: string | null;
+  chest_in: string | null;
+  trousers_waist_in: string | null;
+  shoe: { eu: string; uk: string; us: string } | null;
+  basis: "measurements" | "height_weight" | "shoes_only";
+  fit: string;
+};
+export type MySize = {
+  gender: "women" | "men" | null;
+  height_cm: number | null;
+  weight_kg: number | null;
+  bust_cm: number | null;
+  waist_cm: number | null;
+  hips_cm: number | null;
+  shoe_eu: number | null;
+  fit: "regular" | "loose" | "slim" | null;
+  suggestion: SizeSuggestion | null;
+};
+export const mySize = {
+  get: () => apiFetch<MySize>("/api/v1/users/me/size"),
+  save: (input: Omit<MySize, "suggestion">) => apiFetch<MySize>("/api/v1/users/me/size", { method: "PUT", body: input }),
+};
+
+/** price alerts: told when a product gets cheaper or is back in stock */
+export type PriceAlert = {
+  product_id: string;
+  name: string;
+  image_url: string | null;
+  shop: string | null;
+  currency: string;
+  start_price_cents: number;
+  price_cents: number;
+  in_stock: boolean;
+  checked_at: string | null;
+  created_at: string;
+};
+export const priceAlerts = {
+  list: () => apiFetch<PriceAlert[]>("/api/v1/price-alerts"),
+  ids: () => apiFetch<string[]>("/api/v1/price-alerts/ids"),
+  add: (productId: string) => apiFetch<PriceAlert>(`/api/v1/price-alerts/${productId}`, { method: "POST" }),
+  remove: (productId: string) => apiFetch<void>(`/api/v1/price-alerts/${productId}`, { method: "DELETE" }),
 };
 
 /** Find the look: search the shops with a photo (like Google Lens) */

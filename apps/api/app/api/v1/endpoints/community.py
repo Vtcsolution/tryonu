@@ -34,6 +34,7 @@ from app.models.community import (
     PollVote,
     PostComment,
     PostLike,
+    SavedPost,
 )
 from app.models.enums import JobStatus
 from app.models.tryon import TryOnJob
@@ -83,6 +84,30 @@ def _can_write(user: User) -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can't post or comment in the community.")
 
 
+MENTION_RE = re.compile(r"(?<![\w@])@([A-Za-z0-9_.]{3,30})")
+MAX_MENTIONS = 5
+
+
+async def _notify_mentions(
+    db: DbSession, me: User, text: str | None, *, post_id: str, comment_id: str | None = None, told: set[str] | None = None
+) -> None:
+    """Everyone @named in a caption or comment hears about it (once, at most five people)."""
+    handles = []
+    for h in MENTION_RE.findall(text or ""):
+        h = h.lower().rstrip(".")
+        if h not in handles:
+            handles.append(h)
+    if not handles:
+        return
+    people = (
+        await db.execute(select(User).where(User.handle.in_(handles[:MAX_MENTIONS]), User.community_banned_at.is_(None)))
+    ).scalars()
+    for person in people:
+        if person.id == me.id or person.id in (told or set()):
+            continue
+        await notify(db, user_id=person.id, kind="mention", actor_id=me.id, post_id=post_id, comment_id=comment_id, text=snippet(text))
+
+
 # ------------------------------------------------------------------ posts
 
 
@@ -123,6 +148,7 @@ class PostOut(BaseModel):
     # a style-challenge entry, and its place if it won
     challenge: "ChallengeRefOut | None" = None
     award: int | None = None
+    saved_by_me: bool = False  # bookmarked to come back to
 
 
 class ChallengeRefOut(BaseModel):
@@ -187,6 +213,7 @@ async def _posts_out(db: DbSession, posts: list[CommunityPost], me: User) -> lis
     awards = dict(
         (await db.execute(select(ChallengeWinner.post_id, ChallengeWinner.place).where(ChallengeWinner.post_id.in_(ids)))).all()
     )
+    bookmarked = set((await db.execute(select(SavedPost.post_id).where(SavedPost.user_id == me.id, SavedPost.post_id.in_(ids)))).scalars())
     out: list[PostOut] = []
     for p in posts:
         extra = {
@@ -198,6 +225,7 @@ async def _posts_out(db: DbSession, posts: list[CommunityPost], me: User) -> lis
             "my_vote": votes.get(p.id),
             "challenge": challenges.get(p.challenge_id) if p.challenge_id else None,
             "award": awards.get(p.id),
+            "saved_by_me": p.id in bookmarked,
         }
         if p.media_key:  # a photo or video the member uploaded
             out.append(
@@ -347,6 +375,8 @@ async def create_post(payload: NewPostIn, me: CurrentUser, db: DbSession):
         challenge_id=challenge_id,
     )
     db.add(post)
+    await db.flush()
+    await _notify_mentions(db, me, caption, post_id=post.id)
     await db.commit()
     await db.refresh(post)
     out = (await _posts_out(db, [post], me))[0]
@@ -449,6 +479,8 @@ async def create_media_post(
         caption=text or None, links_removed=removed, poll=poll, challenge_id=entry,
     )
     db.add(post)
+    await db.flush()
+    await _notify_mentions(db, me, text, post_id=post.id)
     await db.commit()
     await db.refresh(post)
     out = (await _posts_out(db, [post], me))[0]
@@ -516,6 +548,41 @@ async def unlike_post(post_id: str, me: CurrentUser, db: DbSession):
     await _recount_likes(db, post)
     await db.commit()
     return {"liked": False, "like_count": post.like_count}
+
+
+@router.post("/posts/{post_id}/save")
+async def save_post(post_id: str, me: CurrentUser, db: DbSession):
+    """Bookmark a post (only I see my saved posts)."""
+    post = await _visible_post(db, post_id, me)
+    if await db.scalar(select(SavedPost.id).where(SavedPost.user_id == me.id, SavedPost.post_id == post.id)) is None:
+        db.add(SavedPost(user_id=me.id, post_id=post.id))
+        await db.commit()
+    return {"saved": True}
+
+
+@router.delete("/posts/{post_id}/save")
+async def unsave_post(post_id: str, me: CurrentUser, db: DbSession):
+    await db.execute(delete(SavedPost).where(SavedPost.user_id == me.id, SavedPost.post_id == post_id))
+    await db.commit()
+    return {"saved": False}
+
+
+@router.get("/saved", response_model=FeedOut)
+async def saved_posts(me: CurrentUser, db: DbSession, offset: int = 0, limit: int = 12):
+    """My bookmarked posts, the latest saved first."""
+    limit = min(max(limit, 1), 30)
+    rows = (
+        await db.execute(
+            select(CommunityPost)
+            .join(SavedPost, SavedPost.post_id == CommunityPost.id)
+            .join(User, User.id == CommunityPost.user_id)
+            .where(SavedPost.user_id == me.id, _visible())
+            .order_by(SavedPost.created_at.desc())
+            .offset(max(offset, 0))
+            .limit(limit + 1)
+        )
+    ).scalars().all()
+    return FeedOut(posts=await _posts_out(db, list(rows[:limit]), me), next_offset=offset + limit if len(rows) > limit else None)
 
 
 @router.get("/posts/{post_id}/likes", response_model=list[AuthorOut])
@@ -795,6 +862,8 @@ async def add_comment(post_id: str, payload: NewCommentIn, me: CurrentUser, db: 
         await notify(db, user_id=parent.user_id, kind="reply", actor_id=me.id, post_id=post.id, comment_id=comment.id, text=said)
     if parent is None or parent.user_id != post.user_id:
         await notify(db, user_id=post.user_id, kind="comment", actor_id=me.id, post_id=post.id, comment_id=comment.id, text=said)
+    told = {post.user_id} | ({parent.user_id} if parent is not None else set())
+    await _notify_mentions(db, me, body, post_id=post.id, comment_id=comment.id, told=told)
     await _recount_comments(db, post)
     await db.commit()
     await db.refresh(comment)
@@ -889,6 +958,27 @@ async def try_comment_look(comment_id: str, me: CurrentUser, db: DbSession):
     if outfit_id is None and product_id is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="The products in this look aren't available anymore.")
     return TryThisOut(outfit_id=outfit_id, product_id=product_id)
+
+
+# ------------------------------------------------------------------ people (for @mentions)
+
+
+@router.get("/people", response_model=list[AuthorOut])
+async def find_people(me: CurrentUser, db: DbSession, q: str = "", limit: int = 8):
+    """Members to @mention: people I follow first, then everyone else, by @username or name."""
+    q = q.strip().lower().lstrip("@")[:30]
+    limit = min(max(limit, 1), 20)
+    followed = select(Follow.followee_id).where(Follow.follower_id == me.id)
+    base = select(User).where(User.handle.is_not(None), User.community_banned_at.is_(None), User.id != me.id)
+    if q:
+        base = base.where(or_(func.lower(User.handle).like(f"{q}%"), func.lower(User.full_name).like(f"%{q}%")))
+    first = (await db.execute(base.where(User.id.in_(followed)).order_by(User.handle).limit(limit))).scalars().all()
+    rest = []
+    if len(first) < limit and q:
+        rest = (
+            await db.execute(base.where(User.id.notin_(followed)).order_by(func.length(User.handle), User.handle).limit(limit - len(first)))
+        ).scalars().all()
+    return [_author(u) for u in [*first, *rest]]
 
 
 # ------------------------------------------------------------------ profiles and following

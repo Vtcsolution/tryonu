@@ -14,6 +14,8 @@ import { ApiError, affiliateGoUrl, resolveMediaUrl } from "@/lib/api/client";
 import { StyledPicks } from "@/components/try/StyledPicks";
 import { ProductCard } from "@/components/product/ProductCard";
 import { ShareLook } from "@/components/try/ShareLook";
+import { PriceAlertButton } from "@/components/alerts/PriceAlerts";
+import { YourSize } from "@/components/size/MySize";
 import { PostToCommunity } from "@/components/community/PostToCommunity";
 import { FEATURED, RECOMMENDED, RetailerTag, fromTryOnUStore, retailerFromImage, shopName } from "@/components/try/shop";
 import {
@@ -1323,6 +1325,7 @@ function ResultStep({
           <p className="mt-1 text-[16px] text-muted">
             {(product.price_cents / 100).toFixed(2)} {product.currency.toUpperCase()}
           </p>
+          <YourSize name={product.name} />
 
           <div className="mt-5 space-y-2 text-[14px] text-muted">
             <p className="flex items-center gap-2">
@@ -1338,6 +1341,7 @@ function ResultStep({
             <Button href={affiliateGoUrl(product.id, "tryon_result")} size="md" className="w-full">
               Shop now <span aria-hidden="true">→</span>
             </Button>
+            <PriceAlertButton productId={product.id} />
             <SaveLookButton tryonResultId={job.result!.id} />
             <ShareLook jobId={job.id} variant="wide" />
             <PostToCommunity jobId={job.id} imageUrl={job.result?.image_url} />
@@ -1482,6 +1486,7 @@ function OutfitResultStep({
                     {shopName(item.product.merchant_name, item.product.retailer?.name) ? ` · ${shopName(item.product.merchant_name, item.product.retailer?.name)}` : ""}
                   </span>
                 </span>
+                <PriceAlertButton productId={item.product.id} size="small" />
                 <Button
                   href={affiliateGoUrl(item.product.id, "tryon_result")}
                   size="sm"

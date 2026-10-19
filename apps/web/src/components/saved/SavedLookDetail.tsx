@@ -8,6 +8,7 @@ import { ShareLook } from "@/components/try/ShareLook";
 import { RetailerTag, formatPrice } from "@/components/try/shop";
 import { Button } from "@/components/ui/Button";
 import { affiliateGoUrl, relayedImageUrl, resolveMediaUrl } from "@/lib/api/client";
+import { PriceAlertButton } from "@/components/alerts/PriceAlerts";
 import { savedLooks as savedLooksApi } from "@/lib/api/endpoints";
 import type { SavedLook } from "@/lib/api/types";
 import { useSession } from "@/lib/auth/useSession";
@@ -144,6 +145,7 @@ export function SavedLookDetail({ id }: { id: string }) {
                       {item.shop ? ` · ${item.shop}` : ""}
                     </span>
                   </span>
+                  <PriceAlertButton productId={item.id} size="small" />
                   <Button href={affiliateGoUrl(item.id, "saved_look")} size="sm" variant="outline" className="shrink-0">
                     Shop now
                   </Button>

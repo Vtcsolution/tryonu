@@ -44,17 +44,26 @@ async def go(
     request: Request,
     db: DbSession,
     user: OptionalUser,
-    source: AffiliateSource = AffiliateSource.PRODUCT_CARD,
+    source: str = Query(default=AffiliateSource.PRODUCT_CARD.value, max_length=32),
     session_id: str | None = Query(default=None),
 ):
     """The actual `href` a "Shop Now" button/link points at — records the
     click, then 302s straight to the retailer's affiliate URL. Works with
-    plain <a href>, no JS required."""
+    plain <a href>, no JS required.
+
+    `source` only says where the click came from: one we don't know is
+    counted as a product-card click, never refused — a shopper on their way
+    to buy must always reach the shop (saved looks, community posts and
+    shared looks once sent labels this list didn't have, and got an error page)."""
+    try:
+        where = AffiliateSource(source)
+    except ValueError:
+        where = AffiliateSource.PRODUCT_CARD
     product = await db.get(Product, product_id)
     if product is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
 
-    await _record_click(db, request, user, product=product, source=source, session_id=session_id)
+    await _record_click(db, request, user, product=product, source=where, session_id=session_id)
     return RedirectResponse(product.affiliate_url, status_code=status.HTTP_302_FOUND)
 
 

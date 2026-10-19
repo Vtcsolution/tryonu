@@ -158,6 +158,20 @@ export function CommunityFeed() {
               </Link>
             </div>
             <Link
+              href="/community/saved"
+              className="flex items-center gap-3 rounded-[20px] border border-line bg-surface p-4 hover:border-line-strong"
+            >
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-paper-2 text-ink-soft">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M6 3.5h12a1 1 0 0 1 1 1V21l-7-4.5L5 21V4.5a1 1 0 0 1 1-1z" />
+                </svg>
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[15.5px] font-semibold text-ink">Saved posts</span>
+                <span className="block text-[13.5px] text-muted">Looks you bookmarked</span>
+              </span>
+            </Link>
+            <Link
               href="/community/challenges"
               className="flex items-center gap-3 rounded-[20px] border border-[#c9a13b]/40 bg-surface p-4 hover:border-[#c9a13b]"
             >

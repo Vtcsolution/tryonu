@@ -37,6 +37,7 @@ async def notify(
     post_id: str | None = None,
     comment_id: str | None = None,
     challenge_id: str | None = None,
+    product_id: str | None = None,
     credits: int | None = None,
     text: str | None = None,
 ) -> Notification | None:
@@ -56,7 +57,7 @@ async def notify(
             return None
     note = Notification(
         user_id=user_id, kind=kind, actor_id=actor_id, post_id=post_id, comment_id=comment_id, challenge_id=challenge_id,
-        credits=credits,
+        product_id=product_id, credits=credits,
         text=(text or "").strip()[:300] or None,
     )
     db.add(note)
@@ -104,6 +105,12 @@ def words(n: Notification, actor: User | None) -> str:
         return f"{who} voted “{'Buy it' if n.text == 'buy' else 'Skip it'}” on your look"
     if n.kind == "challenge_win":
         return f"You won {n.text}" + (f": {n.credits} free credits!" if n.credits else "!")
+    if n.kind == "mention":
+        return f"{who} mentioned you{quote}"
+    if n.kind == "price_drop":
+        return f"Price drop: {n.text}"
+    if n.kind == "back_in_stock":
+        return f"Back in stock: {n.text}"
     if n.kind == "challenge_started":
         prize = f" and win up to {n.credits} free credits" if n.credits else ""
         return f"New style challenge: “{n.text}”. Post your look{prize}!"
@@ -115,6 +122,8 @@ def words(n: Notification, actor: User | None) -> str:
 def link(n: Notification, actor: User | None) -> str:
     if n.challenge_id:
         return f"/community/challenges/{n.challenge_id}"
+    if n.product_id:
+        return f"/try?product={n.product_id}"
     if n.post_id:
         return f"/community/post/{n.post_id}"
     if n.kind == "follow" and actor is not None and actor.handle:

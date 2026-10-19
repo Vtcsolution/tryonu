@@ -98,6 +98,11 @@ class AffiliateSource(StrEnum):
     SEARCH = "search"
     STYLIST = "stylist"
     SAVED = "saved"
+    SAVED_LOOK = "saved_look"
+    COMMUNITY = "community"
+    SHARED_LOOK = "shared_look"
+    LENS = "lens"
+    PRICE_ALERT = "price_alert"
 
 
 class SavedProductStatus(StrEnum):

@@ -137,3 +137,29 @@ async def test_the_daily_email_and_its_unsubscribe_link(client, db, monkeypatch)
     assert page.status_code == 200 and "no more daily emails" in page.text
     assert (await client.get("/api/v1/notifications/settings")).json()["email"] is False
     assert (await client.patch("/api/v1/notifications/settings", json={"email": True})).json()["email"] is True
+
+
+async def test_mentions_tell_people_and_suggest_names(client, db, monkeypatch):  # noqa: ANN001
+    a, b, post, a_handle, b_handle = await _two_members_and_a_post(client, db, monkeypatch)
+    client.cookies.clear()
+    await register_and_login(client)  # member C
+    c = dict(client.cookies)
+    c_handle = (await client.get("/api/v1/community/me")).json()["handle"]
+    await client.post(f"/api/v1/community/profiles/{b_handle}/follow")
+
+    # suggestions: who I follow first; matching by the start of the @username
+    people = (await client.get(f"/api/v1/community/people?q={b_handle[:4]}")).json()
+    assert people[0]["handle"] == b_handle
+    assert c_handle not in [p["handle"] for p in (await client.get("/api/v1/community/people")).json()]  # never myself
+
+    # C comments on A's post naming B (and A, who hears about the comment anyway, and someone who doesn't exist)
+    url = f"/api/v1/community/posts/{post['id']}/comments"
+    await client.post(url, json={"body": f"@{b_handle} you need this! @{a_handle} where from? @nobody_here_123"})
+    await _as(client, b)
+    note = (await client.get("/api/v1/notifications")).json()["items"][0]
+    assert note["kind"] == "mention" and "mentioned you" in note["text"] and note["url"] == f"/community/post/{post['id']}"
+    await _as(client, a)
+    kinds = [n["kind"] for n in (await client.get("/api/v1/notifications")).json()["items"]]
+    assert kinds.count("comment") == 1 and "mention" not in kinds  # told once, as the post's owner
+    await _as(client, c)
+    assert all(n["kind"] != "mention" for n in (await client.get("/api/v1/notifications")).json()["items"])

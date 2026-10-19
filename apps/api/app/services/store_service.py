@@ -442,9 +442,12 @@ async def store_stats(db: AsyncSession, store_id: str, days: int = 30) -> dict:
             ({"store_product_id": k, "name": names.get(k, ""), "views": v, "clicks": 0, "tryons": 0} for k, v in views.items()),
             key=lambda r: r["views"], reverse=True,
         )[:10]
-        return {"days": days, "views": sum(views.values()), "clicks": 0, "tryons": 0, "top": top}
+        return {"days": days, "views": sum(views.values()), "clicks": 0, "tryons": 0, "saves": 0, "likes": 0, "alerts": 0, "top": top}
     product_ids = [row[0] for row in saved]
-    by_product = {row[0]: {"store_product_id": row[1], "name": row[2], "views": 0, "clicks": 0, "tryons": 0} for row in saved}
+    by_product = {
+        row[0]: {"store_product_id": row[1], "name": row[2], "views": 0, "clicks": 0, "tryons": 0, "saves": 0, "likes": 0, "alerts": 0}
+        for row in saved
+    }
     for row in by_product.values():
         row["views"] = views.get(row["store_product_id"], 0)
     seen = {row["store_product_id"] for row in by_product.values()}
@@ -452,6 +455,7 @@ async def store_stats(db: AsyncSession, store_id: str, days: int = 30) -> dict:
         if store_product_id not in seen:
             by_product[f"view-{store_product_id}"] = {
                 "store_product_id": store_product_id, "name": names.get(store_product_id, ""), "views": count, "clicks": 0, "tryons": 0,
+                "saves": 0, "likes": 0, "alerts": 0,
             }
 
     for product_id, count in (
@@ -480,15 +484,65 @@ async def store_stats(db: AsyncSession, store_id: str, days: int = 30) -> dict:
     ).all()
     for product_id, count in [*single, *in_outfits]:
         by_product[product_id]["tryons"] += int(count)
+    await _loved(db, by_product, product_ids, since)
 
-    rows = sorted(by_product.values(), key=lambda r: (r["clicks"] + r["tryons"], r["views"]), reverse=True)
+    rows = sorted(by_product.values(), key=lambda r: (r["clicks"] + r["tryons"] + r["saves"] + r["likes"], r["views"]), reverse=True)
     return {
         "days": days,
         "views": sum(views.values()),
         "clicks": sum(r["clicks"] for r in rows),
         "tryons": sum(r["tryons"] for r in rows),
-        "top": [r for r in rows if r["views"] or r["clicks"] or r["tryons"]][:10],
+        "saves": sum(r["saves"] for r in rows),
+        "likes": sum(r["likes"] for r in rows),
+        "alerts": sum(r["alerts"] for r in rows),
+        "top": [r for r in rows if r["views"] or r["clicks"] or r["tryons"] or r["saves"] or r["likes"]][:10],
     }
+
+
+async def _loved(db: AsyncSession, by_product: dict, product_ids: list[str], since) -> None:  # noqa: ANN001
+    """How much shoppers loved each product: looks with it saved, likes on community
+    posts wearing it (both since `since`), and shoppers waiting for its price to drop."""
+    from app.models.community import CommunityPost, PostLike
+    from app.models.outfit import OutfitItem, SavedLook
+    from app.models.price_watch import PriceWatch
+    from app.models.tryon import TryOnJob, TryOnResult
+
+    jobs: dict[str, set[str]] = {}  # try-on job -> the store's products in it
+    for job_id, product_id in (await db.execute(select(TryOnJob.id, TryOnJob.product_id).where(TryOnJob.product_id.in_(product_ids)))).all():
+        jobs.setdefault(job_id, set()).add(product_id)
+    for job_id, product_id in (
+        await db.execute(
+            select(TryOnJob.id, OutfitItem.product_id)
+            .join(OutfitItem, OutfitItem.outfit_id == TryOnJob.outfit_id)
+            .where(OutfitItem.product_id.in_(product_ids))
+        )
+    ).all():
+        jobs.setdefault(job_id, set()).add(product_id)
+    if jobs:
+        for job_id, count in (
+            await db.execute(
+                select(TryOnResult.job_id, func.count())
+                .join(SavedLook, SavedLook.tryon_result_id == TryOnResult.id)
+                .where(TryOnResult.job_id.in_(jobs), SavedLook.created_at >= since)
+                .group_by(TryOnResult.job_id)
+            )
+        ).all():
+            for product_id in jobs[job_id]:
+                by_product[product_id]["saves"] += int(count)
+        for job_id, count in (
+            await db.execute(
+                select(CommunityPost.tryon_job_id, func.count())
+                .join(PostLike, PostLike.post_id == CommunityPost.id)
+                .where(CommunityPost.tryon_job_id.in_(jobs), PostLike.created_at >= since)
+                .group_by(CommunityPost.tryon_job_id)
+            )
+        ).all():
+            for product_id in jobs[job_id]:
+                by_product[product_id]["likes"] += int(count)
+    for product_id, count in (
+        await db.execute(select(PriceWatch.product_id, func.count()).where(PriceWatch.product_id.in_(product_ids)).group_by(PriceWatch.product_id))
+    ).all():
+        by_product[product_id]["alerts"] = int(count)
 
 
 # ---------------------------------------------------------------------- emails

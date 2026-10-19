@@ -21,7 +21,7 @@ class Notification(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     # post_like | comment | reply | comment_like | follow | referral_joined | reward | credits_added
-    # | poll_vote | challenge_win | challenge_ended
+    # | poll_vote | challenge_win | challenge_ended | challenge_started | price_drop | back_in_stock | mention
     kind: Mapped[str] = mapped_column(String(32), nullable=False)
     actor_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     post_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("community_posts.id", ondelete="CASCADE"), nullable=True)
@@ -31,6 +31,8 @@ class Notification(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     challenge_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("community_challenges.id", ondelete="CASCADE"), nullable=True
     )
+    # a product the member watches the price of
+    product_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("products.id", ondelete="CASCADE"), nullable=True)
     credits: Mapped[int | None] = mapped_column(Integer, nullable=True)
     text: Mapped[str | None] = mapped_column(String(300), nullable=True)  # a comment's first words, a reward's reason
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)

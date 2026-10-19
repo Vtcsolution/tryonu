@@ -23,6 +23,8 @@ from app.api.v1.endpoints import (
     challenges,
     community,
     lens,
+    price_alerts,
+    sizes,
     notifications,
     contact,
     extension,
@@ -77,4 +79,6 @@ api_router.include_router(notifications.router)
 api_router.include_router(challenges.router)
 api_router.include_router(challenges.admin_router)
 api_router.include_router(lens.router)
+api_router.include_router(price_alerts.router)
+api_router.include_router(sizes.router)
 api_router.include_router(extension.router)

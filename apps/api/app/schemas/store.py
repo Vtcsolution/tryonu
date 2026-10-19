@@ -163,6 +163,9 @@ class StoreStatsTop(BaseModel):
     views: int = 0
     clicks: int
     tryons: int
+    saves: int = 0  # looks with it that shoppers saved
+    likes: int = 0  # likes on community posts wearing it
+    alerts: int = 0  # shoppers waiting for its price to drop
 
 
 class StoreStatsOut(BaseModel):
@@ -170,6 +173,9 @@ class StoreStatsOut(BaseModel):
     views: int = 0
     clicks: int
     tryons: int
+    saves: int = 0
+    likes: int = 0
+    alerts: int = 0
     top: list[StoreStatsTop]
 
 

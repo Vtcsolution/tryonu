@@ -8,6 +8,7 @@ import { Comments } from "@/components/community/CommentThread";
 import { ChallengeChip, PollBox } from "@/components/community/extras";
 import {
   Avatar,
+  BookmarkIcon,
   CommentIcon,
   HangerIcon,
   LinkCards,
@@ -71,6 +72,13 @@ export function PostCard({
       }),
     onError: (_err, want) =>
       setP((prev) => ({ ...prev, liked_by_me: !want, like_count: Math.max(0, prev.like_count + (want ? -1 : 1)) })),
+  });
+  // like the like: the wish is decided at the tap
+  const save = useMutation({
+    mutationFn: (want: boolean) => (want ? community.save(p.id) : community.unsave(p.id)),
+    onMutate: (want: boolean) => setP((prev) => ({ ...prev, saved_by_me: want })),
+    onError: (_e, want) => setP((prev) => ({ ...prev, saved_by_me: !want })),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["community", "saved"] }),
   });
   const follow = useMutation({
     mutationFn: () => community.follow(p.author.handle),
@@ -246,6 +254,14 @@ export function PostCard({
             <CommentIcon size={20} />
           </BarButton>
           <ShareButton post={p} />
+          <BarButton
+            label={p.saved_by_me ? "Saved: tap to remove" : "Save for later"}
+            pressed={!!p.saved_by_me}
+            onClick={() => !save.isPending && save.mutate(!p.saved_by_me)}
+            className={p.saved_by_me ? "text-sage-deep" : undefined}
+          >
+            <BookmarkIcon filled={!!p.saved_by_me} />
+          </BarButton>
           <span className="flex-1" />
           {likers.length > 0 && (
             <button
@@ -262,7 +278,7 @@ export function PostCard({
                   handle={x.handle}
                   url={x.avatar_url}
                   size={24}
-                  className={`ring-2 ring-surface ${i > 0 ? "-ml-2" : ""}`}
+                  className={`ring-2 ring-surface ${i > 0 ? "-ml-2" : ""} ${i === 2 ? "hidden sm:grid" : ""}`}
                 />
               ))}
             </button>
@@ -301,7 +317,7 @@ function BarButton({
       aria-pressed={pressed}
       aria-label={count ? `${label} (${count})` : label}
       title={label}
-      className={`flex h-10 min-w-[44px] items-center justify-center gap-1.5 rounded-lg px-2.5 text-[14.5px] font-semibold transition-colors hover:bg-paper-2 ${
+      className={`flex h-10 min-w-[40px] items-center justify-center gap-1.5 rounded-lg px-1.5 text-[14.5px] font-semibold transition-colors hover:bg-paper-2 sm:min-w-[44px] sm:px-2.5 ${
         className ?? "text-ink-soft hover:text-ink"
       }`}
     >

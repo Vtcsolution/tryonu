@@ -23,7 +23,13 @@ export function NotificationRow({ n, onOpen, compact = false }: { n: AppNotifica
             style={{ width: compact ? 40 : 46, height: compact ? 40 : 46 }}
             aria-hidden="true"
           >
-            {n.kind.startsWith("challenge") ? <TrophyIcon size={21} color="#fff" /> : <CoinIcon />}
+            {n.kind.startsWith("challenge") ? (
+              <TrophyIcon size={21} color="#fff" />
+            ) : n.kind === "price_drop" || n.kind === "back_in_stock" ? (
+              <TagIcon />
+            ) : (
+              <CoinIcon />
+            )}
           </span>
         )}
         <KindBadge kind={n.kind} />
@@ -45,7 +51,7 @@ function KindBadge({ kind }: { kind: string }) {
   const icon =
     kind === "post_like" || kind === "comment_like" || kind === "poll_vote" ? (
       <ThumbIcon filled size={10} />
-    ) : kind === "comment" || kind === "reply" ? (
+    ) : kind === "comment" || kind === "reply" || kind === "mention" ? (
       <CommentIcon size={10} />
     ) : kind === "follow" || kind === "referral_joined" ? (
       <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -58,6 +64,15 @@ function KindBadge({ kind }: { kind: string }) {
     <span className="absolute -bottom-0.5 -right-0.5 grid h-[20px] w-[20px] place-items-center rounded-full bg-sage-deep text-white ring-2 ring-surface">
       {icon}
     </span>
+  );
+}
+
+function TagIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z" />
+      <circle cx="7.5" cy="7.5" r="1.5" />
+    </svg>
   );
 }
 

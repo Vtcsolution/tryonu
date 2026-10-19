@@ -65,6 +65,10 @@ async def lifespan(app: FastAPI):  # noqa: ANN201
     from app.services.challenge_service import finish_forever
 
     app.state.challenge_sweeper = asyncio.create_task(finish_forever())
+    # price alerts: watched products looked up again every few hours
+    from app.services.price_alert_service import check_forever
+
+    app.state.price_sweeper = asyncio.create_task(check_forever())
 
     app.state.debug_sweeper = None
     if settings.TRYON_SAVE_DEBUG:
@@ -80,6 +84,7 @@ async def lifespan(app: FastAPI):  # noqa: ANN201
     app.state.payment_sweeper.cancel()
     app.state.digest_sweeper.cancel()
     app.state.challenge_sweeper.cancel()
+    app.state.price_sweeper.cancel()
     if app.state.debug_sweeper is not None:
         app.state.debug_sweeper.cancel()
     logger.info("shutdown")

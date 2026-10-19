@@ -271,8 +271,8 @@ function Results({ result, onAgain }: { result: LensResult; onAgain: () => void 
     try {
       const p = await choose(m);
       if (then === "try") router.push(`/try?product=${p.id}`);
-      else if (tab) tab.location.href = affiliateGoUrl(p.id, "search");
-      else window.open(affiliateGoUrl(p.id, "search"), "_blank", "noopener");
+      else if (tab) tab.location.href = affiliateGoUrl(p.id, "lens");
+      else window.open(affiliateGoUrl(p.id, "lens"), "_blank", "noopener");
     } catch (err) {
       tab?.close();
       setError(err instanceof ApiError ? err.detail : "That product isn't available anymore. Try another one.");

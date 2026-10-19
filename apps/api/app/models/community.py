@@ -138,3 +138,13 @@ class ChallengeWinner(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     place: Mapped[int] = mapped_column(Integer, nullable=False)  # 1, 2, 3
     credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     likes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class SavedPost(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A post a member bookmarked to come back to (only they see it)."""
+
+    __tablename__ = "community_saved_posts"
+    __table_args__ = (UniqueConstraint("user_id", "post_id", name="uq_community_saved_posts_pair"),)
+
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    post_id: Mapped[str] = mapped_column(String(36), ForeignKey("community_posts.id", ondelete="CASCADE"), index=True, nullable=False)

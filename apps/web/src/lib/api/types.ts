@@ -676,7 +676,22 @@ export type StoreStats = {
   views: number;
   clicks: number;
   tryons: number;
-  top: { store_product_id: string; name: string; views: number; clicks: number; tryons: number }[];
+  /** looks with the store's products that shoppers saved */
+  saves?: number;
+  /** likes on community posts wearing them */
+  likes?: number;
+  /** shoppers waiting for a price drop */
+  alerts?: number;
+  top: {
+    store_product_id: string;
+    name: string;
+    views: number;
+    clicks: number;
+    tryons: number;
+    saves?: number;
+    likes?: number;
+    alerts?: number;
+  }[];
 };
 
 export type StorePayment = {
