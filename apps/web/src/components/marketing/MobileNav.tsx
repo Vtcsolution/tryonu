@@ -4,10 +4,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { BUSINESS, COMPANY, PRODUCT, TOP_LINKS } from "@/components/marketing/navLinks";
+import { BUSINESS, COMPANY, LEGAL, PRODUCT, TOP_LINKS } from "@/components/marketing/navLinks";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { useSession } from "@/lib/auth/useSession";
 
-/** Phones and small screens: the whole site menu behind one button. */
+// a member's own pages: in the "Me" tab, not in the website menu
+const MINE = ["/wardrobe", "/saved"];
+
+/** Phones and small screens: the website's pages (product, business, help, legal) behind ☰.
+ * A member's own pages live in the "Me" tab on phones. */
 export function MobileNav() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
@@ -33,7 +38,7 @@ export function MobileNav() {
         onClick={() => setOpen(true)}
         aria-label="Open menu"
         aria-expanded={open}
-        className="hidden h-11 w-11 place-items-center rounded-full border border-line text-ink hover:border-line-strong lg:grid xl:hidden"
+        className="tu-tap grid h-10 w-10 place-items-center rounded-full text-ink active:bg-paper-2 lg:h-11 lg:w-11 lg:border lg:border-line lg:hover:border-line-strong xl:hidden"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
           <path d="M4 7h16M4 12h16M4 17h16" />
@@ -74,7 +79,7 @@ export function MobileNav() {
                   <div key={g.label}>
                     <p className="text-[12.5px] font-semibold uppercase tracking-[0.12em] text-faint">{g.label}</p>
                     <ul className="mt-2">
-                      {g.items.map((l) => (
+                      {g.items.filter((l) => !MINE.includes(l.href)).map((l) => (
                         <li key={l.href}>
                           <Link href={l.href} prefetch={false} className="block rounded-lg py-2.5 text-[16.5px] text-ink hover:text-sage-deep">
                             {l.label}
@@ -93,6 +98,22 @@ export function MobileNav() {
                     </li>
                   ))}
                 </ul>
+                <div>
+                  <p className="text-[12.5px] font-semibold uppercase tracking-[0.12em] text-faint">Legal</p>
+                  <ul className="mt-2">
+                    {LEGAL.map((l) => (
+                      <li key={l.href}>
+                        <Link href={l.href} prefetch={false} className="block rounded-lg py-2.5 text-[16.5px] text-ink hover:text-sage-deep">
+                          {l.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="flex items-center justify-between border-t border-line pt-4">
+                  <span className="text-[16.5px] text-ink">Light or dark look</span>
+                  <ThemeToggle />
+                </div>
               </div>
               <div className="space-y-3 border-t border-line p-5">
                 {!user && (

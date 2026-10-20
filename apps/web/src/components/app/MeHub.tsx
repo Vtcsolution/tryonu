@@ -47,26 +47,6 @@ export function MeHub() {
   if (isLoading) return <div className="mx-auto my-24 h-8 w-8 animate-spin rounded-full border-2 border-line-strong border-t-sage" />;
 
   const count = unread.data?.unread ?? 0;
-  const help: Row[] = [
-    { href: "/how-it-works", label: "How it works" },
-    { href: "/pricing", label: "Prices and credits" },
-    { href: "/faq", label: "Questions & answers" },
-    { href: "/contact", label: "Contact us" },
-    { href: "/about", label: "About TryOnU" },
-  ];
-  const business: Row[] = [
-    { href: "/sell", label: "Sell on TryOnU", hint: "Open a store, reach shoppers near you" },
-    { href: "/business", label: "Store dashboard" },
-    { href: "/developers", label: "Try-on API for developers" },
-    { href: "/earn", label: "Invite friends & earn credits" },
-  ];
-  const legal: Row[] = [
-    { href: "/privacy", label: "Privacy policy" },
-    { href: "/terms", label: "Terms of use" },
-    { href: "/photo-policy", label: "Photo & data policy" },
-    { href: "/affiliate-disclosure", label: "Affiliate disclosure" },
-  ];
-
   return (
     <section className="mx-auto max-w-[620px] px-4 pb-8 pt-5">
       {user ? (
@@ -133,6 +113,7 @@ export function MeHub() {
               { href: me.data ? `/u/${me.data.handle}` : "/community/me", label: "My community profile" },
               { href: "/wardrobe", label: "My wardrobe" },
               { href: "/outfits", label: "Outfit builder" },
+              { href: "/earn", label: "Invite friends & earn credits" },
             ]}
           />
         )}
@@ -151,6 +132,7 @@ export function MeHub() {
               { href: "/preferences#size", label: "My size" },
               { href: "/preferences", label: "My style picks" },
               { href: "/account", label: "My account & password" },
+              { href: "/business", label: "My store dashboard", hint: "If you sell on TryOnU" },
               { href: "/app", label: "Get the app" },
               ...(user.is_admin ? [{ href: "/admin", label: "Admin dashboard" }] : []),
             ]}
@@ -160,9 +142,6 @@ export function MeHub() {
           <span className="text-[16px] text-ink">Light or dark look</span>
           <ThemeToggle />
         </div>
-        <Group title="Business" rows={business} />
-        <Group title="Help" rows={help} />
-        <Group title="Legal" rows={legal} />
         {user && (
           <button
             type="button"
@@ -176,7 +155,7 @@ export function MeHub() {
             Sign out
           </button>
         )}
-        <p className="pt-2 text-center text-[12.5px] text-faint">© {new Date().getFullYear()} TryOnU</p>
+        <p className="pt-2 text-center text-[13px] text-faint">Help, prices, business and legal pages: tap ☰ at the top.</p>
       </div>
     </section>
   );
