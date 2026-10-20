@@ -42,11 +42,11 @@ export function NotificationsPage() {
     if (!n.read) notifications.read(n.id).then((r) => qc.setQueryData(UNREAD_KEY, r)).catch(() => undefined);
   };
   return (
-    <section className="tu-container py-8 md:py-12">
+    <section className="tu-container pb-10 pt-3 lg:py-12">
       <div className="mx-auto grid max-w-[1000px] gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h1 className="font-display text-[clamp(28px,4vw,40px)] leading-tight text-ink">Notifications</h1>
+            <h1 className="font-display text-[clamp(28px,4vw,40px)] leading-tight text-ink max-lg:hidden">Notifications</h1>
             {unread > 0 && (
               <button
                 type="button"

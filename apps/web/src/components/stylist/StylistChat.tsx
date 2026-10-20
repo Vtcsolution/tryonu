@@ -84,11 +84,11 @@ export function StylistChat() {
   }
 
   return (
-    <section className="mx-auto flex tu-container flex-col py-14 md:py-20">
-      <h1 className="font-display text-[clamp(26px,4vw,40px)] leading-tight text-ink">
+    <section className="mx-auto flex tu-container flex-col pb-6 pt-4 lg:py-20">
+      <h1 className="font-display text-[clamp(26px,4vw,40px)] leading-tight text-ink max-lg:hidden">
         Your AI <em>fashion stylist</em>
       </h1>
-      <p className="mt-3 max-w-lg text-[16px] leading-relaxed text-muted">
+      <p className="max-w-lg text-[15px] leading-relaxed text-muted lg:mt-3 lg:text-[16px]">
         Ask for an outfit, an occasion look, or a budget — every recommendation comes straight
         from the real product catalog. Never invented.
       </p>

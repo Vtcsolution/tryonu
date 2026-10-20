@@ -37,18 +37,21 @@ export function SavedLooksGallery() {
   }
 
   return (
-    <section className="tu-container py-12 md:py-16">
-      <h1 className="font-display text-[clamp(28px,4vw,42px)] leading-tight text-ink">
+    <section className="tu-container flex flex-col pb-10 pt-4 lg:py-16">
+      <h1 className="font-display text-[clamp(28px,4vw,42px)] leading-tight text-ink max-lg:hidden">
         Your <em>saved looks</em>
       </h1>
-      <p className="mt-2 max-w-2xl text-[16.5px] leading-relaxed text-ink-soft">
+      <p className="mt-2 max-w-2xl text-[16.5px] leading-relaxed text-ink-soft max-lg:hidden">
         Every look you saved. Press <b>View look</b> to see it full size with its products and shop links, or <b>Share</b> to send
         it to friends: they can try the same products on themselves.
       </p>
 
-      <ShareAndEarn />
+      {/* phones: the looks first, inviting friends after them */}
+      <div className="max-lg:order-2">
+        <ShareAndEarn />
+      </div>
 
-      <div className="mt-8">
+      <div className="lg:mt-8">
         {looksQuery.isLoading && (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
             {Array.from({ length: 4 }).map((_, i) => (

@@ -71,18 +71,18 @@ export function ForYouFeed() {
   const noPicks = data && data.sections.length === 0;
 
   return (
-    <section className="tu-container py-10 md:py-14">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-[12.5px] font-semibold uppercase tracking-[0.12em] text-sage-deep">For you</p>
-          <h1 className="mt-1 font-display text-[clamp(28px,4.4vw,44px)] leading-tight text-ink">
+    <section className="tu-container pb-10 pt-3 lg:py-14">
+      <div className="flex items-end justify-between gap-3 lg:flex-wrap lg:gap-4">
+        <div className="min-w-0">
+          <p className="text-[12.5px] font-semibold uppercase tracking-[0.12em] text-sage-deep max-lg:hidden">For you</p>
+          <h1 className="font-display text-[24px] leading-tight text-ink lg:mt-1 lg:text-[clamp(28px,4.4vw,44px)]">
             Picked for <em>your style</em>
           </h1>
-          <p className="mt-2 max-w-xl text-[15.5px] text-muted">
+          <p className="mt-2 max-w-xl text-[15.5px] text-muted max-lg:hidden">
             Live from real stores, based on what you told us you love. Try anything on yourself before you buy.
           </p>
         </div>
-        <Button href="/preferences?next=%2Ffor-you" variant="outline" size="sm">
+        <Button href="/preferences?next=%2Ffor-you" variant="outline" size="sm" className="shrink-0">
           Edit my picks
         </Button>
       </div>

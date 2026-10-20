@@ -48,11 +48,11 @@ export function ChallengePage({ id }: { id: string }) {
   return (
     <section className="tu-container py-8 md:py-12">
       <div className="mx-auto max-w-[680px]">
-        <Link href="/community/challenges" className="inline-flex min-h-[40px] items-center rounded-full border border-line px-4 text-[14px] font-semibold text-ink-soft hover:text-ink">
+        <Link href="/community/challenges" className="inline-flex min-h-[40px] items-center rounded-full border border-line px-4 text-[14px] font-semibold text-ink-soft hover:text-ink max-lg:hidden">
           ← All challenges
         </Link>
 
-        <header className="mt-4 rounded-[22px] border border-[#c9a13b]/40 bg-gradient-to-br from-[#c9a13b]/[0.14] via-surface to-sage-tint/30 p-5 md:p-6">
+        <header className="rounded-[22px] lg:mt-4 border border-[#c9a13b]/40 bg-gradient-to-br from-[#c9a13b]/[0.14] via-surface to-sage-tint/30 p-5 md:p-6">
           <p className="flex items-center gap-1.5 text-[12.5px] font-semibold uppercase tracking-[0.12em] text-[#8a6d1f]">
             <TrophyIcon size={15} color="#a8842a" /> Style challenge · {ch.state === "ended" ? `Ended ${fmt(ch.ends_at)}` : timeLeft(ch)}
           </p>
@@ -198,10 +198,10 @@ export function ChallengesList() {
   return (
     <section className="tu-container py-8 md:py-12">
       <div className="mx-auto max-w-[760px]">
-        <Link href="/community" className="inline-flex min-h-[40px] items-center rounded-full border border-line px-4 text-[14px] font-semibold text-ink-soft hover:text-ink">
+        <Link href="/community" className="inline-flex min-h-[40px] items-center rounded-full border border-line px-4 text-[14px] font-semibold text-ink-soft hover:text-ink max-lg:hidden">
           ← Community
         </Link>
-        <h1 className="mt-4 font-display text-[clamp(28px,4vw,40px)] leading-tight text-ink">Style challenges</h1>
+        <h1 className="mt-4 font-display text-[clamp(28px,4vw,40px)] leading-tight text-ink max-lg:hidden">Style challenges</h1>
         <p className="mt-1 text-[16px] text-muted">A new theme every week. The most liked looks win free credits.</p>
         {none && <p className="mt-8 rounded-[20px] border border-dashed border-line p-10 text-center text-[16px] text-muted">The first challenge is coming soon.</p>}
         {groups.map(([label, list]) =>

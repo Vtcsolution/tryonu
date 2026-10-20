@@ -26,12 +26,12 @@ export function SavedPosts() {
   if (!user || list.isLoading) return <div className="mx-auto my-24 h-8 w-8 animate-spin rounded-full border-2 border-line-strong border-t-sage" />;
   const posts = (list.data?.pages.flatMap((p) => p.posts) ?? []).filter((p) => !removed.includes(p.id));
   return (
-    <section className="tu-container py-8 md:py-12">
+    <section className="tu-container pb-10 pt-3 lg:py-12">
       <div className="mx-auto max-w-[640px]">
-        <Link href="/community" className="inline-flex min-h-[40px] items-center rounded-full border border-line px-4 text-[14px] font-semibold text-ink-soft hover:text-ink">
+        <Link href="/community" className="inline-flex min-h-[40px] items-center rounded-full border border-line px-4 text-[14px] font-semibold text-ink-soft hover:text-ink max-lg:hidden">
           ← Community
         </Link>
-        <h1 className="mt-4 font-display text-[clamp(28px,4vw,40px)] leading-tight text-ink">Saved posts</h1>
+        <h1 className="mt-4 font-display text-[clamp(28px,4vw,40px)] leading-tight text-ink max-lg:hidden">Saved posts</h1>
         <p className="mt-1 text-[15.5px] text-muted">Only you can see what you saved.</p>
         <div className="mt-6 space-y-6">
           {posts.length === 0 && (

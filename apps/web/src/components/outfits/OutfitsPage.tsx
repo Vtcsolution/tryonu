@@ -34,13 +34,13 @@ export function OutfitsPage() {
   }
 
   return (
-    <section className="tu-container py-14 md:py-20">
+    <section className="tu-container pb-10 pt-4 lg:py-20">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-[clamp(26px,4vw,40px)] leading-tight text-ink">
+          <h1 className="font-display text-[clamp(26px,4vw,40px)] leading-tight text-ink max-lg:hidden">
             Outfit <em>builder</em>
           </h1>
-          <p className="mt-3 max-w-lg text-[16px] leading-relaxed text-muted">
+          <p className="max-w-lg text-[15px] leading-relaxed text-muted lg:mt-3 lg:text-[16px]">
             Combine real products into a complete outfit — see a live compatibility score as you build.
           </p>
         </div>

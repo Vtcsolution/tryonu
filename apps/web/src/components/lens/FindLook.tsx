@@ -97,7 +97,7 @@ export function FindLook() {
   if (isLoading) return <div className="mx-auto my-24 h-8 w-8 animate-spin rounded-full border-2 border-line-strong border-t-sage" />;
 
   return (
-    <section className="tu-container py-8 md:py-12">
+    <section className="tu-container pb-10 pt-4 lg:py-12">
       {!result && !busy && <Intro signedIn={!!user} />}
 
       {!user ? (
@@ -136,13 +136,13 @@ export function FindLook() {
 function Intro({ signedIn }: { signedIn: boolean }) {
   return (
     <div className="mx-auto max-w-2xl text-center">
-      <p className="text-[13px] font-semibold uppercase tracking-[0.16em] text-sage-deep">Find the look</p>
-      <h1 className="mt-2 font-display text-[clamp(32px,5vw,52px)] leading-[1.05] text-ink">
+      <p className="text-[13px] font-semibold uppercase tracking-[0.16em] text-sage-deep max-lg:hidden">Find the look</p>
+      <h1 className="font-display text-[26px] leading-[1.1] text-ink lg:mt-2 lg:text-[clamp(32px,5vw,52px)]">
         Saw an outfit you love? <em>Find it.</em>
       </h1>
-      <p className="mt-4 text-[17.5px] leading-relaxed text-ink-soft">
+      <p className="mt-2 text-[15px] leading-relaxed text-ink-soft lg:mt-4 lg:text-[17.5px]">
         Upload a photo or a screenshot. TryOnU finds every item in it (clothes, shoes, bags, jewellery) and shows you the same products, or
-        the closest ones, from real shops. Then try them on yourself.
+        the closest ones, from real shops<span className="max-lg:hidden">. Then try them on yourself</span>.
       </p>
       {!signedIn && (
         <ol className="mx-auto mt-6 grid max-w-xl gap-2 text-left text-[15px] text-ink-soft sm:grid-cols-3">
@@ -160,7 +160,7 @@ function Start({ onFile, onLook, error }: { onFile: (f: File | undefined) => voi
   const looks = useQuery({ queryKey: ["community", "my-looks"], queryFn: community.myLooks });
   const recent = useQuery({ queryKey: ["lens", "mine"], queryFn: lens.list });
   return (
-    <div className="mx-auto mt-8 max-w-3xl">
+    <div className="mx-auto mt-5 max-w-3xl lg:mt-8">
       <label
         onDragOver={(e) => {
           e.preventDefault();
@@ -172,7 +172,7 @@ function Start({ onFile, onLook, error }: { onFile: (f: File | undefined) => voi
           setDrag(false);
           onFile(e.dataTransfer.files?.[0]);
         }}
-        className={`flex cursor-pointer flex-col items-center justify-center rounded-[24px] border-2 border-dashed px-6 py-12 text-center transition-colors ${
+        className={`flex cursor-pointer flex-col items-center justify-center rounded-[24px] border-2 border-dashed px-6 py-8 text-center transition-colors lg:py-12 ${
           drag ? "border-sage bg-sage-tint/30" : "border-line-strong bg-surface hover:border-sage"
         }`}
       >

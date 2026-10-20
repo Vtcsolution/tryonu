@@ -17,14 +17,14 @@ export function ContentPage({
 }) {
   return (
     <SiteChrome>
-      <header className="border-b border-line bg-paper-2/60">
-        <div className={`mx-auto py-12 md:py-16 ${narrow ? "w-[min(860px,calc(100%-32px))]" : "tu-container"}`}>
-          <p className="text-[13px] font-semibold uppercase tracking-[0.16em] text-sage-deep">{kicker}</p>
-          <h1 className="mt-2 font-display text-[clamp(32px,5vw,54px)] leading-[1.05] text-ink">{title}</h1>
-          {intro && <p className="mt-4 max-w-2xl text-[17.5px] leading-relaxed text-ink-soft">{intro}</p>}
+      <header className={`border-b border-line bg-paper-2/60 ${intro ? "" : "max-lg:hidden"}`}>
+        <div className={`mx-auto py-4 lg:py-16 ${narrow ? "w-[min(860px,calc(100%-32px))]" : "tu-container"}`}>
+          <p className="text-[13px] font-semibold uppercase tracking-[0.16em] text-sage-deep max-lg:hidden">{kicker}</p>
+          <h1 className="mt-2 font-display text-[clamp(32px,5vw,54px)] leading-[1.05] text-ink max-lg:hidden">{title}</h1>
+          {intro && <p className="max-w-2xl text-[15.5px] leading-relaxed text-ink-soft lg:mt-4 lg:text-[17.5px]">{intro}</p>}
         </div>
       </header>
-      <div className={`mx-auto py-12 md:py-16 ${narrow ? "w-[min(860px,calc(100%-32px))]" : "tu-container"}`}>
+      <div className={`mx-auto py-6 lg:py-16 ${narrow ? "w-[min(860px,calc(100%-32px))]" : "tu-container"}`}>
         {children}
       </div>
     </SiteChrome>

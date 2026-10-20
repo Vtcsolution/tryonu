@@ -137,7 +137,10 @@ export function PhotoUploader({
         <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-[18px] border border-line-strong text-2xl text-sage">
           ⇧
         </div>
-        <p className="text-[16px] font-semibold text-ink">Drag photos here, or</p>
+        <p className="text-[16px] font-semibold text-ink">
+          <span className="lg:hidden">Take or choose a photo</span>
+          <span className="max-lg:hidden">Drag photos here, or</span>
+        </p>
         <div className="mt-3 flex justify-center">
           <Button
             variant="outline"

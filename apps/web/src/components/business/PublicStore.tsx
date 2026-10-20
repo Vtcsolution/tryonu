@@ -55,7 +55,7 @@ export function PublicStore({ slug, initial }: { slug: string; initial?: PublicS
   const busyId = tryOn.isPending ? tryOn.variables?.id : buy.isPending ? buy.variables?.id : undefined;
 
   return (
-    <section className="tu-container py-12 md:py-16">
+    <section className="tu-container pb-10 pt-4 lg:py-16">
       <header className="flex flex-wrap items-center gap-5 rounded-[28px] border border-line bg-surface p-6 md:p-8">
         {s.logo_url ? (
           // eslint-disable-next-line @next/next/no-img-element

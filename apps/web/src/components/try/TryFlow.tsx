@@ -467,7 +467,7 @@ export function TryFlow() {
   }
 
   return (
-    <section className="tu-container py-14 md:py-20">
+    <section className="tu-container pb-10 pt-4 lg:py-20">
       {/* progress header */}
       <ol className="flex w-full items-center gap-3 text-[13px] sm:gap-4">
         {STEPS.map((label, i) => {
@@ -497,7 +497,7 @@ export function TryFlow() {
           );
         })}
       </ol>
-      <p className="mb-8 mt-3 text-[14px] text-muted sm:hidden">
+      <p className="mb-5 mt-3 text-[14px] text-muted sm:hidden">
         Step {Math.min(activeStepIndex, 2) + 1} of {STEPS.length} · <span className="text-ink">{STEPS[Math.min(activeStepIndex, 2)]}</span>
       </p>
       <div className="mb-10 hidden sm:block" />
@@ -505,15 +505,22 @@ export function TryFlow() {
       {/* STEP 0 — upload */}
       {step === 0 && (
         <div key="s0" className="animate-[tu-in-right_0.4s_cubic-bezier(0.22,1,0.36,1)]">
-          <h1 className="font-display text-[clamp(26px,4vw,40px)] leading-tight text-ink">
-            Build your <em>fitting profile</em>
+          <h1 className="font-display text-[24px] leading-tight text-ink lg:text-[clamp(26px,4vw,40px)]">
+            {/* phones: say it in plain words */}
+            <span className="lg:hidden">Add your photo</span>
+            <span className="max-lg:hidden">
+              Build your <em>fitting profile</em>
+            </span>
           </h1>
-          <p className="mt-3 max-w-lg text-[16px] leading-relaxed text-muted">
-            A clear front photo is all you need — add back and side photos for even better results. We reuse them for every
-            try-on. Nothing is shared with retailers.
+          <p className="mt-2 max-w-lg text-[15px] leading-relaxed text-muted lg:mt-3 lg:text-[16px]">
+            <span className="lg:hidden">One clear, full-length photo of you. We use it for every try-on and never share it.</span>
+            <span className="max-lg:hidden">
+              A clear front photo is all you need — add back and side photos for even better results. We reuse them for every
+              try-on. Nothing is shared with retailers.
+            </span>
           </p>
 
-          <div className="mt-8 rounded-[26px] border border-line bg-surface p-6 sm:p-8">
+          <div className="mt-5 lg:mt-8 lg:rounded-[26px] lg:border lg:border-line lg:bg-surface lg:p-8">
             <PhotoUploader
               onPhotosChange={(p, ready) => {
                 setUserPhotos(p);

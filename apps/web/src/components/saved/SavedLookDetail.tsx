@@ -79,9 +79,11 @@ export function SavedLookDetail({ id }: { id: string }) {
   const price = lookPrice(look);
 
   return (
-    <section className="tu-container py-8 md:py-12">
+    <section className="tu-container pb-10 pt-3 lg:py-12">
       <div className="flex flex-wrap items-center gap-3">
-        <Button href="/saved" size="sm" variant="outline">← All saved looks</Button>
+        <span className="max-lg:hidden">
+          <Button href="/saved" size="sm" variant="outline">← All saved looks</Button>
+        </span>
         <div className="ml-auto">{look.tryon_job_id && <ShareLook jobId={look.tryon_job_id} />}</div>
       </div>
 
@@ -101,7 +103,7 @@ export function SavedLookDetail({ id }: { id: string }) {
             {items.length > 1 ? `${items.length}-item outfit` : "Saved look"}
             {price ? ` · ${price}` : ""}
           </p>
-          <h1 className="mt-1 font-display text-[clamp(26px,3vw,34px)] leading-tight text-ink">{lookTitle(look)}</h1>
+          <h1 className="mt-1 font-display text-[22px] leading-tight text-ink lg:text-[clamp(26px,3vw,34px)]">{lookTitle(look)}</h1>
 
           {items.length > 0 ? (
             <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">

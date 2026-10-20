@@ -8,13 +8,17 @@ import { MobileNav } from "@/components/marketing/MobileNav";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { LensHeaderButton } from "@/components/lens/LensHeaderButton";
 import { PhoneAccount } from "@/components/app/PhoneAccount";
+import { PhoneTitle } from "@/components/app/PhoneTitle";
 import { BUSINESS, COMPANY, PRODUCT, TOP_LINKS, type NavGroup } from "@/components/marketing/navLinks";
 
 export function Navbar() {
   return (
     <header className="sticky top-0 z-50 border-b border-line/70 bg-paper/80 backdrop-blur-xl">
       <div className="mx-auto flex h-14 tu-container items-center justify-between gap-3 lg:h-[72px] lg:gap-4">
-        <Logo size={28} />
+        <span className="hidden lg:inline-flex">
+          <Logo size={30} />
+        </span>
+        <PhoneTitle />
 
         <nav aria-label="Main" className="hidden items-center gap-6 whitespace-nowrap xl:flex 2xl:gap-8">
           <NavMenu group={PRODUCT} />

@@ -76,11 +76,11 @@ export function BuyCreditsPanel() {
   }
 
   return (
-    <section className="mx-auto w-[min(880px,calc(100%-42px))] py-14 md:py-20">
-      <h1 className="font-display text-[clamp(26px,4vw,40px)] leading-tight text-ink">
+    <section className="mx-auto w-[min(880px,calc(100%-32px))] pb-10 pt-4 lg:py-20">
+      <h1 className="font-display text-[clamp(26px,4vw,40px)] leading-tight text-ink max-lg:hidden">
         Buy <em>credits</em>
       </h1>
-      <p className="mt-3 max-w-lg text-[16px] leading-relaxed text-muted">
+      <p className="max-w-lg text-[16px] leading-relaxed text-muted lg:mt-3">
         You currently have <b className="text-ink">{user.credits_balance} credits</b>.
         {tryOnCost !== null ? ` Each try-on uses ${tryOnCost} credits.` : " Each try-on uses a few credits."}
       </p>

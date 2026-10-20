@@ -28,10 +28,12 @@ export function PostDetail({ id }: { id: string }) {
     );
   }
   return (
-    <section className="tu-container py-8 md:py-12">
+    <section className="tu-container pb-10 pt-3 lg:py-12">
       <div className="mx-auto max-w-[640px]">
-        <Button href="/community" size="sm" variant="outline">← Community</Button>
-        <div className="mt-4">
+        <span className="max-lg:hidden">
+          <Button href="/community" size="sm" variant="outline">← Community</Button>
+        </span>
+        <div className="lg:mt-4">
           <PostCard post={post.data} openComments onRemoved={() => router.replace("/community")} />
         </div>
       </div>

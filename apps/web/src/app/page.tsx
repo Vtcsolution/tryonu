@@ -8,6 +8,7 @@ import { Marketplaces } from "@/components/marketing/Marketplaces";
 import { HowItWorks } from "@/components/marketing/HowItWorks";
 import { FinalCTA } from "@/components/marketing/FinalCTA";
 import { FindLookPromo } from "@/components/marketing/FindLookPromo";
+import { PhoneHome } from "@/components/app/PhoneHome";
 import { HomeFaq } from "@/components/marketing/HomeFaq";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { serverFetch } from "@/lib/api/server";
@@ -73,6 +74,7 @@ export default async function HomePage() {
           token in `value`, and the metadata API only ever emits `content`.
           React hoists it into <head>. */}
       <meta {...IMPACT_SITE_VERIFICATION} />
+      <PhoneHome />
       <Hero />
       <TrustedBand />
 

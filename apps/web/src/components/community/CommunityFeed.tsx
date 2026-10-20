@@ -54,11 +54,11 @@ export function CommunityFeed() {
 
   const posts = (feed.data?.pages.flatMap((p) => p.posts) ?? []).filter((p) => !removed.includes(p.id));
   return (
-    <section className="tu-container py-8 md:py-12">
+    <section className="tu-container pb-10 pt-3 lg:py-12">
       <div className="mx-auto grid max-w-[1100px] gap-8 lg:grid-cols-[minmax(0,640px)_minmax(0,1fr)]">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h1 className="font-display text-[clamp(28px,4vw,40px)] leading-tight text-ink">Community</h1>
+            <h1 className="font-display text-[24px] leading-tight text-ink lg:text-[clamp(28px,4vw,40px)]">Community</h1>
             <div className="flex items-center gap-2">
               <Link
                 href="/community/reels"

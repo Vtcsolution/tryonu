@@ -38,7 +38,7 @@ export function SubscriptionPanel() {
   const current = currentQuery.data;
 
   return (
-    <div className="rounded-[22px] border border-line bg-surface p-6">
+    <div className="lg:rounded-[22px] lg:border lg:border-line lg:bg-surface lg:p-6">
       <h2 className="font-display text-[18px] text-ink">Subscribe monthly</h2>
       <p className="mt-1 text-[14px] text-muted">Recurring credits every month — cancel anytime.</p>
 

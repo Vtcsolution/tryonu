@@ -11,7 +11,7 @@ import { auth, community, extension, preferences } from "@/lib/api/endpoints";
 import type { User } from "@/lib/api/types";
 import { SESSION_QUERY_KEY } from "@/lib/auth/useSession";
 
-const card = "rounded-[24px] border border-line bg-surface p-6 sm:p-7";
+const card = "rounded-[24px] border border-line bg-surface p-4 sm:p-7";
 
 /** Your name, your email, and changing your password. Used on /account and in
  *  the admin panel's "My account" tab. */

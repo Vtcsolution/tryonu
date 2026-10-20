@@ -247,7 +247,7 @@ export function InstallAppCard({ big = false }: { big?: boolean }) {
 /** /app: get TryOnU on your phone. */
 export function GetTheApp() {
   return (
-    <section className="tu-container py-10 md:py-14">
+    <section className="tu-container pb-10 pt-4 lg:py-14">
       <div className="mx-auto max-w-2xl">
         <p className="text-[13px] font-semibold uppercase tracking-[0.16em] text-sage-deep">Get the app</p>
         <h1 className="mt-2 font-display text-[clamp(32px,5vw,50px)] leading-[1.05] text-ink">

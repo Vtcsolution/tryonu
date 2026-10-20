@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { BackButton } from "@/components/app/BackButton";
 import { Logo } from "@/components/ui/Logo";
 
 export function AuthCard({
@@ -16,6 +17,7 @@ export function AuthCard({
 }) {
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-paper px-4 py-16">
+      <BackButton className="absolute left-2 top-[max(8px,env(safe-area-inset-top))] z-10" />
       <div
         aria-hidden="true"
         className="pointer-events-none absolute left-1/2 top-[-10%] h-[460px] w-[460px] -translate-x-1/2 rounded-full bg-sage-tint/60 blur-[90px]"

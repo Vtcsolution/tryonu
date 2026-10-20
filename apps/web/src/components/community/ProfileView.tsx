@@ -48,7 +48,7 @@ export function ProfileView({ handle }: { handle: string }) {
   const p = profile.data;
   const items = posts.data?.pages.flatMap((pg) => pg.posts) ?? [];
   return (
-    <section className="tu-container py-8 md:py-12">
+    <section className="tu-container pb-10 pt-3 lg:py-12">
       <div className="mx-auto max-w-[1000px]">
         <div className="flex flex-wrap items-center gap-5 rounded-[24px] border border-line bg-surface p-5 md:p-7">
           {p.is_me ? (
