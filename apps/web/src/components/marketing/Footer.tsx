@@ -2,30 +2,7 @@ import Link from "next/link";
 import { Logo } from "@/components/ui/Logo";
 import { SOCIAL_LINKS, type SocialName } from "@/lib/seo";
 import { LANDINGS } from "@/lib/seoContent";
-import { BUSINESS, COMPANY, LEGAL, PRODUCT, type NavItem } from "@/components/marketing/navLinks";
-
-const COLS: { heading: string; links: NavItem[] }[] = [
-  {
-    heading: "Shoppers",
-    links: [...PRODUCT.items.filter((l) => l.href !== "/#marketplaces"), { label: "Pricing", href: "/pricing" }, { label: "How it works", href: "/how-it-works" }],
-  },
-  {
-    heading: "Business",
-    links: [
-      ...BUSINESS.items,
-      { label: "Create a store account", href: "/business/sign-up" },
-      { label: "Create a developer account", href: "/developers/sign-up" },
-    ],
-  },
-  {
-    heading: "Earn & company",
-    links: [
-      { label: "Invite friends & earn credits", href: "/earn" },
-      ...COMPANY.items.filter((l) => l.href !== "/earn"),
-    ],
-  },
-  { heading: "Legal", links: LEGAL },
-];
+import { GROUPS, LEGAL } from "@/components/marketing/navLinks";
 
 export function Footer() {
   return (
@@ -62,11 +39,11 @@ export function Footer() {
             </div>
           </div>
 
-          {COLS.map((col) => (
-            <div key={col.heading}>
-              <h4 className="text-[13px] font-semibold uppercase tracking-[0.14em] text-faint">{col.heading}</h4>
+          {GROUPS.map((col) => (
+            <div key={col.label}>
+              <h4 className="text-[13px] font-semibold uppercase tracking-[0.14em] text-faint">{col.label}</h4>
               <ul className="mt-4 space-y-2.5 text-[15px] text-ink-soft">
-                {col.links.map((l) => (
+                {col.items.map((l) => (
                   <li key={l.href}>
                     <Link href={l.href} prefetch={false} className="transition-colors hover:text-ink">
                       {l.label}
@@ -98,7 +75,14 @@ export function Footer() {
         </div>
 
         <div className="mt-8 flex flex-col gap-3 border-t border-line pt-6 text-[13.5px] text-faint lg:flex-row lg:items-center lg:justify-between">
-          <span>© {new Date().getFullYear()} TryOnU. All rights reserved.</span>
+          <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span>© {new Date().getFullYear()} TryOnU</span>
+            {LEGAL.map((l) => (
+              <Link key={l.href} href={l.href} prefetch={false} className="hover:text-ink-soft">
+                {l.label}
+              </Link>
+            ))}
+          </span>
           <span className="max-w-3xl lg:text-right">
             Try-on pictures are made with AI and are a preview: fit, size and colour can differ in real life. TryOnU may earn a
             commission when you buy through its shop links, at no extra cost to you.{" "}

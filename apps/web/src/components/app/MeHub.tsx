@@ -107,13 +107,13 @@ export function MeHub() {
                 label: "Notifications",
                 badge: count > 0 ? <span className="rounded-full bg-[#c0503a] px-2 py-0.5 text-[12px] font-bold text-white">{count}</span> : undefined,
               },
-              { href: "/saved", label: "Saved looks" },
+              { href: "/saved", label: "My looks" },
               { href: "/community/saved", label: "Saved posts" },
               { href: "/alerts", label: "Price alerts" },
-              { href: me.data ? `/u/${me.data.handle}` : "/community/me", label: "My community profile" },
-              { href: "/wardrobe", label: "My wardrobe" },
-              { href: "/outfits", label: "Outfit builder" },
-              { href: "/earn", label: "Invite friends & earn credits" },
+              { href: me.data ? `/u/${me.data.handle}` : "/community/me", label: "My profile" },
+              { href: "/wardrobe", label: "My clothes" },
+              { href: "/outfits", label: "Build an outfit" },
+              { href: "/earn", label: "Invite & earn" },
             ]}
           />
         )}
@@ -121,7 +121,7 @@ export function MeHub() {
           title="Shop with AI"
           rows={[
             { href: "/stylist", label: "AI Stylist", hint: "Describe a look, get real products" },
-            { href: "/find-look", label: "Find a look by photo", hint: "Upload a photo, get the products" },
+            { href: "/find-look", label: "Find by photo", hint: "Upload a photo, get the products" },
             { href: "/community/challenges", label: "Style challenges", hint: "Win free credits every week" },
           ]}
         />
@@ -129,12 +129,11 @@ export function MeHub() {
           <Group
             title="Settings"
             rows={[
-              { href: "/preferences#size", label: "My size" },
-              { href: "/preferences", label: "My style picks" },
-              { href: "/account", label: "My account & password" },
-              { href: "/business", label: "My store dashboard", hint: "If you sell on TryOnU" },
+              { href: "/preferences", label: "My size & style" },
+              { href: "/account", label: "Settings", hint: "Name, email, password" },
+              { href: "/business", label: "My store", hint: "If you sell on TryOnU" },
               { href: "/app", label: "Get the app" },
-              ...(user.is_admin ? [{ href: "/admin", label: "Admin dashboard" }] : []),
+              ...(user.is_admin ? [{ href: "/admin", label: "Admin" }] : []),
             ]}
           />
         )}

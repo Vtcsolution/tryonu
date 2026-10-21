@@ -146,7 +146,8 @@ export function PwaSetup() {
   useEffect(() => setupPwa(), []);
 
   useEffect(() => {
-    if (!device || device === "installed" || device === "desktop") return;
+    // phones only: on a computer the app is one menu click away ("Get the app"), no pop-up
+    if (!device || device === "installed" || device === "desktop" || !window.matchMedia("(max-width: 1023px)").matches) return;
     const seen = readNumber(VISITS_KEY) + 1;
     write(VISITS_KEY, String(seen));
     const snoozed = readNumber(SNOOZE_KEY);

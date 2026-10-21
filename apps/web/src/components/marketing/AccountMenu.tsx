@@ -88,24 +88,15 @@ export function AccountMenu() {
             </button>
           )}
           {[
-            { href: "/for-you", label: "For you" },
-            { href: "/try", label: "Try-on studio" },
-            { href: "/stylist", label: "AI Stylist" },
-            { href: "/find-look", label: "Find a look by photo" },
-            { href: "/outfits", label: "Outfit builder" },
-            { href: "/wardrobe", label: "My wardrobe" },
-            { href: "/saved", label: "Saved looks" },
-            { href: "/alerts", label: "Price alerts" },
-            { href: "/community", label: "Community" },
-            { href: "/community/me", label: "My community profile" },
+            { href: "/saved", label: "My looks" },
             { href: "/notifications", label: "Notifications" },
-            { href: "/app", label: "Get the app" },
-            { href: "/saved#earn", label: "Invite friends & earn credits" },
-            { href: "/preferences", label: "My style picks" },
-            { href: "/preferences#size", label: "My size" },
+            { href: "/alerts", label: "Price alerts" },
+            { href: "/community/me", label: "My profile" },
+            { href: "/preferences", label: "My size & style" },
             { href: "/credits", label: "Buy credits" },
-            { href: "/account", label: "My account & password" },
-            ...(user.is_admin ? [{ href: "/admin", label: "Admin dashboard" }] : []),
+            { href: "/earn", label: "Invite & earn" },
+            { href: "/account", label: "Settings" },
+            ...(user.is_admin ? [{ href: "/admin", label: "Admin" }] : []),
           ].map((item) => (
             <Link
               key={item.href}

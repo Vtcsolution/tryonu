@@ -4,12 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { BUSINESS, COMPANY, LEGAL, PRODUCT, TOP_LINKS } from "@/components/marketing/navLinks";
+import { GROUPS, LEGAL } from "@/components/marketing/navLinks";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { useSession } from "@/lib/auth/useSession";
 
 // a member's own pages: in the "Me" tab, not in the website menu
-const MINE = ["/wardrobe", "/saved"];
+const MINE = ["/wardrobe", "/business"];
 
 /** Phones and small screens: the website's pages (product, business, help, legal) behind ☰.
  * A member's own pages live in the "Me" tab on phones. */
@@ -75,7 +75,7 @@ export function MobileNav() {
                     <span className="block text-[13.5px] text-muted">On your home screen, free, no app store</span>
                   </span>
                 </Link>
-                {[PRODUCT, BUSINESS, COMPANY].map((g) => (
+                {GROUPS.map((g) => (
                   <div key={g.label}>
                     <p className="text-[12.5px] font-semibold uppercase tracking-[0.12em] text-faint">{g.label}</p>
                     <ul className="mt-2">
@@ -89,15 +89,6 @@ export function MobileNav() {
                     </ul>
                   </div>
                 ))}
-                <ul className="border-t border-line pt-4">
-                  {TOP_LINKS.map((l) => (
-                    <li key={l.href}>
-                      <Link href={l.href} prefetch={false} className="block py-2.5 text-[16.5px] text-ink hover:text-sage-deep">
-                        {l.label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
                 <div>
                   <p className="text-[12.5px] font-semibold uppercase tracking-[0.12em] text-faint">Legal</p>
                   <ul className="mt-2">

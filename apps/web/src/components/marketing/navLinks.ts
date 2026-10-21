@@ -1,53 +1,64 @@
-/** The site's navigation, shared by the header, the phone menu and the footer. */
+/** The site's navigation, shared by the header, the phone menu and the footer.
+ * Few links, plain words: someone aged 10 or 90 should know at once where each goes. */
 
-export type NavItem = { label: string; href: string; hint?: string };
+export type NavItem = { label: string; href: string };
 export type NavGroup = { label: string; items: NavItem[] };
 
-export const PRODUCT: NavGroup = {
-  label: "Product",
-  items: [
-    { label: "Try-on studio", href: "/try", hint: "See any product on your own photo" },
-    { label: "Find a look by photo", href: "/find-look", hint: "Upload a photo, get the products in it" },
-    { label: "AI Stylist", href: "/stylist", hint: "Describe a look, get real products" },
-    { label: "Outfit builder", href: "/outfits", hint: "Put several pieces together" },
-    { label: "My wardrobe", href: "/wardrobe", hint: "Try with clothes you own" },
-    { label: "Saved looks", href: "/saved", hint: "Your lookbook, ready to share" },
-    { label: "Browser extension", href: "/extension", hint: "Try on from eBay, AliExpress, any shop" },
-    { label: "Get the phone app", href: "/app", hint: "TryOnU on your iPhone or Android home screen" },
-    { label: "Marketplaces", href: "/#marketplaces", hint: "eBay, AliExpress, brand stores and local shops" },
-  ],
-};
-
-export const BUSINESS: NavGroup = {
-  label: "For business",
-  items: [
-    { label: "Sell on TryOnU", href: "/sell", hint: "Open a store, reach shoppers near you" },
-    { label: "Store dashboard", href: "/business", hint: "Products, plans and shopper try-ons" },
-    { label: "Store extension", href: "/extension#stores", hint: "Add products from any page in one click" },
-    { label: "Try-on API", href: "/developers", hint: "Virtual try-on for your app or site" },
-    { label: "API docs & plugins", href: "/developers/docs", hint: "Shopify, WordPress, any website" },
-  ],
-};
-
-export const COMPANY: NavGroup = {
-  label: "Company",
-  items: [
-    { label: "About TryOnU", href: "/about", hint: "Who we are and what we do" },
-    { label: "Questions & answers", href: "/faq", hint: "How it works, prices, privacy" },
-    { label: "Invite & earn", href: "/earn", hint: "Earn credits when friends join" },
-    { label: "Contact", href: "/contact", hint: "Questions, stores, partnerships" },
-  ],
-};
-
-export const TOP_LINKS: NavItem[] = [
+/** The header's links on computers. */
+export const MAIN: NavItem[] = [
+  { label: "Try on", href: "/try" },
+  { label: "Find by photo", href: "/find-look" },
+  { label: "AI Stylist", href: "/stylist" },
   { label: "Community", href: "/community" },
   { label: "Pricing", href: "/pricing" },
-  { label: "How it works", href: "/how-it-works" },
+  { label: "For shops", href: "/sell" },
+];
+
+/** The footer's columns (and the phone menu). */
+export const GROUPS: NavGroup[] = [
+  {
+    label: "TryOnU",
+    items: [
+      { label: "Try on", href: "/try" },
+      { label: "Find by photo", href: "/find-look" },
+      { label: "AI Stylist", href: "/stylist" },
+      { label: "Build an outfit", href: "/outfits" },
+      { label: "My clothes", href: "/wardrobe" },
+      { label: "Get the app", href: "/app" },
+    ],
+  },
+  {
+    label: "Community",
+    items: [
+      { label: "Community", href: "/community" },
+      { label: "Style challenges", href: "/community/challenges" },
+      { label: "Invite & earn", href: "/earn" },
+    ],
+  },
+  {
+    label: "For shops",
+    items: [
+      { label: "Sell on TryOnU", href: "/sell" },
+      { label: "My store", href: "/business" },
+      { label: "For developers", href: "/developers" },
+      { label: "Browser extension", href: "/extension" },
+    ],
+  },
+  {
+    label: "Help",
+    items: [
+      { label: "How it works", href: "/how-it-works" },
+      { label: "Pricing", href: "/pricing" },
+      { label: "Help & FAQ", href: "/faq" },
+      { label: "Contact", href: "/contact" },
+      { label: "About", href: "/about" },
+    ],
+  },
 ];
 
 export const LEGAL: NavItem[] = [
-  { label: "Privacy policy", href: "/privacy" },
-  { label: "Terms of use", href: "/terms" },
-  { label: "Photo & data policy", href: "/photo-policy" },
+  { label: "Privacy", href: "/privacy" },
+  { label: "Terms", href: "/terms" },
+  { label: "Photo policy", href: "/photo-policy" },
   { label: "Affiliate disclosure", href: "/affiliate-disclosure" },
 ];
