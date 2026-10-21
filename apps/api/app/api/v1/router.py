@@ -22,6 +22,7 @@ from app.api.v1.endpoints import (
     search,
     challenges,
     community,
+    community_share,
     lens,
     music,
     price_alerts,
@@ -76,6 +77,7 @@ api_router.include_router(referrals.admin_router)
 api_router.include_router(contact.router)
 api_router.include_router(community.router)
 api_router.include_router(community.admin_router)
+api_router.include_router(community_share.router)
 api_router.include_router(music.router)
 api_router.include_router(music.admin_router)
 api_router.include_router(notifications.router)
