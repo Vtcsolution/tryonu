@@ -39,6 +39,8 @@ from app.models.community import (
 from app.models.enums import JobStatus
 from app.models.tryon import TryOnJob
 from app.models.user import User
+from app.api.v1.endpoints.music import MusicOut, tracks_for
+from app.api.v1.endpoints.music import pick as pick_music
 from app.services.community_links import LinkPreviewOut, clean_text, previews
 from app.services.notification_service import notify, snippet
 from app.services.look_products import copy_look, look_products
@@ -148,6 +150,8 @@ class PostOut(BaseModel):
     # a style-challenge entry, and its place if it won
     challenge: "ChallengeRefOut | None" = None
     award: int | None = None
+    # a song from the music library, played with it in Reels
+    music: MusicOut | None = None
     saved_by_me: bool = False  # bookmarked to come back to
 
 
@@ -214,6 +218,7 @@ async def _posts_out(db: DbSession, posts: list[CommunityPost], me: User) -> lis
         (await db.execute(select(ChallengeWinner.post_id, ChallengeWinner.place).where(ChallengeWinner.post_id.in_(ids)))).all()
     )
     bookmarked = set((await db.execute(select(SavedPost.post_id).where(SavedPost.user_id == me.id, SavedPost.post_id.in_(ids)))).scalars())
+    songs = await tracks_for(db, posts)
     out: list[PostOut] = []
     for p in posts:
         extra = {
@@ -226,6 +231,7 @@ async def _posts_out(db: DbSession, posts: list[CommunityPost], me: User) -> lis
             "challenge": challenges.get(p.challenge_id) if p.challenge_id else None,
             "award": awards.get(p.id),
             "saved_by_me": p.id in bookmarked,
+            "music": songs.get(p.music_track_id) if p.music_track_id else None,
         }
         if p.media_key:  # a photo or video the member uploaded
             out.append(
@@ -328,6 +334,7 @@ class NewPostIn(BaseModel):
     accept_rules: bool = False
     poll: bool = False  # ask the community: Buy or skip?
     challenge_id: str | None = None  # enter this week's style challenge
+    music_track_id: str | None = None  # a song from the music library
 
 
 async def _challenge_entry(db: DbSession, challenge_id: str | None, me: User) -> str | None:
@@ -368,11 +375,12 @@ async def create_post(payload: NewPostIn, me: CurrentUser, db: DbSession):
     if existing is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="You've already posted this look.")
     challenge_id = await _challenge_entry(db, payload.challenge_id, me)
+    song = await pick_music(db, payload.music_track_id)
     await ensure_handle(db, me)
     caption, removed = clean_text(payload.caption)
     post = CommunityPost(
         user_id=me.id, tryon_job_id=job.id, caption=caption or None, links_removed=removed, poll=payload.poll,
-        challenge_id=challenge_id,
+        challenge_id=challenge_id, music_track_id=song,
     )
     db.add(post)
     await db.flush()
@@ -455,6 +463,7 @@ async def create_media_post(
     accept_rules: bool = Form(default=False),
     poll: bool = Form(default=False),
     challenge_id: str | None = Form(default=None),
+    music_track_id: str | None = Form(default=None),
 ):
     """A member posts their own photo or video (videos: up to 60 seconds)."""
     from app.services import community_media
@@ -463,6 +472,7 @@ async def create_media_post(
     if not accept_rules:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Please agree to the community rules to post.")
     entry = await _challenge_entry(db, challenge_id, me)
+    song = await pick_music(db, music_track_id)
     raw = await file.read()
     if not raw:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Please choose a photo or video.")
@@ -476,7 +486,7 @@ async def create_media_post(
     text, removed = clean_text(caption)
     post = CommunityPost(
         user_id=me.id, media_kind=kind, media_key=key, poster_key=poster, media_width=width, media_height=height,
-        caption=text or None, links_removed=removed, poll=poll, challenge_id=entry,
+        caption=text or None, links_removed=removed, poll=poll, challenge_id=entry, music_track_id=song,
     )
     db.add(post)
     await db.flush()

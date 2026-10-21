@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Comments } from "@/components/community/CommentThread";
 import { ChallengeChip, PollBox } from "@/components/community/extras";
+import { SongLabel } from "@/components/community/Music";
 import {
   Avatar,
   BookmarkIcon,
@@ -98,6 +99,15 @@ export function PostCard({
   });
 
   const image = resolveMediaUrl(p.image_url);
+  // the post's song: plays with its video (whose own sound it replaces), or on a tap
+  const song = useRef<HTMLAudioElement>(null);
+  const [songOn, setSongOn] = useState(false);
+  const toggleSong = () => {
+    const a = song.current;
+    if (!a) return;
+    if (a.paused) a.play().catch(() => undefined);
+    else a.pause();
+  };
   // a try-on look has products to put on yourself; a member's own photo or video doesn't
   const canTry = (p.media_kind ?? "tryon") === "tryon";
   const likers = p.likers ?? [];
@@ -172,7 +182,10 @@ export function PostCard({
             poster={p.poster_url ? resolveMediaUrl(p.poster_url) : undefined}
             controls
             playsInline
+            muted={!!p.music}
             preload="metadata"
+            onPlay={() => p.music && song.current?.play().catch(() => undefined)}
+            onPause={() => song.current?.pause()}
             className="mx-auto max-h-[720px] w-full object-contain"
           />
         </div>
@@ -192,6 +205,26 @@ export function PostCard({
           </p>
         )}
         <LinkCards previews={p.previews} />
+        {p.music && (
+          <>
+            <audio ref={song} src={resolveMediaUrl(p.music.url)} loop preload="none" onPlay={() => setSongOn(true)} onPause={() => setSongOn(false)} />
+            <button
+              type="button"
+              onClick={toggleSong}
+              aria-label={songOn ? "Stop the song" : `Play the song: ${p.music.title}`}
+              className="mt-3 flex max-w-full items-center gap-2 rounded-full border border-line py-1.5 pl-2 pr-3.5 text-[14px] text-ink hover:border-line-strong"
+            >
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-sage text-white">
+                {songOn ? (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+                ) : (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
+                )}
+              </span>
+              <SongLabel track={p.music} className="max-w-[240px] flex-1" />
+            </button>
+          </>
+        )}
         <ChallengeChip post={p} />
 
         <ProductChips products={p.products} className={p.caption ? "mt-3" : ""} />

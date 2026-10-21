@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Avatar } from "@/components/community/parts";
 import { AnnouncementsAdmin } from "./AnnouncementsAdmin";
 import { ChallengesAdmin } from "./ChallengesAdmin";
+import { MusicAdmin } from "./MusicAdmin";
 import { resolveMediaUrl } from "@/lib/api/client";
 import { adminCommunity, type AdminCommunityComment } from "@/lib/api/endpoints";
 import {
@@ -22,7 +23,7 @@ import {
   when,
 } from "./ui";
 
-type View = "overview" | "members" | "comments" | "posts" | "challenges" | "announcements" | "reports";
+type View = "overview" | "members" | "comments" | "posts" | "challenges" | "music" | "announcements" | "reports";
 
 /** Everything members do in the community: who takes part and how much,
  * every comment and post, and the reports to review. */
@@ -40,6 +41,7 @@ export function CommunityTab() {
     ["comments", "Comments"],
     ["posts", "Posts"],
     ["challenges", "Challenges"],
+    ["music", "Music"],
     ["announcements", "Announcements"],
     ["reports", stats.data?.open_reports ? `Reports (${stats.data.open_reports})` : "Reports"],
   ];
@@ -63,6 +65,7 @@ export function CommunityTab() {
       {view === "comments" && <CommentsList member={member} />}
       {view === "posts" && <PostsList member={member} />}
       {view === "challenges" && <ChallengesAdmin />}
+      {view === "music" && <MusicAdmin />}
       {view === "announcements" && <AnnouncementsAdmin />}
       {view === "reports" && <Reports />}
     </div>

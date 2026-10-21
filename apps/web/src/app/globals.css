@@ -521,6 +521,24 @@ html {
   animation: tu-attention 2.8s ease-out infinite;
 }
 
+/* a song's name sliding across, like TikTok's sound label (two copies: seamless) */
+@keyframes tu-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.tu-marquee {
+  animation: tu-marquee 9s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tu-marquee {
+    animation: none;
+  }
+}
+
 /* ------------------------------------------------------------------ phones: feel like an app */
 :root {
   --tabbar-h: 0px;

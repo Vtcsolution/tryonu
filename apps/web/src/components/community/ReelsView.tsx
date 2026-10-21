@@ -5,6 +5,7 @@ import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { SongLabel } from "@/components/community/Music";
 import { Avatar, CommentIcon, Comments, HangerIcon, HeartIcon } from "@/components/community/PostCard";
 import { formatPrice } from "@/components/try/shop";
 import { resolveMediaUrl } from "@/lib/api/client";
@@ -31,6 +32,38 @@ export function ReelsView() {
   const [muted, setMuted] = useState(true);
   const [commentsFor, setCommentsFor] = useState<CommunityPost | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
+
+  // One player for every post's song: phones only start sound after a tap, and
+  // a player unlocked by that tap keeps playing the next posts' songs too.
+  const song = useRef<HTMLAudioElement | null>(null);
+  const songSrc = useRef<string | null>(null);
+  const activeSong = posts[active]?.music;
+  const songUrl = activeSong ? resolveMediaUrl(activeSong.url) : null;
+  const playSong = useCallback((url: string | null, on: boolean) => {
+    if (!song.current) {
+      song.current = new Audio();
+      song.current.loop = true;
+    }
+    const a = song.current;
+    if (!url || !on) {
+      a.pause();
+      return;
+    }
+    if (songSrc.current !== url) {
+      songSrc.current = url;
+      a.src = url;
+    }
+    a.play().catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    playSong(songUrl, !muted && !commentsFor);
+  }, [songUrl, muted, commentsFor, playSong]);
+  useEffect(() => () => song.current?.pause(), []);
+  const toggleMute = () => {
+    const next = !muted;
+    setMuted(next);
+    playSong(songUrl, !next); // inside the tap, so phones allow the sound
+  };
 
   // the slide that fills most of the screen is the one playing
   useEffect(() => {
@@ -82,7 +115,7 @@ export function ReelsView() {
         </Link>
         <button
           type="button"
-          onClick={() => setMuted((m) => !m)}
+          onClick={toggleMute}
           aria-label={muted ? "Turn sound on" : "Turn sound off"}
           className="grid h-10 w-10 place-items-center rounded-full bg-white/15 backdrop-blur"
         >
@@ -115,7 +148,7 @@ export function ReelsView() {
             playing={i === active && !commentsFor}
             near={Math.abs(i - active) <= 1}
             muted={muted}
-            onToggleMute={() => setMuted((m) => !m)}
+            onToggleMute={toggleMute}
             onComments={() => setCommentsFor(p)}
           />
         ))}
@@ -167,10 +200,10 @@ function Slide({
   useEffect(() => {
     const v = video.current;
     if (!v) return;
-    v.muted = muted;
+    v.muted = muted || !!p.music;
     if (playing) v.play().catch(() => undefined);
     else v.pause();
-  }, [playing, muted]);
+  }, [playing, muted, p.music]);
 
   const like = useMutation({
     mutationFn: (want: boolean) => (want ? community.like(p.id) : community.unlike(p.id)),
@@ -186,7 +219,7 @@ function Slide({
   return (
     <section data-index={index} className="relative flex tu-screen-h snap-start snap-always items-center justify-center overflow-hidden">
       {/* the picture or video, as big as the screen allows */}
-      <div className="relative h-full w-full max-w-[min(calc(100vw/var(--page-zoom)),calc(56.25dvh/var(--page-zoom)))]" onClick={isVideo ? onToggleMute : undefined}>
+      <div className="relative h-full w-full max-w-[min(calc(100vw/var(--page-zoom)),calc(56.25dvh/var(--page-zoom)))]" onClick={isVideo || p.music ? onToggleMute : undefined}>
         {isVideo ? (
           <video
             ref={video}
@@ -194,14 +227,14 @@ function Slide({
             poster={p.poster_url ? resolveMediaUrl(p.poster_url) : undefined}
             loop
             playsInline
-            muted={muted}
+            muted={muted || !!p.music}
             preload={near ? "auto" : "none"}
-            className="h-full w-full object-contain"
+            className="absolute inset-0 h-full w-full object-contain"
           />
         ) : (
           p.image_url && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={resolveMediaUrl(p.image_url)} alt={p.caption || `A post by @${p.author.handle}`} loading={near ? "eager" : "lazy"} className="h-full w-full object-contain" />
+            <img src={resolveMediaUrl(p.image_url)} alt={p.caption || `A post by @${p.author.handle}`} loading={near ? "eager" : "lazy"} className="absolute inset-0 h-full w-full object-contain" />
           )
         )}
       </div>
@@ -230,7 +263,7 @@ function Slide({
         </ReelAction>
         {canTry && (
           <ReelAction label={tryIt.isPending ? "Opening…" : "Try it on"} onClick={() => tryIt.mutate()} highlight>
-            <span className="[&_svg]:h-[28px] [&_svg]:w-[28px]">
+            <span className="[&_svg]:h-[34px] [&_svg]:w-[34px]">
               <HangerIcon />
             </span>
           </ReelAction>
@@ -245,6 +278,17 @@ function Slide({
         {p.caption && (
           <button type="button" onClick={() => setExpanded((v) => !v)} className={`mt-1 block text-left text-[15px] leading-snug text-white/95 drop-shadow ${expanded ? "" : "line-clamp-2"}`}>
             {p.caption}
+          </button>
+        )}
+        {p.music && (
+          <button
+            type="button"
+            onClick={onToggleMute}
+            aria-label={muted ? `Play the song: ${p.music.title}` : "Turn the sound off"}
+            className="mt-2 flex max-w-[260px] items-center gap-2 rounded-full bg-white/15 py-1.5 pl-2.5 pr-3 text-[13.5px] backdrop-blur"
+          >
+            <SongLabel track={p.music} className="flex-1" />
+            {muted && <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[11.5px] font-bold text-black">Tap for sound</span>}
           </button>
         )}
         {p.products.length > 0 && (
@@ -286,8 +330,20 @@ function ReelAction({
   highlight?: boolean;
 }) {
   return (
-    <button type="button" onClick={onClick} aria-pressed={pressed} aria-label={label} className="flex flex-col items-center gap-1 text-[12.5px] font-semibold drop-shadow">
-      <span className={`grid h-12 w-12 place-items-center rounded-full ${highlight ? "tu-attention bg-sage text-white" : "bg-white/15 backdrop-blur"}`}>{children}</span>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={pressed}
+      aria-label={label}
+      className={`flex flex-col items-center gap-1 font-semibold drop-shadow ${highlight ? "text-[15px]" : "text-[12.5px]"}`}
+    >
+      <span
+        className={`grid place-items-center rounded-full ${
+          highlight ? "tu-attention h-[68px] w-[68px] bg-sage text-white ring-2 ring-white/70" : "h-12 w-12 bg-white/15 backdrop-blur"
+        }`}
+      >
+        {children}
+      </span>
       {count !== undefined ? count : label}
     </button>
   );

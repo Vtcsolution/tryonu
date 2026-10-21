@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, false
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, false, true
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -37,6 +37,10 @@ class CommunityPost(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # an entry in a weekly style challenge
     challenge_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("community_challenges.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+    # a song from the music library, played with the post in Reels
+    music_track_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("community_music.id", ondelete="SET NULL"), nullable=True
     )
     # hidden by an admin (after a report): gone from every feed
     is_hidden: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
@@ -148,3 +152,19 @@ class SavedPost(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
     post_id: Mapped[str] = mapped_column(String(36), ForeignKey("community_posts.id", ondelete="CASCADE"), index=True, nullable=False)
+
+
+class MusicTrack(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A song in the free music library: added by an admin (music TryOnU may
+    use: royalty-free or our own), picked by members for their posts."""
+
+    __tablename__ = "community_music"
+
+    title: Mapped[str] = mapped_column(String(120), nullable=False)
+    artist: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    mood: Mapped[str | None] = mapped_column(String(24), nullable=True)  # happy | chill | party | romantic | desi | classic
+    storage_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=true())
+    uses: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")

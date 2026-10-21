@@ -26,6 +26,7 @@ from app.models.community import (  # noqa: F401
     CommunityPost,
     CommunityReport,
     Follow,
+    MusicTrack,
     PollVote,
     PostComment,
     PostLike,

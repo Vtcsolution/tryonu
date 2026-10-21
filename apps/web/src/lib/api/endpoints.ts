@@ -395,8 +395,14 @@ export type CommunityProduct = {
   shop: string | null;
   buy_url: string;
 };
+/** a song in the free music library */
+export type MusicTrack = { id: string; title: string; artist: string | null; mood: string | null; url: string };
+export type AdminMusicTrack = MusicTrack & { is_active: boolean; uses: number; size_bytes: number; created_at: string };
+
 export type CommunityPost = {
   id: string;
+  /** a song from the music library, played with it in Reels */
+  music?: MusicTrack | null;
   author: CommunityAuthor;
   /** a try-on look, or a photo / video the member uploaded */
   media_kind?: "tryon" | "image" | "video";
@@ -493,7 +499,7 @@ export type ChallengeInput = {
   sponsor_store_slug?: string;
 };
 /** what a new post can also do: ask "Buy or skip?", enter a challenge */
-export type PostExtras = { poll?: boolean; challenge_id?: string | null };
+export type PostExtras = { poll?: boolean; challenge_id?: string | null; music_track_id?: string | null };
 export type CommunityFeed = { posts: CommunityPost[]; next_offset: number | null };
 export type CommunityReportRow = {
   id: string;
@@ -514,6 +520,8 @@ const C = "/api/v1/community";
 export const community = {
   feed: (tab: "for_you" | "following", offset = 0) => apiFetch<CommunityFeed>(`${C}/feed?tab=${tab}&offset=${offset}`),
   post: (id: string) => apiFetch<CommunityPost>(`${C}/posts/${id}`),
+  /** the free music library members can add to a post */
+  music: () => apiFetch<MusicTrack[]>(`${C}/music`),
   create: (input: { tryon_job_id: string; caption?: string; accept_rules: boolean } & PostExtras) =>
     apiFetch<CommunityPost>(`${C}/posts`, { method: "POST", body: input }),
   postForJob: (jobId: string) => apiFetch<{ post_id: string | null }>(`${C}/posts/by-job/${jobId}`),
@@ -525,6 +533,7 @@ export const community = {
     form.append("accept_rules", "true");
     if (extras.poll) form.append("poll", "true");
     if (extras.challenge_id) form.append("challenge_id", extras.challenge_id);
+    if (extras.music_track_id) form.append("music_track_id", extras.music_track_id);
     return uploadWithProgress<CommunityPost>(`${C}/posts/media`, form, onProgress);
   },
   myLooks: () =>
@@ -812,6 +821,22 @@ export const orderOptions = (productId: string) => apiFetch<{ whatsapp: boolean 
 /** Opens WhatsApp with the store, the order message already written; counted as a shop click. */
 export const whatsappOrderUrl = (productId: string, source: string) =>
   `${API_BASE_URL}/api/v1/affiliate/whatsapp/${productId}?source=${encodeURIComponent(source)}`;
+
+const AM = "/api/v1/admin/community/music";
+export const adminMusic = {
+  list: () => apiFetch<AdminMusicTrack[]>(AM),
+  add: (file: File, title: string, artist: string, mood: string, onProgress: (pct: number) => void) => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("title", title);
+    if (artist) form.append("artist", artist);
+    if (mood) form.append("mood", mood);
+    return uploadWithProgress<AdminMusicTrack>(AM, form, onProgress);
+  },
+  update: (id: string, input: Partial<Pick<AdminMusicTrack, "title" | "artist" | "mood" | "is_active">>) =>
+    apiFetch<AdminMusicTrack>(`${AM}/${id}`, { method: "PATCH", body: input }),
+  remove: (id: string) => apiFetch<void>(`${AM}/${id}`, { method: "DELETE" }),
+};
 
 export const adminMessages = {
   list: (show: "open" | "all" = "open") => apiFetch<ContactMessage[]>(`/api/v1/admin/messages?show=${show}`),

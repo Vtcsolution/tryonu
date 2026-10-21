@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { MusicPicker } from "@/components/community/Music";
 import { ThumbIcon } from "@/components/community/parts";
 import { ApiError } from "@/lib/api/client";
 import { community, type Challenge, type CommunityPost, type PostExtras } from "@/lib/api/endpoints";
@@ -55,6 +56,7 @@ export function PostOptions({ value, onChange }: { value: PostExtras; onChange: 
   const canEnter = live && !live.my_entry_post_id;
   return (
     <div className="mt-4 space-y-2">
+      <MusicPicker value={value.music_track_id} onChange={(id) => onChange({ ...value, music_track_id: id })} />
       <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-3 hover:border-line-strong">
         <input
           type="checkbox"
