@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { SongLabel } from "@/components/community/Music";
+import { ShareIcon, ShareSheet, postShare } from "@/components/community/ShareSheet";
 import { Avatar, CommentIcon, Comments, HangerIcon, HeartIcon } from "@/components/community/PostCard";
 import { formatPrice } from "@/components/try/shop";
 import { resolveMediaUrl } from "@/lib/api/client";
@@ -193,6 +194,7 @@ function Slide({
   const router = useRouter();
   const [p, setP] = useState(post);
   const [expanded, setExpanded] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const video = useRef<HTMLVideoElement>(null);
   const isVideo = p.media_kind === "video" && !!p.video_url;
   const canTry = (p.media_kind ?? "tryon") === "tryon";
@@ -240,6 +242,7 @@ function Slide({
       </div>
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-64 bg-gradient-to-t from-black/75 to-transparent" />
+      {sharing && <ShareSheet {...postShare(p)} onClose={() => setSharing(false)} />}
 
       {/* actions, on the right */}
       <div className="absolute bottom-24 right-3 z-10 flex flex-col items-center gap-5 sm:right-[max(12px,calc(50%-min(calc(50vw/var(--page-zoom)),calc(28.125dvh/var(--page-zoom)))-72px))]">
@@ -260,6 +263,9 @@ function Slide({
           <span className="[&_svg]:h-[28px] [&_svg]:w-[28px]">
             <CommentIcon />
           </span>
+        </ReelAction>
+        <ReelAction label="Share" onClick={() => setSharing(true)}>
+          <ShareIcon size={26} />
         </ReelAction>
         {canTry && (
           <ReelAction label={tryIt.isPending ? "Opening…" : "Try it on"} onClick={() => tryIt.mutate()} highlight>

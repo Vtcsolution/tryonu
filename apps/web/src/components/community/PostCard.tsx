@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { Comments } from "@/components/community/CommentThread";
 import { ChallengeChip, PollBox } from "@/components/community/extras";
 import { SongLabel } from "@/components/community/Music";
+import { ShareSheet, postShare } from "@/components/community/ShareSheet";
 import {
   Avatar,
   BookmarkIcon,
@@ -360,85 +361,16 @@ function BarButton({
   );
 }
 
-/** Send: copy the link or share it to WhatsApp, Facebook, LinkedIn or X. */
+/** Send: copy the link or share it to WhatsApp, Facebook, X and the rest (a sheet on phones, a box on computers). */
 function ShareButton({ post }: { post: CommunityPost }) {
   const [open, setOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", esc);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("keydown", esc);
-    };
-  }, [open]);
-
-  const url = typeof window !== "undefined" ? `${window.location.origin}/community/post/${post.id}` : "";
-  const text = post.caption ? `${post.caption} — on TryOnU` : `A look by @${post.author.handle} on TryOnU`;
-  const enc = encodeURIComponent;
-  const targets = [
-    { name: "WhatsApp", href: `https://wa.me/?text=${enc(`${text} ${url}`)}` },
-    { name: "Facebook", href: `https://www.facebook.com/sharer/sharer.php?u=${enc(url)}` },
-    { name: "LinkedIn", href: `https://www.linkedin.com/sharing/share-offsite/?url=${enc(url)}` },
-    { name: "X", href: `https://twitter.com/intent/tweet?text=${enc(text)}&url=${enc(url)}` },
-  ];
   return (
-    <div ref={ref} className="relative">
-      <BarButton label="Send" pressed={open} onClick={() => setOpen((v) => !v)}>
+    <>
+      <BarButton label="Send" pressed={open} onClick={() => setOpen(true)}>
         <SendIcon />
       </BarButton>
-      {open && (
-        <div role="menu" className="absolute bottom-full left-0 z-20 mb-2 w-60 rounded-xl border border-line bg-surface p-1 shadow-lift">
-          <button
-            type="button"
-            role="menuitem"
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(url);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 2000);
-              } catch {
-                window.prompt("Copy this link", url);
-              }
-            }}
-            className="w-full rounded-lg px-3 py-2.5 text-left text-[14.5px] font-semibold text-ink hover:bg-paper-2"
-          >
-            {copied ? "Link copied ✓" : "Copy link"}
-          </button>
-          {targets.map((t) => (
-            <a
-              key={t.name}
-              role="menuitem"
-              href={t.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setOpen(false)}
-              className="block rounded-lg px-3 py-2.5 text-[14.5px] text-ink hover:bg-paper-2"
-            >
-              Share on {t.name}
-            </a>
-          ))}
-          {typeof navigator !== "undefined" && "share" in navigator && (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setOpen(false);
-                navigator.share({ title: "TryOnU", text, url }).catch(() => undefined);
-              }}
-              className="w-full rounded-lg px-3 py-2.5 text-left text-[14.5px] text-ink hover:bg-paper-2"
-            >
-              More…
-            </button>
-          )}
-          <p className="px-3 pb-1.5 pt-1 text-[12px] text-faint">Friends sign in to TryOnU to see community posts.</p>
-        </div>
-      )}
-    </div>
+      {open && <ShareSheet {...postShare(post)} onClose={() => setOpen(false)} />}
+    </>
   );
 }
 
