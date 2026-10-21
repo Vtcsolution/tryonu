@@ -906,8 +906,12 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
                 step["input_key"] = input_keys[step["index"]]
             job.steps = [dict(step) for step in steps]
             sent = next((step for step in steps if step["status"] == "sent"), None)
+            drawn = next((step for step in steps if step["status"] == "generated"), None)
             if sent is not None:
                 job.progress = f"Drawing product {sent['index'] + 1} of {len(steps)}: {sent['name']}"[:160]
+            elif drawn is not None:
+                # drawn: now checked on the photo (the old words stayed up, reading as stuck)
+                job.progress = f"Checking product {drawn['index'] + 1} of {len(steps)} on your photo"[:160]
             recorded = [step["provider_job_id"] for step in steps if step.get("provider_job_id")]
             if recorded:
                 job.provider_job_id = recorded[-1]

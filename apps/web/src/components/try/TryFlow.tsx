@@ -70,6 +70,13 @@ const MEN_PROMPTS = [
 
 const STEPS = ["Fitting profile", "Choose product", "Your look"] as const;
 const TERMINAL: TryOnJob["status"][] = ["completed", "failed", "cancelled"];
+// the try-on still running when the shopper left /try, opened again when they come back
+const RUNNING_KEY = "tu_running_tryon";
+const RESUME_HOURS = 3;
+// past this, the wait screen says so plainly
+const LONG_WAIT_SEC = 300;
+
+const clock = (sec: number) => (sec < 60 ? `${sec}s` : `${Math.floor(sec / 60)}m ${String(sec % 60).padStart(2, "0")}s`);
 
 const STAGE_LABEL: Record<TryOnJob["status"], string> = {
   queued: "Queued — your render starts when a worker is free",
@@ -397,6 +404,7 @@ export function TryFlow() {
     },
     onSuccess: (jobs) => {
       setJobIds(jobs.map((j) => j.id));
+      remember(jobs.map((j) => j.id));
       setElapsedSec(0);
       setStep(2);
       qc.invalidateQueries({ queryKey: ["session", "me"] }); // credits just changed
@@ -419,11 +427,57 @@ export function TryFlow() {
   const anyCompleted = jobsData.some((j) => j.status === "completed");
   const completedJobs = jobsData.filter((j) => j.status === "completed");
 
+  // counted from when the try-on was really made, so it stays right after leaving and coming back
+  const made = jobsData[0]?.created_at;
+  // the server's times are UTC; one written without its zone would read as local time
+  const madeAt = made ? Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(made) ? made : `${made}Z`) : NaN;
   useEffect(() => {
     if (step !== 2 || jobsData.length === 0 || allTerminal) return;
-    const t = setInterval(() => setElapsedSec((s) => s + 1), 1000);
+    const tick = () =>
+      setElapsedSec((s) => (Number.isFinite(madeAt) ? Math.max(0, Math.round((Date.now() - madeAt) / 1000)) : s + 1));
+    tick();
+    const t = setInterval(tick, 1000);
     return () => clearInterval(t);
-  }, [step, jobsData.length, allTerminal]);
+  }, [step, jobsData.length, allTerminal, madeAt]);
+
+  // Leaving the page used to lose the try-on ("you can leave and come back" wasn't true):
+  // the running one is remembered and opened again, or the one a link names (?job=)
+  const resumeJobId = params.get("job");
+  const resumed = useRef(false);
+  useEffect(() => {
+    if (!user || resumed.current) return;
+    resumed.current = true;
+    let ids = resumeJobId ? [resumeJobId] : [];
+    // a product or look opened on purpose comes first
+    if (ids.length === 0 && !preselectedProductId && !preselectedOutfitId) {
+      try {
+        const saved = JSON.parse(localStorage.getItem(RUNNING_KEY) || "null") as { ids: string[]; at: number; user: string } | null;
+        if (saved && saved.user === user.id && Date.now() - saved.at < RESUME_HOURS * 3_600_000) ids = saved.ids;
+      } catch {
+        // nothing remembered
+      }
+    }
+    if (ids.length > 0) {
+      setJobIds(ids);
+      setStep(2);
+    }
+  }, [user, resumeJobId, preselectedProductId, preselectedOutfitId]);
+  const remember = (ids: string[]) => {
+    try {
+      localStorage.setItem(RUNNING_KEY, JSON.stringify({ ids, at: Date.now(), user: user?.id }));
+    } catch {
+      // storage blocked: the try-on still runs, it just isn't reopened
+    }
+  };
+  useEffect(() => {
+    // finished, and shown now: nothing to reopen
+    if (!allTerminal) return;
+    try {
+      localStorage.removeItem(RUNNING_KEY);
+    } catch {
+      // nothing to forget
+    }
+  }, [allTerminal]);
 
   useEffect(() => {
     if (step === 2 && allTerminal && anyCompleted) {
@@ -1113,7 +1167,7 @@ export function TryFlow() {
                 <span className="absolute inset-0 rounded-full border-2 border-line" />
                 <span className="absolute inset-0 animate-[tu-spin_0.9s_linear_infinite] rounded-full border-2 border-transparent border-t-sage" />
                 <span className="absolute inset-2 animate-[tu-pulse-ring_1.8s_ease-out_infinite] rounded-full" />
-                <span className="font-display text-[16px] text-ink">{elapsedSec}s</span>
+                <span className="font-display text-[16px] text-ink">{clock(elapsedSec)}</span>
               </div>
             ) : (
               <div className="mx-auto grid h-24 w-24 place-items-center rounded-full border-2 border-[#c0503a]/40 text-[28px]">
@@ -1158,6 +1212,29 @@ export function TryFlow() {
               </span>
               <span className="rounded-full border border-line px-2 py-1">refund on failure</span>
             </div>
+
+            {!allTerminal && elapsedSec > LONG_WAIT_SEC && (
+              <div className="mx-auto mt-6 max-w-md rounded-2xl border border-[#c9a13b]/50 bg-[#c9a13b]/[0.08] p-4 text-left">
+                <p className="text-[15.5px] font-semibold text-ink">This is taking longer than usual</p>
+                <p className="mt-1 text-[14px] leading-snug text-muted">
+                  You don&apos;t need to wait here. Open Try on again later to see your picture. If it can&apos;t be
+                  finished, it stops by itself and you won&apos;t pay for a picture you didn&apos;t get.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProduct(null);
+                    setOutfit(null);
+                    setCustomItem(null);
+                    setJobIds([]);
+                    setStep(1);
+                  }}
+                  className="tu-press mt-3 min-h-[44px] rounded-full border border-line-strong bg-surface px-4 text-[14.5px] font-semibold text-ink"
+                >
+                  Try something else meanwhile
+                </button>
+              </div>
+            )}
 
             {allTerminal && !anyCompleted && (
               <div className="mt-6 flex justify-center gap-3">

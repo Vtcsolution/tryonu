@@ -137,3 +137,27 @@ async def test_credits_are_refunded_once_however_often_it_is_polled(client, db):
 
     db.expire_all()
     assert await credit_balance(db, user_id) == before + cost
+
+
+async def test_a_stuck_one_product_direct_try_on_stops_after_twenty_minutes(client, db, monkeypatch):
+    """Live: "Drawing product 1 of 1" stayed up for hours. A direct try-on now
+    gets 15 minutes per product (plus 5), not 90 minutes whatever its size."""
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "TRYON_ENGINE_MODE", "direct")
+    from sqlalchemy import update
+
+    one = (await _queued_job(db, client, age_minutes=25, status=JobStatus.PROCESSING, provider_job_id="job_one")).id
+    three = (await _queued_job(db, client, age_minutes=25, status=JobStatus.PROCESSING, provider_job_id="job_three")).id
+    await db.execute(update(TryOnJob).where(TryOnJob.id == one).values(steps=[{"index": 0, "status": "sent"}]))
+    await db.execute(
+        update(TryOnJob).where(TryOnJob.id == three).values(steps=[{"index": i, "status": "sent"} for i in range(3)])
+    )
+    await db.commit()
+
+    assert await sweep_stuck_jobs() == 1  # one product: 20 minutes; three products: 50
+    statuses = dict((await db.execute(select(TryOnJob.id, TryOnJob.status).where(TryOnJob.id.in_((one, three))))).all())
+    assert statuses == {one: JobStatus.FAILED, three: JobStatus.PROCESSING}
+    # the shared test database: leave nothing running for later sweeps to find
+    await db.execute(update(TryOnJob).where(TryOnJob.id == three).values(status=JobStatus.FAILED))
+    await db.commit()

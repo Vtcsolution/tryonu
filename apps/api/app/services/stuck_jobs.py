@@ -29,6 +29,11 @@ QUEUED_LIMIT = timedelta(minutes=5)
 RUNNING_LIMIT = timedelta(minutes=20)
 # a multi-product FASHN look is one render per product, several minutes each
 DIRECT_RUNNING_LIMIT = timedelta(minutes=90)
+# Each product: FASHN's own 5-minute wait, the download and the checks. A
+# one-product try-on stuck for 90 minutes (the worker restarted, or ran out of
+# memory, mid-render) left the shopper watching a spinner for an hour and a half.
+DIRECT_MINUTES_PER_PRODUCT = 15
+DIRECT_MINUTES_BASE = 5
 
 
 def _stuck_for(job: TryOnJob) -> timedelta | None:
@@ -39,9 +44,15 @@ def _stuck_for(job: TryOnJob) -> timedelta | None:
         return waited if waited > QUEUED_LIMIT else None
     if job.status == JobStatus.PROCESSING and job.started_at:
         running = now - _aware(job.started_at)
-        limit = DIRECT_RUNNING_LIMIT if get_settings().TRYON_ENGINE_MODE == "direct" else RUNNING_LIMIT
+        limit = _direct_limit(job) if get_settings().TRYON_ENGINE_MODE == "direct" else RUNNING_LIMIT
         return running if running > limit else None
     return None
+
+
+def _direct_limit(job: TryOnJob) -> timedelta:
+    """How long a direct try-on may run: by its number of products, never past DIRECT_RUNNING_LIMIT."""
+    products = max(1, len(job.steps or []))
+    return min(DIRECT_RUNNING_LIMIT, timedelta(minutes=DIRECT_MINUTES_BASE + DIRECT_MINUTES_PER_PRODUCT * products))
 
 
 def _aware(moment: datetime) -> datetime:
