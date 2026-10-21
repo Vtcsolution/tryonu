@@ -31,7 +31,7 @@ from app.models.community import (  # noqa: F401
     PostLike,
     SavedPost,
 )
-from app.models.notification import Notification, PushSubscription  # noqa: F401
+from app.models.notification import Announcement, Notification, PushSubscription  # noqa: F401
 from app.models.visual_search import VisualSearch  # noqa: F401
 from app.models.price_watch import PriceWatch  # noqa: F401
 from app.models.contact import ContactMessage  # noqa: F401

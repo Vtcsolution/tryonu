@@ -4,9 +4,10 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ProductCard } from "@/components/product/ProductCard";
 import { ApiError, affiliateGoUrl } from "@/lib/api/client";
-import { stores as storesApi } from "@/lib/api/endpoints";
+import { stores as storesApi, whatsappOrderUrl } from "@/lib/api/endpoints";
 import type { PublicStore as PublicStoreData, StoreProduct } from "@/lib/api/types";
 import { countryName, deliveryText } from "@/lib/countries";
+import { WHATSAPP_GREEN, WhatsAppIcon } from "@/components/whatsapp/WhatsApp";
 
 /** A company's own page on TryOnU: its details and every product it sells. */
 export function PublicStore({ slug, initial }: { slug: string; initial?: PublicStoreData | null }) {
@@ -24,12 +25,12 @@ export function PublicStore({ slug, initial }: { slug: string; initial?: PublicS
     onSuccess: ({ product_id }) => router.push(`/try?product=${product_id}`),
   });
   const buy = useMutation({ mutationFn: (p: StoreProduct) => storesApi.selectProduct(slug, p.id) });
-  const onBuy = (p: StoreProduct) => {
+  const onBuy = (p: StoreProduct, onWhatsApp = false) => {
     // opened now so popup blockers allow it, then pointed at the tracked shop link
     const tab = window.open("", "_blank");
     buy.mutate(p, {
       onSuccess: ({ product_id }) => {
-        const url = affiliateGoUrl(product_id, "product_card");
+        const url = onWhatsApp ? whatsappOrderUrl(product_id, "product_card") : affiliateGoUrl(product_id, "product_card");
         if (tab) {
           tab.opener = null;
           tab.location.href = url;
@@ -71,6 +72,17 @@ export function PublicStore({ slug, initial }: { slug: string; initial?: PublicS
           {s.description && <p className="mt-2 max-w-2xl text-[15.5px] leading-relaxed text-muted">{s.description}</p>}
           <p className="mt-2 text-[14.5px] text-ink-soft">🚚 Delivers: {deliveryText(s.delivery, s.delivery_countries, s.country)}</p>
         </div>
+        {s.whatsapp && (
+          <a
+            href={`https://wa.me/${s.whatsapp}?text=${encodeURIComponent(`Hi ${s.name}, I saw your store on TryOnU.`)}`}
+            target="_blank"
+            rel="noopener"
+            style={{ backgroundColor: WHATSAPP_GREEN }}
+            className="tu-press inline-flex min-h-[44px] items-center gap-2 rounded-full px-4 text-[14.5px] font-semibold text-white"
+          >
+            <WhatsAppIcon size={18} /> WhatsApp
+          </a>
+        )}
         {s.website_url && (
           <a
             href={s.website_url}
@@ -104,7 +116,11 @@ export function PublicStore({ slug, initial }: { slug: string; initial?: PublicS
             note={p.delivers_to_you === false ? "Doesn't deliver to your country" : null}
             busy={busyId === p.id}
             primary={{ label: "Try it on", onClick: () => tryOn.mutate(p), disabled: busyId !== undefined }}
-            secondary={{ label: "Buy ↗", onClick: () => onBuy(p), disabled: busyId !== undefined }}
+            secondary={
+              s.whatsapp
+                ? { label: "Order on WhatsApp", onClick: () => onBuy(p, true), disabled: busyId !== undefined }
+                : { label: "Buy ↗", onClick: () => onBuy(p), disabled: busyId !== undefined }
+            }
           />
         ))}
       </div>

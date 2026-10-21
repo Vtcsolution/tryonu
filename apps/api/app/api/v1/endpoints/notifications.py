@@ -13,16 +13,17 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
-from app.core.deps import CurrentUser, DbSession
+from app.core.deps import AdminUser, CurrentUser, DbSession
 from app.core.rate_limit import rate_limiter
 from app.models.community import CommunityPost
-from app.models.notification import Notification, PushSubscription
+from app.models.notification import Announcement, Notification, PushSubscription
 from app.models.tryon import TryOnJob
 from app.models.user import User
 from app.services import notification_service as svc
 from app.services.storage_service import get_storage
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
+admin_router = APIRouter(prefix="/admin/announcements", tags=["admin"])
 
 
 class ActorOut(BaseModel):
@@ -238,3 +239,80 @@ def _page(title: str, text: str) -> str:
         f"<p style='font-size:17px;line-height:1.5;color:#55554d'>{text}</p>"
         f"<p><a href='{site}/notifications' style='color:#3b463c;font-weight:600'>Notification settings</a></p></div>"
     )
+
+
+# ------------------------------------------------------------------ admin: a message to every member
+
+
+class AnnouncementIn(BaseModel):
+    text: str = Field(min_length=3, max_length=280)
+    # a TryOnU page ("/community/challenges" or "https://tryonu.app/pricing"); empty = the bell
+    url: str | None = Field(default=None, max_length=300)
+
+
+class AnnouncementOut(BaseModel):
+    id: str
+    text: str
+    url: str | None
+    sent_to: int
+    created_at: datetime
+
+
+class AnnouncementsOut(BaseModel):
+    members: int
+    items: list[AnnouncementOut]
+
+
+def _members():
+    return select(User.id).where(User.is_active.is_(True))
+
+
+def _tryonu_page(url: str | None) -> str | None:
+    """Only TryOnU's own pages: a path, or a full tryonu.app link made a path."""
+    url = (url or "").strip()
+    if not url:
+        return None
+    site = str(get_settings().FRONTEND_URL).rstrip("/")
+    for prefix in (site, "https://tryonu.app", "https://www.tryonu.app"):
+        if url.startswith(prefix):
+            url = url[len(prefix):] or "/"
+            break
+    if not url.startswith("/") or url.startswith("//"):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="The link must be a TryOnU page, e.g. /pricing")
+    return url
+
+
+@admin_router.get("", response_model=AnnouncementsOut)
+async def list_announcements(_: AdminUser, db: DbSession):
+    members = await db.scalar(select(func.count()).select_from(_members().subquery())) or 0
+    rows = (await db.execute(select(Announcement).order_by(Announcement.created_at.desc()).limit(50))).scalars()
+    return AnnouncementsOut(
+        members=members,
+        items=[AnnouncementOut(id=a.id, text=a.text, url=a.url, sent_to=a.sent_to, created_at=a.created_at) for a in rows],
+    )
+
+
+@admin_router.post("", response_model=AnnouncementOut, status_code=status.HTTP_201_CREATED)
+async def send_announcement(payload: AnnouncementIn, admin: AdminUser, db: DbSession):
+    """Every active member gets it in the bell, and on their phone when they said yes."""
+    from app.db.base import new_uuid
+    from sqlalchemy import insert
+
+    text = " ".join(payload.text.split())
+    url = _tryonu_page(payload.url)
+    members = (await db.execute(_members())).scalars().all()
+    ids: list[str] = []
+    for start in range(0, len(members), 1000):
+        rows = [
+            {"id": new_uuid(), "user_id": uid, "kind": "announcement", "text": text, "url": url}
+            for uid in members[start : start + 1000]
+        ]
+        if rows:
+            await db.execute(insert(Notification), rows)
+            ids.extend(r["id"] for r in rows)
+    note = Announcement(text=text, url=url, sent_to=len(ids), created_by_id=admin.id)
+    db.add(note)
+    db.sync_session.info.setdefault(svc.PENDING_KEY, []).extend(ids)  # phone notifications go out once saved
+    await db.commit()
+    await db.refresh(note)
+    return AnnouncementOut(id=note.id, text=note.text, url=note.url, sent_to=note.sent_to, created_at=note.created_at)

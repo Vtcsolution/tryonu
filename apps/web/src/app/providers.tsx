@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-query";
 import { AnalyticsTracker } from "@/components/analytics/AnalyticsTracker";
 import { CountryGate } from "@/components/auth/CountryGate";
+import { Welcome } from "@/components/app/Welcome";
 import { PwaSetup } from "@/components/pwa/InstallApp";
 import { ReferralCapture } from "@/components/referrals/ReferralCapture";
 
@@ -44,6 +45,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <CountryGate />
       <ReferralCapture />
       <PwaSetup />
+      <Welcome />
       {children}
     </QueryClientProvider>
   );

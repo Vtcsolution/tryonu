@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ContactForm } from "@/components/content/ContactForm";
 import { ContentPage } from "@/components/content/ContentPage";
+import { HelpWhatsApp } from "@/components/whatsapp/WhatsApp";
 import { pageMeta } from "@/lib/seo";
 
 export const metadata = pageMeta({
@@ -30,6 +31,9 @@ export default function ContactPage() {
           <ContactForm />
         </div>
         <aside>
+          <div className="mb-6 empty:hidden">
+            <HelpWhatsApp />
+          </div>
           <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-faint">Quick answers</p>
           <div className="mt-3 space-y-3">
             {HELP.map((h) => (

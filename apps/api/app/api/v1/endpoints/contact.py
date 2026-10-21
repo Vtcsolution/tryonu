@@ -9,12 +9,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func, select
 
+from app.core.config import get_settings
 from app.core.deps import AdminUser, DbSession, OptionalUser
 from app.core.logging import logger
 from app.core.rate_limit import rate_limiter
 from app.email.registry import get_email_provider
 from app.models.contact import ContactMessage
 from app.models.user import User
+from app.services import whatsapp
 
 router = APIRouter(tags=["contact"])
 
@@ -51,6 +53,16 @@ def _out(m: ContactMessage) -> ContactMessageOut:
         id=m.id, name=m.name, email=m.email, topic=m.topic, topic_label=TOPICS.get(m.topic, m.topic),
         message=m.message, created_at=m.created_at, handled_at=m.handled_at,
     )
+
+
+@router.get("/contact/info")
+async def contact_info():
+    """How to reach TryOnU besides the form: the help WhatsApp number, if set."""
+    try:
+        number = whatsapp.normalize(get_settings().SUPPORT_WHATSAPP, "PK")
+    except ValueError:
+        number = None
+    return {"whatsapp": number}
 
 
 @router.post(

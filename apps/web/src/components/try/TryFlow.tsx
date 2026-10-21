@@ -15,6 +15,7 @@ import { StyledPicks } from "@/components/try/StyledPicks";
 import { ProductCard } from "@/components/product/ProductCard";
 import { ShareLook } from "@/components/try/ShareLook";
 import { PriceAlertButton } from "@/components/alerts/PriceAlerts";
+import { WhatsAppOrderButton } from "@/components/whatsapp/WhatsApp";
 import { LensIcon } from "@/components/lens/LensIcon";
 import { YourSize } from "@/components/size/MySize";
 import { PostToCommunity } from "@/components/community/PostToCommunity";
@@ -1360,6 +1361,7 @@ function ResultStep({
             <Button href={affiliateGoUrl(product.id, "tryon_result")} size="md" className="w-full">
               Shop now <span aria-hidden="true">→</span>
             </Button>
+            <WhatsAppOrderButton productId={product.id} source="tryon_result" />
             <PriceAlertButton productId={product.id} />
             <SaveLookButton tryonResultId={job.result!.id} />
             <ShareLook jobId={job.id} variant="wide" />

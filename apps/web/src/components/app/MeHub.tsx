@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { Avatar } from "@/components/community/parts";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { HelpWhatsApp } from "@/components/whatsapp/WhatsApp";
 import { auth, community, notifications } from "@/lib/api/endpoints";
 import { useLogout, useSession } from "@/lib/auth/useSession";
 
@@ -137,6 +138,7 @@ export function MeHub() {
             ]}
           />
         )}
+        <HelpWhatsApp variant="row" />
         <div className="flex min-h-[54px] items-center justify-between rounded-2xl border border-line bg-surface px-4">
           <span className="text-[16px] text-ink">Light or dark look</span>
           <ThemeToggle />

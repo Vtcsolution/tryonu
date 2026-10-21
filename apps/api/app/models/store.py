@@ -56,6 +56,8 @@ class Store(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     website_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     contact_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # digits with the country code ("923001234567"): shoppers order and ask on WhatsApp
+    whatsapp: Mapped[str | None] = mapped_column(String(20), nullable=True)
     logo_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
     # pending (waiting for an admin) | approved | rejected | suspended
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending", index=True)

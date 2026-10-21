@@ -426,6 +426,7 @@ function StoreInfo({ store, email, go }: { store: Store; email: string; go: (tab
     },
     { label: "Website", value: store.website_url ?? <span className="text-muted">Not added</span>, tab: "profile", action: "Change" },
     { label: "Contact email", value: store.contact_email ?? <span className="text-muted">Not added</span>, tab: "profile", action: "Change" },
+    { label: "WhatsApp", value: store.whatsapp ? `+${store.whatsapp}` : <span className="text-muted">Not added</span>, tab: "profile", action: store.whatsapp ? "Change" : "Add" },
     { label: "Sign-in email", value: email, tab: "account", action: "Change password" },
     { label: "Opened on TryOnU", value: store.opened_at ? new Date(store.opened_at).toLocaleDateString() : "—" },
   ];
@@ -1155,6 +1156,7 @@ function ProfileSection({ store }: { store: Store }) {
   const [country, setCountry] = useState(store.country);
   const [website, setWebsite] = useState(store.website_url ?? "");
   const [email, setEmail] = useState(store.contact_email ?? "");
+  const [whatsapp, setWhatsapp] = useState(store.whatsapp ?? "");
   const [description, setDescription] = useState(store.description ?? "");
   const logoRef = useRef<HTMLInputElement>(null);
   const save = useMutation({
@@ -1164,6 +1166,7 @@ function ProfileSection({ store }: { store: Store }) {
         country,
         website_url: website.trim() || null,
         contact_email: email.trim() || null,
+        whatsapp: whatsapp.trim() || null,
         description: description.trim() || null,
       }),
     onSuccess: (s) => qc.setQueryData(STORE_KEY, s),
@@ -1186,6 +1189,16 @@ function ProfileSection({ store }: { store: Store }) {
         </Field>
         <Field label="Contact email">
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={`${inputClass} w-full`} />
+        </Field>
+        <Field label="WhatsApp number (shoppers order here)">
+          <input
+            type="tel"
+            inputMode="tel"
+            value={whatsapp}
+            onChange={(e) => setWhatsapp(e.target.value)}
+            placeholder="+92 300 1234567"
+            className={`${inputClass} w-full`}
+          />
         </Field>
       </div>
       <div className="mt-3">

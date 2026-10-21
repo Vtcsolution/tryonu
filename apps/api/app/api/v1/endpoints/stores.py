@@ -52,6 +52,7 @@ from app.core.config import get_settings
 from app.services import store_service as svc
 from app.services.image_service import validate_and_optimize
 from app.services.safe_fetch import UnsafeURLError, check_public_url
+from app.services import whatsapp
 from app.services.storage_service import get_storage, new_key
 
 router = APIRouter(prefix="/stores", tags=["stores"])
@@ -70,6 +71,7 @@ async def _out(db: DbSession, store: Store) -> StoreOut:
         description=store.description,
         website_url=store.website_url,
         contact_email=store.contact_email,
+        whatsapp=store.whatsapp,
         logo_url=svc.image_url(store.logo_key) if store.logo_key else None,
         status=store.status,
         status_note=store.status_note,
@@ -102,6 +104,13 @@ def _product_out(p: StoreProduct) -> StoreProductOut:
         category=p.category, gender=p.gender, color=p.color, is_active=p.is_active, is_featured=p.is_featured,
         delivery=p.delivery, updated_at=p.updated_at,
     )
+
+
+def _check_whatsapp(value: str | None, country: str | None) -> str | None:
+    try:
+        return whatsapp.normalize(value, country)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from None
 
 
 async def _my_store(db: DbSession, user: User) -> Store:
@@ -176,6 +185,7 @@ async def create_store(payload: StoreCreate, user: CurrentUser, db: DbSession):
         description=payload.description,
         website_url=_check_link(payload.website_url, "Website"),
         contact_email=payload.contact_email or user.email,
+        whatsapp=_check_whatsapp(payload.whatsapp, payload.country),
         status="pending",
         plan_product_limit=0,
     )
@@ -198,6 +208,8 @@ async def update_store(payload: StoreUpdate, user: CurrentUser, db: DbSession):
         data["website_url"] = _check_link(data["website_url"], "Website")
     if data.get("country"):
         data["country"] = data["country"].upper()
+    if "whatsapp" in data:
+        data["whatsapp"] = _check_whatsapp(data["whatsapp"], data.get("country") or store.country)
     if "delivery_countries" in data:
         data["delivery_countries"] = svc.countries_field(data["delivery_countries"])
     countries = data["delivery_countries"] if "delivery_countries" in data else store.delivery_countries
@@ -672,6 +684,7 @@ async def public_store(slug: str, db: DbSession):
     return PublicStoreOut(
         name=store.name, slug=store.slug, country=store.country, description=store.description,
         website_url=store.website_url, logo_url=svc.image_url(store.logo_key) if store.logo_key else None,
+        whatsapp=store.whatsapp,
         delivery=store.delivery, delivery_countries=svc.countries_list(store.delivery_countries),
         products=out,
     )

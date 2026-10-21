@@ -165,6 +165,10 @@ SPECS: tuple[SettingSpec, ...] = (
                 "Stores pay their own reward per plan (Company stores -> plans).", min_value=0),
     SettingSpec("STORE_USD_TO_PKR", "PKR per US dollar", "credits", "int",
                 help="To compare try-on costs with store plan prices in dollars.", min_value=1),
+    # --- help ---
+    SettingSpec("SUPPORT_WHATSAPP", "Help WhatsApp number", "help", "text",
+                help="Shows “Chat with us on WhatsApp” on Contact, Help & FAQ and the phone Me tab. "
+                "With the country code, e.g. +92 300 1234567. Empty = hidden."),
 )
 
 SPECS_BY_KEY = {s.key: s for s in SPECS}
@@ -181,6 +185,7 @@ GROUPS: tuple[tuple[str, str], ...] = (
     ("payments", "Payments (PayPal / Stripe)"),
     ("email", "Email (SMTP)"),
     ("credits", "Credits & pricing"),
+    ("help", "Help & contact"),
 )
 
 

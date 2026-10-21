@@ -1,4 +1,5 @@
 import { ContentPage } from "@/components/content/ContentPage";
+import { HelpWhatsApp } from "@/components/whatsapp/WhatsApp";
 import { JsonLd, breadcrumbJsonLd, faqJsonLd } from "@/components/seo/JsonLd";
 import { Button } from "@/components/ui/Button";
 import { pageMeta } from "@/lib/seo";
@@ -42,6 +43,9 @@ export default function FaqPage() {
           <Button href="/try" size="md">Try it now</Button>
           <Button href="/contact" size="md" variant="outline">Contact us</Button>
         </div>
+      </div>
+      <div className="mt-4 empty:hidden">
+        <HelpWhatsApp />
       </div>
     </ContentPage>
   );

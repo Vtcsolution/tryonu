@@ -603,6 +603,8 @@ export type Store = {
   description: string | null;
   website_url: string | null;
   contact_email: string | null;
+  /** digits with the country code: shoppers order on WhatsApp */
+  whatsapp?: string | null;
   logo_url: string | null;
   /** pending | approved | rejected | suspended */
   status: string;
@@ -714,6 +716,7 @@ export type PublicStore = {
   description: string | null;
   website_url: string | null;
   logo_url: string | null;
+  whatsapp?: string | null;
   products: StoreProduct[];
 };
 

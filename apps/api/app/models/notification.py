@@ -22,6 +22,7 @@ class Notification(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     # post_like | comment | reply | comment_like | follow | referral_joined | reward | credits_added
     # | poll_vote | challenge_win | challenge_ended | challenge_started | price_drop | back_in_stock | mention
+    # | announcement (a message from TryOnU to every member)
     kind: Mapped[str] = mapped_column(String(32), nullable=False)
     actor_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     post_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("community_posts.id", ondelete="CASCADE"), nullable=True)
@@ -35,6 +36,7 @@ class Notification(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     product_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("products.id", ondelete="CASCADE"), nullable=True)
     credits: Mapped[int | None] = mapped_column(Integer, nullable=True)
     text: Mapped[str | None] = mapped_column(String(300), nullable=True)  # a comment's first words, a reward's reason
+    url: Mapped[str | None] = mapped_column(String(300), nullable=True)  # where tapping it goes, when set
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     emailed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     pushed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -52,3 +54,14 @@ class PushSubscription(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     auth: Mapped[str] = mapped_column(String(255), nullable=False)
     user_agent: Mapped[str | None] = mapped_column(String(300), nullable=True)
     last_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class Announcement(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A message an admin sent to every member (the bell and their phones)."""
+
+    __tablename__ = "announcements"
+
+    text: Mapped[str] = mapped_column(String(300), nullable=False)
+    url: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    sent_to: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_by_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)

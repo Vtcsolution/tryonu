@@ -29,6 +29,7 @@ class StoreCreate(BaseModel):
     description: str | None = Field(default=None, max_length=2000)
     website_url: str | None = Field(default=None, max_length=1024)
     contact_email: str | None = Field(default=None, max_length=255)
+    whatsapp: str | None = Field(default=None, max_length=40)
 
 
 _DELIVERY = r"^(domestic|countries|worldwide)$"
@@ -41,6 +42,7 @@ class StoreUpdate(BaseModel):
     description: str | None = Field(default=None, max_length=2000)
     website_url: str | None = Field(default=None, max_length=1024)
     contact_email: str | None = Field(default=None, max_length=255)
+    whatsapp: str | None = Field(default=None, max_length=40)
     # where the store delivers, and to which countries when "countries"
     delivery: str | None = Field(default=None, pattern=_DELIVERY)
     delivery_countries: list[str] | None = Field(default=None, max_length=250)
@@ -54,6 +56,7 @@ class StoreOut(BaseModel):
     description: str | None
     website_url: str | None
     contact_email: str | None
+    whatsapp: str | None = None
     logo_url: str | None
     status: str
     status_note: str | None
@@ -197,6 +200,8 @@ class PublicStoreOut(BaseModel):
     description: str | None
     website_url: str | None
     logo_url: str | None
+    # digits with the country code, for wa.me links; None when the store has none
+    whatsapp: str | None = None
     products: list[StoreProductOut]
 
 

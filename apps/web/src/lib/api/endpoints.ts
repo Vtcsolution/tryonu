@@ -1,4 +1,4 @@
-import { apiFetch, uploadWithProgress } from "./client";
+import { API_BASE_URL, apiFetch, uploadWithProgress } from "./client";
 import type {
   AdminAIUsage,
   AdminAffiliateClick,
@@ -795,9 +795,24 @@ export type ContactMessage = {
   handled_at: string | null;
 };
 export const contact = {
+  /** the help WhatsApp number (digits with the country code), when an admin set one */
+  info: () => apiFetch<{ whatsapp: string | null }>("/api/v1/contact/info"),
   send: (input: { name: string; email: string; topic: ContactTopic; message: string }) =>
     apiFetch<{ detail: string }>("/api/v1/contact", { method: "POST", body: input }),
 };
+export type Announcement = { id: string; text: string; url: string | null; sent_to: number; created_at: string };
+export const adminAnnouncements = {
+  list: () => apiFetch<{ members: number; items: Announcement[] }>("/api/v1/admin/announcements"),
+  send: (input: { text: string; url?: string }) =>
+    apiFetch<Announcement>("/api/v1/admin/announcements", { method: "POST", body: input }),
+};
+
+/** Whether a product can be ordered on WhatsApp (local stores that take WhatsApp orders). */
+export const orderOptions = (productId: string) => apiFetch<{ whatsapp: boolean }>(`/api/v1/affiliate/order-options/${productId}`);
+/** Opens WhatsApp with the store, the order message already written; counted as a shop click. */
+export const whatsappOrderUrl = (productId: string, source: string) =>
+  `${API_BASE_URL}/api/v1/affiliate/whatsapp/${productId}?source=${encodeURIComponent(source)}`;
+
 export const adminMessages = {
   list: (show: "open" | "all" = "open") => apiFetch<ContactMessage[]>(`/api/v1/admin/messages?show=${show}`),
   count: () => apiFetch<{ open: number }>("/api/v1/admin/messages/count"),
@@ -873,10 +888,10 @@ type PlanPurchase = { payment_id: string; status: string; checkout_url: string |
 export const stores = {
   plans: () => apiFetch<StorePlan[]>("/api/v1/stores/plans"),
   mine: () => apiFetch<Store>("/api/v1/stores/me"),
-  create: (input: { name: string; country: string; description?: string; website_url?: string; contact_email?: string }) =>
+  create: (input: { name: string; country: string; description?: string; website_url?: string; contact_email?: string; whatsapp?: string }) =>
     apiFetch<Store>("/api/v1/stores", { method: "POST", body: input }),
   update: (
-    input: Partial<Pick<Store, "name" | "country" | "description" | "website_url" | "contact_email" | "delivery" | "delivery_countries">>,
+    input: Partial<Pick<Store, "name" | "country" | "description" | "website_url" | "contact_email" | "whatsapp" | "delivery" | "delivery_countries">>,
   ) =>
     apiFetch<Store>("/api/v1/stores/me", { method: "PATCH", body: input }),
   uploadLogo: (file: File) => {
