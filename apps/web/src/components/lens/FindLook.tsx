@@ -18,7 +18,7 @@ const STEPS = [
   "Comparing the products with your photo…",
   "Putting the closest ones first…",
 ];
-const BADGE: Record<LensMatch["match"], string> = { exact: "✓ Exact match", close: "Very close", similar: "Similar" };
+const BADGE: Record<LensMatch["match"], string> = { exact: "Exact match", close: "Very close", similar: "Similar" };
 // wearable items go into "Try the whole look"
 const WEARABLE = new Set(["top", "bottom", "dress", "full_outfit", "outerwear", "shoes", "bag", "jewellery", "watch", "eyewear", "headwear", "scarf", "belt"]);
 

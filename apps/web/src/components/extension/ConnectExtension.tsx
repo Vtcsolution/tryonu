@@ -1,5 +1,6 @@
 "use client";
 
+import { CheckIcon } from "@/components/ui/Icons";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { ApiError } from "@/lib/api/client";
@@ -110,7 +111,7 @@ export function ConnectExtension() {
     <section className={box}>
       {done ? (
         <>
-          <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-sage text-[30px] text-white">✓</div>
+          <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-sage text-[30px] text-white"><CheckIcon size={30} /></div>
           <h1 className="mt-5 font-display text-[clamp(26px,4vw,36px)] text-ink">Connected</h1>
           <p className="mt-3 text-[16.5px] text-ink-soft">
             {installed.map((k) => NAMES[k]).join(" and ")} {installed.length > 1 ? "are" : "is"} connected to {user.email}. You can

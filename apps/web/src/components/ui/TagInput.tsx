@@ -1,5 +1,6 @@
 "use client";
 
+import { XIcon } from "@/components/ui/Icons";
 import { useState, type KeyboardEvent } from "react";
 
 export type TagSuggestion = string | { value: string; swatch?: string };
@@ -59,7 +60,7 @@ export function TagInput({
                 aria-label={`Remove ${v}`}
                 className="text-sage-deep/70 hover:text-sage-deep"
               >
-                ✕
+                <XIcon size={16} />
               </button>
             </span>
           );
@@ -93,7 +94,7 @@ export function TagInput({
                 }`}
               >
                 {typeof s !== "string" && s.swatch && <Swatch color={s.swatch} />}
-                {on ? "✓ " : "+ "}
+                {on ? "" : "+ "}
                 {value}
               </button>
             );

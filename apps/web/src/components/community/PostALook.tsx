@@ -1,5 +1,6 @@
 "use client";
 
+import { CheckIcon } from "@/components/ui/Icons";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -108,7 +109,7 @@ export function PostALook({
               <div className="overflow-y-auto p-5">
                 {post.isSuccess ? (
                   <div className="py-6 text-center">
-                    <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-sage text-[26px] text-white">✓</div>
+                    <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-sage text-[26px] text-white"><CheckIcon size={28} /></div>
                     <p className="mt-4 text-[18px] font-semibold text-ink">Your look is in the community</p>
                     <p className="mt-1 text-[15px] text-muted">Members can now like it, comment and try it on themselves.</p>
                     <div className="mt-5 flex flex-wrap justify-center gap-3">
@@ -203,7 +204,7 @@ export function PostALook({
                             className={`h-full w-full object-cover object-top transition-transform ${l.post_id ? "opacity-50" : "group-hover:scale-[1.03]"}`}
                           />
                           {l.post_id ? (
-                            <span className="absolute left-1.5 top-1.5 rounded-full bg-ink px-2 py-0.5 text-[11.5px] font-semibold text-surface">Posted ✓</span>
+                            <span className="absolute left-1.5 top-1.5 rounded-full bg-ink px-2 py-0.5 text-[11.5px] font-semibold text-surface">Posted</span>
                           ) : l.saved ? (
                             <span className="absolute left-1.5 top-1.5 rounded-full bg-sage px-2 py-0.5 text-[11.5px] font-semibold text-white">Saved</span>
                           ) : null}

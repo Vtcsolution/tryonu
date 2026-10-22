@@ -92,7 +92,7 @@ export function ProfileView({ handle }: { handle: string }) {
                 p.followed_by_me ? "border border-line-strong text-ink" : "bg-ink text-surface"
               }`}
             >
-              {p.followed_by_me ? "Following ✓" : "Follow"}
+              {p.followed_by_me ? "Following" : "Follow"}
             </button>
           )}
         </div>

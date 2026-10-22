@@ -1,5 +1,6 @@
 "use client";
 
+import { XIcon } from "@/components/ui/Icons";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { ZoomableImage } from "@/components/try/ZoomableImage";
@@ -201,7 +202,7 @@ function Viewer({
           {index + 1} / {pictures.length}
         </span>
         <button type="button" onClick={onClose} className={button} aria-label="Close">
-          ✕
+          <XIcon size={16} />
         </button>
       </div>
       <div className="flex min-h-0 flex-1 items-stretch gap-3 px-3 pb-3">

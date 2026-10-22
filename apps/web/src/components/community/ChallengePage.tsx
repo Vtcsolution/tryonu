@@ -92,7 +92,7 @@ export function ChallengePage({ id }: { id: string }) {
             <div className="mt-4 flex flex-wrap gap-2">
               {ch.my_entry_post_id ? (
                 <Link href={`/community/post/${ch.my_entry_post_id}`} className="inline-flex min-h-[46px] items-center rounded-full border border-line-strong bg-surface px-5 text-[15px] font-semibold text-ink">
-                  ✓ You&apos;re in · View my entry
+                  You&apos;re in · View my entry
                 </Link>
               ) : (
                 <button

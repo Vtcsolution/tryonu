@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { CheckIcon } from "@/components/ui/Icons";
 import { LensIcon } from "@/components/lens/LensIcon";
 import { Kicker, Section } from "@/components/marketing/primitives";
 import { Button } from "@/components/ui/Button";
@@ -28,9 +29,9 @@ export function FindLookPromo() {
             shoes, bags, jewellery) and shows you the same products, or the closest ones, from real shops. Then try them on yourself.
           </p>
           <ul className="mt-6 space-y-2 text-[15.5px] text-ink-soft">
-            <li className="flex items-center gap-2.5"><span className="grid h-5 w-5 place-items-center rounded-full bg-sage text-[11px] font-bold text-white">✓</span>Every item found and marked on the photo</li>
-            <li className="flex items-center gap-2.5"><span className="grid h-5 w-5 place-items-center rounded-full bg-sage text-[11px] font-bold text-white">✓</span>Exact matches first, then the closest alternatives</li>
-            <li className="flex items-center gap-2.5"><span className="grid h-5 w-5 place-items-center rounded-full bg-sage text-[11px] font-bold text-white">✓</span>Lowest price in one tap, and try the whole look on you</li>
+            <li className="flex items-center gap-2.5"><span className="grid h-5 w-5 place-items-center rounded-full bg-sage text-[11px] font-bold text-white"><CheckIcon size={12} /></span>Every item found and marked on the photo</li>
+            <li className="flex items-center gap-2.5"><span className="grid h-5 w-5 place-items-center rounded-full bg-sage text-[11px] font-bold text-white"><CheckIcon size={12} /></span>Exact matches first, then the closest alternatives</li>
+            <li className="flex items-center gap-2.5"><span className="grid h-5 w-5 place-items-center rounded-full bg-sage text-[11px] font-bold text-white"><CheckIcon size={12} /></span>Lowest price in one tap, and try the whole look on you</li>
           </ul>
           <div className="mt-8 flex flex-wrap gap-3">
             <Button href="/find-look" size="lg">

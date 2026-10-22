@@ -167,7 +167,7 @@ export function SongLabel({ track, className = "" }: { track: Pick<MusicTrack, "
         <span className="tu-marquee inline-block whitespace-nowrap">
           {text}
           <span className="px-6" aria-hidden="true">
-            ♪
+            ·
           </span>
           <span aria-hidden="true">{text}</span>
         </span>

@@ -224,11 +224,11 @@ function PlanRow({ plan, tryonCostCents, onSaved }: { plan: StorePlan; tryonCost
         <input type="number" min={1} value={limit} onChange={(e) => setLimit(e.target.value)} className={`${inputClass} w-24`} />
       </label>
       <label className="flex items-center gap-1 text-[13px] text-muted">
-        🎁 Try-ons
+        Try-ons
         <input type="number" min={0} value={tryons} onChange={(e) => setTryons(e.target.value)} className={`${inputClass} w-20`} />
       </label>
       <label className="flex items-center gap-1 text-[13px] text-muted">
-        ★ Featured
+        Featured
         <input type="number" min={0} value={featured} onChange={(e) => setFeatured(e.target.value)} className={`${inputClass} w-20`} />
       </label>
       <label className="flex items-center gap-1 text-[13px] text-muted" title="Credits for the person who invited the shop, when the shop buys this plan">
@@ -260,7 +260,7 @@ function PlanRow({ plan, tryonCostCents, onSaved }: { plan: StorePlan; tryonCost
         {plan.is_active ? "Hide plan" : "Offer plan"}
       </SmallButton>
       <span className="text-[13px] text-faint">
-        {money(plan.price_cents, plan.currency)} · {plan.product_limit} products · ★ {plan.featured_limit ?? 0} featured · 🎁{" "}
+        {money(plan.price_cents, plan.currency)} · {plan.product_limit} products · {plan.featured_limit ?? 0} featured · {" "}
         {plan.tryon_credits ?? 0} try-ons
       </span>
       {costCents !== null && keepCents !== null && (
@@ -321,7 +321,7 @@ function StoreDetail({ id, onClose }: { id: string; onClose: () => void }) {
           <p className="font-display text-[20px] text-ink">{d.name}</p>
           <p className="text-[13.5px] text-muted">
             {countryName(d.country)} · owner {d.owner_email} · contact {d.contact_email ?? "—"} · opened {new Date(d.created_at).toLocaleDateString()}
-            {" "}· 🚚 delivers: {deliveryText(d.delivery, d.delivery_countries, d.country)}
+            {" "}· delivers: {deliveryText(d.delivery, d.delivery_countries, d.country)}
           </p>
           {d.description && <p className="mt-2 max-w-2xl text-[14px] text-ink-soft">{d.description}</p>}
         </div>
@@ -365,8 +365,8 @@ function StoreDetail({ id, onClose }: { id: string; onClose: () => void }) {
         <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
           <StatTile label="Uploaded (on sale)" value={d.product_count} />
           <StatTile label="Hidden" value={d.products.filter((p) => !p.is_active).length} />
-          <StatTile label="★ Featured" value={`${d.featured_count ?? 0} of ${d.plan_featured_limit ?? 0}`} />
-          <StatTile label="🎁 Try-on credits left" value={d.tryon_credits ?? 0} />
+          <StatTile label="Featured" value={`${d.featured_count ?? 0} of ${d.plan_featured_limit ?? 0}`} />
+          <StatTile label="Try-on credits left" value={d.tryon_credits ?? 0} />
           <StatTile label="Plan limit" value={d.plan_active ? d.plan_product_limit.toLocaleString() : "—"} />
           <StatTile
             label="Can still add"
@@ -382,7 +382,7 @@ function StoreDetail({ id, onClose }: { id: string; onClose: () => void }) {
       </div>
 
       <div className="flex flex-wrap items-center gap-2 rounded-[16px] border border-line p-4">
-        <span className="text-[15px] font-semibold text-ink">🎁 Try-on credits:</span>
+        <span className="text-[15px] font-semibold text-ink">Try-on credits:</span>
         <span className="text-[14px] text-muted">{d.tryon_credits ?? 0} left. Add some free, or take some away.</span>
         <input
           type="number"
@@ -427,7 +427,7 @@ function StoreDetail({ id, onClose }: { id: string; onClose: () => void }) {
             {grant.isPending ? "Saving…" : "Give free plan"}
           </SmallButton>
         </div>
-        {grant.isSuccess && <p className="mt-2 text-[13.5px] font-medium text-sage-deep">✓ Plan given.</p>}
+        {grant.isSuccess && <p className="mt-2 text-[13.5px] font-medium text-sage-deep">Plan given.</p>}
         {grant.isError && <div className="mt-2"><ErrorNote>{errorText(grant.error)}</ErrorNote></div>}
 
         {d.plan_active && (

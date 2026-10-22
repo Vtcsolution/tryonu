@@ -1,4 +1,5 @@
 import { ContentPage, SectionTitle, Steps } from "@/components/content/ContentPage";
+import { CheckIcon } from "@/components/ui/Icons";
 import { JsonLd, breadcrumbJsonLd, faqJsonLd } from "@/components/seo/JsonLd";
 import { Button } from "@/components/ui/Button";
 import { SITE, pageMeta } from "@/lib/seo";
@@ -102,7 +103,7 @@ export default function ExtensionPage() {
               "Save the look to your TryOnU account",
             ].map((t) => (
               <li key={t} className={tick}>
-                <span className="text-sage">✓</span>
+                <span className="text-sage"><CheckIcon size={16} /></span>
                 {t}
               </li>
             ))}
@@ -124,7 +125,7 @@ export default function ExtensionPage() {
               "Shows how many products your plan has left",
             ].map((t) => (
               <li key={t} className={tick}>
-                <span className="text-sage">✓</span>
+                <span className="text-sage"><CheckIcon size={16} /></span>
                 {t}
               </li>
             ))}

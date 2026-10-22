@@ -10,10 +10,10 @@ import { useSession } from "@/lib/auth/useSession";
 const SEEN_KEY = "tu_welcome_seen";
 const NEW_ACCOUNT_DAYS = 3;
 
-const STEPS: { icon: string; title: string; text: string }[] = [
-  { icon: "📷", title: "Add your photo", text: "One clear photo of you, standing. Only you can see it." },
-  { icon: "👗", title: "Pick clothes", text: "Search, ask the AI Stylist, or upload a photo of a look you like." },
-  { icon: "✨", title: "See it on you", text: "Like it? Tap Shop now to buy it from the shop." },
+const STEPS: { title: string; text: string }[] = [
+  { title: "Add your photo", text: "One clear photo of you, standing. Only you can see it." },
+  { title: "Pick clothes", text: "Search, ask the AI Stylist, or upload a photo of a look you like." },
+  { title: "See it on you", text: "Like it? Tap Shop now to buy it from the shop." },
 ];
 
 /** Three short steps the first time a new member opens TryOnU, with Skip. Shown once. */
@@ -54,12 +54,12 @@ export function Welcome() {
         <ol className="mt-5 space-y-3">
           {STEPS.map((s, i) => (
             <li key={s.title} className="flex items-start gap-3 rounded-2xl bg-paper-2 p-3.5">
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-surface text-[22px]" aria-hidden="true">
-                {s.icon}
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-sage text-[15px] font-semibold text-white" aria-hidden="true">
+                {i + 1}
               </span>
               <span className="min-w-0">
                 <span className="block text-[16.5px] font-semibold text-ink">
-                  {i + 1}. {s.title}
+                  {s.title}
                 </span>
                 <span className="block text-[14.5px] leading-snug text-muted">{s.text}</span>
               </span>

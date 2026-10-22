@@ -3,22 +3,23 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { WhatsAppIcon } from "@/components/whatsapp/WhatsApp";
+import { FacebookLogo, LinkedInLogo, MessengerLogo, PinterestLogo, TelegramLogo, WhatsAppLogo, XLogo } from "@/components/ui/BrandLogos";
 
-type App = { name: string; color: string; icon: ReactNode; href: (url: string, text: string) => string };
+type App = { name: string; icon: ReactNode; href: (url: string, text: string) => string };
 
 const enc = encodeURIComponent;
-const glyph = (t: string, size = 20) => <span style={{ fontSize: size }} className="font-bold leading-none">{t}</span>;
 
-// the famous ones, in the order most people here use them
+// the famous ones, in the order most people here use them: real logos in their own colours
 const APPS: App[] = [
-  { name: "WhatsApp", color: "#1fa855", icon: <WhatsAppIcon size={26} />, href: (u, t) => `https://wa.me/?text=${enc(`${t} ${u}`)}` },
-  { name: "Facebook", color: "#1877f2", icon: glyph("f", 26), href: (u) => `https://www.facebook.com/sharer/sharer.php?u=${enc(u)}` },
-  { name: "Messenger", color: "#0084ff", icon: <MessengerIcon />, href: (u) => `fb-messenger://share/?link=${enc(u)}` },
-  { name: "X", color: "#000000", icon: glyph("𝕏", 22), href: (u, t) => `https://twitter.com/intent/tweet?text=${enc(t)}&url=${enc(u)}` },
-  { name: "Telegram", color: "#229ed9", icon: <TelegramIcon />, href: (u, t) => `https://t.me/share/url?url=${enc(u)}&text=${enc(t)}` },
-  { name: "LinkedIn", color: "#0a66c2", icon: glyph("in", 19), href: (u) => `https://www.linkedin.com/sharing/share-offsite/?url=${enc(u)}` },
-  { name: "Pinterest", color: "#e60023", icon: glyph("P", 24), href: (u, t) => `https://pinterest.com/pin/create/button/?url=${enc(u)}&description=${enc(t)}` },
-  { name: "Email", color: "#6b7280", icon: <MailIcon />, href: (u, t) => `mailto:?subject=${enc("A look on TryOnU")}&body=${enc(`${t}\n${u}`)}` },
+  { name: "WhatsApp", icon: <WhatsAppLogo size={26} />, href: (u, t) => `https://wa.me/?text=${enc(`${t} ${u}`)}` },
+  { name: "Facebook", icon: <FacebookLogo size={26} />, href: (u) => `https://www.facebook.com/sharer/sharer.php?u=${enc(u)}` },
+  { name: "Messenger", icon: <MessengerLogo size={26} />, href: (u) => `fb-messenger://share/?link=${enc(u)}` },
+  { name: "X", icon: <XLogo size={22} className="text-ink" />, href: (u, t) => `https://twitter.com/intent/tweet?text=${enc(t)}&url=${enc(u)}` },
+  { name: "Telegram", icon: <TelegramLogo size={26} />, href: (u, t) => `https://t.me/share/url?url=${enc(u)}&text=${enc(t)}` },
+  { name: "LinkedIn", icon: <LinkedInLogo size={26} />, href: (u) => `https://www.linkedin.com/sharing/share-offsite/?url=${enc(u)}` },
+  { name: "Pinterest", icon: <PinterestLogo size={26} />, href: (u, t) => `https://pinterest.com/pin/create/button/?url=${enc(u)}&description=${enc(t)}` },
+  { name: "Email", icon: <span className="text-ink-soft"><MailIcon /></span>, href: (u, t) => `mailto:?subject=${enc("A look on TryOnU")}&body=${enc(`${t}
+${u}`)}` },
 ];
 // Messenger's app link only opens on phones
 const DESKTOP_SKIP = new Set(["Messenger"]);
@@ -72,7 +73,7 @@ export function ShareSheet({ url, text, title = "Share", note, onClose }: { url:
           onClick={() => setTimeout(onClose, 200)}
           className="tu-tap flex flex-col items-center gap-1.5 text-[12.5px] text-ink-soft"
         >
-          <span className="grid h-[52px] w-[52px] place-items-center rounded-full text-white" style={{ backgroundColor: a.color }}>
+          <span className="grid h-[52px] w-[52px] place-items-center rounded-2xl border border-line bg-surface shadow-sm transition-colors hover:border-line-strong">
             {a.icon}
           </span>
           {a.name}
@@ -108,7 +109,7 @@ export function ShareSheet({ url, text, title = "Share", note, onClose }: { url:
           <>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <button type="button" onClick={copy} className="tu-press flex min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-paper-2 text-[15.5px] font-semibold">
-                <LinkIcon /> {copied ? "Copied ✓" : "Copy link"}
+                <LinkIcon /> {copied ? "Copied" : "Copy link"}
               </button>
               {canNative ? (
                 <button type="button" onClick={native} className="tu-press flex min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-sage text-[15.5px] font-semibold text-white">
@@ -133,7 +134,7 @@ export function ShareSheet({ url, text, title = "Share", note, onClose }: { url:
                 className="min-w-0 flex-1 rounded-full border border-line bg-paper-2 px-4 py-2.5 text-[14.5px] text-ink-soft"
               />
               <button type="button" onClick={copy} className="tu-press shrink-0 rounded-full bg-sage px-5 text-[15px] font-semibold text-white">
-                {copied ? "Copied ✓" : "Copy link"}
+                {copied ? "Copied" : "Copy link"}
               </button>
             </div>
             <div className="mt-6">{grid}</div>
@@ -190,22 +191,6 @@ function MailIcon() {
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <rect x="3" y="5" width="18" height="14" rx="2" />
       <path d="m3 7 9 6 9-6" />
-    </svg>
-  );
-}
-
-function TelegramIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M21.5 4.3 2.9 11.5c-1 .4-1 1.5 0 1.8l4.7 1.5 1.8 5.6c.2.7 1.1.9 1.6.4l2.6-2.4 4.9 3.6c.6.4 1.4.1 1.6-.6l3.2-15.3c.2-.9-.7-1.6-1.8-1.8ZM9.9 14.6l-.4 3.9-1.5-4.5 9.6-6.1-7.7 6.7Z" />
-    </svg>
-  );
-}
-
-function MessengerIcon() {
-  return (
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M12 2C6.4 2 2 6.1 2 11.6c0 2.9 1.2 5.4 3.2 7.1V22l3-1.7c1.2.3 2.4.5 3.8.5 5.6 0 10-4.1 10-9.6S17.6 2 12 2Zm1 12.9-2.6-2.7-5 2.7 5.5-5.8 2.6 2.7 4.9-2.7-5.4 5.8Z" />
     </svg>
   );
 }

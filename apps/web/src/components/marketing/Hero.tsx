@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { CheckIcon } from "@/components/ui/Icons";
 import { Reveal } from "@/components/ui/Reveal";
 import { Button } from "@/components/ui/Button";
 import { LensIcon } from "@/components/lens/LensIcon";
@@ -50,7 +51,7 @@ export function Hero() {
             {TICKS.map((t) => (
               <li key={t} className="flex items-center gap-2">
                 <span className="grid h-4 w-4 place-items-center rounded-full bg-sage text-[11px] font-bold text-white">
-                  ✓
+                  <CheckIcon size={16} />
                 </span>
                 {t}
               </li>

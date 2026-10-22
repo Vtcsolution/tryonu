@@ -70,7 +70,7 @@ export function PublicStore({ slug, initial }: { slug: string; initial?: PublicS
           <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-sage-deep">Store on TryOnU · {countryName(s.country)}</p>
           <h1 className="mt-1 font-display text-[clamp(28px,4vw,40px)] leading-tight text-ink">{s.name}</h1>
           {s.description && <p className="mt-2 max-w-2xl text-[15.5px] leading-relaxed text-muted">{s.description}</p>}
-          <p className="mt-2 text-[14.5px] text-ink-soft">🚚 Delivers: {deliveryText(s.delivery, s.delivery_countries, s.country)}</p>
+          <p className="mt-2 text-[14.5px] text-ink-soft">Delivers: {deliveryText(s.delivery, s.delivery_countries, s.country)}</p>
         </div>
         {s.whatsapp && (
           <a

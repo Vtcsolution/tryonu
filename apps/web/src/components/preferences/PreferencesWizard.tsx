@@ -1,5 +1,6 @@
 "use client";
 
+import { CheckIcon } from "@/components/ui/Icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CountrySelect } from "@/components/business/BusinessDashboard";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -229,7 +230,7 @@ export function PreferencesWizard() {
                 <div key={a.id}>
                   {chosenAudiences.length > 1 && (
                     <p className="mb-3 text-[13px] font-semibold uppercase tracking-[0.1em] text-faint">
-                      {a.icon} {a.label}
+                      {a.label}
                     </p>
                   )}
                   <div className="tu-stagger grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -260,7 +261,6 @@ export function PreferencesWizard() {
               {chosenCategories.map(({ audience, category }) => (
                 <section key={category.id} className="rounded-[20px] border border-line bg-surface p-5">
                   <h3 className="flex items-center gap-2 text-[16px] font-semibold text-ink">
-                    <span aria-hidden="true">{category.icon}</span>
                     {category.label}
                     {chosenAudiences.length > 1 && <span className="text-[13px] font-normal text-faint">· {audience.label}</span>}
                   </h3>
@@ -395,7 +395,7 @@ function StepHeader({ step, onJump, maxReachable }: { step: number; onJump: (s: 
                   done ? "border-sage bg-sage text-white" : active ? "border-sage text-sage-deep" : "border-line-strong text-faint"
                 }`}
               >
-                {done ? "✓" : i + 1}
+                {done ? <CheckIcon size={14} /> : i + 1}
               </span>
               <span className={`hidden text-[14px] sm:inline ${active || done ? "text-ink" : "text-faint"}`}>{label}</span>
             </button>
@@ -435,7 +435,6 @@ function BigChoice({ icon, label, selected, onClick }: { icon: string; label: st
         selected ? "border-sage bg-sage-tint/40 ring-2 ring-sage/30" : "border-line bg-surface hover:border-line-strong"
       }`}
     >
-      <span className="text-[34px] leading-none" aria-hidden="true">{icon}</span>
       <span className="font-display text-[20px] text-ink">{label}</span>
       <Check selected={selected} />
     </button>
@@ -462,7 +461,6 @@ function CategoryTile({
         selected ? "border-sage bg-sage-tint/40 ring-2 ring-sage/30" : "border-line bg-surface hover:border-line-strong"
       }`}
     >
-      <span className="text-[26px] leading-none" aria-hidden="true">{node.icon}</span>
       <span>
         <span className="block text-[15px] font-medium text-ink">{node.label}</span>
         <span className="block text-[12.5px] text-faint">
@@ -482,7 +480,7 @@ function Check({ selected }: { selected: boolean }) {
         selected ? "scale-100 opacity-100" : "scale-50 opacity-0"
       }`}
     >
-      ✓
+      <CheckIcon size={16} />
     </span>
   );
 }
@@ -512,7 +510,7 @@ function ChipRow({
               on ? "border-sage bg-sage text-white" : "border-line-strong bg-surface text-ink-soft hover:border-sage hover:text-ink"
             }`}
           >
-            {on && <span aria-hidden="true">✓</span>}
+            {on && <span aria-hidden="true"><CheckIcon size={16} /></span>}
             {node.label}
             {!small && node.children.length > 0 && !on && <span className="text-faint" aria-hidden="true">+</span>}
           </button>

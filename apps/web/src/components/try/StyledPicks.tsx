@@ -102,7 +102,7 @@ export function StyledPicks({
           {summary && <p className="mt-2 max-w-3xl text-[15.5px] leading-relaxed text-ink-soft">{summary}</p>}
           {anyOptions && (
             <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-sage-tint/60 px-3 py-1.5 text-[14.5px] text-ink">
-              <span aria-hidden="true">💡</span> Not happy with an item? Tap <b>Change</b> to see other options.
+              Not happy with an item? Tap <b>Change</b> to see other options.
             </p>
           )}
         </div>
@@ -233,7 +233,7 @@ function ChangePanel({
             onClick={onClose}
             className="min-h-[40px] rounded-full border border-line bg-surface px-4 text-[15px] text-ink hover:border-line-strong"
           >
-            Close ✕
+            Close
           </button>
         </div>
       </div>

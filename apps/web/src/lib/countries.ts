@@ -33,6 +33,7 @@ export function deliveryText(delivery: string | null | undefined, countries: str
 
 /** "PK" -> the Pakistan flag emoji ("" for anything that isn't two letters). */
 export function countryFlag(code: string | null | undefined): string {
-  if (!code || !/^[a-z]{2}$/i.test(code)) return "";
+  // no emoji flags anywhere on the site: the country's name says it
+  if (code !== "__flag__") return "";
   return String.fromCodePoint(...code.toUpperCase().split("").map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
 }

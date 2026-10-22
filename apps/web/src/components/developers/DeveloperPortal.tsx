@@ -1,5 +1,6 @@
 "use client";
 
+import { CheckIcon, RadioMark } from "@/components/ui/Icons";
 import { payWays, useCheckoutProvider } from "@/lib/useCheckout";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -207,7 +208,7 @@ function Overview({ account, go }: { account: DeveloperAccount; go: (t: Tab) => 
                 className={`grid h-8 w-8 place-items-center rounded-full text-[14px] font-semibold ${s.done ? "bg-sage text-white" : "border border-line-strong text-ink-soft"}`}
                 aria-hidden="true"
               >
-                {s.done ? "✓" : i + 1}
+                {s.done ? <CheckIcon size={14} /> : i + 1}
               </span>
               <p className="mt-2 text-[16px] font-semibold text-ink">{s.title}</p>
               <p className="mt-0.5 text-[14px] text-muted">{s.text}</p>
@@ -287,7 +288,7 @@ function Keys() {
               onClick={() => setKind(id)}
               className={`rounded-[16px] border p-4 text-left ${kind === id ? "border-sage bg-sage-tint/30" : "border-line hover:border-line-strong"}`}
             >
-              <span className="text-[15.5px] font-semibold text-ink">{kind === id ? "● " : "○ "}{title}</span>
+              <span className="text-[15.5px] font-semibold text-ink"><RadioMark on={kind === id} />{title}</span>
               <span className="mt-1 block text-[13.5px] text-muted">{text}</span>
             </button>
           ))}
@@ -330,7 +331,7 @@ function Keys() {
                   }
                 }}
               >
-                {copied ? "✓ Copied" : "Copy"}
+                {copied ? "Copied" : "Copy"}
               </SmallButton>
             </div>
             {fresh.kind === "public" ? (

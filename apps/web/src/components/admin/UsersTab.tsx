@@ -171,11 +171,11 @@ function UserDetailPanel({ userId, isSelf, onClose }: { userId: string; isSelf: 
               {(detail.data.store || detail.data.developer) && (
                 <p className="mt-1 text-[14px] text-ink-soft">
                   {detail.data.store && (
-                    <>🏬 Store: <b>{detail.data.store.name}</b> ({detail.data.store.status}) · {detail.data.store.detail}</>
+                    <>Store: <b>{detail.data.store.name}</b> ({detail.data.store.status}) · {detail.data.store.detail}</>
                   )}
                   {detail.data.store && detail.data.developer && " · "}
                   {detail.data.developer && (
-                    <>🧩 Developer: <b>{detail.data.developer.name}</b> ({detail.data.developer.status}) · {detail.data.developer.detail}</>
+                    <>Developer: <b>{detail.data.developer.name}</b> ({detail.data.developer.status}) · {detail.data.developer.detail}</>
                   )}
                 </p>
               )}

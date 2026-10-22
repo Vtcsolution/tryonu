@@ -245,7 +245,7 @@ export function DeveloperDocs({ compact = false }: { compact?: boolean }) {
             onClick={copy}
             className="tu-press min-h-[38px] rounded-full border border-line-strong px-4 text-[14px] font-medium text-ink hover:border-ink/40"
           >
-            {copied ? "✓ Copied" : "Copy code"}
+            {copied ? "Copied" : "Copy code"}
           </button>
         </div>
         <div role="tablist" aria-label="Language" className="mt-4 flex flex-wrap gap-2">
@@ -268,7 +268,7 @@ export function DeveloperDocs({ compact = false }: { compact?: boolean }) {
           <code>{CODE[lang]}</code>
         </pre>
         <p className="mt-3 text-[13.5px] text-[#a4553f]">
-          🔒 Keep your secret key (<code>tou_sk_…</code>) on your server. Never put it in a web page or an app.
+          Keep your secret key (<code>tou_sk_…</code>) on your server. Never put it in a web page or an app.
         </p>
       </section>
 
@@ -402,7 +402,7 @@ function CopyBlock({ code }: { code: string }) {
         }}
         className="tu-press absolute right-3 top-3 min-h-[34px] rounded-full bg-surface px-3 text-[13px] font-semibold text-ink"
       >
-        {copied ? "✓ Copied" : "Copy"}
+        {copied ? "Copied" : "Copy"}
       </button>
     </div>
   );

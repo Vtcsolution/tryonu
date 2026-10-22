@@ -28,7 +28,7 @@ export function ShopFromCard() {
         <div className="mt-4">
           <ShopFromChoices value={value} onChange={(v) => save.mutate(v)} country={prefs.data.country} />
         </div>
-        {save.isSuccess && <p className="mt-2 text-[14px] text-sage-deep">Saved ✓</p>}
+        {save.isSuccess && <p className="mt-2 text-[14px] text-sage-deep">Saved</p>}
         {save.isError && <p className="mt-2 text-[14px] text-[#a4553f]">Couldn&apos;t save. Please try again.</p>}
       </div>
     </section>

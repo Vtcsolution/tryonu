@@ -1,5 +1,6 @@
 "use client";
 
+import { CheckIcon, XIcon } from "@/components/ui/Icons";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -540,7 +541,7 @@ export function TryFlow() {
                       : "border-line-strong text-faint"
                 }`}
               >
-                {done ? "✓" : i + 1}
+                {done ? <CheckIcon size={14} /> : i + 1}
               </span>
               <span
                 className={`hidden font-display text-[15px] sm:block ${active || done ? "text-ink" : "text-faint"}`}
@@ -660,8 +661,7 @@ export function TryFlow() {
                       }}
                       className="flex w-full items-start gap-3 rounded-[12px] px-3 py-2.5 text-left transition-colors hover:bg-paper-2"
                     >
-                      <span className="mt-0.5 text-[16px]" aria-hidden="true">📎</span>
-                      <span>
+                                            <span>
                         <span className="block text-[14.5px] font-semibold text-ink">Upload your own item</span>
                         <span className="block text-[13px] text-faint">
                           Try on a photo of something you already own
@@ -998,11 +998,11 @@ export function TryFlow() {
                         priceCents={item.price_cents}
                         currency={item.currency}
                         shop={shopName(item.merchant_name, item.retailer_name)}
-                        badge={selected ? "Selected ✓" : item.featured ? FEATURED : fromTryOnUStore(item.retailer_slug) ? RECOMMENDED : null}
+                        badge={selected ? "Selected" : item.featured ? FEATURED : fromTryOnUStore(item.retailer_slug) ? RECOMMENDED : null}
                         selected={selected}
                         busy={selecting}
                         primary={{
-                          label: selected ? "Selected ✓" : "Try this on",
+                          label: selected ? "Selected" : "Try this on",
                           onClick: () => selectLive.mutate(item),
                           disabled: selectLive.isPending || selected,
                         }}
@@ -1065,7 +1065,7 @@ export function TryFlow() {
                   <p className="min-w-0 flex-1 text-[14px] leading-snug text-ink-soft">
                     {sponsorName ? (
                       <>
-                        🎁 <b className="text-ink">Free</b>
+                        <b className="text-ink">Free</b>
                         <br />
                         from {sponsorName}
                       </>
@@ -1101,7 +1101,7 @@ export function TryFlow() {
 
           {sponsorName && (
             <div className="mt-8 rounded-[20px] border border-sage/50 bg-sage-tint/30 p-5">
-              <p className="font-display text-[22px] text-ink">🎁 Free try-on from {sponsorName}</p>
+              <p className="font-display text-[22px] text-ink">Free try-on from {sponsorName}</p>
               <p className="mt-1 max-w-2xl text-[15.5px] leading-relaxed text-ink-soft">
                 {sponsorName} pays for this try-on, so it costs you nothing. Your try-on picture will be shared with {sponsorName}{" "}
                 so they can see their product on real people. Your name and email are never shared.
@@ -1171,7 +1171,7 @@ export function TryFlow() {
               </div>
             ) : (
               <div className="mx-auto grid h-24 w-24 place-items-center rounded-full border-2 border-[#c0503a]/40 text-[28px]">
-                ✕
+                <XIcon size={16} />
               </div>
             )}
 
@@ -1385,7 +1385,7 @@ function ResultStep({
   return (
     <div key="s3" className="animate-[tu-in-scale_0.45s_cubic-bezier(0.22,1,0.36,1)]">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="grid h-6 w-6 place-items-center rounded-full bg-sage text-[13px] text-white">✓</span>
+        <span className="grid h-6 w-6 place-items-center rounded-full bg-sage text-[13px] text-white"><CheckIcon size={14} /></span>
         <h1 className="font-display text-[clamp(24px,3.6vw,36px)] leading-tight text-ink">
           Here&rsquo;s <em>you</em>, in {product.name}
         </h1>
@@ -1524,7 +1524,7 @@ function OutfitResultStep({
   return (
     <div key="s3-outfit" className="animate-[tu-in-scale_0.45s_cubic-bezier(0.22,1,0.36,1)]">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="grid h-6 w-6 place-items-center rounded-full bg-sage text-[13px] text-white">✓</span>
+        <span className="grid h-6 w-6 place-items-center rounded-full bg-sage text-[13px] text-white"><CheckIcon size={14} /></span>
         <h1 className="font-display text-[clamp(24px,3.6vw,36px)] leading-tight text-ink">
           Here&rsquo;s <em>you</em>, styled
         </h1>
@@ -1649,7 +1649,7 @@ function WardrobeResultStep({
   return (
     <div key="s3-wardrobe" className="animate-[tu-in-scale_0.45s_cubic-bezier(0.22,1,0.36,1)]">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="grid h-6 w-6 place-items-center rounded-full bg-sage text-[13px] text-white">✓</span>
+        <span className="grid h-6 w-6 place-items-center rounded-full bg-sage text-[13px] text-white"><CheckIcon size={14} /></span>
         <h1 className="font-display text-[clamp(24px,3.6vw,36px)] leading-tight text-ink">
           Here&rsquo;s <em>you</em>, in {item.name}
         </h1>
@@ -1795,7 +1795,7 @@ function SaveLookButton({ tryonResultId }: { tryonResultId: string }) {
   if (save.isSuccess) {
     return (
       <Button variant="outline" size="md" className="w-full" disabled>
-        Saved to your lookbook ✓
+        Saved to your lookbook
       </Button>
     );
   }

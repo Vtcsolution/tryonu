@@ -93,7 +93,7 @@ export function MeHub() {
             onClick={() => resend.mutate()}
             className="tu-tap mt-3 min-h-[42px] rounded-full border border-line-strong bg-surface px-4 text-[14.5px] font-semibold text-ink disabled:opacity-60"
           >
-            {resend.isSuccess ? "Sent ✓ Check your inbox" : resend.isPending ? "Sending…" : "Send the link again"}
+            {resend.isSuccess ? "Sent. Check your inbox" : resend.isPending ? "Sending…" : "Send the link again"}
           </button>
         </div>
       )}
@@ -157,7 +157,7 @@ export function MeHub() {
             Sign out
           </button>
         )}
-        <p className="pt-2 text-center text-[13px] text-faint">Help, prices, business and legal pages: tap ☰ at the top.</p>
+        <p className="pt-2 text-center text-[13px] text-faint">Help, prices, business and legal pages: open the menu at the top.</p>
       </div>
     </section>
   );

@@ -70,7 +70,7 @@ export function PriceAlertButton({ productId, size = "wide" }: { productId: stri
       }`}
     >
       <BellPlusIcon on={on} />
-      {on ? "Price alert on ✓" : "Tell me if the price drops"}
+      {on ? "Price alert on" : "Tell me if the price drops"}
     </button>
   );
 }

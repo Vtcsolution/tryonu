@@ -1,5 +1,6 @@
 "use client";
 
+import { CheckIcon, XIcon } from "@/components/ui/Icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -82,7 +83,7 @@ export function OutfitBuilder({ onSaved }: { onSaved: () => void }) {
                     )}
                     {selected && (
                       <span className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-sage text-[11px] text-white">
-                        ✓
+                        <CheckIcon size={12} />
                       </span>
                     )}
                   </div>
@@ -144,7 +145,7 @@ export function OutfitBuilder({ onSaved }: { onSaved: () => void }) {
                 aria-label="Remove"
                 className="text-faint hover:text-[#a4553f]"
               >
-                ✕
+                <XIcon size={16} />
               </button>
             </div>
           ))}

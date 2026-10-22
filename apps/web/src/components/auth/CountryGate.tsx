@@ -9,16 +9,17 @@ import { auth, preferences } from "@/lib/api/endpoints";
 import type { ShopFrom } from "@/lib/api/types";
 import { useSession } from "@/lib/auth/useSession";
 import { countryName } from "@/lib/countries";
+import { CheckIcon, GlobeIcon, LayersIcon, StoreIcon } from "@/components/ui/Icons";
 
 // pages where asking would be in the way (signing in, resetting a password)
 const SKIP = ["/sign-in", "/sign-up", "/forgot-password", "/reset-password", "/verify-email", "/business/sign-up", "/developers", "/admin"];
 
-export function shopChoices(country: string | null | undefined): { id: ShopFrom; icon: string; title: string; text: string }[] {
+export function shopChoices(country: string | null | undefined): { id: ShopFrom; icon: React.ReactNode; title: string; text: string }[] {
   const where = country ? countryName(country) : "your country";
   return [
-    { id: "local", icon: "🏠", title: "Local shops", text: `Brands and shops in ${where}. Faster, easier delivery.` },
-    { id: "worldwide", icon: "🌍", title: "Worldwide stores", text: "Big international websites, shipping to you." },
-    { id: "both", icon: "✨", title: "Both", text: "Show me everything, local shops first." },
+    { id: "local", icon: <StoreIcon size={20} />, title: "Local shops", text: `Brands and shops in ${where}. Faster, easier delivery.` },
+    { id: "worldwide", icon: <GlobeIcon size={20} />, title: "Worldwide stores", text: "Big international websites, shipping to you." },
+    { id: "both", icon: <LayersIcon size={20} />, title: "Both", text: "Show me everything, local shops first." },
   ];
 }
 
@@ -37,7 +38,7 @@ export function ShopFromChoices({ value, onChange, country }: { value: ShopFrom 
             value === c.id ? "border-sage bg-sage/10" : "border-line hover:border-line-strong"
           }`}
         >
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-paper-2 text-[22px]" aria-hidden="true">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-paper-2 text-ink-soft" aria-hidden="true">
             {c.icon}
           </span>
           <span className="min-w-0 flex-1">
@@ -48,7 +49,7 @@ export function ShopFromChoices({ value, onChange, country }: { value: ShopFrom 
             className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 ${value === c.id ? "border-sage bg-sage text-white" : "border-line-strong"}`}
             aria-hidden="true"
           >
-            {value === c.id && "✓"}
+            {value === c.id && <CheckIcon size={14} />}
           </span>
         </button>
       ))}

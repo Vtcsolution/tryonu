@@ -92,7 +92,7 @@ export function DevelopersTab() {
                     { id: giving.id, amount: Number(gift), note: note.trim() },
                     {
                       onSuccess: () => {
-                        setGiven(`✓ ${Number(gift).toLocaleString()} free try-ons given to ${giving.company_name}.`);
+                        setGiven(`${Number(gift).toLocaleString()} free try-ons given to ${giving.company_name}.`);
                         setGiving(null);
                         setNote("");
                       },
@@ -140,7 +140,7 @@ export function DevelopersTab() {
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   }}
                 >
-                  🎁 Give free
+                  Give free
                 </SmallButton>
                 <SmallButton disabled={credits.isPending || a.credits === 0} onClick={() => credits.mutate({ id: a.id, amount: -Number(amounts[a.id] ?? 10) })}>
                   − Take back

@@ -1,5 +1,6 @@
 "use client";
 
+import { FacebookLogo, LinkedInLogo, WhatsAppLogo, XLogo } from "@/components/ui/BrandLogos";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -88,10 +89,10 @@ export function ShareLook({ jobId, url, variant = "pill", label, title = "Share 
   const encoded = link ? encodeURIComponent(link) : "";
   const channels: { name: string; href: string; icon: ReactNode }[] = link
     ? [
-        { name: "WhatsApp", href: `https://wa.me/?text=${encodeURIComponent(`${message} ${link}`)}`, icon: <WhatsAppIcon /> },
-        { name: "Facebook", href: `https://www.facebook.com/sharer/sharer.php?u=${encoded}`, icon: <FacebookIcon /> },
-        { name: "LinkedIn", href: `https://www.linkedin.com/sharing/share-offsite/?url=${encoded}`, icon: <LinkedInIcon /> },
-        { name: "X", href: `https://twitter.com/intent/tweet?url=${encoded}&text=${encodeURIComponent(message)}`, icon: <XIcon /> },
+        { name: "WhatsApp", href: `https://wa.me/?text=${encodeURIComponent(`${message} ${link}`)}`, icon: <WhatsAppLogo size={18} /> },
+        { name: "Facebook", href: `https://www.facebook.com/sharer/sharer.php?u=${encoded}`, icon: <FacebookLogo size={18} /> },
+        { name: "LinkedIn", href: `https://www.linkedin.com/sharing/share-offsite/?url=${encoded}`, icon: <LinkedInLogo size={18} /> },
+        { name: "X", href: `https://twitter.com/intent/tweet?url=${encoded}&text=${encodeURIComponent(message)}`, icon: <XLogo size={16} className="text-ink" /> },
         {
           name: "Email",
           href: `mailto:?subject=${encodeURIComponent(jobId || !earns ? "A look on TryOnU" : "Join me on TryOnU")}&body=${encodeURIComponent(`${message}\n${link}`)}`,
@@ -293,48 +294,9 @@ function ShareIcon() {
   );
 }
 
-function FacebookIcon() {
-  return (
-    <svg {...svg}>
-      <circle cx="12" cy="12" r="10" fill="#1877f2" />
-      <path
-        fill="#fff"
-        d="M13.4 21.9v-7.1h2.3l.4-2.8h-2.7v-1.8c0-.8.3-1.4 1.4-1.4h1.4V6.3c-.3 0-1.1-.1-2.1-.1-2.1 0-3.5 1.3-3.5 3.6V12H8.3v2.8h2.3v7.1h2.8z"
-      />
-    </svg>
-  );
-}
 
-function LinkedInIcon() {
-  return (
-    <svg {...svg}>
-      <rect x="2" y="2" width="20" height="20" rx="3" fill="#0a66c2" />
-      <rect x="5.6" y="9.5" width="2.8" height="8.5" fill="#fff" />
-      <circle cx="7" cy="6.6" r="1.6" fill="#fff" />
-      <path fill="#fff" d="M10.6 9.5h2.7v1.2c.4-.7 1.4-1.4 2.8-1.4 2.4 0 3 1.5 3 3.7V18h-2.8v-4.5c0-1.1-.2-2-1.4-2s-1.5.9-1.5 2V18h-2.8V9.5z" />
-    </svg>
-  );
-}
 
-function XIcon() {
-  return (
-    <svg {...svg} fill="currentColor">
-      <path d="M4 3.5h4.6l4 5.6 4.8-5.6h2.2l-6 7 6.9 10h-4.6l-4.4-6.2-5.3 6.2H4l6.6-7.6L4 3.5zm3 1.6 9.6 13.8h1.4L8.4 5.1H7z" />
-    </svg>
-  );
-}
 
-function WhatsAppIcon() {
-  return (
-    <svg {...svg}>
-      <path fill="#25d366" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z" />
-      <path
-        fill="#fff"
-        d="M9.1 7.2c-.2 0-.6.1-.9.4-.3.3-1.1 1.1-1.1 2.6s1.1 3 1.3 3.2c.2.2 2.2 3.4 5.3 4.6 2.6 1 3.1.8 3.7.8.6-.1 1.8-.7 2-1.5.3-.7.3-1.4.2-1.5-.1-.1-.3-.2-.6-.4l-2-1c-.3-.1-.5-.1-.7.1l-1 1.2c-.2.2-.4.3-.7.1-.3-.2-1.3-.5-2.5-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6l.5-.6c.2-.2.2-.3.3-.5.1-.2.1-.4 0-.6l-.9-2.2c-.2-.5-.5-.5-.7-.5h-.6z"
-      />
-    </svg>
-  );
-}
 
 function MailIcon() {
   return (

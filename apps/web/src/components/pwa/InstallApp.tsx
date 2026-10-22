@@ -219,7 +219,7 @@ export function InstallAppCard({ big = false }: { big?: boolean }) {
         <p className={`${big ? "text-[19px]" : "text-[16px]"} font-semibold text-ink`}>The TryOnU app</p>
       </div>
       {device === "installed" || done ? (
-        <p className="mt-3 text-[15px] text-ink">You&apos;re using the app ✓</p>
+        <p className="mt-3 text-[15px] text-ink">You&apos;re using the app</p>
       ) : device === "installable" ? (
         <>
           <p className="mt-2 text-[14.5px] text-muted">One tap to add it to this device: full screen, with notifications, no app store.</p>

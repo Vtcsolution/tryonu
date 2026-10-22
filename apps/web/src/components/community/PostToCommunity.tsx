@@ -1,5 +1,6 @@
 "use client";
 
+import { CheckIcon } from "@/components/ui/Icons";
 import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -41,7 +42,7 @@ export function PostToCommunity({ jobId, imageUrl }: { jobId: string; imageUrl?:
         href={`/community/post/${postId}`}
         className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full border border-line-strong bg-surface px-5 text-[15.5px] font-semibold text-ink hover:border-ink/40"
       >
-        ✓ In the community · View post
+        In the community · View post
       </Link>
     );
   }
@@ -69,7 +70,7 @@ export function PostToCommunity({ jobId, imageUrl }: { jobId: string; imageUrl?:
             <div role="dialog" aria-modal="true" aria-label="Post to community" className="max-h-[92vh] w-full max-w-[480px] overflow-y-auto rounded-t-[20px] border border-line bg-surface p-5 sm:rounded-[20px] sm:p-6">
               {post.isSuccess ? (
                 <div className="py-4 text-center">
-                  <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-sage text-[26px] text-white">✓</div>
+                  <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-sage text-[26px] text-white"><CheckIcon size={28} /></div>
                   <p className="mt-4 text-[19px] font-semibold text-ink">Posted to the community</p>
                   <p className="mt-1 text-[15px] text-muted">Members can now like it, comment and try your look.</p>
                   <div className="mt-5 flex flex-wrap justify-center gap-3">

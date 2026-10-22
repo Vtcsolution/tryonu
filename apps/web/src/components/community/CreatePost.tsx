@@ -1,5 +1,6 @@
 "use client";
 
+import { CheckIcon } from "@/components/ui/Icons";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -190,7 +191,7 @@ function MediaComposer({ onClose, extras: startExtras }: { onClose: () => void; 
     return (
       <Modal title="Posted" onClose={onClose}>
         <div className="py-6 text-center">
-          <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-sage text-[26px] text-white">✓</div>
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-sage text-[26px] text-white"><CheckIcon size={28} /></div>
           <p className="mt-4 text-[18px] font-semibold text-ink">Your {done.media_kind === "video" ? "video" : "photo"} is in the community</p>
           <div className="mt-5 flex flex-wrap justify-center gap-3">
             <Link href={`/community/post/${done.id}`} onClick={onClose} className="inline-flex min-h-[44px] items-center rounded-full bg-sage px-5 text-[15px] font-semibold text-white">

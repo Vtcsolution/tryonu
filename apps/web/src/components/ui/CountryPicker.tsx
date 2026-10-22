@@ -1,5 +1,6 @@
 "use client";
 
+import { CheckIcon } from "@/components/ui/Icons";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { countryFlag, countryName, countryOptions } from "@/lib/countries";
 
@@ -152,7 +153,7 @@ export function CountryPicker({
               {suggested && c.code === suggested.toUpperCase() && !query && (
                 <span className="text-[12.5px] text-muted">Your location</span>
               )}
-              {c.code === value && <span className="text-sage-deep" aria-hidden="true">✓</span>}
+              {c.code === value && <span className="text-sage-deep" aria-hidden="true"><CheckIcon size={16} /></span>}
             </li>
           ))}
         </ul>

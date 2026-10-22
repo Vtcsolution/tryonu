@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertIcon } from "@/components/ui/Icons";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -229,7 +230,7 @@ function FashnWarning({ onOpen }: { onOpen: () => void }) {
         severe ? "border-[#c0503a]/40 bg-[#c0503a]/10" : "border-[#c9a13b]/50 bg-[#c9a13b]/10"
       }`}
     >
-      <p className="text-[15px] font-medium text-ink">⚠ {text}</p>
+      <p className="text-[15px] font-medium text-ink"><AlertIcon size={14} className="mr-1 align-[-2px]" />{text}</p>
       <button
         type="button"
         onClick={onOpen}

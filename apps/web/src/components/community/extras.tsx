@@ -168,7 +168,7 @@ export function PollBox({ post, onChange }: { post: CommunityPost; onChange: (p:
               <span className="relative flex min-h-[44px] items-center justify-between px-3.5 text-[15px]">
                 <span className="font-semibold text-ink">
                   {label}
-                  {mine === choice && <span className="ml-2 text-[12.5px] font-semibold text-ink-soft">✓ your vote</span>}
+                  {mine === choice && <span className="ml-2 text-[12.5px] font-semibold text-ink-soft">Your vote</span>}
                 </span>
                 <span className="font-semibold tabular-nums text-ink">{pct(n)}%</span>
               </span>
@@ -237,7 +237,7 @@ export function ChallengeBanner({ challenge, onJoin }: { challenge: Challenge; o
             href={`/community/post/${challenge.my_entry_post_id}`}
             className="inline-flex min-h-[44px] items-center rounded-full border border-line-strong bg-surface px-5 text-[15px] font-semibold text-ink"
           >
-            ✓ You&apos;re in · View my entry
+            You&apos;re in · View my entry
           </Link>
         ) : (
           <button

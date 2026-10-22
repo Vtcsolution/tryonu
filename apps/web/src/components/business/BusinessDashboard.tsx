@@ -1,5 +1,6 @@
 "use client";
 
+import { CheckIcon, LockIcon, RadioMark, StarIcon, XIcon } from "@/components/ui/Icons";
 import { payWays, useCheckoutProvider } from "@/lib/useCheckout";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
@@ -125,7 +126,7 @@ function OpenStore() {
                 step === n ? "bg-sage text-white" : step > (n as number) ? "bg-sage/30 text-sage-deep" : "border border-line-strong text-muted"
               }`}
             >
-              {step > (n as number) ? "✓" : n}
+              {step > (n as number) ? <CheckIcon size={14} /> : n}
             </span>
             <span className={step === n ? "font-semibold text-ink" : "text-muted"}>{label}</span>
             {n === 1 && <span className="mx-1 h-px w-8 bg-line-strong" aria-hidden="true" />}
@@ -344,7 +345,7 @@ function StoreInfo({ store, email, go }: { store: Store; email: string; go: (tab
       label: "Delivers to",
       value: (
         <>
-          🚚 {deliveryText(store.delivery, store.delivery_countries, store.country)}
+          {deliveryText(store.delivery, store.delivery_countries, store.country)}
           <span className="block text-[13.5px] text-muted">Shoppers elsewhere don&apos;t see your products.</span>
         </>
       ),
@@ -399,7 +400,7 @@ function StoreInfo({ store, email, go }: { store: Store; email: string; go: (tab
       label: "Try-on credits",
       value: (
         <>
-          🎁 {store.tryon_credits ?? 0} left
+          {store.tryon_credits ?? 0} left
           <span className="block text-[13.5px] text-muted">Each one pays for a shopper trying on your product.</span>
         </>
       ),
@@ -408,7 +409,7 @@ function StoreInfo({ store, email, go }: { store: Store; email: string; go: (tab
     },
     {
       label: "Featured",
-      value: `★ ${store.featured_count ?? 0} of ${store.plan_featured_limit ?? 0}`,
+      value: `${store.featured_count ?? 0} of ${store.plan_featured_limit ?? 0}`,
       tab: "products",
       action: "Manage",
     },
@@ -482,7 +483,7 @@ function PlanAllowance({ store }: { store: Store }) {
       text: `${store.product_count} of ${store.plan_product_limit.toLocaleString()} used`,
     },
     {
-      label: "★ Featured products",
+      label: "Featured products",
       used: store.featured_count ?? 0,
       total: store.plan_featured_limit ?? 0,
       text: `${store.featured_count ?? 0} of ${store.plan_featured_limit ?? 0} used`,
@@ -508,7 +509,7 @@ function PlanAllowance({ store }: { store: Store }) {
           );
         })}
         <div>
-          <p className="text-[14px] font-medium text-muted">🎁 Try-on credits</p>
+          <p className="text-[14px] font-medium text-muted">Try-on credits</p>
           <p className="mt-0.5 text-[18px] font-semibold text-ink">{(store.tryon_credits ?? 0).toLocaleString()} left</p>
           <p className="mt-1 text-[13.5px] leading-snug text-muted">1 credit = 1 shopper trying on your product for free.</p>
         </div>
@@ -525,7 +526,7 @@ function PlanAllowance({ store }: { store: Store }) {
 function NeedsPlan({ go, what }: { go: (tab: Tab) => void; what: string }) {
   return (
     <section className="rounded-[24px] border border-line bg-surface px-6 py-12 text-center">
-      <p className="text-[40px]" aria-hidden="true">🔒</p>
+      <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-paper-2 text-ink-soft"><LockIcon size={24} /></span>
       <h2 className="mt-2 font-display text-[24px] text-ink">Unlock a plan to {what}</h2>
       <p className="mx-auto mt-2 max-w-md text-[15.5px] text-muted">
         Your plan sets how many products you can sell. Then add them here.
@@ -580,7 +581,7 @@ function NextSteps({ store, go }: { store: Store; go: (tab: Tab) => void }) {
               }`}
               aria-hidden="true"
             >
-              {step.done ? "✓" : i + 1}
+              {step.done ? <CheckIcon size={14} /> : i + 1}
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-[16px] font-semibold text-ink">
@@ -635,7 +636,7 @@ function StoreHeader({ store }: { store: Store }) {
           <Badge tone={store.live ? "good" : "neutral"}>{store.live ? "Live: shoppers see your products" : "Not live yet"}</Badge>
         </div>
       </div>
-      <p className="mt-2 text-[14px] text-muted">🚚 Delivers: {deliveryText(store.delivery, store.delivery_countries, store.country)}</p>
+      <p className="mt-2 text-[14px] text-muted">Delivers: {deliveryText(store.delivery, store.delivery_countries, store.country)}</p>
       <p className="mt-4 text-[14.5px] text-ink-soft">
         {status.text}
         {store.status_note ? ` ${store.status_note}` : ""}
@@ -656,8 +657,8 @@ function StoreHeader({ store }: { store: Store }) {
         />
         <Stat label="Plan ends" value={store.plan_active && expires ? expires.toLocaleDateString() : "Not unlocked yet"} />
         <Stat label="Products" value={`${store.product_count} of ${store.plan_active ? store.plan_product_limit : 0}`} />
-        <Stat label="★ Featured" value={`${store.featured_count ?? 0} of ${store.plan_featured_limit ?? 0}`} />
-        <Stat label="🎁 Try-on credits left" value={`${store.tryon_credits ?? 0}`} />
+        <Stat label="Featured" value={`${store.featured_count ?? 0} of ${store.plan_featured_limit ?? 0}`} />
+        <Stat label="Try-on credits left" value={`${store.tryon_credits ?? 0}`} />
       </div>
     </div>
   );
@@ -760,12 +761,12 @@ function PlansSection({ store }: { store: Store }) {
                 <p className="mt-2 text-[15px] text-ink-soft">Up to {plan.product_limit.toLocaleString()} products</p>
                 {plan.tryon_credits > 0 && (
                   <p className="mt-1 text-[15px] text-ink-soft">
-                    🎁 {plan.tryon_credits.toLocaleString()} free try-ons for your shoppers
+                    {plan.tryon_credits.toLocaleString()} free try-ons for your shoppers
                   </p>
                 )}
                 {plan.featured_limit > 0 && (
                   <p className="mt-1 text-[15px] text-ink-soft">
-                    <span className="text-sage-deep">★</span> Feature {plan.featured_limit.toLocaleString()} products: shown first to shoppers
+                    <StarIcon size={14} className="align-[-2px] text-sage-deep" /> Feature {plan.featured_limit.toLocaleString()} products: shown first to shoppers
                   </p>
                 )}
                 <div className="mt-auto space-y-2 pt-5">
@@ -835,7 +836,7 @@ function ProductsSection({ store }: { store: Store }) {
       title="Products"
       hint={
         store.plan_active
-          ? `${store.product_count} of ${store.plan_product_limit} on sale · ★ ${store.featured_count ?? 0} of ${store.plan_featured_limit ?? 0} featured. Featured products are shown first when they match what a shopper asks for, and first of all to shoppers in your country. Products without a photo aren't shown.`
+          ? `${store.product_count} of ${store.plan_product_limit} on sale · ${store.featured_count ?? 0} of ${store.plan_featured_limit ?? 0} featured. Featured products are shown first when they match what a shopper asks for, and first of all to shoppers in your country. Products without a photo aren't shown.`
           : "Unlock a plan to add products."
       }
       action={
@@ -902,7 +903,7 @@ function ProductsSection({ store }: { store: Store }) {
                   {p.source === "feed" ? "From feed" : "Added by you"}
                 </span>
                 {p.is_featured && (
-                  <span className="absolute right-2 top-2 rounded-full bg-sage px-2 py-0.5 text-[11.5px] font-semibold text-white">★ Featured</span>
+                  <span className="absolute right-2 top-2 rounded-full bg-sage px-2 py-0.5 text-[11.5px] font-semibold text-white">Featured</span>
                 )}
               </div>
               <div className="flex flex-1 flex-col p-3">
@@ -910,7 +911,7 @@ function ProductsSection({ store }: { store: Store }) {
                 <p className="mt-1 text-[15px] font-semibold text-ink">{formatPrice(p.price_cents, p.currency)}</p>
                 {p.delivery && (
                   <p className="mt-1 text-[12.5px] text-muted">
-                    🚚 {p.delivery === "worldwide" ? "Worldwide" : `Only in ${countryName(store.country)}`}
+                    {p.delivery === "worldwide" ? "Worldwide" : `Only in ${countryName(store.country)}`}
                   </p>
                 )}
                 <div className="mt-auto flex flex-wrap gap-1.5 pt-3">
@@ -919,7 +920,7 @@ function ProductsSection({ store }: { store: Store }) {
                     disabled={feature.isPending || !p.is_active || (!p.is_featured && featureFull)}
                     onClick={() => feature.mutate(p)}
                   >
-                    {p.is_featured ? "★ Featured" : "☆ Feature"}
+                    {p.is_featured ? "Featured" : "Feature"}
                   </SmallButton>
                   <SmallButton onClick={() => setEditing(p)}>Edit</SmallButton>
                   <SmallButton disabled={toggle.isPending} onClick={() => toggle.mutate(p)}>
@@ -1268,7 +1269,7 @@ function DeliveryChooser({
             }`}
           >
             <p className="text-[16px] font-semibold text-ink">
-              {mode === c.value ? "● " : "○ "}
+              <RadioMark on={mode === c.value} />
               {c.value === "domestic" ? `Only in ${countryName(home)}` : c.title}
             </p>
             <p className="mt-1 text-[14px] text-muted">{c.text}</p>
@@ -1291,7 +1292,7 @@ function DeliveryChooser({
                   onClick={() => onCountries(countries.filter((x) => x !== c))}
                   className="text-muted hover:text-[#a4553f]"
                 >
-                  ✕
+                  <XIcon size={16} />
                 </button>
               </span>
             ))}
@@ -1343,7 +1344,7 @@ function DeliverySection({ store }: { store: Store }) {
         >
           {save.isPending ? "Saving…" : "Save delivery"}
         </SmallButton>
-        {save.isSuccess && !changed && <span className="text-[14px] font-medium text-sage-deep">✓ Saved</span>}
+        {save.isSuccess && !changed && <span className="text-[14px] font-medium text-sage-deep">Saved</span>}
       </div>
     </Section>
   );
@@ -1445,7 +1446,7 @@ function PaymentsSection({ go }: { go: (tab: Tab) => void }) {
       )}
       {check.isError && <div className="mt-3"><ErrorNote>{errorText(check.error)}</ErrorNote></div>}
       {check.data?.status === "succeeded" && (
-        <p className="mt-3 text-[14.5px] font-medium text-sage-deep">✓ Payment confirmed. Your plan is unlocked.</p>
+        <p className="mt-3 text-[14.5px] font-medium text-sage-deep">Payment confirmed. Your plan is unlocked.</p>
       )}
       <div className="mt-4">
         <SmallButton tone="primary" onClick={() => go("plan")}>Go to plans</SmallButton>

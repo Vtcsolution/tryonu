@@ -234,7 +234,7 @@ export function PhotoUploader({
         <span>
           {count} / {MAX_PHOTOS} photos
         </span>
-        <span>{isReady ? "Ready ✓" : "Add a front photo"}</span>
+        <span>{isReady ? "Ready" : "Add a front photo"}</span>
       </div>
       {photos.filter(isLowRes).map((photo) => (
         <p key={photo.id} className="mt-2 text-[13px] text-[#a4553f]" role="alert">

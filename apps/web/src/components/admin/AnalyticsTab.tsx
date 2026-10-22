@@ -27,7 +27,7 @@ function formatDuration(ms: number | null): string {
 }
 
 function countryLabel(code: string): { flag: string; name: string } {
-  if (code.length !== 2) return { flag: "🌐", name: "Unknown" };
+  if (code.length !== 2) return { flag: "", name: "Unknown" };
   const flag = String.fromCodePoint(...[...code.toUpperCase()].map((c) => 127397 + c.charCodeAt(0)));
   let name = code;
   try {
@@ -132,7 +132,6 @@ function Report({ data }: { data: AnalyticsReport }) {
               const c = countryLabel(key);
               return (
                 <>
-                  <span aria-hidden="true" className="mr-2">{c.flag}</span>
                   {c.name}
                 </>
               );

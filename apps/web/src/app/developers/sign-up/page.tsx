@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { CheckIcon } from "@/components/ui/Icons";
 import { DevChrome } from "@/components/developers/DevChrome";
 import { DeveloperSignUpForm } from "@/components/developers/DeveloperSignUpForm";
 import { pageMeta } from "@/lib/seo";
@@ -32,7 +33,7 @@ export default function DeveloperSignUpPage() {
             {GETS.map(([title, text]) => (
               <li key={title} className="flex gap-3.5">
                 <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-md bg-[#0d1210] text-[14px] text-[#b9cdb5]" aria-hidden="true">
-                  ✓
+                  <CheckIcon size={16} />
                 </span>
                 <span>
                   <span className="block text-[16.5px] font-semibold text-ink">{title}</span>

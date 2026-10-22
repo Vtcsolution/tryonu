@@ -1,5 +1,6 @@
 "use client";
 
+import { CheckIcon } from "@/components/ui/Icons";
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useState, type FormEvent } from "react";
 import { ApiError } from "@/lib/api/client";
@@ -45,7 +46,7 @@ export function ContactForm() {
   if (send.isSuccess) {
     return (
       <div className="py-6 text-center">
-        <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-sage text-[26px] text-white">✓</div>
+        <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-sage text-[26px] text-white"><CheckIcon size={28} /></div>
         <p className="mt-4 font-display text-[26px] text-ink">Message sent</p>
         <p className="mt-1 text-[16px] text-ink-soft">Thank you. We&apos;ll reply to {email} by email.</p>
         <button

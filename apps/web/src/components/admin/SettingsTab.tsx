@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertIcon, CheckIcon, XIcon } from "@/components/ui/Icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { admin as adminApi } from "@/lib/api/endpoints";
@@ -126,7 +127,7 @@ function SettingsGroupCard({ group }: { group: AdminSettingGroup }) {
             test.ok ? "border-sage/40 bg-sage-tint/30 text-sage-deep" : "border-[#c0503a]/30 bg-[#c0503a]/10 text-[#a4553f]"
           }`}
         >
-          {test.ok ? "✓ " : "✕ "}
+          {test.ok ? <CheckIcon size={14} className="mr-1 align-[-2px]" /> : <XIcon size={14} className="mr-1 align-[-2px]" />}
           {test.message}
         </p>
       )}
@@ -256,10 +257,10 @@ function SettingInput({
         )}
       </div>
       {field.help && <p className="mt-1 text-[12.5px] leading-snug text-muted">{field.help}</p>}
-      {field.warning && <p className="mt-1 text-[12.5px] leading-snug text-[#8a6d1f]">⚠ {field.warning}</p>}
+      {field.warning && <p className="mt-1 text-[12.5px] leading-snug text-[#8a6d1f]"><AlertIcon size={14} className="mr-1 align-[-2px]" />{field.warning}</p>}
       {field.unreadable && (
         <p className="mt-1 text-[12.5px] leading-snug text-[#a4553f]">
-          ⚠ This saved value can&rsquo;t be read any more. Please enter it again.
+          <AlertIcon size={14} className="mr-1 align-[-2px]" />This saved value can&rsquo;t be read any more. Please enter it again.
         </p>
       )}
     </div>

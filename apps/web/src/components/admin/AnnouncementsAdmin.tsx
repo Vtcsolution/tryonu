@@ -70,7 +70,7 @@ export function AnnouncementsAdmin() {
             <ErrorNote>{errorText(send.error)}</ErrorNote>
           </div>
         )}
-        {send.isSuccess && <p className="mt-2 text-[14px] text-sage-deep">Sent to {send.data.sent_to.toLocaleString()} members ✓</p>}
+        {send.isSuccess && <p className="mt-2 text-[14px] text-sage-deep">Sent to {send.data.sent_to.toLocaleString()} members</p>}
         <div className="mt-3">
           <SmallButton
             tone="primary"

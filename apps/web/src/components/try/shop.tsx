@@ -38,8 +38,8 @@ export function formatPrice(cents: number, currency: string): string {
 }
 
 /** Products of company stores selling on TryOnU are recommended to shoppers. */
-export const RECOMMENDED = "★ Recommended";
+export const RECOMMENDED = "Recommended";
 export function fromTryOnUStore(retailerSlug: string | null | undefined): boolean {
   return retailerSlug === "stores";
 }
-export const FEATURED = "★ Featured";
+export const FEATURED = "Featured";

@@ -1,5 +1,6 @@
 "use client";
 
+import { CompassIcon } from "@/components/ui/Icons";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -100,7 +101,7 @@ export function ForYouFeed() {
         </div>
       ) : noPicks ? (
         <div className="tu-pop mt-10 rounded-[26px] border border-line bg-surface px-6 py-12 text-center">
-          <p className="text-[38px]" aria-hidden="true">🧭</p>
+          <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-paper-2 text-ink-soft"><CompassIcon size={26} /></span>
           <p className="mt-3 font-display text-[24px] text-ink">Tell us what you love</p>
           <p className="mx-auto mt-2 max-w-md text-[15px] text-muted">
             Pick your categories — shalwar kameez, bangles, shoes, anything — and we&rsquo;ll fill this page with matching products.

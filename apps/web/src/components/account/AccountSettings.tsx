@@ -99,7 +99,7 @@ function ProfileCard({ user }: { user: User }) {
           <Button type="submit" size="md" disabled={save.isPending || (!nameChanged && !countryChanged)}>
             {save.isPending ? "Saving…" : "Save"}
           </Button>
-          {saved && <span className="text-[14.5px] font-medium text-sage-deep">✓ Saved</span>}
+          {saved && <span className="text-[14.5px] font-medium text-sage-deep">Saved</span>}
         </div>
       </form>
     </section>
@@ -175,7 +175,7 @@ function PasswordCard({ user }: { user: User }) {
         )}
         {done && (
           <p role="status" className="rounded-xl bg-sage-tint/60 px-3.5 py-2.5 text-[14.5px] font-medium text-ink">
-            ✓ Password changed. Use the new one next time you sign in.
+            Password changed. Use the new one next time you sign in.
           </p>
         )}
         <Button type="submit" size="md" disabled={change.isPending}>
