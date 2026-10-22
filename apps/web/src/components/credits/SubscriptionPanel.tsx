@@ -36,6 +36,8 @@ export function SubscriptionPanel() {
   });
 
   const current = currentQuery.data;
+  // nothing to subscribe to (e.g. monthly plans aren't on with this payment gateway): no empty box
+  if (!current && !(plansQuery.data && plansQuery.data.length > 0)) return null;
 
   return (
     <div className="lg:rounded-[22px] lg:border lg:border-line lg:bg-surface lg:p-6">

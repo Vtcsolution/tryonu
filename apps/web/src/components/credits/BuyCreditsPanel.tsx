@@ -9,6 +9,7 @@ import { ApiError } from "@/lib/api/client";
 import { credits as creditsApi } from "@/lib/api/endpoints";
 import { SESSION_QUERY_KEY, useSession } from "@/lib/auth/useSession";
 import { SubscriptionPanel } from "@/components/credits/SubscriptionPanel";
+import { subscriptions as subscriptionsApi } from "@/lib/api/endpoints";
 import type { CreditPackage } from "@/lib/api/types";
 
 export const AFTER_PAY_KEY = "tou_after_pay";
@@ -42,6 +43,10 @@ export function BuyCreditsPanel() {
   });
 
   const checkoutProvider = useCheckoutProvider();
+  // monthly plans: shown only when there are some (or the member already has one)
+  const subPlans = useQuery({ queryKey: ["subscription-plans"], queryFn: subscriptionsApi.plans, enabled: !!user });
+  const subMine = useQuery({ queryKey: ["subscription-me"], queryFn: subscriptionsApi.me, enabled: !!user });
+  const monthly = !!subMine.data || (subPlans.data?.length ?? 0) > 0;
   const purchase = useMutation({
     mutationFn: (pkg: CreditPackage) => creditsApi.purchase({ credit_package_id: pkg.id }),
     onSuccess: (res) => {
@@ -87,15 +92,18 @@ export function BuyCreditsPanel() {
         {tryOnCost !== null ? ` Each try-on uses ${tryOnCost} credits.` : " Each try-on uses a few credits."}
       </p>
 
-      <div className="mt-8">
-        <SubscriptionPanel />
-      </div>
-
-      <div className="mt-10 flex items-center gap-3 text-[13px] text-faint">
-        <span className="h-px flex-1 bg-line" />
-        or buy one-time credits
-        <span className="h-px flex-1 bg-line" />
-      </div>
+      {monthly && (
+        <>
+          <div className="mt-8">
+            <SubscriptionPanel />
+          </div>
+          <div className="mt-10 flex items-center gap-3 text-[13px] text-faint">
+            <span className="h-px flex-1 bg-line" />
+            or buy one-time credits
+            <span className="h-px flex-1 bg-line" />
+          </div>
+        </>
+      )}
 
       {packagesQuery.data && packagesQuery.data.length > 0 && (
         <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
