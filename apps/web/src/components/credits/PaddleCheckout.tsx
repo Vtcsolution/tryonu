@@ -12,7 +12,7 @@ const PADDLE_JS = "https://cdn.paddle.com/paddle/v2/paddle.js";
 type PaddleEvent = { name?: string };
 type PaddleJs = {
   Environment: { set: (env: string) => void };
-  Initialize: (opts: { token: string; eventCallback?: (e: PaddleEvent) => void }) => void;
+  Initialize: (opts: { token: string; checkout?: { settings: Record<string, unknown> }; eventCallback?: (e: PaddleEvent) => void }) => void;
   Checkout: { open: (opts: { transactionId: string; settings?: Record<string, unknown> }) => void };
 };
 declare global {
@@ -55,17 +55,24 @@ export function PaddleCheckout() {
     [paymentId, router],
   );
 
-  const open = useCallback(async () => {
+  const opened = useRef(false);
+  const open = useCallback(async (again = false) => {
     const paddle = config.data?.paddle;
     if (!transactionId || !paddle) return;
     setProblem(null);
+    // after paying, Paddle itself sends the customer back to TryOnU's confirmation page
+    const back = paymentId ? `${window.location.origin}/credits/paypal?payment_id=${encodeURIComponent(paymentId)}` : undefined;
+    const settings = { displayMode: "overlay", variant: "one-page", locale: "en", ...(back ? { successUrl: back } : {}) };
     try {
       const P = await loadPaddle();
       if (!initialized) {
         if (paddle.environment === "sandbox") P.Environment.set("sandbox");
+        // Paddle.js opens the checkout by itself for the ?_ptxn= in the address: same settings
         P.Initialize({
           token: paddle.token,
+          checkout: { settings },
           eventCallback: (e) => {
+            if (e.name === "checkout.loaded") opened.current = true;
             if (e.name === "checkout.completed") {
               paid.current = true;
               setTimeout(() => done(false), 1200); // let Paddle show its "thank you" for a moment
@@ -75,11 +82,16 @@ export function PaddleCheckout() {
         });
         initialized = true;
       }
-      P.Checkout.open({ transactionId, settings: { displayMode: "overlay", variant: "one-page", locale: "en" } });
+      // opened by hand only when Paddle didn't open it by itself, or when asked again
+      if (again) P.Checkout.open({ transactionId, settings });
+      else
+        setTimeout(() => {
+          if (!opened.current) P.Checkout.open({ transactionId, settings });
+        }, 1500);
     } catch {
       setProblem("The secure checkout couldn't open. Check your internet, then try again.");
     }
-  }, [config.data, transactionId, done]);
+  }, [config.data, transactionId, paymentId, done]);
 
   useEffect(() => {
     if (config.data) open();
@@ -111,7 +123,7 @@ export function PaddleCheckout() {
           <p className="mt-1 text-[15px] text-muted">Pay by card, PayPal, Apple Pay or Google Pay.</p>
           {problem && <p className="mt-4 text-[14.5px] text-[#a4553f]">{problem}</p>}
           <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <button type="button" onClick={open} className="tu-press rounded-full bg-sage px-6 py-3 text-[15.5px] font-semibold text-white">
+            <button type="button" onClick={() => open(true)} className="tu-press rounded-full bg-sage px-6 py-3 text-[15.5px] font-semibold text-white">
               Open checkout again
             </button>
             <button type="button" onClick={() => done(true)} className="rounded-full border border-line-strong px-6 py-3 text-[15.5px] font-semibold text-ink">
