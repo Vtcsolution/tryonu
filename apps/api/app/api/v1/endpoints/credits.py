@@ -57,6 +57,21 @@ async def packages(db: DbSession):
     return list(result.scalars().all())
 
 
+@router.get("/checkout-config")
+async def checkout_config():
+    """Which checkout the website opens. Paddle's client-side token is public by design."""
+    from app.core.config import get_settings
+
+    provider = get_payment_provider()
+    settings = get_settings()
+    paddle = None
+    if provider.name == "paddle":
+        live = settings.PADDLE_MODE == "live"
+        token = settings.PADDLE_CLIENT_TOKEN if live else settings.PADDLE_SANDBOX_CLIENT_TOKEN
+        paddle = {"token": token, "environment": "production" if live else "sandbox"} if token else None
+    return {"provider": provider.name, "paddle": paddle}
+
+
 @router.post("/purchase", response_model=PurchaseCreditsResponse)
 async def purchase(payload: PurchaseCreditsRequest, user: CurrentUser, db: DbSession):
     package = await db.get(CreditPackage, payload.credit_package_id)

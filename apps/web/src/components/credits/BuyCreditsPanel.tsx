@@ -1,5 +1,6 @@
 "use client";
 
+import { payWays, useCheckoutProvider } from "@/lib/useCheckout";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -40,6 +41,7 @@ export function BuyCreditsPanel() {
     enabled: !!user,
   });
 
+  const checkoutProvider = useCheckoutProvider();
   const purchase = useMutation({
     mutationFn: (pkg: CreditPackage) => creditsApi.purchase({ credit_package_id: pkg.id }),
     onSuccess: (res) => {
@@ -154,12 +156,14 @@ export function BuyCreditsPanel() {
           {purchase.isPending
             ? "Opening checkout…"
             : purchase.isSuccess && purchase.data.checkout_url
-              ? "Redirecting to PayPal…"
+              ? checkoutProvider === "paddle"
+                ? "Opening secure checkout…"
+                : "Redirecting to PayPal…"
               : selected
                 ? `Buy ${selected.credits} credits`
                 : "Select a package"}
         </Button>
-        <p className="text-[13px] text-faint">Payments are processed securely by PayPal. You can pay with a PayPal account or a card.</p>
+        <p className="text-[13px] text-faint">Secure payment. Pay by {payWays(checkoutProvider)}.</p>
       </div>
 
       {historyQuery.data && historyQuery.data.length > 0 && (

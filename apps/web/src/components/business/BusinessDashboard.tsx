@@ -1,5 +1,6 @@
 "use client";
 
+import { payWays, useCheckoutProvider } from "@/lib/useCheckout";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -674,6 +675,7 @@ function Stat({ label, value }: { label: string; value: ReactNode }) {
 function PlansSection({ store }: { store: Store }) {
   const qc = useQueryClient();
   const plans = useQuery({ queryKey: ["store-plans"], queryFn: storesApi.plans });
+  const checkoutProvider = useCheckoutProvider();
   const buy = useMutation({
     mutationFn: (plan: StorePlan) => storesApi.buyPlan(plan.code),
     onSuccess: (res) => {
@@ -775,14 +777,15 @@ function PlansSection({ store }: { store: Store }) {
                     onClick={() => buy.mutate(plan)}
                   >
                     {buy.isPending && buy.variables?.id === plan.id
-                      ? "Opening PayPal…"
+                      ? "Opening checkout…"
                       : current
                         ? `Renew ${plan.duration_days} days`
                         : store.plan_active
                           ? `Switch to ${plan.name}`
                           : `Unlock ${plan.duration_days} days`}
                   </Button>
-                  {!subscribed && (
+                  {/* auto-renew is a PayPal subscription: offered only while PayPal takes the payments */}
+                  {!subscribed && checkoutProvider === "paypal" && (
                     <Button size="md" variant="outline" className="w-full" disabled={busy} onClick={() => subscribe.mutate(plan)}>
                       {subscribe.isPending && subscribe.variables?.id === plan.id ? "Opening PayPal…" : "Auto-renew"}
                     </Button>
@@ -1419,8 +1422,8 @@ function PaymentsSection({ go }: { go: (tab: Tab) => void }) {
                   {pending && (
                     <span className="block text-[13.5px] text-muted">
                       {result === "pending"
-                        ? "PayPal hasn't received this payment. No money was taken. Buy the plan again to finish."
-                        : "Not finished at PayPal, so no money was taken and the plan isn't unlocked."}
+                        ? "This payment wasn't received. No money was taken. Buy the plan again to finish."
+                        : "Not finished, so no money was taken and the plan isn't unlocked."}
                     </span>
                   )}
                 </span>

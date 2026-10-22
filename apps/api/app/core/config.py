@@ -394,7 +394,7 @@ class Settings(BaseSettings):
     IMPACT_AUTH_TOKEN: str | None = None
 
     # --- payments ---
-    PAYMENT_PROVIDER: Literal["stripe", "paypal", "mock"] = "mock"
+    PAYMENT_PROVIDER: Literal["stripe", "paypal", "paddle", "mock"] = "mock"
     # PayPal Checkout: both key pairs live in .env, PAYPAL_MODE picks one.
     # "sandbox" takes test money from PayPal sandbox accounts; "live" is real.
     PAYPAL_MODE: Literal["sandbox", "live"] = "sandbox"
@@ -407,6 +407,15 @@ class Settings(BaseSettings):
     PAYPAL_WEBHOOK_ID: str | None = None
     STRIPE_SECRET_KEY: str | None = None
     STRIPE_WEBHOOK_SECRET: str | None = None
+    # Paddle Billing (card, PayPal, Apple Pay, Google Pay; Paddle is the seller of
+    # record): PADDLE_MODE picks the sandbox or the live keys
+    PADDLE_MODE: Literal["sandbox", "live"] = "sandbox"
+    PADDLE_API_KEY: str | None = None
+    PADDLE_CLIENT_TOKEN: str | None = None
+    PADDLE_SANDBOX_API_KEY: str | None = None
+    PADDLE_SANDBOX_CLIENT_TOKEN: str | None = None
+    # the secret of the notification destination for /api/v1/webhooks/paddle
+    PADDLE_WEBHOOK_SECRET: str | None = None
 
     # --- email (password reset, etc.) ---
     EMAIL_PROVIDER: Literal["smtp", "mock"] = "mock"

@@ -1,5 +1,6 @@
 "use client";
 
+import { payWays, useCheckoutProvider } from "@/lib/useCheckout";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
@@ -398,6 +399,7 @@ function Keys() {
 function BuyCredits({ account }: { account: DeveloperAccount }) {
   const packs = useQuery({ queryKey: ["developers", "packs"], queryFn: devApi.packs });
   const qc = useQueryClient();
+  const checkoutProvider = useCheckoutProvider();
   const buy = useMutation({
     mutationFn: (code: string) => devApi.buyPack(code),
     onSuccess: (res) => {
@@ -408,7 +410,7 @@ function BuyCredits({ account }: { account: DeveloperAccount }) {
   return (
     <Card
       title="Buy credits"
-      hint={`You have ${account.credits.toLocaleString()} credits. 1 credit = 1 try-on. They never expire. Pay with PayPal.`}
+      hint={`You have ${account.credits.toLocaleString()} credits. 1 credit = 1 try-on. They never expire. Pay by ${payWays(checkoutProvider)}.`}
     >
       {packs.isLoading ? (
         <p className="text-[14px] text-muted">Loading…</p>
@@ -422,7 +424,7 @@ function BuyCredits({ account }: { account: DeveloperAccount }) {
               <p className="text-[13.5px] text-muted">{money(Math.round(p.price_cents / p.tryons), p.currency)} per try-on</p>
               <div className="mt-4">
                 <Button size="md" className="w-full" disabled={buy.isPending} onClick={() => buy.mutate(p.code)}>
-                  {buy.isPending && buy.variables === p.code ? "Opening PayPal…" : `Buy ${p.name}`}
+                  {buy.isPending && buy.variables === p.code ? "Opening checkout…" : `Buy ${p.name}`}
                 </Button>
               </div>
             </div>

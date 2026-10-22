@@ -167,6 +167,11 @@ export const credits = {
   packages: () => apiFetch<CreditPackage[]>("/api/v1/credits/packages"),
   // credits per try-on right now (admin-editable)
   pricing: () => apiFetch<{ tryon_cost: number; outfit_tryon_cost: number }>("/api/v1/credits/pricing"),
+  /** which checkout the site opens: paddle (card, PayPal, Apple Pay, Google Pay) or paypal */
+  checkoutConfig: () =>
+    apiFetch<{ provider: string; paddle: { token: string; environment: "sandbox" | "production" } | null }>(
+      "/api/v1/credits/checkout-config",
+    ),
   purchase: (input: { credit_package_id: string }) =>
     apiFetch<{
       payment_id: string;

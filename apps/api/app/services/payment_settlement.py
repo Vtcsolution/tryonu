@@ -56,7 +56,7 @@ async def settle(db: AsyncSession, payment: Payment) -> PurchaseCreditsResponse:
         logger.warning("payment_capture_failed", payment_id=payment.id, error=str(exc)[:200])
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="We couldn't confirm the payment with PayPal yet. Please try again in a moment.",
+            detail="We couldn't confirm the payment yet. Please try again in a moment.",
         ) from exc
 
     if result.status in ("pending", "not_approved"):
@@ -137,11 +137,11 @@ async def settle(db: AsyncSession, payment: Payment) -> PurchaseCreditsResponse:
     )
 
 
-async def settle_by_order_id(db: AsyncSession, order_id: str) -> PurchaseCreditsResponse | None:
-    """PayPal told us about this order (a webhook): finish its payment."""
+async def settle_by_order_id(db: AsyncSession, order_id: str, provider: str = "paypal") -> PurchaseCreditsResponse | None:
+    """PayPal (an order) or Paddle (a transaction) told us about a payment (a webhook): finish it."""
     payment = await db.scalar(
         select(Payment)
-        .where(Payment.external_payment_id == order_id, Payment.provider == "paypal")
+        .where(Payment.external_payment_id == order_id, Payment.provider == provider)
         .order_by(Payment.created_at.desc())
         .limit(1)
         .with_for_update()
@@ -156,19 +156,19 @@ async def settle_by_order_id(db: AsyncSession, order_id: str) -> PurchaseCredits
 
 
 async def settle_pending_once() -> int:
-    """Finish every recent PayPal payment still pending: the customer paid but
-    never came back to our page (closed the tab, lost connection)."""
+    """Finish every recent PayPal or Paddle payment still pending: the customer
+    paid but never came back to our page (closed the tab, lost connection)."""
     from app.db.session import AsyncSessionLocal
 
     provider = get_payment_provider()
-    if provider.name != "paypal":
+    if provider.name not in ("paypal", "paddle"):
         return 0
     now = datetime.now(timezone.utc)
     async with AsyncSessionLocal() as db:
         ids = (
             await db.execute(
                 select(Payment.id).where(
-                    Payment.provider == "paypal",
+                    Payment.provider == provider.name,
                     Payment.status == PaymentStatus.PENDING,
                     Payment.external_payment_id.is_not(None),
                     Payment.created_at >= now - SWEEP_WINDOW,

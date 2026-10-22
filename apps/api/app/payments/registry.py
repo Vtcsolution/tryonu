@@ -5,6 +5,7 @@ from functools import lru_cache
 from app.core.config import get_settings
 from app.payments.base import CheckoutResult, PaymentProvider, PaymentsUnavailableError
 from app.payments.mock import MockPaymentProvider
+from app.payments.paddle_provider import PaddlePaymentProvider
 from app.payments.paypal_provider import PayPalPaymentProvider
 from app.payments.stripe_provider import StripePaymentProvider
 
@@ -38,6 +39,14 @@ def get_payment_provider() -> PaymentProvider:
             mode=settings.PAYPAL_MODE,
             return_url=f"{site}/credits/paypal",
             cancel_url=f"{site}/credits/paypal",
+        )
+    if settings.PAYMENT_PROVIDER == "paddle":
+        live = settings.PADDLE_MODE == "live"
+        return PaddlePaymentProvider(
+            api_key=settings.PADDLE_API_KEY if live else settings.PADDLE_SANDBOX_API_KEY,
+            mode=settings.PADDLE_MODE,
+            pay_url=f"{str(settings.FRONTEND_URL).rstrip('/')}/pay",
+            webhook_secret=settings.PADDLE_WEBHOOK_SECRET,
         )
     if settings.ENV == "production":
         return UnavailablePaymentProvider()

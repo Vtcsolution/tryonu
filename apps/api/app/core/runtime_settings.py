@@ -108,7 +108,7 @@ SPECS: tuple[SettingSpec, ...] = (
     SettingSpec("FLIPKART_AFFILIATE_TOKEN", "Affiliate token", "flipkart", "secret"),
     SettingSpec("DARAZ_API_KEY", "API key", "daraz", "secret"),
     # --- payments ---
-    SettingSpec("PAYMENT_PROVIDER", "Payments by", "payments", "choice", ("paypal", "stripe", "mock"),
+    SettingSpec("PAYMENT_PROVIDER", "Payments by", "payments", "choice", ("paddle", "paypal", "stripe", "mock"),
                 help="paypal: real checkout. mock: test only, never charges (refused on the live site)."),
     SettingSpec("PAYPAL_MODE", "PayPal mode", "payments", "choice", ("sandbox", "live"),
                 help="sandbox: test money. live: real money. Switch to live only after a sandbox test worked."),
@@ -119,6 +119,17 @@ SPECS: tuple[SettingSpec, ...] = (
     SettingSpec("PAYPAL_WEBHOOK_ID", "PayPal webhook ID", "payments", "text",
                 help="From PayPal Developer → your app → Webhooks (address: https://<api>/api/v1/webhooks/paypal). With "
                 "it, renewals and refunds arrive at once; without it, overnight."),
+    SettingSpec("PADDLE_MODE", "Paddle mode", "payments", "choice", ("sandbox", "live"),
+                help="sandbox: test cards, no real money. live: real money, after Paddle approved your account."),
+    SettingSpec("PADDLE_SANDBOX_API_KEY", "Paddle sandbox API key", "payments", "secret",
+                help="Paddle sandbox → Developer tools → Authentication. Starts with pdl_sdbx_apikey_."),
+    SettingSpec("PADDLE_SANDBOX_CLIENT_TOKEN", "Paddle sandbox client-side token", "payments", "text",
+                help="Starts with test_."),
+    SettingSpec("PADDLE_API_KEY", "Paddle live API key", "payments", "secret"),
+    SettingSpec("PADDLE_CLIENT_TOKEN", "Paddle live client-side token", "payments", "text", help="Starts with live_."),
+    SettingSpec("PADDLE_WEBHOOK_SECRET", "Paddle webhook secret", "payments", "secret",
+                help="From Paddle → Notifications, for https://<api>/api/v1/webhooks/paddle. Payments still work "
+                "without it; with it they finish even if the customer closes the page."),
     SettingSpec("STRIPE_SECRET_KEY", "Stripe secret key", "payments", "secret"),
     SettingSpec("STRIPE_WEBHOOK_SECRET", "Stripe webhook signing secret", "payments", "secret"),
     # --- email ---

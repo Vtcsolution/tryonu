@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from datetime import timedelta
 
 from fastapi import APIRouter, Header, Request
@@ -252,4 +254,33 @@ async def paypal_webhook(request: Request, db: DbSession):
         if payment is not None:
             taken = await reverse_payment(db, payment, why=f"PayPal {event_type.rsplit('.', 1)[-1].lower()}")
             logger.info("paypal_webhook_money_back", event_type=event_type, payment_id=payment.id, **taken)
+    return Message(detail="ok")
+
+
+@router.post("/paddle", response_model=Message)
+async def paddle_webhook(request: Request, db: DbSession):
+    """Paddle telling us a transaction was paid. Checked with the notification
+    secret (an unsigned or stale call changes nothing), then the payment is
+    finished the same way as when the customer comes back: Paddle itself is asked
+    what was paid, never the webhook body."""
+    from app.payments.paddle_provider import PaddlePaymentProvider, verify_signature
+    from app.services.payment_settlement import settle_by_order_id
+
+    provider = get_payment_provider()
+    if not isinstance(provider, PaddlePaymentProvider) or not provider.webhook_secret:
+        logger.warning("paddle_webhook_not_configured")
+        return Message(detail="ignored")
+    payload = await request.body()
+    if not verify_signature(payload, request.headers.get("paddle-signature"), provider.webhook_secret):
+        logger.warning("paddle_webhook_unverified")
+        return Message(detail="ignored")
+    try:
+        event = json.loads(payload)
+    except ValueError:
+        return Message(detail="ignored")
+    event_type = str(event.get("event_type") or "")
+    transaction_id = (event.get("data") or {}).get("id")
+    if event_type in ("transaction.completed", "transaction.paid") and transaction_id:
+        result = await settle_by_order_id(db, str(transaction_id), provider="paddle")
+        logger.info("paddle_webhook_paid", event_type=event_type, status=result.status if result else "unknown_transaction")
     return Message(detail="ok")

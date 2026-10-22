@@ -74,7 +74,7 @@ export function PayPalReturn() {
           setState({ kind: "pending" });
         }
       } else {
-        setState({ kind: "failed", message: "PayPal didn't complete this payment, so no credits were added." });
+        setState({ kind: "failed", message: "The payment wasn't completed, so no credits were added." });
       }
     } catch (err) {
       setState({ kind: "failed", message: err instanceof ApiError ? err.detail : "We couldn't confirm the payment." });
@@ -93,7 +93,7 @@ export function PayPalReturn() {
       {state.kind === "working" && (
         <>
           <div className="mx-auto h-9 w-9 animate-spin rounded-full border-2 border-line-strong border-t-sage" />
-          <p className="mt-5 text-[16px] text-muted">Confirming your payment with PayPal…</p>
+          <p className="mt-5 text-[16px] text-muted">Confirming your payment…</p>
         </>
       )}
       {state.kind === "succeeded" && (
@@ -138,7 +138,7 @@ export function PayPalReturn() {
         <>
           <h1 className="font-display text-[clamp(24px,4vw,32px)] text-ink">Payment not finished yet</h1>
           <p className="mt-3 text-[16px] text-muted">
-            PayPal hasn&rsquo;t finished yet. If you paid, your credits arrive within a few minutes. If not, nothing was charged.
+            The payment isn&rsquo;t finished yet. If you paid, your credits arrive within a few minutes. If not, nothing was charged.
           </p>
           <div className="mt-7 flex justify-center gap-3">
             <Button size="md" onClick={() => void confirm()}>Check again</Button>
@@ -159,7 +159,7 @@ export function PayPalReturn() {
       {state.kind === "cancelled" && (
         <>
           <h1 className="font-display text-[clamp(24px,4vw,32px)] text-ink">Payment cancelled</h1>
-          <p className="mt-3 text-[16px] text-muted">You left PayPal before paying. Nothing was charged.</p>
+          <p className="mt-3 text-[16px] text-muted">You left the checkout before paying. Nothing was charged.</p>
           <p className="mt-7">
             <Link href="/credits" className="text-[15px] font-medium text-sage-deep underline-offset-2 hover:underline">
               Back to credits
