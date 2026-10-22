@@ -1031,8 +1031,9 @@ export const developers = {
 
 export const adminDevelopers = {
   list: () => apiFetch<AdminDeveloper[]>("/api/v1/admin/developers"),
-  adjustCredits: (id: string, amount: number) =>
-    apiFetch<DeveloperAccount>(`/api/v1/admin/developers/${id}/credits`, { method: "POST", body: { amount } }),
+  /** give API try-ons free (positive) or take some back (negative); a gift tells the developer */
+  adjustCredits: (id: string, amount: number, note?: string) =>
+    apiFetch<DeveloperAccount>(`/api/v1/admin/developers/${id}/credits`, { method: "POST", body: { amount, note: note || undefined } }),
   setStatus: (id: string, status: "active" | "suspended") =>
     apiFetch<DeveloperAccount>(`/api/v1/admin/developers/${id}/status`, { method: "POST", body: { status } }),
   packs: () => apiFetch<DeveloperCreditPack[]>("/api/v1/admin/developers/packs"),

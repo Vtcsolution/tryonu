@@ -114,6 +114,8 @@ def words(n: Notification, actor: User | None) -> str:
     if n.kind == "challenge_started":
         prize = f" and win up to {n.credits} free credits" if n.credits else ""
         return f"New style challenge: “{n.text}”. Post your look{prize}!"
+    if n.kind == "api_credits":
+        return f"TryOnU gave you {n.credits or 0} free API try-ons" + (f": {n.text}" if n.text else "")
     if n.kind == "announcement":
         return n.text or "News from TryOnU"
     if n.kind == "challenge_ended":
@@ -136,6 +138,8 @@ def link(n: Notification, actor: User | None) -> str:
         return "/earn"
     if n.kind == "credits_added":
         return "/credits"
+    if n.kind == "api_credits":
+        return "/developers/console#credits"
     return "/notifications"
 
 

@@ -171,6 +171,32 @@ async def test_admins_see_developers_and_adjust_credits(client, db):  # noqa: AN
     assert (await db.get(DeveloperAccount, target["id"])) is not None
 
 
+async def test_admins_give_api_try_ons_free_and_the_developer_is_told(client, db):  # noqa: ANN001
+    from sqlalchemy import select
+
+    from app.models.admin_audit import AdminAuditLog
+    from tests.test_community import _as
+
+    await _developer(client, buy=False)
+    developer = dict(client.cookies)
+    mine = (await client.get("/api/v1/developers/me")).json()
+    client.cookies.clear()
+    admin = await register_and_login(client)
+    await make_admin(db, admin["user"]["id"])
+    gift = await client.post(f"/api/v1/admin/developers/{mine['id']}/credits", json={"amount": 50, "note": "Launch partner"})
+    assert gift.status_code == 200 and gift.json()["credits"] == mine["credits"] + 50
+    await client.post(f"/api/v1/admin/developers/{mine['id']}/credits", json={"amount": -10})
+    logged = (await db.execute(select(AdminAuditLog).where(AdminAuditLog.target_id == mine["id"]))).scalars().all()
+    assert sorted(r.action for r in logged) == ["developer_credits_gift", "developer_credits_taken"]
+
+    await _as(client, developer)
+    items = (await client.get("/api/v1/notifications")).json()["items"]
+    told = [n for n in items if n["kind"] == "api_credits"]
+    assert len(told) == 1  # the gift, not the take-back
+    assert told[0]["text"] == "TryOnU gave you 50 free API try-ons: Launch partner"
+    assert told[0]["url"] == "/developers/console#credits"
+
+
 async def test_photos_can_be_sent_as_links(client, monkeypatch):  # noqa: ANN001
     from app.api.v1.endpoints import developers as endpoint
 

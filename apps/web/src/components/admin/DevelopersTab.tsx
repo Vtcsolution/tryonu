@@ -12,9 +12,15 @@ export function DevelopersTab() {
   const accounts = useQuery({ queryKey: ["admin", "developers"], queryFn: adminDevelopers.list });
   const refresh = () => qc.invalidateQueries({ queryKey: ["admin", "developers"] });
   const credits = useMutation({
-    mutationFn: ({ id, amount }: { id: string; amount: number }) => adminDevelopers.adjustCredits(id, amount),
+    mutationFn: ({ id, amount, note }: { id: string; amount: number; note?: string }) => adminDevelopers.adjustCredits(id, amount, note),
     onSuccess: refresh,
   });
+  const packs = useQuery({ queryKey: ["admin", "developer-packs"], queryFn: adminDevelopers.packs });
+  // the developer being given free try-ons (the panel above the table)
+  const [giving, setGiving] = useState<AdminDeveloper | null>(null);
+  const [gift, setGift] = useState("50");
+  const [note, setNote] = useState("");
+  const [given, setGiven] = useState<string | null>(null);
   const setStatus = useMutation({
     mutationFn: ({ id, status }: { id: string; status: "active" | "suspended" }) => adminDevelopers.setStatus(id, status),
     onSuccess: refresh,
@@ -43,6 +49,62 @@ export function DevelopersTab() {
         {(credits.isError || setStatus.isError) && (
           <div className="mb-3"><ErrorNote>{errorText(credits.error ?? setStatus.error)}</ErrorNote></div>
         )}
+        {given && <p className="mb-3 rounded-xl border border-sage/40 bg-sage/10 px-4 py-2.5 text-[14px] text-ink">{given}</p>}
+        {giving && (
+          <div className="mb-4 rounded-[16px] border border-sage/50 bg-surface p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[15.5px] font-semibold text-ink">
+                Give free API try-ons to {giving.company_name} <span className="font-normal text-muted">({giving.owner_email})</span>
+              </p>
+              <SmallButton onClick={() => setGiving(null)}>Close</SmallButton>
+            </div>
+            <p className="mt-1 text-[13.5px] text-muted">No payment needed. They see it in their bell and console right away.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {(packs.data ?? [])
+                .filter((p) => p.is_active)
+                .map((p) => (
+                  <SmallButton key={p.id} tone={gift === String(p.tryons) ? "primary" : undefined} onClick={() => setGift(String(p.tryons))}>
+                    {p.name}: {p.tryons.toLocaleString()}
+                  </SmallButton>
+                ))}
+              <input
+                type="number"
+                min={1}
+                value={gift}
+                onChange={(e) => setGift(e.target.value)}
+                className={`${inputClass} w-28`}
+                aria-label="Try-ons to give"
+              />
+            </div>
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value.slice(0, 200))}
+              placeholder="Note for them (optional), e.g. Launch partner"
+              className={`${inputClass} mt-3 w-full`}
+            />
+            <div className="mt-3">
+              <SmallButton
+                tone="primary"
+                disabled={credits.isPending || !(Number(gift) > 0)}
+                onClick={() =>
+                  window.confirm(`Give ${Number(gift).toLocaleString()} free API try-ons to ${giving.company_name}?`) &&
+                  credits.mutate(
+                    { id: giving.id, amount: Number(gift), note: note.trim() },
+                    {
+                      onSuccess: () => {
+                        setGiven(`✓ ${Number(gift).toLocaleString()} free try-ons given to ${giving.company_name}.`);
+                        setGiving(null);
+                        setNote("");
+                      },
+                    },
+                  )
+                }
+              >
+                {credits.isPending ? "Giving…" : `Give ${Number(gift || 0).toLocaleString()} try-ons free`}
+              </SmallButton>
+            </div>
+          </div>
+        )}
         {accounts.isLoading ? (
           <TableSkeleton />
         ) : accounts.isError ? (
@@ -69,11 +131,19 @@ export function DevelopersTab() {
                   className={`${inputClass} w-20`}
                   aria-label="Credits"
                 />
-                <SmallButton tone="primary" disabled={credits.isPending} onClick={() => credits.mutate({ id: a.id, amount: Number(amounts[a.id] ?? 10) })}>
-                  + Add
+                <SmallButton
+                  tone="primary"
+                  disabled={credits.isPending}
+                  onClick={() => {
+                    setGiving(a);
+                    setGiven(null);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                >
+                  🎁 Give free
                 </SmallButton>
                 <SmallButton disabled={credits.isPending || a.credits === 0} onClick={() => credits.mutate({ id: a.id, amount: -Number(amounts[a.id] ?? 10) })}>
-                  − Take
+                  − Take back
                 </SmallButton>
                 <SmallButton
                   tone={a.status === "active" ? "danger" : "primary"}

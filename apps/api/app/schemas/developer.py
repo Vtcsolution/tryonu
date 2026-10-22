@@ -118,6 +118,8 @@ class AdminDeveloperOut(DeveloperAccountOut):
 
 class AdminCreditsIn(BaseModel):
     amount: int = Field(ge=-1_000_000, le=1_000_000)
+    # why, for the record and the developer's notification ("Launch partner")
+    note: str | None = Field(default=None, max_length=200)
 
 
 class AdminStatusIn(BaseModel):

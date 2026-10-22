@@ -475,7 +475,23 @@ async def admin_credits(account_id: str, payload: AdminCreditsIn, admin: AdminUs
     account = await db.get(DeveloperAccount, account_id)
     if account is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Developer account not found")
+    """Give API try-ons free (no payment), or take some back. Recorded in the
+    audit log; a gift also tells the developer (the bell and their phone)."""
+    from app.models.admin_audit import AdminAuditLog
+    from app.services.notification_service import notify
+
+    before = account.credits
     account.credits = max(0, account.credits + payload.amount)
+    note = (payload.note or "").strip() or None
+    db.add(
+        AdminAuditLog(
+            admin_id=admin.id, action="developer_credits_gift" if payload.amount > 0 else "developer_credits_taken",
+            target_type="developer_account", target_id=account.id,
+            detail={"amount": payload.amount, "before": before, "after": account.credits, "note": note},
+        )
+    )
+    if payload.amount > 0:
+        await notify(db, user_id=account.user_id, kind="api_credits", credits=payload.amount, text=note)
     await db.commit()
     logger.info("developer_credits_adjusted", account_id=account.id, amount=payload.amount, admin_id=admin.id)
     return await _account_out(db, account)
