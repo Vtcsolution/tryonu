@@ -103,7 +103,7 @@ export function PayPalReturn() {
             <>
               <p className="mt-3 text-[16px] text-muted">{state.apiTryons} API try-ons were added to your developer account.</p>
               <div className="mt-7 flex justify-center gap-3">
-                <Button href="/developers" size="md">Go to the developer portal</Button>
+                <Button href="/developers/console#credits" size="md">Go to the developer console</Button>
               </div>
             </>
           ) : state.plan ? (

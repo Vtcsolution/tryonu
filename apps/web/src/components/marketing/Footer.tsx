@@ -1,3 +1,4 @@
+import { isDevPortal } from "@/lib/devLinks";
 import Link from "next/link";
 import { Logo } from "@/components/ui/Logo";
 import { SOCIAL_LINKS, type SocialName } from "@/lib/seo";
@@ -45,7 +46,12 @@ export function Footer() {
               <ul className="mt-4 space-y-2.5 text-[15px] text-ink-soft">
                 {col.items.map((l) => (
                   <li key={l.href}>
-                    <Link href={l.href} prefetch={false} className="transition-colors hover:text-ink">
+                    <Link
+                      href={l.href}
+                      prefetch={false}
+                      className="transition-colors hover:text-ink"
+                      {...(isDevPortal(l.href) ? { target: "_blank", rel: "noopener" } : {})}
+                    >
                       {l.label}
                     </Link>
                   </li>

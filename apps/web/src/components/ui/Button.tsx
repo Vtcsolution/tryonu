@@ -1,3 +1,4 @@
+import { isDevPortal } from "@/lib/devLinks";
 import Link from "next/link";
 import type { MouseEventHandler, ReactNode } from "react";
 
@@ -48,7 +49,7 @@ export function Button({
   const cls = `${base} ${variants[variant]} ${sizes[size]} ${className}`;
 
   if (href) {
-    if (href.startsWith("http")) {
+    if (href.startsWith("http") || isDevPortal(href)) {
       return (
         <a
           href={href}

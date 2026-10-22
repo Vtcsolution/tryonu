@@ -151,7 +151,7 @@ export function PwaSetup() {
     const seen = readNumber(VISITS_KEY) + 1;
     write(VISITS_KEY, String(seen));
     const snoozed = readNumber(SNOOZE_KEY);
-    const quiet = /^\/(admin|business|extension|sign-in|sign-up|app)/.test(pathname || "");
+    const quiet = /^\/(admin|business|developers|extension|sign-in|sign-up|app)/.test(pathname || "");
     setShow(!quiet && seen >= 2 && Date.now() > snoozed);
   }, [pathname, device]);
 

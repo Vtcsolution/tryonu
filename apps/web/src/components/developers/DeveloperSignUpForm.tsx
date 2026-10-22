@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type FormEvent } from "react";
-import { AuthCard } from "@/components/auth/AuthCard";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { Button } from "@/components/ui/Button";
 import { CountryPicker } from "@/components/ui/CountryPicker";
@@ -31,7 +30,7 @@ export function DeveloperSignUpForm() {
 
   // already signed in: straight to the developer portal
   useEffect(() => {
-    if (!isLoading && user) router.replace("/developers");
+    if (!isLoading && user) router.replace("/developers/console");
   }, [isLoading, user, router]);
 
   const onSubmit = async (e: FormEvent) => {
@@ -42,34 +41,17 @@ export function DeveloperSignUpForm() {
     if (!country) return setError("Please choose your country.");
     try {
       await register.mutateAsync({ email, password, country });
-      router.push("/developers");
+      router.push("/developers/console");
     } catch (err) {
       setError(err instanceof ApiError ? err.detail : "Couldn't create your developer account. Please try again.");
     }
   };
 
   return (
-    <AuthCard
-      kicker="For developers"
-      title={
-        <>
-          Add try-on to <em>your</em> shop
-        </>
-      }
-      subtitle="Use TryOnU's virtual try-on on your own website or app. Pay per try-on. Step 1: your account."
-      footer={
-        <>
-          Already have an account?{" "}
-          <Link href="/sign-in?next=/developers" className="font-semibold text-sage hover:text-sage-deep">
-            Sign in
-          </Link>
-          <span className="mx-2 text-faint">·</span>
-          <Link href="/sign-up" className="text-muted hover:text-ink">
-            Just shopping?
-          </Link>
-        </>
-      }
-    >
+    <div className="rounded-2xl border border-line bg-surface p-6 shadow-lift sm:p-8">
+      <p className="text-[20px] font-semibold text-ink">Create your developer account</p>
+      <p className="mt-1 text-[14.5px] text-muted">Step 1 of 3: your sign-in. Next, name your project and get a key.</p>
+      <div className="mt-6">
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
         <Input label="Email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
         <PasswordInput
@@ -98,7 +80,18 @@ export function DeveloperSignUpForm() {
         </Button>
         <p className="text-center text-[13.5px] text-muted">Next: name your project, create an API key and buy credits.</p>
       </form>
-      <GoogleButton divider next="/developers" />
-    </AuthCard>
+      <GoogleButton divider next="/developers/console" />
+      </div>
+      <p className="mt-6 text-center text-[14px] text-muted">
+          Already have an account?{" "}
+          <Link href="/sign-in?next=/developers/console" className="font-semibold text-sage hover:text-sage-deep">
+            Sign in
+          </Link>
+          <span className="mx-2 text-faint">·</span>
+          <Link href="/sign-up" className="text-muted hover:text-ink">
+            Just shopping?
+          </Link>
+      </p>
+    </div>
   );
 }

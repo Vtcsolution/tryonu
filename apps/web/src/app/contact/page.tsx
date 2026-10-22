@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ContactForm } from "@/components/content/ContactForm";
 import { ContentPage } from "@/components/content/ContentPage";
 import { HelpWhatsApp } from "@/components/whatsapp/WhatsApp";
+import { isDevPortal } from "@/lib/devLinks";
 import { pageMeta } from "@/lib/seo";
 
 export const metadata = pageMeta({
@@ -37,7 +38,12 @@ export default function ContactPage() {
           <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-faint">Quick answers</p>
           <div className="mt-3 space-y-3">
             {HELP.map((h) => (
-              <Link key={h.href} href={h.href} className="block rounded-[18px] border border-line bg-surface p-4 transition-colors hover:border-line-strong">
+              <Link
+                key={h.href}
+                href={h.href}
+                className="block rounded-[18px] border border-line bg-surface p-4 transition-colors hover:border-line-strong"
+                {...(isDevPortal(h.href) ? { target: "_blank", rel: "noopener" } : {})}
+              >
                 <p className="text-[16px] font-semibold text-ink">{h.title}</p>
                 <p className="mt-0.5 text-[14.5px] text-muted">{h.text}</p>
                 <p className="mt-2 text-[14.5px] font-semibold text-sage-deep">{h.link} →</p>

@@ -7,7 +7,7 @@ import { AccountSettings } from "@/components/account/AccountSettings";
 import { AdminShell, type NavGroup, type ShellArea } from "@/components/admin/AdminShell";
 import { Badge, ErrorNote, SmallButton, errorText, inputClass, money } from "@/components/admin/ui";
 import { DeveloperDocs, WidgetSteps } from "@/components/developers/DeveloperDocs";
-import { SiteChrome } from "@/components/layout/SiteChrome";
+import { DevChrome } from "@/components/developers/DevChrome";
 import { Button } from "@/components/ui/Button";
 import { ApiError } from "@/lib/api/client";
 import { developers as devApi } from "@/lib/api/endpoints";
@@ -48,18 +48,18 @@ export function DeveloperPortal() {
   }
   if (account.isError) {
     return (
-      <SiteChrome>
+      <DevChrome>
         <section className="mx-auto w-[min(900px,calc(100%-42px))] py-16">
           <ErrorNote>{errorText(account.error, "Couldn't load your developer account.")}</ErrorNote>
         </section>
-      </SiteChrome>
+      </DevChrome>
     );
   }
   if (!account.data) {
     return (
-      <SiteChrome>
+      <DevChrome>
         <OpenDeveloperAccount />
-      </SiteChrome>
+      </DevChrome>
     );
   }
   return <Portal account={account.data} user={user} />;
@@ -126,7 +126,7 @@ const NAV: readonly NavGroup<Tab>[] = [
   { group: "You", tabs: [{ id: "account", label: "My account & password", icon: "users" }] },
 ];
 const TAB_IDS = new Set<string>(NAV.flatMap((g) => g.tabs.map((t) => t.id)));
-const AREA: ShellArea = { name: "Developers", home: "/developers", role: "Developer" };
+const AREA: ShellArea = { name: "Developers", home: "/developers/console", role: "Developer" };
 
 function Portal({ account, user }: { account: DeveloperAccount; user: User }) {
   const qc = useQueryClient();

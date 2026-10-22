@@ -199,7 +199,7 @@ export function DeveloperDocs({ compact = false }: { compact?: boolean }) {
   return (
     <div className="space-y-6">
       {!compact && (
-        <section className={card}>
+        <section id="how-it-works" className={`${card} scroll-mt-24`}>
           <h2 className="font-display text-[24px] text-ink">How it works</h2>
           <ol className="mt-3 space-y-2 text-[15.5px] leading-relaxed text-ink-soft">
             <li><b className="text-ink">1.</b> Your server sends TryOnU a <b>photo of your customer</b> and a <b>photo of your product</b>.</li>
@@ -212,7 +212,7 @@ export function DeveloperDocs({ compact = false }: { compact?: boolean }) {
         </section>
       )}
 
-      <section className={card}>
+      <section id="widget" className={`${card} scroll-mt-24`}>
         <h2 className="font-display text-[22px] text-ink">Add a &quot;Try it on&quot; button to your shop</h2>
         <p className="mt-1 text-[15px] text-ink-soft">
           No programming: shoppers press the button, add a photo and see themselves wearing your product. It uses a{" "}
@@ -237,7 +237,7 @@ export function DeveloperDocs({ compact = false }: { compact?: boolean }) {
         <WidgetSteps shop={shop} />
       </section>
 
-      <section className={card}>
+      <section id="code" className={`${card} scroll-mt-24`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-display text-[22px] text-ink">Code for your platform (server API)</h2>
           <button
@@ -273,7 +273,7 @@ export function DeveloperDocs({ compact = false }: { compact?: boolean }) {
         </p>
       </section>
 
-      <section className={card}>
+      <section id="reference" className={`${card} scroll-mt-24`}>
         <h2 className="font-display text-[22px] text-ink">Reference</h2>
         <div className="mt-3 space-y-2 text-[14.5px] text-ink-soft">
           <p><b className="text-ink">Base address:</b> <code>{BASE}</code></p>
@@ -293,7 +293,7 @@ export function DeveloperDocs({ compact = false }: { compact?: boolean }) {
           </p>
         </div>
         <div className="mt-5 grid gap-5 md:grid-cols-2">
-          <div>
+          <div id="responses" className="scroll-mt-24">
             <p className="text-[14px] font-semibold text-ink">What a try-on returns</p>
             <dl className="mt-2 divide-y divide-line rounded-[14px] border border-line text-[13.5px]">
               {FIELDS.map(([name, text]) => (
@@ -304,7 +304,7 @@ export function DeveloperDocs({ compact = false }: { compact?: boolean }) {
               ))}
             </dl>
           </div>
-          <div>
+          <div id="errors" className="scroll-mt-24">
             <p className="text-[14px] font-semibold text-ink">Errors</p>
             <dl className="mt-2 divide-y divide-line rounded-[14px] border border-line text-[13.5px]">
               {ERRORS.map(([code, text]) => (

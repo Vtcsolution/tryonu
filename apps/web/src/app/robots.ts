@@ -14,7 +14,7 @@ const PRIVATE = [
   // not /look/: link previews (WhatsApp, X, Facebook) must read shared looks;
   // those pages carry their own noindex instead
   "/business",
-  "/developers$",
+  "/developers/console",
   "/verify-email",
   "/reset-password",
   "/forgot-password",

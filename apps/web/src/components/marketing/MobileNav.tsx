@@ -1,5 +1,6 @@
 "use client";
 
+import { isDevPortal } from "@/lib/devLinks";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -81,7 +82,12 @@ export function MobileNav() {
                     <ul className="mt-2">
                       {g.items.filter((l) => !MINE.includes(l.href)).map((l) => (
                         <li key={l.href}>
-                          <Link href={l.href} prefetch={false} className="block rounded-lg py-2.5 text-[16.5px] text-ink hover:text-sage-deep">
+                          <Link
+                            href={l.href}
+                            prefetch={false}
+                            className="block rounded-lg py-2.5 text-[16.5px] text-ink hover:text-sage-deep"
+                            {...(isDevPortal(l.href) ? { target: "_blank", rel: "noopener" } : {})}
+                          >
                             {l.label}
                           </Link>
                         </li>
@@ -94,7 +100,12 @@ export function MobileNav() {
                   <ul className="mt-2">
                     {LEGAL.map((l) => (
                       <li key={l.href}>
-                        <Link href={l.href} prefetch={false} className="block rounded-lg py-2.5 text-[16.5px] text-ink hover:text-sage-deep">
+                        <Link
+                            href={l.href}
+                            prefetch={false}
+                            className="block rounded-lg py-2.5 text-[16.5px] text-ink hover:text-sage-deep"
+                            {...(isDevPortal(l.href) ? { target: "_blank", rel: "noopener" } : {})}
+                          >
                           {l.label}
                         </Link>
                       </li>

@@ -9,7 +9,7 @@ import { auth, preferences } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
 
 // pages where asking would be in the way (signing in, resetting a password)
-const SKIP = ["/sign-in", "/sign-up", "/forgot-password", "/reset-password", "/verify-email", "/business/sign-up", "/developers/sign-up", "/developers/docs"];
+const SKIP = ["/sign-in", "/sign-up", "/forgot-password", "/reset-password", "/verify-email", "/business/sign-up", "/developers"];
 
 /**
  * One short screen for anyone signed in without a country (e.g. just signed
