@@ -85,13 +85,21 @@ export function PaddleCheckout() {
     if (config.data) open();
   }, [config.data, open]);
 
-  const missing = !transactionId || (config.isSuccess && !config.data?.paddle);
+  // no transaction: the page was opened by itself, not from a Buy button;
+  // no Paddle settings: card payments aren't switched on yet (admin: Paddle client-side token)
+  const noLink = !transactionId;
+  const notReady = !noLink && config.isSuccess && !config.data?.paddle;
+  const missing = noLink || notReady;
   return (
     <section className="mx-auto flex min-h-[60vh] w-[min(560px,calc(100%-32px))] flex-col items-center justify-center py-16 text-center">
       {missing ? (
         <>
-          <p className="text-[20px] font-semibold text-ink">This payment link isn&apos;t complete</p>
-          <p className="mt-2 text-[15px] text-muted">Nothing was charged. Please start again from the price you chose.</p>
+          <p className="text-[20px] font-semibold text-ink">{noLink ? "Choose what to buy first" : "Card payments aren't ready yet"}</p>
+          <p className="mt-2 text-[15px] text-muted">
+            {noLink
+              ? "This page opens the payment after you press Buy. Nothing was charged."
+              : "Nothing was charged. Please try again a little later, or contact us."}
+          </p>
           <Link href="/credits" className="tu-press mt-6 rounded-full bg-sage px-6 py-3 text-[15.5px] font-semibold text-white">
             Back to credits
           </Link>
