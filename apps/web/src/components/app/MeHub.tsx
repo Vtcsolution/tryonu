@@ -131,6 +131,7 @@ export function MeHub() {
             title="Settings"
             rows={[
               { href: "/preferences", label: "My size & style" },
+              { href: "/preferences#shop", label: "Where I shop", hint: "Local shops, worldwide, or both" },
               { href: "/account", label: "Settings", hint: "Name, email, password" },
               { href: "/business", label: "My store", hint: "If you sell on TryOnU" },
               { href: "/app", label: "Get the app" },

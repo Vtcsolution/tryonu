@@ -35,6 +35,8 @@ class UserPreference(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     budget_max_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # ISO 3166-1 alpha-2: stores from this country are shown first
     country: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    # where they like to shop: local (shops in their country first) | worldwide | both
+    shop_from: Mapped[str | None] = mapped_column(String(12), nullable=True)
     # for "your size" suggestions (all optional; centimetres and kilograms)
     height_cm: Mapped[int | None] = mapped_column(Integer, nullable=True)
     weight_kg: Mapped[int | None] = mapped_column(Integer, nullable=True)

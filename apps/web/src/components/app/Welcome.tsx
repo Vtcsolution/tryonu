@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { preferences } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
 
 const SEEN_KEY = "tu_welcome_seen";
@@ -17,11 +19,14 @@ const STEPS: { icon: string; title: string; text: string }[] = [
 /** Three short steps the first time a new member opens TryOnU, with Skip. Shown once. */
 export function Welcome() {
   const { user } = useSession();
+  // after the country and "where do you like to shop" questions, never on top of them
+  const prefs = useQuery({ queryKey: ["preferences"], queryFn: preferences.get, enabled: !!user });
+  const answered = !!prefs.data?.country && !!prefs.data?.shop_from;
   const pathname = usePathname() || "/";
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    if (!user || /^\/(admin|business|developers|sign-in|sign-up|try|app)/.test(pathname)) return;
+    if (!user || !answered || /^\/(admin|business|developers|sign-in|sign-up|try|app)/.test(pathname)) return;
     const isNew = Date.now() - new Date(user.created_at).getTime() < NEW_ACCOUNT_DAYS * 86_400_000;
     let seen = true;
     try {
@@ -30,7 +35,7 @@ export function Welcome() {
       // storage blocked: never show it rather than show it on every page
     }
     if (isNew && !seen) setOpen(true);
-  }, [user, pathname]);
+  }, [user, pathname, answered]);
 
   if (!open) return null;
   const close = () => {

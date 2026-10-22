@@ -199,15 +199,55 @@ def store_rank(result: LiveSearchResult) -> int:
     return (99 - min(max(result.raw.store_tier, 0), 99)) * 4 + within
 
 
+# marketplaces that sell and deliver inside these countries (the rest ship worldwide)
+LOCAL_MARKETS: dict[str, set[str]] = {"daraz": {"PK", "BD", "LK", "NP", "MM"}, "flipkart": {"IN"}}
+
+
+def is_local(result: LiveSearchResult, country: str | None) -> bool:
+    """Sold from inside the shopper's country: a TryOnU store there, or a local marketplace."""
+    if not country:
+        return False
+    if result.provider.slug == "stores":
+        return result.raw.origin_country == country
+    return country in LOCAL_MARKETS.get(result.provider.slug, set())
+
+
 def _local_stores_first(results: list[LiveSearchResult], query: str = "") -> list[LiveSearchResult]:
     """TryOnU company stores' products first (recommended): the best matches
     for the search first, and among equal matches the bigger plan. Everything
-    else keeps its usual order after them."""
+    else keeps its usual order after them.
+
+    The shopper's own choice changes the order (nothing is hidden):
+    "local" puts what is sold inside their country first (local stores, then
+    local marketplaces like Daraz); "worldwide" puts the international
+    websites first and local shops after."""
+    from app.services.shopper_context import current_country, current_shop_from
+
+    def by_match(rows: list[LiveSearchResult]) -> list[LiveSearchResult]:
+        return sorted(rows, key=lambda r: (-match_score(query, r.raw.name), store_rank(r)))
+
     stores = [r for r in results if r.provider.slug == "stores"]
+    others = [r for r in results if r.provider.slug != "stores"]
+    choice, country = current_shop_from(), current_country()
+    if choice == "local" and country:
+        local_stores = [r for r in stores if is_local(r, country)]
+        local_markets = [r for r in others if is_local(r, country)]
+        return (
+            by_match(local_stores)
+            + local_markets
+            + by_match([r for r in stores if not is_local(r, country)])
+            + [r for r in others if not is_local(r, country)]
+        )
+    if choice == "worldwide":
+        return (
+            [r for r in others if not is_local(r, country)]
+            + by_match([r for r in stores if not is_local(r, country)])
+            + by_match([r for r in stores if is_local(r, country)])
+            + [r for r in others if is_local(r, country)]
+        )
     if not stores:
         return results
-    stores.sort(key=lambda r: (-match_score(query, r.raw.name), store_rank(r)))
-    return stores + [r for r in results if r.provider.slug != "stores"]
+    return by_match(stores) + others
 
 
 def _interleave(per_provider: list[list[LiveSearchResult]]) -> list[LiveSearchResult]:

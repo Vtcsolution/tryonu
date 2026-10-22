@@ -302,7 +302,11 @@ export type UserPreference = {
   budget_max_cents: number | null;
   /** ISO alpha-2: stores from this country are shown first */
   country?: string | null;
+  /** where they like to shop: local shops first, worldwide stores first, or both */
+  shop_from?: ShopFrom | null;
 };
+
+export type ShopFrom = "local" | "worldwide" | "both";
 
 export type CreditPackage = {
   id: string;
