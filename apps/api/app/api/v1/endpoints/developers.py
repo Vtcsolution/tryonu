@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from app.payments.base import failure_detail
+
 import asyncio
 from datetime import datetime, timedelta, timezone
 
@@ -196,6 +198,7 @@ async def packs(db: DbSession):
 async def buy_pack(code: str, user: CurrentUser, db: DbSession):
     """A pack of API try-ons, paid like a credit package (PayPal). The credits
     arrive when PayPal confirms the payment (credits/purchase/{id}/capture)."""
+    admin_view = user.is_admin  # read now: after a rollback the user row can't be read lazily
     account = await _my_account(db, user)
     pack = await db.scalar(
         select(DeveloperCreditPack).where(DeveloperCreditPack.code == code, DeveloperCreditPack.is_active.is_(True))
@@ -226,7 +229,8 @@ async def buy_pack(code: str, user: CurrentUser, db: DbSession):
         await db.rollback()
         logger.warning("developer_pack_checkout_failed", error=str(exc)[:200])
         raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail="We couldn't start the payment. Nothing was charged."
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=failure_detail("We couldn't start the payment. Nothing was charged.", exc, is_admin=admin_view),
         ) from exc
     payment.external_payment_id = checkout.external_payment_id
     if checkout.status == "succeeded":  # a provider that settles at once (the mock, in development)

@@ -151,3 +151,21 @@ async def test_the_website_learns_which_checkout_to_open(client, monkeypatch):  
     monkeypatch.setattr(get_settings(), "PADDLE_SANDBOX_CLIENT_TOKEN", "test_not_real")
     cfg = (await client.get("/api/v1/credits/checkout-config")).json()
     assert cfg == {"provider": "paddle", "paddle": {"token": "test_not_real", "environment": "sandbox"}}
+
+
+async def test_an_admin_sees_why_paddle_refused_and_a_customer_sees_the_plain_message(client, db, paddle):  # noqa: ANN001
+    from tests.conftest import make_admin
+
+    def refuse(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, json={"error": {"code": "transaction_default_checkout_url_not_set"}})
+
+    paddle(refuse)  # type: ignore[arg-type]
+    await register_and_login(client)
+    package = await seed_credit_package(db, name="Starter Pack", credits=50, price_cents=499)
+    customer = await client.post("/api/v1/credits/purchase", json={"credit_package_id": package.id})
+    assert customer.status_code == 502 and "Admin" not in customer.json()["detail"]
+
+    admin = await register_and_login(client)
+    await make_admin(db, admin["user"]["id"])
+    seen = await client.post("/api/v1/credits/purchase", json={"credit_package_id": package.id})
+    assert "Default payment link" in seen.json()["detail"] and "pdl_" not in seen.json()["detail"]

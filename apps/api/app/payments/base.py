@@ -26,6 +26,12 @@ class CaptureResult:
     capture_id: str | None = None
 
 
+def failure_detail(message: str, exc: Exception, *, is_admin: bool) -> str:
+    """What a failed checkout says: the plain message, plus the gateway's reason for an admin
+    (the reasons never carry a key)."""
+    return f"{message} (Admin: {str(exc)[:240]})" if is_admin else message
+
+
 class PaymentsUnavailableError(Exception):
     """Purchases can't be taken right now (no usable payment provider).
     Never grant credits on this; tell the shopper to try later."""

@@ -3,6 +3,8 @@ admin's approval and plan prices; and the public photos of store products."""
 
 from __future__ import annotations
 
+from app.payments.base import failure_detail
+
 import mimetypes
 import uuid
 
@@ -247,6 +249,7 @@ async def upload_logo(user: CurrentUser, db: DbSession, file: UploadFile = File(
 async def buy_plan(code: str, user: CurrentUser, db: DbSession):
     """A 30-day pass for the store, paid like a credit package (PayPal). The
     plan is unlocked when PayPal confirms the payment (credits/purchase/{id}/capture)."""
+    admin_view = user.is_admin  # read now: after a rollback the user row can't be read lazily
     store = await _my_store(db, user)
     plan = await db.scalar(select(StorePlan).where(StorePlan.code == code, StorePlan.is_active.is_(True)))
     if plan is None:
@@ -284,7 +287,8 @@ async def buy_plan(code: str, user: CurrentUser, db: DbSession):
         await db.rollback()
         logger.warning("store_plan_checkout_failed", error=str(exc)[:200])
         raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail="We couldn't start the payment. Nothing was charged."
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=failure_detail("We couldn't start the payment. Nothing was charged.", exc, is_admin=admin_view),
         ) from exc
     payment.external_payment_id = checkout.external_payment_id
     if checkout.status == "succeeded":  # a provider that settles at once (the mock, in development)

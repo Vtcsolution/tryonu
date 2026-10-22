@@ -35,12 +35,22 @@ class PaddleError(Exception):
     """A Paddle request failed. Never carries a credential."""
 
 
+_FIXES = {
+    "transaction_default_checkout_url_not_set": "set Paddle → Checkout → Checkout settings → Default payment link to https://tryonu.app/pay",
+    "transaction_checkout_url_domain_is_not_approved": "Paddle hasn't approved tryonu.app yet (Paddle → Checkout → Website approval)",
+    "forbidden": "the Paddle API key needs Read and Write permission",
+    "authentication_malformed": "the Paddle API key isn't complete: paste the whole key",
+}
+
+
 def _error_text(resp: httpx.Response) -> str:
     try:
         error = resp.json().get("error") or {}
     except ValueError:
         return f"HTTP {resp.status_code}"
-    return f"HTTP {resp.status_code} {error.get('code') or ''}".strip()
+    code = str(error.get("code") or "")
+    fix = _FIXES.get(code)
+    return f"HTTP {resp.status_code} {code}".strip() + (f": {fix}" if fix else "")
 
 
 def verify_signature(payload: bytes, header: str | None, secret: str | None, *, now: float | None = None) -> bool:

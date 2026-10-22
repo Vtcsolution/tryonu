@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.payments.base import failure_detail
+
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
@@ -74,6 +76,7 @@ async def checkout_config():
 
 @router.post("/purchase", response_model=PurchaseCreditsResponse)
 async def purchase(payload: PurchaseCreditsRequest, user: CurrentUser, db: DbSession):
+    admin_view = user.is_admin  # read now: after a rollback the user row can't be read lazily
     package = await db.get(CreditPackage, payload.credit_package_id)
     if package is None or not package.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Credit package not found")
@@ -115,7 +118,7 @@ async def purchase(payload: PurchaseCreditsRequest, user: CurrentUser, db: DbSes
         logger.warning("payment_checkout_failed", provider=provider.name, error=str(exc)[:200])
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="We couldn't start the payment. Nothing was charged; please try again.",
+            detail=failure_detail("We couldn't start the payment. Nothing was charged; please try again.", exc, is_admin=admin_view),
         ) from exc
     payment.external_payment_id = checkout.external_payment_id
     if checkout.status == "succeeded":
