@@ -11,7 +11,7 @@ import { useSession } from "@/lib/auth/useSession";
 import { countryName } from "@/lib/countries";
 
 // pages where asking would be in the way (signing in, resetting a password)
-const SKIP = ["/sign-in", "/sign-up", "/forgot-password", "/reset-password", "/verify-email", "/business/sign-up", "/developers"];
+const SKIP = ["/sign-in", "/sign-up", "/forgot-password", "/reset-password", "/verify-email", "/business/sign-up", "/developers", "/admin"];
 
 export function shopChoices(country: string | null | undefined): { id: ShopFrom; icon: string; title: string; text: string }[] {
   const where = country ? countryName(country) : "your country";

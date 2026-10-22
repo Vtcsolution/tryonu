@@ -33,7 +33,7 @@ from app.retailers.registry import get_all_providers
 router = APIRouter(prefix="/admin/settings", tags=["admin"])
 
 _RETAILER_GROUPS = {"ebay", "cj", "rakuten", "amazon", "flipkart", "daraz"}
-_TESTABLE_GROUPS = {"ai_tryon", "ai_stylist", "payments", "email"} | _RETAILER_GROUPS
+_TESTABLE_GROUPS = {"ai_tryon", "ai_stylist", "payments", "paypal", "paddle", "stripe", "email"} | _RETAILER_GROUPS
 
 
 class SettingFieldOut(BaseModel):
@@ -99,7 +99,7 @@ _PROVIDER_REQUIRES: dict[str, dict[str, tuple[str, ...]]] = {
         "best_of": ("OPENAI_API_KEY", "GEMINI_API_KEY"),
     },
     "LLM_PROVIDER": {"openai": ("OPENAI_API_KEY",)},
-    "PAYMENT_PROVIDER": {"stripe": ("STRIPE_SECRET_KEY",)},
+    "PAYMENT_PROVIDER": {"stripe": ("STRIPE_SECRET_KEY",)},  # PayPal and Paddle: the box's Test connection says
     "EMAIL_PROVIDER": {"smtp": ("SMTP_HOST",)},
 }
 
@@ -300,6 +300,27 @@ async def _test_paypal(s: Settings) -> ConnectionTestOut:
     return ConnectionTestOut(ok=True, message=f"PayPal accepted the {s.PAYPAL_MODE} keys ({where}).")
 
 
+async def _test_paddle(s: Settings) -> ConnectionTestOut:
+    """Reads one transaction list page with the keys for the selected mode:
+    proves the API key works, creates nothing and moves no money."""
+    from app.payments.paddle_provider import PaddlePaymentProvider
+
+    live = s.PADDLE_MODE == "live"
+    key = s.PADDLE_API_KEY if live else s.PADDLE_SANDBOX_API_KEY
+    token = s.PADDLE_CLIENT_TOKEN if live else s.PADDLE_SANDBOX_CLIENT_TOKEN
+    if not key:
+        return ConnectionTestOut(ok=False, message=f"Paddle {s.PADDLE_MODE} API key isn't set.")
+    provider = PaddlePaymentProvider(api_key=key, mode=s.PADDLE_MODE, pay_url="")
+    async with provider._client() as client:  # noqa: SLF001 — a read only
+        resp = await client.get("/transactions", params={"per_page": 1})
+    if resp.status_code != 200:
+        return ConnectionTestOut(ok=False, message=f"Paddle refused the {s.PADDLE_MODE} API key (HTTP {resp.status_code}).")
+    if not token:
+        return ConnectionTestOut(ok=False, message=f"The API key works. Now add the {s.PADDLE_MODE} client-side token.")
+    where = "LIVE — real payments" if live else "sandbox — test payments only"
+    return ConnectionTestOut(ok=True, message=f"Paddle accepted the {s.PADDLE_MODE} keys ({where}).")
+
+
 async def _test_smtp(s: Settings) -> ConnectionTestOut:
     if not s.SMTP_HOST:
         return ConnectionTestOut(ok=False, message="No SMTP host set — emails are only logged (mock mode).")
@@ -341,8 +362,15 @@ async def test_connection(group: str, _: AdminUser):
             result = await _test_fashn(s)
         elif group == "ai_stylist":
             result = await _test_openai(s)
-        elif group == "payments":
-            result = await (_test_paypal(s) if s.PAYMENT_PROVIDER == "paypal" else _test_stripe(s))
+        elif group == "paypal":
+            result = await _test_paypal(s)
+        elif group == "paddle":
+            result = await _test_paddle(s)
+        elif group == "stripe":
+            result = await _test_stripe(s)
+        elif group == "payments":  # the gateway customers use now
+            tests = {"paypal": _test_paypal, "paddle": _test_paddle}
+            result = await tests.get(s.PAYMENT_PROVIDER, _test_stripe)(s)
         elif group == "email":
             result = await _test_smtp(s)
         else:

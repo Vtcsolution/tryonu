@@ -241,3 +241,19 @@ async def test_paypal_keys_set_in_the_admin_panel_drive_checkout_without_a_resta
     test = (await client.post("/api/v1/admin/settings/test/payments")).json()
     assert test["ok"] is True and "sandbox" in test["message"] and signed_in == [True]
     assert secret not in str(test)
+
+
+async def test_each_payment_gateway_has_its_own_box_and_test(client, db, monkeypatch):
+    await _admin(client, db)
+    groups = {g["id"]: [f["key"] for f in g["fields"]] for g in (await client.get("/api/v1/admin/settings")).json()["groups"]}
+    assert groups["payments"] == ["PAYMENT_PROVIDER"]  # just the one choice
+    assert all(k.startswith("PAYPAL_") for k in groups["paypal"])
+    assert all(k.startswith("PADDLE_") for k in groups["paddle"])
+    assert all(k.startswith("STRIPE_") for k in groups["stripe"])
+
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "PADDLE_MODE", "sandbox")
+    monkeypatch.setattr(get_settings(), "PADDLE_SANDBOX_API_KEY", None)
+    test = (await client.post("/api/v1/admin/settings/test/paddle")).json()
+    assert test["ok"] is False and "API key isn't set" in test["message"]

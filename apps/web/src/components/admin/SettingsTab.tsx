@@ -25,6 +25,13 @@ const RISKY_CHANGES: Record<string, { value: string; message: string }> = {
   },
 };
 
+// changes that decide how real customers pay
+const PAYMENT_SWITCHES: [string, (v: string) => string][] = [
+  ["PAYMENT_PROVIDER", (v) => `Customers will pay with ${v.toUpperCase()} from now on. Did its Test connection pass? Continue?`],
+  ["PAYPAL_MODE", (v) => (v === "live" ? "PayPal LIVE: real money. Continue?" : "PayPal SANDBOX: test money only, real customers can't pay with PayPal. Continue?")],
+  ["PADDLE_MODE", (v) => (v === "live" ? "Paddle LIVE: real money. Continue?" : "Paddle SANDBOX: test cards only. Continue?")],
+];
+
 export function SettingsTab() {
   const query = useQuery({ queryKey: ["admin", "settings"], queryFn: adminApi.settings });
 
@@ -95,6 +102,9 @@ function SettingsGroupCard({ group }: { group: AdminSettingGroup }) {
     for (const [key, rule] of Object.entries(RISKY_CHANGES)) {
       if (pending[key] === rule.value && !window.confirm(rule.message)) return;
     }
+    // how customers pay: always asked, so it never changes by accident
+    const money = PAYMENT_SWITCHES.find(([key]) => key in pending && pending[key] && pending[key] !== "mock");
+    if (money && !window.confirm(money[1](String(pending[money[0]])))) return;
     save.mutate();
   };
 
