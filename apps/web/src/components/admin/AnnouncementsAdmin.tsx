@@ -35,7 +35,7 @@ export function AnnouncementsAdmin() {
     <div>
       <SectionHeader
         title="Announcements"
-        hint="Send one short message to every member. They see it in the bell, and as a phone notification if they turned those on."
+        hint="One short message to every member, in the bell and on their phone."
       />
       <div className="rounded-[16px] border border-line bg-surface p-4">
         <div className="flex flex-wrap gap-2">

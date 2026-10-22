@@ -73,8 +73,7 @@ export function MySizeCard() {
       <div className="mx-auto max-w-3xl rounded-[24px] border border-line bg-surface p-5 md:p-7">
         <h2 className="font-display text-[28px] leading-tight text-ink">My size</h2>
         <p className="mt-1 text-[15.5px] text-muted">
-          Tell us your measurements once and we&apos;ll show the size to pick next to products. Height and weight are enough to start;
-          bust/chest, waist and hips make it more accurate.
+          Add your height and weight once, and we&apos;ll show your size next to products. More measurements = a better fit.
         </p>
 
         <div className="mt-5 flex flex-wrap gap-2">

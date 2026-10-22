@@ -194,7 +194,7 @@ function OpenStore() {
         )}
       </form>
       <p className="mt-4 text-center text-[14px] text-muted">
-        Next: TryOnU approves your store (usually within a day), you choose a plan, and you add your products.
+        Next: we approve your store (usually within a day), you pick a plan and add products.
       </p>
     </div>
   );
@@ -211,23 +211,23 @@ const NAV: readonly NavGroup<Tab>[] = [
     group: "My store",
     tabs: [
       { id: "overview", label: "Overview", icon: "overview" },
-      { id: "info", label: "My store info", icon: "audit" },
-      { id: "tryons", label: "Shopper try-ons", icon: "tryons" },
       { id: "products", label: "Products", icon: "products" },
-      { id: "import", label: "Import products", icon: "upload" },
-      { id: "profile", label: "Store details", icon: "retailers" },
+      { id: "import", label: "Add from a file", icon: "upload" },
+      { id: "tryons", label: "Customer try-ons", icon: "tryons" },
+      { id: "info", label: "Store summary", icon: "audit" },
+      { id: "profile", label: "Edit store", icon: "retailers" },
     ],
   },
   {
     group: "Billing",
     tabs: [
-      { id: "plan", label: "Plan", icon: "packs" },
+      { id: "plan", label: "My plan", icon: "packs" },
       { id: "payments", label: "Payments", icon: "payments" },
     ],
   },
   {
     group: "You",
-    tabs: [{ id: "account", label: "My account & password", icon: "users" }],
+    tabs: [{ id: "account", label: "My account", icon: "users" }],
   },
 ];
 const TAB_IDS = new Set<string>(NAV.flatMap((g) => g.tabs.map((t) => t.id)));
@@ -513,9 +513,8 @@ function PlanAllowance({ store }: { store: Store }) {
         </div>
       </div>
       <p className="mt-4 text-[14px] leading-relaxed text-ink-soft">
-        <b>How credits work:</b> every plan comes with try-on credits. When a shopper presses <b>Try on free</b> on one of your
-        products, 1 credit is used. If the try-on fails, it comes back. When you renew or switch plans, the new plan&apos;s credits
-        are <b>added</b> to what you have left.
+        <b>How it works:</b> each free try-on of your product uses 1 credit. A failed try-on gives it back. A new plan
+        <b> adds</b> its credits to what you have.
       </p>
     </div>
   );
@@ -528,7 +527,7 @@ function NeedsPlan({ go, what }: { go: (tab: Tab) => void; what: string }) {
       <p className="text-[40px]" aria-hidden="true">🔒</p>
       <h2 className="mt-2 font-display text-[24px] text-ink">Unlock a plan to {what}</h2>
       <p className="mx-auto mt-2 max-w-md text-[15.5px] text-muted">
-        Your plan decides how many products you can sell. Once it&apos;s active, you can add products with photos here.
+        Your plan sets how many products you can sell. Then add them here.
       </p>
       <button
         type="button"
@@ -606,7 +605,7 @@ function NextSteps({ store, go }: { store: Store; go: (tab: Tab) => void }) {
 }
 
 const STATUS: Record<string, { label: string; tone: "good" | "bad" | "warn" | "neutral"; text: string }> = {
-  pending: { label: "Waiting for approval", tone: "warn", text: "We're reviewing your store. You can unlock a plan and add products meanwhile; they go live once approved." },
+  pending: { label: "Waiting for approval", tone: "warn", text: "We're checking your store. You can add products now; they show once it's approved." },
   approved: { label: "Approved", tone: "good", text: "Your store is approved." },
   rejected: { label: "Not approved", tone: "bad", text: "Your store wasn't approved." },
   suspended: { label: "Suspended", tone: "bad", text: "Your store is suspended; its products are hidden from shoppers." },
@@ -712,7 +711,7 @@ function PlansSection({ store }: { store: Store }) {
   return (
     <Section
       title={store.plan_active ? "Your plan" : "Unlock a plan"}
-      hint="Unlock a plan for 30 days, or turn on auto-renew and PayPal renews it every period until you turn it off."
+      hint="Pay for 30 days, or turn on auto-renew to pay every month until you stop it."
     >
       {store.plan_active && <PlanAllowance store={store} />}
       {returned === "cancelled" && (
@@ -1112,8 +1111,8 @@ function FeedSection({ store }: { store: Store }) {
   });
   return (
     <Section
-      title="Import products automatically"
-      hint="Paste a link to your product feed (CSV or JSON). Shopify, WooCommerce and Google Merchant exports work. We import it every night, within your plan's product limit; products you added by hand are kept."
+      title="Add products from a link"
+      hint="Paste your product list link (CSV or JSON, e.g. from Shopify or WooCommerce). We update it every night."
     >
       <div className="flex flex-wrap gap-2">
         <input
@@ -1139,9 +1138,8 @@ function FeedSection({ store }: { store: Store }) {
       <details className="mt-3 text-[13.5px] text-muted">
         <summary className="cursor-pointer">Which columns does the feed need?</summary>
         <p className="mt-2">
-          Each product needs a <b>name</b> (or title), <b>price</b>, <b>link</b> (url) and at least one <b>image</b> link. Optional:
-          id/sku, currency, description, category, gender, colour, availability. JSON can be a list of products or
-          {" "}{"{ \"products\": [...] }"}.
+          Each product needs a <b>name</b>, <b>price</b>, <b>link</b> and an <b>image</b> link. Anything else (colour, category,
+          description…) is optional.
         </p>
       </details>
     </Section>
@@ -1330,7 +1328,7 @@ function DeliverySection({ store }: { store: Store }) {
   return (
     <Section
       title="Where do you deliver?"
-      hint={`Shoppers only see products you can deliver to them. Now: ${deliveryText(store.delivery, store.delivery_countries, store.country)}. You can change it for single products too (Edit a product).`}
+      hint={`Shoppers see only what you can deliver to them. Now: ${deliveryText(store.delivery, store.delivery_countries, store.country)}.`}
     >
       <DeliveryChooser home={store.country} mode={mode} onMode={setMode} countries={countries} onCountries={setCountries} />
       {save.isError && <div className="mt-3"><ErrorNote>{errorText(save.error)}</ErrorNote></div>}
@@ -1357,7 +1355,7 @@ function StatsSection() {
   return (
     <Section
       title="Performance"
-      hint={`The last ${s.days} days. Views: your products shown to shoppers. Shop clicks open your product page. Try-ons: shoppers trying your products on their own photo. Saved and liked: shoppers who saved a look with your product, and likes on community posts wearing it. Price alerts: shoppers waiting for your price to drop.`}
+      hint={`The last ${s.days} days: how many shoppers saw, clicked, tried on, saved and liked your products.`}
     >
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Views" value={s.views.toLocaleString()} />

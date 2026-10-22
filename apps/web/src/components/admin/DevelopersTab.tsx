@@ -44,7 +44,7 @@ export function DevelopersTab() {
       <div>
         <SectionHeader
           title="Developers"
-          hint="Businesses using TryOnU's try-on API on their own sites. Their try-ons run automatically within the credits they paid for, up to the daily limit in Settings → Credits & pricing. Developer credits are separate from shopper credits and store try-on credits."
+          hint="Businesses using the try-on API on their own websites. Give free try-ons, take some back, or suspend."
         />
         {(credits.isError || setStatus.isError) && (
           <div className="mb-3"><ErrorNote>{errorText(credits.error ?? setStatus.error)}</ErrorNote></div>

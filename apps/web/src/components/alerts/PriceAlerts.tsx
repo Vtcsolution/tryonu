@@ -97,7 +97,7 @@ export function PriceAlertsPage() {
       <div className="mx-auto max-w-[820px]">
         <h1 className="font-display text-[clamp(28px,4vw,40px)] leading-tight text-ink max-lg:hidden">Price alerts</h1>
         <p className="text-[15px] text-muted lg:mt-1 lg:text-[16px]">
-          We check these shops every few hours and tell you (bell, phone, email) when something gets cheaper or is back in stock.
+          We'll tell you when these get cheaper or are back in stock.
         </p>
         {items.length === 0 ? (
           <div className="mt-8 rounded-[22px] border border-dashed border-line p-10 text-center">

@@ -215,8 +215,8 @@ export function DeveloperDocs({ compact = false }: { compact?: boolean }) {
       <section id="widget" className={`${card} scroll-mt-24`}>
         <h2 className="font-display text-[22px] text-ink">Add a &quot;Try it on&quot; button to your shop</h2>
         <p className="mt-1 text-[15px] text-ink-soft">
-          No programming: shoppers press the button, add a photo and see themselves wearing your product. It uses a{" "}
-          <b>website key</b> (<code>tou_pk_…</code>), which only works on your own domains, so it is safe in your web page.
+          No coding. Shoppers press the button, add a photo and see themselves in your product. It uses a{" "}
+          <b>website key</b> (<code>tou_pk_…</code>) that works only on your website.
         </p>
         <div role="tablist" aria-label="Shop platform" className="mt-4 flex flex-wrap gap-2">
           {SHOPS.map((p) => (
@@ -268,8 +268,7 @@ export function DeveloperDocs({ compact = false }: { compact?: boolean }) {
           <code>{CODE[lang]}</code>
         </pre>
         <p className="mt-3 text-[13.5px] text-[#a4553f]">
-          🔒 Keep your secret key (<code>tou_sk_…</code>) on your server. Never put it in a web page or a mobile app, where anyone
-          could copy it and spend your credits.
+          🔒 Keep your secret key (<code>tou_sk_…</code>) on your server. Never put it in a web page or an app.
         </p>
       </section>
 
@@ -372,9 +371,8 @@ export function WidgetSteps({ shop, websiteKey }: { shop: Shop; websiteKey?: str
           <li className={step}>
             <span className={num}>2</span>
             <span>
-              Paste the code below into your product page (on Wix: <b>Add → Embed code → Custom code</b>). Put your product&apos;s photo
-              address in <code>data-tryonu-garment</code>, or leave it empty (<code>data-tryonu-garment=&quot;&quot;</code>) to use
-              the page&apos;s main picture.
+              Paste the code below into your product page (on Wix: <b>Add → Embed code → Custom code</b>). Leave{" "}
+              <code>data-tryonu-garment</code> empty to use the page&apos;s main picture.
             </span>
           </li>
         )}

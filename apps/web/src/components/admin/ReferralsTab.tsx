@@ -19,7 +19,7 @@ export function ReferralsTab() {
       <div>
         <SectionHeader
           title="Invites"
-          hint="Each row: someone shared a link, a friend joined from it. The person who shared earns when the friend does their first try-on (Settings → Credits & pricing), and when a friend's shop buys its first plan (Company stores → plans)."
+          hint="Friends who joined from someone's link. The sharer earns credits on the friend's first try-on."
         />
         {q.isError && <ErrorNote>{errorText(q.error)}</ErrorNote>}
         {q.isLoading ? (

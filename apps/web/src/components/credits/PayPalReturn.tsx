@@ -138,8 +138,7 @@ export function PayPalReturn() {
         <>
           <h1 className="font-display text-[clamp(24px,4vw,32px)] text-ink">Payment not finished yet</h1>
           <p className="mt-3 text-[16px] text-muted">
-            PayPal hasn&rsquo;t completed this payment yet. If you approved it on PayPal, your credits are added
-            automatically within a few minutes, even if you close this page. If you didn&rsquo;t, nothing was charged.
+            PayPal hasn&rsquo;t finished yet. If you paid, your credits arrive within a few minutes. If not, nothing was charged.
           </p>
           <div className="mt-7 flex justify-center gap-3">
             <Button size="md" onClick={() => void confirm()}>Check again</Button>

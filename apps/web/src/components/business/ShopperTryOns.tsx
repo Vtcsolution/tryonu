@@ -27,15 +27,15 @@ export function ShopperTryOns({ store, onBuyMore }: { store: Store; onBuyMore: (
     <div className="space-y-6">
       {/* how it works, in plain words */}
       <section className="rounded-[24px] border border-sage/40 bg-sage-tint/25 p-6">
-        <h2 className="font-display text-[22px] text-ink">How shopper try-ons work</h2>
+        <h2 className="font-display text-[22px] text-ink">How it works</h2>
         <ol className="mt-3 space-y-2 text-[15.5px] leading-relaxed text-ink-soft">
           <li><b className="text-ink">1.</b> A shopper finds your product and presses <b>Try it on</b>.</li>
-          <li><b className="text-ink">2.</b> The try-on is <b>free for them</b>: it uses <b>1 of your try-on credits</b>. They see your product on their own photo.</li>
-          <li><b className="text-ink">3.</b> If they agree, their try-on picture appears below, so you can see your product on real people.</li>
-          <li><b className="text-ink">4.</b> If a try-on fails, your credit comes back automatically.</li>
+          <li><b className="text-ink">2.</b> It&apos;s <b>free for them</b> and uses <b>1 of your credits</b>.</li>
+          <li><b className="text-ink">3.</b> If they agree, you see their picture below.</li>
+          <li><b className="text-ink">4.</b> A failed try-on gives your credit back.</li>
         </ol>
         <p className="mt-3 text-[14px] text-muted">
-          Shoppers can also pay with their own credits and keep their picture private. Then you only see that your product was tried on.
+          Shoppers who pay themselves can keep their picture private.
         </p>
       </section>
 
@@ -55,7 +55,7 @@ export function ShopperTryOns({ store, onBuyMore }: { store: Store; onBuyMore: (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-[#c9a13b]/40 bg-[#c9a13b]/10 px-4 py-3">
           <p className="text-[15px] text-ink">
             {d.credits_left === 0
-              ? "You have no try-on credits left. Shoppers can still try your products, but they pay for it themselves."
+              ? "No credits left. Shoppers can still try your products, but they pay themselves."
               : `Only ${d.credits_left} try-on credits left.`}
           </p>
           <button
@@ -224,7 +224,7 @@ function Viewer({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={p.product_image} alt="" className="h-12 w-12 rounded-lg bg-white object-contain p-1" />
         )}
-        <span>Zoom with the + and − buttons, the mouse wheel or two fingers, then drag. ← → for the next picture.</span>
+        <span>Zoom with + and −, or two fingers. ← → for the next one.</span>
         {p.product_url && (
           <a href={p.product_url} target="_blank" rel="noopener noreferrer" className="font-medium text-white underline">
             Your product page ↗

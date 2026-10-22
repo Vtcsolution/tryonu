@@ -254,7 +254,7 @@ export function PreferencesWizard() {
             <Title
               kicker="Step 3 of 4"
               title={<>Narrow it <em>down</em></>}
-              hint="Tap the styles you like — more options open as you choose. Leave a category untouched to see everything in it."
+              hint="Tap the styles you like. Skip any you don't mind."
             />
             <div className="tu-stagger mt-7 space-y-4">
               {chosenCategories.map(({ audience, category }) => (

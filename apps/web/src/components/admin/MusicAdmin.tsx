@@ -41,7 +41,7 @@ export function MusicAdmin() {
     <div>
       <SectionHeader
         title="Music library"
-        hint="Songs members can add to their posts. They play in Reels. Only add music TryOnU may use: royalty-free songs (for example from Pixabay Music or FreePD) or your own. Never TikTok or film songs."
+        hint="Songs members can add to posts. Only free, no-copyright music (Pixabay Music, FreePD) or your own. No TikTok or film songs."
       />
       <div className="rounded-[16px] border border-line bg-surface p-4">
         <div className="flex flex-wrap items-center gap-3">

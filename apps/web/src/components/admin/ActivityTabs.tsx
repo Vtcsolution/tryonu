@@ -72,7 +72,7 @@ export function SystemTab() {
     <div>
       <SectionHeader
         title="System"
-        hint="What the running server is actually configured with. Values come from the server's .env — change them there and restart."
+        hint="How the server is set up. Change these in the server's .env file, then restart."
       />
       <Table
         columns={["Setting", "Value"]}
@@ -209,7 +209,7 @@ export function AffiliateClicksTab() {
     <div>
       <SectionHeader
         title="Shop clicks"
-        hint="Every “Shop now” click sent to a retailer. Commission is only earned where that retailer's tracking is configured (see Retailers)."
+        hint="Every “Shop now” click. You earn commission only from shops with tracking set up."
       />
       <Table
         columns={["When", "Product", "Retailer", "User", "Source"]}

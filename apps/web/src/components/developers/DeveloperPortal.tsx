@@ -123,7 +123,7 @@ const NAV: readonly NavGroup<Tab>[] = [
       { id: "payments", label: "Payments", icon: "payments" },
     ],
   },
-  { group: "You", tabs: [{ id: "account", label: "My account & password", icon: "users" }] },
+  { group: "You", tabs: [{ id: "account", label: "My account", icon: "users" }] },
 ];
 const TAB_IDS = new Set<string>(NAV.flatMap((g) => g.tabs.map((t) => t.id)));
 const AREA: ShellArea = { name: "Developers", home: "/developers/console", role: "Developer" };
@@ -270,12 +270,12 @@ function Keys() {
   });
   return (
     <>
-      <Card title="Create a key" hint="Give each website or server its own key, so you can turn one off without touching the others.">
+      <Card title="Create a key" hint="One key per website or server, so you can turn one off alone.">
         <div role="radiogroup" aria-label="Key type" className="mb-4 grid gap-2 sm:grid-cols-2">
           {(
             [
-              ["public", "Website key", "For the \u201cTry it on\u201d button on your shop (any website, Shopify, WordPress). Works only on your domains."],
-              ["secret", "Secret server key", "For programmers calling the API from a server. Never put it in a web page."],
+              ["public", "Website key", "For the \u201cTry it on\u201d button on your shop. Works only on your website."],
+              ["secret", "Secret server key", "For your server only. Never put it in a web page."],
             ] as const
           ).map(([id, title, text]) => (
             <button
@@ -343,8 +343,7 @@ function Keys() {
               </>
             ) : (
               <p className="mt-2 text-[13.5px] text-ink-soft">
-                Keep it on your server (for example in an environment variable). Never put it in a web page or an app. If it leaks,
-                revoke it below and create a new one.
+                Keep it on your server only. If someone else gets it, delete it below and make a new one.
               </p>
             )}
             <SmallButton onClick={() => setFresh(null)}>I&apos;ve saved it</SmallButton>
@@ -409,7 +408,7 @@ function BuyCredits({ account }: { account: DeveloperAccount }) {
   return (
     <Card
       title="Buy credits"
-      hint={`You have ${account.credits.toLocaleString()} credits. 1 credit = 1 try-on. Credits never expire, and a failed try-on gives its credit back. Paid securely with PayPal.`}
+      hint={`You have ${account.credits.toLocaleString()} credits. 1 credit = 1 try-on. They never expire. Pay with PayPal.`}
     >
       {packs.isLoading ? (
         <p className="text-[14px] text-muted">Loading…</p>
@@ -445,7 +444,7 @@ const STATUS_TONE: Record<string, "good" | "bad" | "warn" | "neutral"> = {
 function Usage() {
   const usage = useQuery({ queryKey: ["developers", "usage"], queryFn: devApi.usage, refetchInterval: 15_000 });
   return (
-    <Card title="Usage" hint="Every try-on made with your keys, newest first. A failed try-on shows 0 credits: it was given back.">
+    <Card title="Usage" hint="Every try-on, newest first. Failed ones cost 0.">
       {usage.isLoading ? (
         <p className="text-[14px] text-muted">Loading…</p>
       ) : !usage.data || usage.data.length === 0 ? (

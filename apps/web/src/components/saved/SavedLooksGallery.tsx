@@ -42,8 +42,7 @@ export function SavedLooksGallery() {
         Your <em>saved looks</em>
       </h1>
       <p className="mt-2 max-w-2xl text-[16.5px] leading-relaxed text-ink-soft max-lg:hidden">
-        Every look you saved. Press <b>View look</b> to see it full size with its products and shop links, or <b>Share</b> to send
-        it to friends: they can try the same products on themselves.
+        Your saved looks. Open one to see its products, or share it with friends.
       </p>
 
       {/* phones: the looks first, inviting friends after them */}

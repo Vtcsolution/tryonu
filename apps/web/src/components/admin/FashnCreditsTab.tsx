@@ -32,7 +32,7 @@ export function FashnCreditsTab() {
     <div className="space-y-8">
       <SectionHeader
         title="FASHN credits"
-        hint="Shoppers' try-ons run automatically: anyone with credits can try on, no approval needed. A daily safety limit stops runaway spending (each look uses about 4 FASHN credits). Change the limit in Settings → Credits & pricing."
+        hint="Try-ons run by themselves. A daily limit keeps costs safe (about 4 FASHN credits per look). Change it in Settings & keys → Credits & prices."
       />
       {s.automatic && (
         <div

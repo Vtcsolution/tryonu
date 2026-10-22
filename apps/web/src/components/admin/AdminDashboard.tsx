@@ -56,49 +56,49 @@ type Tab =
 
 const NAV: readonly NavGroup<Tab>[] = [
   {
-    group: "Monitor",
+    group: "Today",
     tabs: [
       { id: "overview", label: "Overview", icon: "overview" },
-      { id: "analytics", label: "Visitor analytics", icon: "analytics" },
+      { id: "messages", label: "Messages", icon: "audit" },
+      { id: "analytics", label: "Visitors", icon: "analytics" },
     ],
   },
   {
-    group: "Manage",
+    group: "People",
     tabs: [
-      { id: "messages", label: "Messages", icon: "audit" },
-      { id: "users", label: "Users", icon: "users" },
+      { id: "users", label: "Members", icon: "users" },
+      { id: "community", label: "Community", icon: "users" },
+      { id: "stores", label: "Shops", icon: "retailers" },
+      { id: "developers", label: "Developers", icon: "ai" },
+      { id: "referrals", label: "Invites", icon: "users" },
+    ],
+  },
+  {
+    group: "Shopping",
+    tabs: [
       { id: "tryons", label: "Try-ons", icon: "tryons" },
       { id: "products", label: "Products", icon: "products" },
-      { id: "retailers", label: "Retailers", icon: "retailers" },
-      { id: "packs", label: "Credit packs", icon: "packs" },
-      { id: "stores", label: "Company stores", icon: "retailers" },
-      { id: "developers", label: "Developer API", icon: "ai" },
-      { id: "referrals", label: "Invites & rewards", icon: "users" },
-      { id: "community", label: "Community", icon: "users" },
+      { id: "retailers", label: "Product sources", icon: "retailers" },
+      { id: "clicks", label: "Shop clicks", icon: "clicks" },
     ],
   },
   {
-    group: "Configure",
-    tabs: [
-      { id: "settings", label: "Settings & API keys", icon: "settings" },
-      { id: "fashn", label: "FASHN credits", icon: "ai" },
-      { id: "system", label: "System", icon: "system" },
-    ],
-  },
-  {
-    group: "Money & activity",
+    group: "Money",
     tabs: [
       { id: "payments", label: "Payments", icon: "payments" },
+      { id: "packs", label: "Credit prices", icon: "packs" },
       { id: "subscriptions", label: "Subscriptions", icon: "subscriptions" },
-      { id: "clicks", label: "Shop clicks", icon: "clicks" },
-      { id: "ai-usage", label: "AI usage", icon: "ai" },
-      { id: "audit", label: "Audit log", icon: "audit" },
+      { id: "ai-usage", label: "AI costs", icon: "ai" },
     ],
   },
   {
-    group: "You",
+    group: "Settings",
     tabs: [
-      { id: "account", label: "My account & password", icon: "users" },
+      { id: "settings", label: "Settings & keys", icon: "settings" },
+      { id: "fashn", label: "Try-on budget", icon: "ai" },
+      { id: "system", label: "Server", icon: "system" },
+      { id: "audit", label: "Admin history", icon: "audit" },
+      { id: "account", label: "My account", icon: "users" },
     ],
   },
 ];
@@ -213,10 +213,10 @@ function FashnWarning({ onOpen }: { onOpen: () => void }) {
   let text: string | null = null;
   let severe = false;
   if (auto?.paused) {
-    text = "You paused automatic try-ons: every customer's try-on fails until you resume (their credits come back).";
+    text = "Try-ons are paused. Customers get their credits back until you turn them on again.";
     severe = true;
   } else if (!status.data.live_generation_allowed || left === 0) {
-    text = "Try-ons are stopped: today's FASHN limit is used up. Raise it in Settings, or add extra credits.";
+    text = "Try-ons are stopped: today's limit is used up. Raise it in Try-on budget.";
     severe = true;
   } else if (left < 8) {
     text = `Only ${left} FASHN credits left for today (about ${Math.floor(left / 4)} looks). Try-ons stop when they run out.`;
@@ -235,7 +235,7 @@ function FashnWarning({ onOpen }: { onOpen: () => void }) {
         onClick={onOpen}
         className="tu-press min-h-[40px] rounded-full bg-sage px-4 text-[14px] font-semibold text-white hover:bg-sage-deep"
       >
-        {auto?.paused ? "Resume →" : "Open FASHN credits →"}
+        {auto?.paused ? "Turn back on →" : "Open Try-on budget →"}
       </button>
     </div>
   );

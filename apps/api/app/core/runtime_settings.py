@@ -45,56 +45,43 @@ class SettingSpec:
 
 SPECS: tuple[SettingSpec, ...] = (
     # --- AI try-on ---
-    SettingSpec("VIRTUAL_TRYON_PROVIDER", "Try-on provider", "ai_tryon", "choice",
-                ("openai", "gemini", "best_of", "fashn", "mock"),
-                "“openai” and “gemini” (nano banana) each dress the photo in the whole outfit at once — shoes, "
-                "bags and jewellery included; “best_of” renders with both at once and keeps whichever the "
-                "inspector scores higher, at both engines' cost on every job; “fashn” renders clothing one piece "
-                "at a time; “mock” returns a placeholder. Falls back to whichever of the above still has its "
-                "API key(s) configured, or to mock, if the chosen one doesn't."),
-    SettingSpec("TRYON_OPENAI_FOR_FULL_LOOKS", "Use OpenAI for items tryon-v1.6 can't draw", "ai_tryon", "bool",
-                help="With FASHN tryon-v1.6 (clothing only), outfits that also include shoes, bags, jewellery, hats "
-                "or any other accessory are drawn by OpenAI in one pass. OpenAI can change the face; FASHN tryon-max "
-                "draws every item itself and keeps it. Falls back to FASHN if OpenAI fails."),
-    SettingSpec("TRYON_QUALITY_PIPELINE", "Quality pipeline", "ai_tryon", "bool",
-                help="Keeps the person's own face, body and background (only the product is taken from the "
-                "render), grades every item with the vision model and retries or refuses poor renders. "
-                "Needs the OpenAI API key."),
+    SettingSpec("VIRTUAL_TRYON_PROVIDER", "Try-on engine", "ai_tryon", "choice", ("openai", "gemini", "best_of", "fashn", "mock"),
+                help="Which AI draws the try-on. openai or gemini: the whole outfit at once, shoes, bags and jewellery "
+                "too. best_of: draws with both and keeps the better one (costs both). fashn: clothes one piece at a "
+                "time. mock: a test picture. If the chosen one has no key, another one with a key is used."),
+    SettingSpec("TRYON_OPENAI_FOR_FULL_LOOKS", "Use OpenAI for shoes, bags and jewellery", "ai_tryon", "bool",
+                help="Only with FASHN tryon-v1.6 (clothes only): looks with accessories are drawn by OpenAI. If OpenAI "
+                "fails, FASHN draws it."),
+    SettingSpec("TRYON_QUALITY_PIPELINE", "Quality check", "ai_tryon", "bool",
+                help="Keeps the person's own face, body and background, checks every item, and redraws or stops poor "
+                "results. Needs the OpenAI key."),
     SettingSpec("TRYON_QUALITY_RETRIES", "Retries per item", "ai_tryon", "int", min_value=0,
                 help="Extra renders when an item fails inspection — each costs one more render."),
     SettingSpec("TRYON_QUALITY_MIN_PRODUCT", "Minimum product match (0-10)", "ai_tryon", "int", min_value=0),
     SettingSpec("TRYON_QUALITY_MIN_FIT", "Minimum fit & realism (0-10)", "ai_tryon", "int", min_value=0),
-    SettingSpec("TRYON_QUALITY_BEST_OF_SKIP_SCORE", "best_of: score to skip the second engine (0-10)", "ai_tryon", "int",
-                min_value=0,
-                help="best_of only. When the first engine's whole look scores at or above this AND every item "
-                "was judged at all, the second engine is never rendered — real doubled cost (its own retries, "
-                "its own vision calls on both engines) avoided on the common case. Lower = cheaper, more often "
-                "ships the first engine's result unquestioned; higher = closer to always comparing both."),
+    SettingSpec("TRYON_QUALITY_BEST_OF_SKIP_SCORE", "best_of: good-enough score (0-10)", "ai_tryon", "int",
+                help="best_of only. If the first engine scores this or more, the second one isn't used. Lower = cheaper; "
+                "higher = compares more often.", min_value=0),
     SettingSpec("OPENAI_VISION_MODEL", "Vision model (inspection)", "ai_tryon", "text",
                 help="Looks at images only — never draws. e.g. gpt-5.4-mini"),
     SettingSpec("TRYON_KEEP_ORIGINAL_FACE", "Keep the person's real face", "ai_tryon", "bool",
-                help="After the outfit is drawn, the person's own face from their photo is blended back onto the "
-                "result — AI models redraw faces and they drift. Skipped automatically when the face can't be "
-                "matched safely."),
+                help="Puts the person's real face back on the result, because AI can change faces. Skipped when it can't "
+                "be done safely."),
     SettingSpec("OPENAI_IMAGE_MODEL", "OpenAI try-on image model", "ai_tryon", "text",
                 help="Used when the try-on provider is “openai”, e.g. gpt-image-2."),
-    SettingSpec("OPENAI_IMAGE_QUALITY", "OpenAI render quality", "ai_tryon", "choice", ("low", "medium", "high"),
-                "Measured: “low” ~15s per item and scores 8-9/10; “medium” ~32s; “high” ~87s and scores worse "
-                "(it redraws more of the photo). Leave on low unless a product needs finer detail."),
+    SettingSpec("OPENAI_IMAGE_QUALITY", "OpenAI picture quality", "ai_tryon", "choice", ("low", "medium", "high"),
+                help="low: about 15 s per item and the best results. medium: about 30 s. high: about 90 s and worse. Keep "
+                "on low."),
     SettingSpec("FASHN_API_KEY", "FASHN API key", "ai_tryon", "secret"),
     SettingSpec("FASHN_MODEL", "FASHN model", "ai_tryon", "choice", ("tryon-max", "tryon-v1.6"),
-                "tryon-max draws anything wearable — clothing, shoes, bags, jewellery, hats, accessories — and "
-                "keeps the person's face; tryon-v1.6 is clothing only."),
+                help="tryon-max: clothes, shoes, bags and jewellery, and keeps the face. tryon-v1.6: clothes only."),
     SettingSpec("GEMINI_API_KEY", "Gemini API key", "ai_tryon", "secret",
                 help="From Google AI Studio. Used when the try-on provider is “gemini” or “best_of”."),
-    SettingSpec("GEMINI_IMAGE_MODEL", "Gemini try-on image model", "ai_tryon", "text",
-                help='"nano banana" family, e.g. gemini-3-pro-image or gemini-3.1-flash-image. Do not use '
-                "gemini-2.5-flash-image for try-on: given a full-body product photo among its inputs it can "
-                "edit that photo instead of the customer's, returning the retailer's model, not the customer."),
-    SettingSpec("GEMINI_IMAGE_SIZE", "Gemini render size", "ai_tryon", "choice", ("1K", "2K", "4K"),
-                "Measured on the same edit, brought to a common size to compare: the 1K default scores lowest "
-                "on real detail, 2K is sharper at four times the pixels, 4K is an upscale of the same drawing "
-                "and comes out softer than 2K despite being sixteen times the pixels."),
+    SettingSpec("GEMINI_IMAGE_MODEL", "Gemini model", "ai_tryon", "text",
+                help="For example gemini-3-pro-image. Don't use gemini-2.5-flash-image: it can return the shop's model "
+                "instead of the customer."),
+    SettingSpec("GEMINI_IMAGE_SIZE", "Gemini picture size", "ai_tryon", "choice", ("1K", "2K", "4K"),
+                help="2K is the sharpest. 1K is softer; 4K is only an enlarged 2K and looks softer."),
     # --- AI stylist ---
     SettingSpec("LLM_PROVIDER", "Stylist provider", "ai_stylist", "choice", ("openai", "mock")),
     SettingSpec("OPENAI_API_KEY", "OpenAI API key", "ai_stylist", "secret"),
@@ -121,18 +108,17 @@ SPECS: tuple[SettingSpec, ...] = (
     SettingSpec("FLIPKART_AFFILIATE_TOKEN", "Affiliate token", "flipkart", "secret"),
     SettingSpec("DARAZ_API_KEY", "API key", "daraz", "secret"),
     # --- payments ---
-    SettingSpec("PAYMENT_PROVIDER", "Payment provider", "payments", "choice", ("paypal", "stripe", "mock"),
-                "“paypal” sells the credit packages through PayPal Checkout. “mock” completes purchases without "
-                "charging anyone; on the production server it refuses purchases instead."),
+    SettingSpec("PAYMENT_PROVIDER", "Payments by", "payments", "choice", ("paypal", "stripe", "mock"),
+                help="paypal: real checkout. mock: test only, never charges (refused on the live site)."),
     SettingSpec("PAYPAL_MODE", "PayPal mode", "payments", "choice", ("sandbox", "live"),
-                "“sandbox” takes test money from PayPal sandbox accounts; “live” charges real money. "
-                "Switch to live only after a sandbox purchase worked."),
+                help="sandbox: test money. live: real money. Switch to live only after a sandbox test worked."),
     SettingSpec("PAYPAL_SANDBOX_CLIENT_ID", "PayPal sandbox client ID", "payments", "text"),
     SettingSpec("PAYPAL_SANDBOX_CLIENT_SECRET", "PayPal sandbox secret", "payments", "secret"),
     SettingSpec("PAYPAL_CLIENT_ID", "PayPal live client ID", "payments", "text"),
     SettingSpec("PAYPAL_CLIENT_SECRET", "PayPal live secret", "payments", "secret"),
     SettingSpec("PAYPAL_WEBHOOK_ID", "PayPal webhook ID", "payments", "text",
-                help="From PayPal Developer -> your app -> Webhooks, for the URL https://<api>/api/v1/webhooks/paypal. Lets PayPal tell us at once about renewals, cancellations, refunds and chargebacks; without it they are picked up nightly."),
+                help="From PayPal Developer → your app → Webhooks (address: https://<api>/api/v1/webhooks/paypal). With "
+                "it, renewals and refunds arrive at once; without it, overnight."),
     SettingSpec("STRIPE_SECRET_KEY", "Stripe secret key", "payments", "secret"),
     SettingSpec("STRIPE_WEBHOOK_SECRET", "Stripe webhook signing secret", "payments", "secret"),
     # --- email ---
@@ -151,40 +137,37 @@ SPECS: tuple[SettingSpec, ...] = (
                 min_value=1),
     SettingSpec("STORE_FASHN_CREDIT_PKR", "Price of one FASHN credit (PKR)", "credits", "int",
                 help="What you pay FASHN for one credit, in Pakistani rupees.", min_value=1),
-    SettingSpec("SHOP_DAILY_FASHN_CREDITS", "Shop try-ons: FASHN credits per day", "credits", "int",
-                help="Shoppers' try-ons run automatically, without approval, up to this many FASHN credits a day "
-                "(about 4 per look). 0 = every try-on needs a manual approval again.", min_value=0),
-    SettingSpec("DEV_API_DAILY_TRYON_CAP", "Developer API: try-ons per day (all developers)", "credits", "int",
-                help="Developer try-ons run automatically within the credits developers paid for, but never more than "
-                "this many a day in total. Each one uses FASHN credits.", min_value=0),
-    SettingSpec("REFERRAL_TRYON_CREDITS", "Share & earn: credits per friend who tries on", "credits", "int",
-                help="A shopper who shares a look or their invite link earns this many credits when a friend who "
-                "joined from it does their first try-on (with their own credits). Once per friend. 0 = off.", min_value=0),
-    SettingSpec("REFERRAL_REWARD_CREDITS", "Share & earn: extra credits when that friend first buys", "credits", "int",
-                help="Optional extra reward when the invited friend buys credits for the first time. 0 = off. "
-                "Stores pay their own reward per plan (Company stores -> plans).", min_value=0),
+    SettingSpec("SHOP_DAILY_FASHN_CREDITS", "Shopper try-ons: daily FASHN limit", "credits", "int",
+                help="Most FASHN credits shopper try-ons may use in a day (about 4 per look). 0 = approve each try-on by "
+                "hand.", min_value=0),
+    SettingSpec("DEV_API_DAILY_TRYON_CAP", "Developer try-ons: daily limit", "credits", "int",
+                help="Most API try-ons a day, for all developers together.", min_value=0),
+    SettingSpec("REFERRAL_TRYON_CREDITS", "Invite reward: friend's first try-on", "credits", "int",
+                help="Credits for the person who shared, when a friend they invited makes a first try-on. Once per friend. "
+                "0 = off.", min_value=0),
+    SettingSpec("REFERRAL_REWARD_CREDITS", "Invite reward: friend's first purchase", "credits", "int",
+                help="Extra credits when that friend buys credits for the first time. 0 = off.", min_value=0),
     SettingSpec("STORE_USD_TO_PKR", "PKR per US dollar", "credits", "int",
                 help="To compare try-on costs with store plan prices in dollars.", min_value=1),
     # --- help ---
     SettingSpec("SUPPORT_WHATSAPP", "Help WhatsApp number", "help", "text",
-                help="Shows “Chat with us on WhatsApp” on Contact, Help & FAQ and the phone Me tab. "
-                "With the country code, e.g. +92 300 1234567. Empty = hidden."),
+                help="Shows “Chat with us on WhatsApp”. With the country code, e.g. +92 300 1234567. Empty = hidden."),
 )
 
 SPECS_BY_KEY = {s.key: s for s in SPECS}
 
 GROUPS: tuple[tuple[str, str], ...] = (
     ("ai_tryon", "AI try-on"),
-    ("ai_stylist", "AI stylist (OpenAI)"),
+    ("ai_stylist", "AI Stylist (OpenAI)"),
     ("ebay", "eBay"),
     ("cj", "CJ Affiliate"),
     ("rakuten", "Rakuten Advertising"),
     ("amazon", "Amazon Associates"),
     ("flipkart", "Flipkart"),
     ("daraz", "Daraz"),
-    ("payments", "Payments (PayPal / Stripe)"),
-    ("email", "Email (SMTP)"),
-    ("credits", "Credits & pricing"),
+    ("payments", "Payments"),
+    ("email", "Email"),
+    ("credits", "Credits & prices"),
     ("help", "Help & contact"),
 )
 

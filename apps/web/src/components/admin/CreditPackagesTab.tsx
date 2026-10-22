@@ -26,9 +26,9 @@ export function CreditPackagesTab() {
   return (
     <div>
       <SectionHeader
-        title="Credit packages"
-        hint={`What users can buy on the credits page. Inactive packages are hidden from the shop.${
-          tryOnCost ? ` One try-on costs ${tryOnCost} credits (change it in Settings → Credits).` : ""
+        title="Credit prices"
+        hint={`What members can buy. Hidden packs are not shown.${
+          tryOnCost ? ` One try-on costs ${tryOnCost} credits (change it in Settings & keys → Credits & prices).` : ""
         }`}
       />
 

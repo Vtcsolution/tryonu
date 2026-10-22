@@ -63,7 +63,7 @@ export function NotificationsPage() {
               <div className="px-4 py-12 text-center">
                 <p className="text-[17px] font-semibold text-ink">Nothing yet</p>
                 <p className="mt-1 text-[15px] text-muted">
-                  When people like or comment on your looks, follow you, or you earn credits, you&apos;ll see it here.
+                  Likes, comments, new followers and credits show here.
                 </p>
               </div>
             )}
@@ -161,7 +161,7 @@ function PhoneNotifications({ settings, onChange }: { settings?: NotificationSet
       <p className="text-[15px] font-semibold text-ink">On this phone or computer</p>
       {!supported ? (
         <p className="mt-1 text-[13.5px] text-muted">
-          This browser can&apos;t show notifications. On an iPhone, add TryOnU to your Home Screen first (see below), then open it from there.
+          This browser can&apos;t show notifications. On iPhone, add TryOnU to your Home Screen first.
         </p>
       ) : settings && !settings.push_key ? (
         <p className="mt-1 text-[13.5px] text-muted">Coming soon. Meanwhile the bell and the daily email keep you posted.</p>

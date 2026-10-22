@@ -53,8 +53,8 @@ export function AnalyticsTab() {
   return (
     <div>
       <SectionHeader
-        title="Visitor analytics"
-        hint="Visits to the public site — admin pages, bots and visitors with Do Not Track enabled aren't counted."
+        title="Visitors"
+        hint="Real visits to the website (not admins or bots)."
       />
 
       <div className="mb-5 flex flex-wrap items-center gap-1.5" role="group" aria-label="Date range">
@@ -92,9 +92,8 @@ function Report({ data }: { data: AnalyticsReport }) {
     <>
       {!data.geoip_available && (
         <p className="rounded-[14px] border border-[#c9a13b]/40 bg-[#c9a13b]/10 px-4 py-3 text-[13.5px] text-[#8a6d1f]">
-          Country lookup isn&rsquo;t available yet, so countries show as Unknown. The server downloads the free
-          database automatically on startup — or run <code>python -m app.scripts.update_geoip</code> in{" "}
-          <code>apps/api</code> and restart the API.
+          Countries show as Unknown for now. They appear after the server restarts (it downloads the country list
+          by itself).
         </p>
       )}
 

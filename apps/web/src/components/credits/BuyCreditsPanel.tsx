@@ -142,8 +142,7 @@ export function BuyCreditsPanel() {
         )}
         {needsCardConfirmation && (
           <p className="rounded-[16px] border border-line bg-paper-2 px-4 py-3 text-[14px] text-ink-soft">
-            This payment needs card confirmation, which isn't connected yet — please try again shortly or
-            contact support.
+            Card payment isn't ready yet. Please try again later, or contact us.
           </p>
         )}
 

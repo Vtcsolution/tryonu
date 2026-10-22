@@ -419,7 +419,7 @@ function Reports() {
     <div className="space-y-5">
       <SectionHeader
         title="Community reports"
-        hint="Posts and comments members reported. Hide: it disappears. Block member: they can't post or comment, and their posts and comments disappear. Dismiss: nothing wrong."
+        hint="Reported posts and comments. Hide = remove it. Block = the member can't post any more. Dismiss = it's fine."
       >
         <div className="flex gap-2">
           <SmallButton tone={show === "open" ? "primary" : undefined} onClick={() => setShow("open")}>Open</SmallButton>

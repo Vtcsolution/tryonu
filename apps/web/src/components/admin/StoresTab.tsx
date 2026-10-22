@@ -98,8 +98,8 @@ export function StoresTab() {
       )}
       <div>
         <SectionHeader
-          title="Company stores"
-          hint="Every store, its plan and how many products it has used. A store's products reach shoppers only when it is approved AND has a plan (paid, or free from you). Open Details to give a free plan."
+          title="Shops"
+          hint="Shops show their products only when approved and on a plan. Open Details to approve or give a free plan."
         />
         <div className="mb-4 flex flex-wrap gap-1.5">
           {FILTERS.map(([value, label]) => (
@@ -170,8 +170,8 @@ function PlansEditor() {
         title="Store plans"
         hint={
           costs.data
-            ? `What companies pay for a 30-day pass. One shopper try-on costs you ${costs.data.fashn_credits_per_tryon} FASHN credits × ${costs.data.fashn_credit_pkr} PKR = ${costs.data.fashn_credits_per_tryon * costs.data.fashn_credit_pkr} PKR (${money(costs.data.tryon_cost_usd_cents, "usd")}). Each plan shows what its try-ons cost you and what you keep. Change these costs in Settings → Credits & pricing.`
-            : "What companies pay for a 30-day pass and how many products each plan lists. Changes apply to the next purchase."
+            ? `What shops pay for 30 days. One try-on costs you about ${money(costs.data.tryon_cost_usd_cents, "usd")}; each plan shows what you keep.`
+            : "What shops pay for 30 days, and how many products each plan allows."
         }
       />
       {plans.isLoading ? (
@@ -404,7 +404,7 @@ function StoreDetail({ id, onClose }: { id: string; onClose: () => void }) {
       <div className="rounded-[16px] border border-sage/40 bg-sage-tint/20 p-4">
         <p className="text-[15px] font-semibold text-ink">Give a free plan (no payment)</p>
         <p className="mt-0.5 text-[13.5px] text-muted">
-          The store gets the plan&apos;s product limit right away. Days are added on top of any time it has left.
+          Starts now. Extra days are added to any time the shop has left.
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <select value={planCode} onChange={(e) => setPlanCode(e.target.value)} className={`${inputClass} w-48`} aria-label="Plan">

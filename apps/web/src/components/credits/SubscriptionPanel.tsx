@@ -93,8 +93,7 @@ export function SubscriptionPanel() {
       )}
       {needsCardConfirmation && (
         <p className="mt-3 rounded-[14px] border border-line bg-paper-2 px-4 py-3 text-[14px] text-ink-soft">
-          This plan needs card confirmation, which isn't connected yet — please try again shortly or contact
-          support.
+          Card payment isn't ready yet. Please try again later, or contact us.
         </p>
       )}
     </div>

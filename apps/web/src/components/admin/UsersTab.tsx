@@ -198,7 +198,7 @@ function UserDetailPanel({ userId, isSelf, onClose }: { userId: string; isSelf: 
             <div className="rounded-[16px] border border-line bg-surface p-4">
               <p className="text-[14px] font-semibold text-ink">Adjust credits</p>
               <p className="mt-0.5 text-[13px] text-muted">
-                Positive adds, negative removes. Recorded in the user&rsquo;s credit history and the audit log.
+                Type 20 to add, -20 to remove. It&rsquo;s saved in their history.
               </p>
               <form
                 className="mt-3 flex flex-wrap gap-2"

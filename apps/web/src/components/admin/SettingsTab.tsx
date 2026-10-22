@@ -31,13 +31,12 @@ export function SettingsTab() {
   return (
     <div>
       <SectionHeader
-        title="Settings & API keys"
-        hint="Changes go live on every server within about 15 seconds — no restart. Saved secrets are encrypted and never shown again."
+        title="Settings & keys"
+        hint="Changes work within 15 seconds. Saved keys are kept secret and never shown again."
       />
       <p className="mb-5 rounded-[14px] border border-line bg-paper-2 px-4 py-3 text-[13.5px] leading-relaxed text-muted">
-        Database URL, SECRET_KEY, Redis, CORS and file storage can only be changed in the server&rsquo;s{" "}
-        <code>.env</code>. A wrong value there could take the site down or lock every admin out, so they
-        aren&rsquo;t editable from a page that depends on them.
+        The database, server key and file storage are changed only in the server&rsquo;s <code>.env</code> file, so a
+        mistake here can&rsquo;t take the site down.
       </p>
 
       {query.isLoading ? (
@@ -250,7 +249,7 @@ function SettingInput({
       {field.warning && <p className="mt-1 text-[12.5px] leading-snug text-[#8a6d1f]">⚠ {field.warning}</p>}
       {field.unreadable && (
         <p className="mt-1 text-[12.5px] leading-snug text-[#a4553f]">
-          ⚠ The saved value can&rsquo;t be decrypted (SECRET_KEY changed) and is being ignored — enter it again.
+          ⚠ This saved value can&rsquo;t be read any more. Please enter it again.
         </p>
       )}
     </div>

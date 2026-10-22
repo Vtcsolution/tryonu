@@ -45,7 +45,7 @@ export function ProductsTab() {
     <div>
       <SectionHeader
         title="Products"
-        hint="Products users have actually selected or tried on. Hiding one also removes it from live search results site-wide."
+        hint="Products people picked or tried on. Hide one to remove it from the whole site."
       >
         <form
           className="flex gap-2"
@@ -154,8 +154,8 @@ export function RetailersTab() {
   return (
     <div>
       <SectionHeader
-        title="Retailers & integrations"
-        hint="Disabling a retailer stops it being searched immediately. Commission only earns once tracking is configured."
+        title="Product sources"
+        hint="Where products come from. Turn one off to stop showing its products."
       />
       {update.isError && <div className="mb-3"><ErrorNote>{errorText(update.error)}</ErrorNote></div>}
 

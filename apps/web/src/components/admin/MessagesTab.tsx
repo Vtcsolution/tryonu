@@ -19,7 +19,7 @@ export function MessagesTab() {
     <div className="space-y-5">
       <SectionHeader
         title="Messages"
-        hint="Sent from the Contact page. Reply by email, then mark the message as done. Each message is also emailed to every admin when email is set up in Settings."
+        hint="Messages from the Contact page. Reply by email, then press Done."
       >
         <div className="flex gap-2">
           <SmallButton tone={show === "open" ? "primary" : undefined} onClick={() => setShow("open")}>Open</SmallButton>

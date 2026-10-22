@@ -77,7 +77,7 @@ export function ChallengesAdmin() {
     <div>
       <SectionHeader
         title="Style challenges"
-        hint="A theme with a start and end. Members post looks; when it ends, the 3 most liked looks win the prize credits automatically."
+        hint="Pick a theme and dates. The 3 most-liked looks win credits by themselves."
       >
         {!editing && (
           <SmallButton tone="primary" onClick={() => setEditing({ id: null, form: emptyForm() })}>

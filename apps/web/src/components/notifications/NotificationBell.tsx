@@ -92,7 +92,7 @@ export function NotificationBell() {
             {latest.isLoading && <p className="px-3 py-6 text-center text-[14px] text-muted">Loading…</p>}
             {latest.data && latest.data.items.length === 0 && (
               <p className="px-3 py-8 text-center text-[14.5px] text-muted">
-                Nothing yet. When people like or comment on your looks, you&apos;ll see it here.
+                Nothing yet. Likes and comments show here.
               </p>
             )}
             {latest.data?.items.map((n) => <NotificationRow key={n.id} n={n} onOpen={opened} compact />)}
