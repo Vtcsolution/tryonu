@@ -122,9 +122,12 @@ async def test_a_store_plan_paid_through_paypal_unlocks_on_capture(client, db, m
         return_url="https://tryonu.test/credits/paypal", cancel_url="https://tryonu.test/credits/paypal",
         transport=httpx.MockTransport(FakePayPal()),
     )
-    monkeypatch.setattr("app.api.v1.endpoints.stores.get_payment_provider", lambda: provider)
-    monkeypatch.setattr("app.api.v1.endpoints.credits.get_payment_provider", lambda: provider)
-    monkeypatch.setattr("app.services.payment_settlement.get_payment_provider", lambda: provider)
+    monkeypatch.setattr("app.api.v1.endpoints.stores.get_payment_provider", lambda *_a, **_k: provider)
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "PAYPAL_ENABLED", True)  # auto-renew needs PayPal switched on
+    monkeypatch.setattr("app.api.v1.endpoints.credits.get_payment_provider", lambda *_a, **_k: provider)
+    monkeypatch.setattr("app.services.payment_settlement.get_payment_provider", lambda *_a, **_k: provider)
     await _company(client)
 
     started = (await client.post("/api/v1/stores/me/plans/standard/purchase")).json()
@@ -397,7 +400,10 @@ def paypal_subs(monkeypatch):  # noqa: ANN001, ANN201
         return_url="https://tryonu.test/credits/paypal", cancel_url="https://tryonu.test/credits/paypal",
         transport=httpx.MockTransport(fake),
     )
-    monkeypatch.setattr("app.api.v1.endpoints.stores.get_payment_provider", lambda: provider)
+    monkeypatch.setattr("app.api.v1.endpoints.stores.get_payment_provider", lambda *_a, **_k: provider)
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "PAYPAL_ENABLED", True)  # auto-renew needs PayPal switched on
     return fake
 
 

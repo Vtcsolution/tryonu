@@ -59,9 +59,9 @@ def paddle(monkeypatch):  # noqa: ANN001, ANN201
             api_key="pdl_sdbx_apikey_not_real", mode="sandbox", pay_url="https://tryonu.test/pay",
             webhook_secret=SECRET, transport=httpx.MockTransport(fake),
         )
-        monkeypatch.setattr("app.api.v1.endpoints.credits.get_payment_provider", lambda: provider)
-        monkeypatch.setattr("app.services.payment_settlement.get_payment_provider", lambda: provider)
-        monkeypatch.setattr("app.api.v1.endpoints.webhooks.get_payment_provider", lambda: provider)
+        monkeypatch.setattr("app.api.v1.endpoints.credits.get_payment_provider", lambda *_a, **_k: provider)
+        monkeypatch.setattr("app.services.payment_settlement.get_payment_provider", lambda *_a, **_k: provider)
+        monkeypatch.setattr("app.api.v1.endpoints.webhooks.get_payment_provider", lambda *_a, **_k: provider)
         return provider
 
     return use
@@ -146,11 +146,13 @@ async def test_the_website_learns_which_checkout_to_open(client, monkeypatch):  
     from app.core.config import get_settings
 
     provider = PaddlePaymentProvider(api_key="x", mode="sandbox", pay_url="https://tryonu.test/pay")
-    monkeypatch.setattr("app.api.v1.endpoints.credits.get_payment_provider", lambda: provider)
+    monkeypatch.setattr("app.api.v1.endpoints.credits.get_payment_provider", lambda *_a, **_k: provider)
+    monkeypatch.setattr(get_settings(), "PADDLE_ENABLED", True)
     monkeypatch.setattr(get_settings(), "PADDLE_MODE", "sandbox")
     monkeypatch.setattr(get_settings(), "PADDLE_SANDBOX_CLIENT_TOKEN", "test_not_real")
     cfg = (await client.get("/api/v1/credits/checkout-config")).json()
-    assert cfg == {"provider": "paddle", "paddle": {"token": "test_not_real", "environment": "sandbox"}}
+    assert cfg["provider"] == "paddle" and cfg["paddle"] == {"token": "test_not_real", "environment": "sandbox"}
+    assert {"id": "paddle", "label": "Card, Apple Pay, Google Pay"} in cfg["gateways"]
 
 
 async def test_an_admin_sees_why_paddle_refused_and_a_customer_sees_the_plain_message(client, db, paddle):  # noqa: ANN001
@@ -169,3 +171,32 @@ async def test_an_admin_sees_why_paddle_refused_and_a_customer_sees_the_plain_me
     await make_admin(db, admin["user"]["id"])
     seen = await client.post("/api/v1/credits/purchase", json={"credit_package_id": package.id})
     assert "Default payment link" in seen.json()["detail"] and "pdl_" not in seen.json()["detail"]
+
+
+async def test_each_gateway_has_its_own_switch_and_a_switched_off_one_is_refused(client, db, monkeypatch):  # noqa: ANN001
+    from app.core.config import get_settings
+    from app.payments.registry import enabled_gateways, get_payment_provider
+
+    s = get_settings()
+    monkeypatch.setattr(s, "PAYPAL_ENABLED", True)
+    monkeypatch.setattr(s, "PADDLE_ENABLED", True)
+    monkeypatch.setattr(s, "STRIPE_ENABLED", False)
+    monkeypatch.setattr(s, "PADDLE_SANDBOX_CLIENT_TOKEN", "test_not_real")
+    get_payment_provider.cache_clear()
+    try:
+        assert set(enabled_gateways()) == {"paypal", "paddle"}
+        cfg = (await client.get("/api/v1/credits/checkout-config")).json()
+        assert {g["id"] for g in cfg["gateways"]} == {"paypal", "paddle"} and cfg["paddle"]["token"] == "test_not_real"
+
+        await register_and_login(client)
+        package = await seed_credit_package(db, name="Starter Pack", credits=50, price_cents=499)
+        off = await client.post("/api/v1/credits/purchase?gateway=stripe", json={"credit_package_id": package.id})
+        assert off.status_code == 400 and "isn't available" in off.json()["detail"]
+
+        monkeypatch.setattr(s, "PADDLE_ENABLED", False)  # switched off in Admin
+        get_payment_provider.cache_clear()
+        cfg = (await client.get("/api/v1/credits/checkout-config")).json()
+        assert [g["id"] for g in cfg["gateways"]] == ["paypal"] and cfg["paddle"] is None
+        assert (await client.post("/api/v1/credits/purchase?gateway=paddle", json={"credit_package_id": package.id})).status_code == 400
+    finally:
+        get_payment_provider.cache_clear()

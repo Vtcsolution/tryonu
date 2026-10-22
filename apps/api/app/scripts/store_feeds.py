@@ -29,7 +29,7 @@ async def main() -> int:
         from app.payments.paypal_provider import PayPalPaymentProvider
         from app.payments.registry import get_payment_provider
 
-        provider = get_payment_provider()
+        provider = get_payment_provider("paypal")
         if isinstance(provider, PayPalPaymentProvider):
             print(f"auto-renew checked with PayPal: {await svc.sync_all_subscriptions(db, provider)}")
         reminders = await svc.send_plan_reminders(db)

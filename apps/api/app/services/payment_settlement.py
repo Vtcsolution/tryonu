@@ -42,7 +42,7 @@ async def settle(db: AsyncSession, payment: Payment) -> PurchaseCreditsResponse:
     if payment.status != PaymentStatus.PENDING or not payment.external_payment_id:
         return PurchaseCreditsResponse(payment_id=payment.id, status="failed")
 
-    provider = get_payment_provider()
+    provider = get_payment_provider(payment.provider)
     if provider.name != payment.provider:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This payment was made another way")
     try:
@@ -160,15 +160,13 @@ async def settle_pending_once() -> int:
     paid but never came back to our page (closed the tab, lost connection)."""
     from app.db.session import AsyncSessionLocal
 
-    provider = get_payment_provider()
-    if provider.name not in ("paypal", "paddle"):
-        return 0
+    finishable = ("paypal", "paddle")
     now = datetime.now(timezone.utc)
     async with AsyncSessionLocal() as db:
         ids = (
             await db.execute(
                 select(Payment.id).where(
-                    Payment.provider == provider.name,
+                    Payment.provider.in_(finishable),
                     Payment.status == PaymentStatus.PENDING,
                     Payment.external_payment_id.is_not(None),
                     Payment.created_at >= now - SWEEP_WINDOW,

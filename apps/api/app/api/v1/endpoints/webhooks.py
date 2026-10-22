@@ -36,7 +36,7 @@ async def stripe_webhook(
     stripe_signature: str | None = Header(default=None, alias="Stripe-Signature"),
 ):
     payload = await request.body()
-    provider = get_payment_provider()
+    provider = get_payment_provider("stripe")
     event = provider.verify_webhook(payload, stripe_signature)
 
     if event.event_type == "invoice.payment_succeeded":
@@ -202,7 +202,7 @@ async def paypal_webhook(request: Request, db: DbSession):
     from app.services.store_service import sync_subscription
 
     webhook_id = get_settings().PAYPAL_WEBHOOK_ID
-    provider = get_payment_provider()
+    provider = get_payment_provider("paypal")
     if not webhook_id or not isinstance(provider, PayPalPaymentProvider):
         logger.warning("paypal_webhook_not_configured")
         return Message(detail="ignored")
@@ -266,7 +266,7 @@ async def paddle_webhook(request: Request, db: DbSession):
     from app.payments.paddle_provider import PaddlePaymentProvider, verify_signature
     from app.services.payment_settlement import settle_by_order_id
 
-    provider = get_payment_provider()
+    provider = get_payment_provider("paddle")
     if not isinstance(provider, PaddlePaymentProvider) or not provider.webhook_secret:
         logger.warning("paddle_webhook_not_configured")
         return Message(detail="ignored")

@@ -19,7 +19,7 @@ from app.models.store import Store, StorePlan, StoreProduct
 from app.models.subscription import Payment
 from app.models.user import User
 from app.payments.base import PaymentsUnavailableError
-from app.payments.registry import get_payment_provider
+from app.payments.registry import checkout_provider, enabled_gateways, get_payment_provider
 from app.schemas.credit import PurchaseCreditsResponse
 from app.schemas.store import (
     AdminGrantPlanIn,
@@ -246,7 +246,7 @@ async def upload_logo(user: CurrentUser, db: DbSession, file: UploadFile = File(
 
 
 @router.post("/me/plans/{code}/purchase", response_model=PurchaseCreditsResponse)
-async def buy_plan(code: str, user: CurrentUser, db: DbSession):
+async def buy_plan(code: str, user: CurrentUser, db: DbSession, gateway: str | None = None):
     """A 30-day pass for the store, paid like a credit package (PayPal). The
     plan is unlocked when PayPal confirms the payment (credits/purchase/{id}/capture)."""
     admin_view = user.is_admin  # read now: after a rollback the user row can't be read lazily
@@ -254,7 +254,7 @@ async def buy_plan(code: str, user: CurrentUser, db: DbSession):
     plan = await db.scalar(select(StorePlan).where(StorePlan.code == code, StorePlan.is_active.is_(True)))
     if plan is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
-    provider = get_payment_provider()
+    provider = checkout_provider(gateway, get_payment_provider)
     payment = Payment(
         user_id=user.id,
         amount_cents=plan.price_cents,
@@ -821,7 +821,12 @@ async def admin_delete_product(store_id: str, product_id: str, _: AdminUser, db:
 def _paypal():  # noqa: ANN202
     from app.payments.paypal_provider import PayPalPaymentProvider
 
-    provider = get_payment_provider()
+    if "paypal" not in enabled_gateways():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Auto-renew needs PayPal to be switched on. Unlock the plan for 30 days instead.",
+        )
+    provider = get_payment_provider("paypal")
     if not isinstance(provider, PayPalPaymentProvider):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

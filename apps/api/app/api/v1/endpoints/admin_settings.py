@@ -368,9 +368,12 @@ async def test_connection(group: str, _: AdminUser):
             result = await _test_paddle(s)
         elif group == "stripe":
             result = await _test_stripe(s)
-        elif group == "payments":  # the gateway customers use now
+        elif group == "payments":  # the first gateway switched on for customers
+            from app.payments.registry import enabled_gateways
+
+            on = enabled_gateways()
             tests = {"paypal": _test_paypal, "paddle": _test_paddle}
-            result = await tests.get(s.PAYMENT_PROVIDER, _test_stripe)(s)
+            result = await tests.get(on[0] if on else "", _test_stripe)(s)
         elif group == "email":
             result = await _test_smtp(s)
         else:

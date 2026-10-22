@@ -1,6 +1,7 @@
 "use client";
 
-import { payWays, useCheckoutProvider } from "@/lib/useCheckout";
+import { PayMethodPicker } from "@/components/credits/PayMethodPicker";
+import { payWays, payWaysOf, useCheckoutProvider, useGateways } from "@/lib/useCheckout";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -43,12 +44,14 @@ export function BuyCreditsPanel() {
   });
 
   const checkoutProvider = useCheckoutProvider();
+  const gateways = useGateways();
+  const [payWith, setPayWith] = useState<string | null>(null);
   // monthly plans: shown only when there are some (or the member already has one)
   const subPlans = useQuery({ queryKey: ["subscription-plans"], queryFn: subscriptionsApi.plans, enabled: !!user });
   const subMine = useQuery({ queryKey: ["subscription-me"], queryFn: subscriptionsApi.me, enabled: !!user });
   const monthly = !!subMine.data || (subPlans.data?.length ?? 0) > 0;
   const purchase = useMutation({
-    mutationFn: (pkg: CreditPackage) => creditsApi.purchase({ credit_package_id: pkg.id }),
+    mutationFn: (pkg: CreditPackage) => creditsApi.purchase({ credit_package_id: pkg.id }, payWith),
     onSuccess: (res) => {
       if (res.status === "succeeded") {
         qc.invalidateQueries({ queryKey: SESSION_QUERY_KEY });
@@ -156,6 +159,7 @@ export function BuyCreditsPanel() {
           </p>
         )}
 
+        <PayMethodPicker value={payWith} onChange={setPayWith} />
         <Button
           size="md"
           disabled={!selected || purchase.isPending}
@@ -171,7 +175,7 @@ export function BuyCreditsPanel() {
                 ? `Buy ${selected.credits} credits`
                 : "Select a package"}
         </Button>
-        <p className="text-[13px] text-faint">Secure payment. Pay by {payWays(checkoutProvider)}.</p>
+        <p className="text-[13px] text-faint">Secure payment. Pay by {gateways.length ? payWaysOf(gateways) : payWays(checkoutProvider)}.</p>
       </div>
 
       {historyQuery.data && historyQuery.data.length > 0 && (

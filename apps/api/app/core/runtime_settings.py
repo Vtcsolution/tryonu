@@ -108,9 +108,8 @@ SPECS: tuple[SettingSpec, ...] = (
     SettingSpec("FLIPKART_AFFILIATE_TOKEN", "Affiliate token", "flipkart", "secret"),
     SettingSpec("DARAZ_API_KEY", "API key", "daraz", "secret"),
     # --- payments ---
-    SettingSpec("PAYMENT_PROVIDER", "Customers pay with", "payments", "choice", ("paypal", "paddle", "stripe", "mock"),
-                help="The one checkout customers use. Set up the gateway in its own box below first, press Test "
-                "connection there, then switch here. mock = test only (refused on the live site)."),
+    SettingSpec("PAYPAL_ENABLED", "Show to customers", "paypal", "bool",
+                help="On: customers can pay with PayPal (shoppers, stores and developers). Off: hidden everywhere."),
     SettingSpec("PAYPAL_MODE", "PayPal mode", "paypal", "choice", ("sandbox", "live"),
                 help="sandbox: test money. live: real money. Switch to live only after a sandbox test worked."),
     SettingSpec("PAYPAL_SANDBOX_CLIENT_ID", "PayPal sandbox client ID", "paypal", "text"),
@@ -120,6 +119,8 @@ SPECS: tuple[SettingSpec, ...] = (
     SettingSpec("PAYPAL_WEBHOOK_ID", "PayPal webhook ID", "paypal", "text",
                 help="From PayPal Developer → your app → Webhooks (address: https://<api>/api/v1/webhooks/paypal). With "
                 "it, renewals and refunds arrive at once; without it, overnight."),
+    SettingSpec("PADDLE_ENABLED", "Show to customers", "paddle", "bool",
+                help="On: customers can pay by card, Apple Pay and Google Pay through Paddle. Off: hidden everywhere."),
     SettingSpec("PADDLE_MODE", "Paddle mode", "paddle", "choice", ("sandbox", "live"),
                 help="sandbox: test cards, no real money. live: real money, after Paddle approved your account."),
     SettingSpec("PADDLE_SANDBOX_API_KEY", "Paddle sandbox API key", "paddle", "secret",
@@ -131,6 +132,8 @@ SPECS: tuple[SettingSpec, ...] = (
     SettingSpec("PADDLE_WEBHOOK_SECRET", "Paddle webhook secret", "paddle", "secret",
                 help="From Paddle → Notifications, for https://<api>/api/v1/webhooks/paddle. Payments still work "
                 "without it; with it they finish even if the customer closes the page."),
+    SettingSpec("STRIPE_ENABLED", "Show to customers", "stripe", "bool",
+                help="On: customers can pay with Stripe. Off: hidden everywhere."),
     SettingSpec("STRIPE_SECRET_KEY", "Stripe secret key", "stripe", "secret"),
     SettingSpec("STRIPE_WEBHOOK_SECRET", "Stripe webhook signing secret", "stripe", "secret"),
     # --- email ---
@@ -177,7 +180,6 @@ GROUPS: tuple[tuple[str, str], ...] = (
     ("amazon", "Amazon Associates"),
     ("flipkart", "Flipkart"),
     ("daraz", "Daraz"),
-    ("payments", "Payments: which gateway customers use"),
     ("paypal", "PayPal"),
     ("paddle", "Paddle (card, PayPal, Apple Pay, Google Pay)"),
     ("stripe", "Stripe"),

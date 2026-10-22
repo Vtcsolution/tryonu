@@ -1,7 +1,8 @@
 "use client";
 
+import { PayMethodPicker } from "@/components/credits/PayMethodPicker";
 import { CheckIcon, RadioMark } from "@/components/ui/Icons";
-import { payWays, useCheckoutProvider } from "@/lib/useCheckout";
+import { payWays, payWaysOf, useCheckoutProvider, useGateways } from "@/lib/useCheckout";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
@@ -401,8 +402,10 @@ function BuyCredits({ account }: { account: DeveloperAccount }) {
   const packs = useQuery({ queryKey: ["developers", "packs"], queryFn: devApi.packs });
   const qc = useQueryClient();
   const checkoutProvider = useCheckoutProvider();
+  const gateways = useGateways();
+  const [payWith, setPayWith] = useState<string | null>(null);
   const buy = useMutation({
-    mutationFn: (code: string) => devApi.buyPack(code),
+    mutationFn: (code: string) => devApi.buyPack(code, payWith),
     onSuccess: (res) => {
       if (res.checkout_url) window.location.assign(res.checkout_url);
       else qc.invalidateQueries({ queryKey: ACCOUNT_KEY });
@@ -411,8 +414,11 @@ function BuyCredits({ account }: { account: DeveloperAccount }) {
   return (
     <Card
       title="Buy credits"
-      hint={`You have ${account.credits.toLocaleString()} credits. 1 credit = 1 try-on. They never expire. Pay by ${payWays(checkoutProvider)}.`}
+      hint={`You have ${account.credits.toLocaleString()} credits. 1 credit = 1 try-on. They never expire. Pay by ${gateways.length ? payWaysOf(gateways) : payWays(checkoutProvider)}.`}
     >
+      <div className="mb-4 empty:hidden">
+        <PayMethodPicker value={payWith} onChange={setPayWith} />
+      </div>
       {packs.isLoading ? (
         <p className="text-[14px] text-muted">Loading…</p>
       ) : (

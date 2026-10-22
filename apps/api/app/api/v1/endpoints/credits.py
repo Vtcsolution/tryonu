@@ -12,7 +12,7 @@ from app.models.enums import CreditReason, PaymentStatus
 from app.models.subscription import Payment
 from app.core.logging import logger
 from app.payments.base import PaymentsUnavailableError
-from app.payments.registry import get_payment_provider
+from app.payments.registry import GATEWAY_LABELS, checkout_provider, enabled_gateways, get_payment_provider
 from app.schemas.credit import (
     CreditBalanceOut,
     CreditPackageOut,
@@ -66,22 +66,24 @@ async def checkout_config():
 
     provider = get_payment_provider()
     settings = get_settings()
+    on = enabled_gateways()
     paddle = None
-    if provider.name == "paddle":
+    if "paddle" in on:
         live = settings.PADDLE_MODE == "live"
         token = settings.PADDLE_CLIENT_TOKEN if live else settings.PADDLE_SANDBOX_CLIENT_TOKEN
         paddle = {"token": token, "environment": "production" if live else "sandbox"} if token else None
-    return {"provider": provider.name, "paddle": paddle}
+    gateways = [{"id": g, "label": GATEWAY_LABELS[g]} for g in on]
+    return {"provider": provider.name, "gateways": gateways, "paddle": paddle}
 
 
 @router.post("/purchase", response_model=PurchaseCreditsResponse)
-async def purchase(payload: PurchaseCreditsRequest, user: CurrentUser, db: DbSession):
+async def purchase(payload: PurchaseCreditsRequest, user: CurrentUser, db: DbSession, gateway: str | None = None):
     admin_view = user.is_admin  # read now: after a rollback the user row can't be read lazily
     package = await db.get(CreditPackage, payload.credit_package_id)
     if package is None or not package.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Credit package not found")
 
-    provider = get_payment_provider()
+    provider = checkout_provider(gateway, get_payment_provider)
     # the payment row first, so a redirect provider (PayPal) can send the
     # shopper back to a page that knows which payment to confirm
     payment = Payment(

@@ -1,7 +1,8 @@
 "use client";
 
+import { PayMethodPicker } from "@/components/credits/PayMethodPicker";
 import { CheckIcon, LockIcon, RadioMark, StarIcon, XIcon } from "@/components/ui/Icons";
-import { payWays, useCheckoutProvider } from "@/lib/useCheckout";
+import { useCheckoutProvider, useGateways } from "@/lib/useCheckout";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -677,8 +678,10 @@ function PlansSection({ store }: { store: Store }) {
   const qc = useQueryClient();
   const plans = useQuery({ queryKey: ["store-plans"], queryFn: storesApi.plans });
   const checkoutProvider = useCheckoutProvider();
+  const gateways = useGateways();
+  const [payWith, setPayWith] = useState<string | null>(null);
   const buy = useMutation({
-    mutationFn: (plan: StorePlan) => storesApi.buyPlan(plan.code),
+    mutationFn: (plan: StorePlan) => storesApi.buyPlan(plan.code, payWith),
     onSuccess: (res) => {
       if (res.checkout_url) window.location.assign(res.checkout_url);
       else qc.invalidateQueries({ queryKey: STORE_KEY });
@@ -717,6 +720,9 @@ function PlansSection({ store }: { store: Store }) {
       hint="Pay for 30 days, or turn on auto-renew to pay every month until you stop it."
     >
       {store.plan_active && <PlanAllowance store={store} />}
+      <div className="mb-4 empty:hidden">
+        <PayMethodPicker value={payWith} onChange={setPayWith} />
+      </div>
       {returned === "cancelled" && (
         <p className="mb-3 rounded-[14px] border border-line bg-paper-2/60 px-4 py-2.5 text-[14px] text-ink-soft">
           You left PayPal before confirming auto-renew. Nothing was charged.
@@ -786,7 +792,7 @@ function PlansSection({ store }: { store: Store }) {
                           : `Unlock ${plan.duration_days} days`}
                   </Button>
                   {/* auto-renew is a PayPal subscription: offered only while PayPal takes the payments */}
-                  {!subscribed && checkoutProvider === "paypal" && (
+                  {!subscribed && gateways.some((g) => g.id === "paypal") && (
                     <Button size="md" variant="outline" className="w-full" disabled={busy} onClick={() => subscribe.mutate(plan)}>
                       {subscribe.isPending && subscribe.variables?.id === plan.id ? "Opening PayPal…" : "Auto-renew"}
                     </Button>

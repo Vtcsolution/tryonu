@@ -86,8 +86,8 @@ def _fake_stripe_provider(monkeypatch, *, external_subscription_id: str):
         )
 
     monkeypatch.setattr(StripePaymentProvider, "create_subscription", fake_create_subscription)
-    monkeypatch.setattr("app.api.v1.endpoints.subscriptions.get_payment_provider", lambda: provider)
-    monkeypatch.setattr("app.api.v1.endpoints.webhooks.get_payment_provider", lambda: provider)
+    monkeypatch.setattr("app.api.v1.endpoints.subscriptions.get_payment_provider", lambda *_a, **_k: provider)
+    monkeypatch.setattr("app.api.v1.endpoints.webhooks.get_payment_provider", lambda *_a, **_k: provider)
     return provider
 
 

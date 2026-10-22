@@ -407,6 +407,11 @@ class Settings(BaseSettings):
     PAYPAL_WEBHOOK_ID: str | None = None
     STRIPE_SECRET_KEY: str | None = None
     STRIPE_WEBHOOK_SECRET: str | None = None
+    # which gateways customers may pay with (each switched on/off in Admin). Unset:
+    # only the one PAYMENT_PROVIDER names, as before the switches existed.
+    PAYPAL_ENABLED: bool | None = None
+    PADDLE_ENABLED: bool | None = None
+    STRIPE_ENABLED: bool | None = None
     # Paddle Billing (card, PayPal, Apple Pay, Google Pay; Paddle is the seller of
     # record): PADDLE_MODE picks the sandbox or the live keys
     PADDLE_MODE: Literal["sandbox", "live"] = "sandbox"
@@ -467,6 +472,10 @@ class Settings(BaseSettings):
             self.PAYMENT_PROVIDER = "mock"
         if self.EMAIL_PROVIDER == "smtp" and not self.SMTP_HOST:
             self.EMAIL_PROVIDER = "mock"
+        for gateway in ("paypal", "paddle", "stripe"):
+            flag = f"{gateway.upper()}_ENABLED"
+            if getattr(self, flag) is None:
+                setattr(self, flag, self.PAYMENT_PROVIDER == gateway)
         return self
 
 

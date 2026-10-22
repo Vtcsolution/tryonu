@@ -27,7 +27,7 @@ from app.models.subscription import Payment
 from app.models.tryon import TryOnJob
 from app.models.user import User
 from app.payments.base import PaymentsUnavailableError
-from app.payments.registry import get_payment_provider
+from app.payments.registry import checkout_provider, get_payment_provider
 from app.schemas.credit import PurchaseCreditsResponse
 from app.schemas.developer import (
     AdminCreditsIn,
@@ -195,7 +195,7 @@ async def packs(db: DbSession):
 
 
 @router.post("/packs/{code}/purchase", response_model=PurchaseCreditsResponse)
-async def buy_pack(code: str, user: CurrentUser, db: DbSession):
+async def buy_pack(code: str, user: CurrentUser, db: DbSession, gateway: str | None = None):
     """A pack of API try-ons, paid like a credit package (PayPal). The credits
     arrive when PayPal confirms the payment (credits/purchase/{id}/capture)."""
     admin_view = user.is_admin  # read now: after a rollback the user row can't be read lazily
@@ -205,7 +205,7 @@ async def buy_pack(code: str, user: CurrentUser, db: DbSession):
     )
     if pack is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pack not found")
-    provider = get_payment_provider()
+    provider = checkout_provider(gateway, get_payment_provider)
     payment = Payment(
         user_id=user.id, amount_cents=pack.price_cents, currency=pack.currency, status=PaymentStatus.PENDING,
         provider=provider.name, developer_pack_id=pack.id, developer_account_id=account.id,

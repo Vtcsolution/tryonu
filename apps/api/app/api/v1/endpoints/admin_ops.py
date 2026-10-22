@@ -42,7 +42,7 @@ async def refund_payment(payment_id: str, payload: RefundIn, admin: AdminUser, d
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"This payment is {payment.status.value}, not paid.")
     paypal_status = None
     if payload.mode == "paypal":
-        provider = get_payment_provider()
+        provider = get_payment_provider("paypal")
         one_off = payment.provider == "paypal" and payment.external_payment_id and ":" not in payment.external_payment_id
         if not isinstance(provider, PayPalPaymentProvider) or not one_off:
             raise HTTPException(

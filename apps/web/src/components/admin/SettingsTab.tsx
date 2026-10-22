@@ -28,7 +28,9 @@ const RISKY_CHANGES: Record<string, { value: string; message: string }> = {
 
 // changes that decide how real customers pay
 const PAYMENT_SWITCHES: [string, (v: string) => string][] = [
-  ["PAYMENT_PROVIDER", (v) => `Customers will pay with ${v.toUpperCase()} from now on. Did its Test connection pass? Continue?`],
+  ["PAYPAL_ENABLED", (v) => (v === "true" ? "Show PayPal to customers? Did its Test connection pass?" : "Hide PayPal from customers? They won't see it anywhere.")],
+  ["PADDLE_ENABLED", (v) => (v === "true" ? "Show Paddle (card, Apple Pay, Google Pay) to customers? Did its Test connection pass?" : "Hide Paddle from customers? They won't see it anywhere.")],
+  ["STRIPE_ENABLED", (v) => (v === "true" ? "Show Stripe to customers? Did its Test connection pass?" : "Hide Stripe from customers?")],
   ["PAYPAL_MODE", (v) => (v === "live" ? "PayPal LIVE: real money. Continue?" : "PayPal SANDBOX: test money only, real customers can't pay with PayPal. Continue?")],
   ["PADDLE_MODE", (v) => (v === "live" ? "Paddle LIVE: real money. Continue?" : "Paddle SANDBOX: test cards only. Continue?")],
 ];
@@ -180,8 +182,26 @@ function SettingInput({
   const inputId = `setting-${field.key}`;
 
   let control;
-  if (field.kind === "choice" || field.kind === "bool") {
-    const options = field.kind === "bool" ? ["true", "false"] : field.choices;
+  if (field.kind === "bool") {
+    const on = (isPending && pending !== null ? pending : field.value) === "true";
+    control = (
+      <button
+        id={inputId}
+        type="button"
+        role="switch"
+        aria-checked={on}
+        disabled={revertQueued}
+        onClick={() => onChange(on ? "false" : "true")}
+        className="flex min-h-[44px] items-center gap-3"
+      >
+        <span className={`relative h-7 w-12 rounded-full transition-colors ${on ? "bg-sage" : "bg-line-strong"}`}>
+          <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${on ? "left-6" : "left-1"}`} />
+        </span>
+        <span className="text-[14.5px] font-semibold text-ink">{on ? "On" : "Off"}</span>
+      </button>
+    );
+  } else if (field.kind === "choice") {
+    const options = field.choices;
     control = (
       <select
         id={inputId}
@@ -193,7 +213,7 @@ function SettingInput({
         {field.value === null && <option value="">Not set</option>}
         {options.map((o) => (
           <option key={o} value={o}>
-            {field.kind === "bool" ? (o === "true" ? "Yes" : "No") : o}
+            {o}
           </option>
         ))}
       </select>

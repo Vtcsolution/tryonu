@@ -64,9 +64,9 @@ def paypal(monkeypatch):  # noqa: ANN001, ANN201
             cancel_url="https://tryonu.test/credits/paypal",
             transport=httpx.MockTransport(fake),
         )
-        monkeypatch.setattr("app.api.v1.endpoints.credits.get_payment_provider", lambda: provider)
+        monkeypatch.setattr("app.api.v1.endpoints.credits.get_payment_provider", lambda *_a, **_k: provider)
         # finishing a payment (return page, webhook, sweep) asks for the provider here
-        monkeypatch.setattr("app.services.payment_settlement.get_payment_provider", lambda: provider)
+        monkeypatch.setattr("app.services.payment_settlement.get_payment_provider", lambda *_a, **_k: provider)
         return provider
 
     return use
@@ -135,7 +135,7 @@ async def test_nobody_can_capture_someone_elses_payment(client, db, paypal):  # 
 
 
 async def test_production_without_a_real_payment_provider_sells_nothing(client, db, monkeypatch):  # noqa: ANN001
-    monkeypatch.setattr("app.api.v1.endpoints.credits.get_payment_provider", lambda: UnavailablePaymentProvider())
+    monkeypatch.setattr("app.api.v1.endpoints.credits.get_payment_provider", lambda *_a, **_k: UnavailablePaymentProvider())
     me = await _me(client)
     package = await seed_credit_package(db)
     before = await credit_balance(db, me["id"])
@@ -149,7 +149,7 @@ async def test_missing_paypal_keys_refuse_instead_of_failing_open(client, db, mo
     provider = PayPalPaymentProvider(
         client_id=None, client_secret=None, mode="live", return_url="https://x/r", cancel_url="https://x/c"
     )
-    monkeypatch.setattr("app.api.v1.endpoints.credits.get_payment_provider", lambda: provider)
+    monkeypatch.setattr("app.api.v1.endpoints.credits.get_payment_provider", lambda *_a, **_k: provider)
     me = await _me(client)
     package = await seed_credit_package(db)
     before = await credit_balance(db, me["id"])

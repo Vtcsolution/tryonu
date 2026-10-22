@@ -64,9 +64,9 @@ def paypal(monkeypatch):  # noqa: ANN001, ANN201
         return_url="https://tryonu.test/r", cancel_url="https://tryonu.test/c", transport=httpx.MockTransport(fake),
     )
     for where in ("credits", "stores", "admin_ops"):
-        monkeypatch.setattr(f"app.api.v1.endpoints.{where}.get_payment_provider", lambda: provider)
-    monkeypatch.setattr("app.api.v1.endpoints.webhooks.get_payment_provider", lambda: provider)
-    monkeypatch.setattr("app.services.payment_settlement.get_payment_provider", lambda: provider)
+        monkeypatch.setattr(f"app.api.v1.endpoints.{where}.get_payment_provider", lambda *_a, **_k: provider)
+    monkeypatch.setattr("app.api.v1.endpoints.webhooks.get_payment_provider", lambda *_a, **_k: provider)
+    monkeypatch.setattr("app.services.payment_settlement.get_payment_provider", lambda *_a, **_k: provider)
     return fake
 
 

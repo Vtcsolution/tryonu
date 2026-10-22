@@ -220,7 +220,7 @@ async def test_paypal_keys_set_in_the_admin_panel_drive_checkout_without_a_resta
     secret = "pp-sandbox-secret-not-real-4321"
     resp = await client.put(
         "/api/v1/admin/settings",
-        json={"values": {"PAYMENT_PROVIDER": "paypal", "PAYPAL_MODE": "sandbox",
+        json={"values": {"PAYPAL_ENABLED": "true", "PAYPAL_MODE": "sandbox",
                          "PAYPAL_SANDBOX_CLIENT_ID": "sandbox-client-id", "PAYPAL_SANDBOX_CLIENT_SECRET": secret}},
     )
     assert resp.status_code == 200, resp.text
@@ -246,10 +246,10 @@ async def test_paypal_keys_set_in_the_admin_panel_drive_checkout_without_a_resta
 async def test_each_payment_gateway_has_its_own_box_and_test(client, db, monkeypatch):
     await _admin(client, db)
     groups = {g["id"]: [f["key"] for f in g["fields"]] for g in (await client.get("/api/v1/admin/settings")).json()["groups"]}
-    assert groups["payments"] == ["PAYMENT_PROVIDER"]  # just the one choice
-    assert all(k.startswith("PAYPAL_") for k in groups["paypal"])
-    assert all(k.startswith("PADDLE_") for k in groups["paddle"])
-    assert all(k.startswith("STRIPE_") for k in groups["stripe"])
+    assert "payments" not in groups  # no single choice any more: a switch in each gateway's box
+    for gateway in ("paypal", "paddle", "stripe"):
+        assert groups[gateway][0] == f"{gateway.upper()}_ENABLED"
+        assert all(k.startswith(f"{gateway.upper()}_") for k in groups[gateway])
 
     from app.core.config import get_settings
 

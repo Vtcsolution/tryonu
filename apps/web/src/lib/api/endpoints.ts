@@ -169,10 +169,14 @@ export const credits = {
   pricing: () => apiFetch<{ tryon_cost: number; outfit_tryon_cost: number }>("/api/v1/credits/pricing"),
   /** which checkout the site opens: paddle (card, PayPal, Apple Pay, Google Pay) or paypal */
   checkoutConfig: () =>
-    apiFetch<{ provider: string; paddle: { token: string; environment: "sandbox" | "production" } | null }>(
+    apiFetch<{
+      provider: string;
+      gateways: { id: string; label: string }[];
+      paddle: { token: string; environment: "sandbox" | "production" } | null;
+    }>(
       "/api/v1/credits/checkout-config",
     ),
-  purchase: (input: { credit_package_id: string }) =>
+  purchase: (input: { credit_package_id: string }, gateway?: string | null) =>
     apiFetch<{
       payment_id: string;
       status: string;
@@ -180,7 +184,7 @@ export const credits = {
       checkout_url: string | null;
       credits_granted: number | null;
       new_balance: number | null;
-    }>("/api/v1/credits/purchase", { method: "POST", body: input }),
+    }>(`/api/v1/credits/purchase${gateway ? `?gateway=${encodeURIComponent(gateway)}` : ""}`, { method: "POST", body: input }),
   // back from PayPal: the API confirms the payment with PayPal and grants the credits once
   capturePurchase: (paymentId: string) =>
     apiFetch<{
@@ -929,7 +933,10 @@ export const stores = {
     form.append("file", file);
     return apiFetch<Store>("/api/v1/stores/me/logo", { method: "POST", body: form, isFormData: true });
   },
-  buyPlan: (code: string) => apiFetch<PlanPurchase>(`/api/v1/stores/me/plans/${code}/purchase`, { method: "POST" }),
+  buyPlan: (code: string, gateway?: string | null) =>
+    apiFetch<PlanPurchase>(`/api/v1/stores/me/plans/${code}/purchase${gateway ? `?gateway=${encodeURIComponent(gateway)}` : ""}`, {
+      method: "POST",
+    }),
   subscribePlan: (code: string) =>
     apiFetch<{ checkout_url: string }>(`/api/v1/stores/me/plans/${code}/subscribe`, { method: "POST" }),
   syncSubscription: () => apiFetch<{ result: string; store: Store }>("/api/v1/stores/me/subscription/sync", { method: "POST" }),
@@ -1025,9 +1032,9 @@ export const developers = {
     apiFetch<DeveloperApiKeyCreated>("/api/v1/developers/keys", { method: "POST", body: input }),
   revokeKey: (id: string) => apiFetch<DeveloperApiKey>(`/api/v1/developers/keys/${id}`, { method: "DELETE" }),
   packs: () => apiFetch<DeveloperCreditPack[]>("/api/v1/developers/packs"),
-  buyPack: (code: string) =>
+  buyPack: (code: string, gateway?: string | null) =>
     apiFetch<{ payment_id: string; status: string; checkout_url?: string | null; developer_tryons?: number | null }>(
-      `/api/v1/developers/packs/${code}/purchase`,
+      `/api/v1/developers/packs/${code}/purchase${gateway ? `?gateway=${encodeURIComponent(gateway)}` : ""}`,
       { method: "POST" },
     ),
   usage: () => apiFetch<DeveloperUsage[]>("/api/v1/developers/usage"),
