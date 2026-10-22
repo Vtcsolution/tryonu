@@ -9,7 +9,7 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Navbar />
-      <main className="tu-enter pb-[var(--tabbar-h)] lg:pb-0">{children}</main>
+      <main className="tu-enter pb-[calc(var(--tabbar-h)+20px)] lg:pb-0">{children}</main>
       <Footer />
       <AppTabBar />
     </>

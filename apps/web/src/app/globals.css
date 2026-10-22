@@ -544,7 +544,9 @@ html {
   --tabbar-h: 0px;
 }
 @media (max-width: 1023px) {
-  html {
+  /* :root, like the 0px above: an "html" rule here lost to it (:root counts as a class, html as a tag),
+     so phones got 0px and the end of every page sat under the bottom tabs */
+  :root {
     --tabbar-h: calc(64px + env(safe-area-inset-bottom, 0px));
   }
   /* iPhones zoom into any field smaller than 16px when you tap it */
