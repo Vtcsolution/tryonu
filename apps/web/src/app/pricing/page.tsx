@@ -76,7 +76,8 @@ export default async function PricingPage() {
         </p>
       )}
       <p className="mt-4 text-[14px] text-muted">
-        Payments are processed securely by PayPal (PayPal account or card). You can also{" "}
+        Secure payment by card, PayPal, Apple Pay or Google Pay. Full refund within 14 days, see our{" "}
+        <Link href="/refunds" className="text-sage-deep underline">refund policy</Link>. You can also{" "}
         <Link href="/earn" className="text-sage-deep underline">earn free credits by inviting friends</Link>.
       </p>
 

@@ -38,6 +38,7 @@ const TITLES: [string, string][] = [
   ["/extension", "Browser extension"],
   ["/privacy", "Privacy"],
   ["/terms", "Terms of use"],
+  ["/refunds", "Refund policy"],
   ["/photo-policy", "Photo policy"],
   ["/affiliate-disclosure", "Affiliate disclosure"],
 ];

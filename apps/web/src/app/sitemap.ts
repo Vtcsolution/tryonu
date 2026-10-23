@@ -24,6 +24,7 @@ const PAGES: { path: string; priority: number; changeFrequency: MetadataRoute.Si
   { path: "/developers/sign-up", priority: 0.5, changeFrequency: "yearly" },
   { path: "/privacy", priority: 0.3, changeFrequency: "yearly" },
   { path: "/terms", priority: 0.3, changeFrequency: "yearly" },
+  { path: "/refunds", priority: 0.3, changeFrequency: "yearly" },
   { path: "/photo-policy", priority: 0.3, changeFrequency: "yearly" },
   { path: "/affiliate-disclosure", priority: 0.3, changeFrequency: "yearly" },
 ];

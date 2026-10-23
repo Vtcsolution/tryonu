@@ -11,7 +11,10 @@ export const metadata: Metadata = {
 export default function TermsPage() {
   return (
     <ContentPage kicker="Legal" title="Terms of use" intro="The rules for using TryOnU. Please read them before you use the service." narrow>
-      <LegalBody updated="16 October 2026">
+      <LegalBody updated="23 October 2026">
+        <p>
+          TryOnU (tryonu.app) is operated by <strong>Greatodeal AI Automation Solutions</strong>, Pakistan (&quot;we&quot;, &quot;us&quot;).
+        </p>
         <p>
           By creating an account or using tryonu.app, the TryOnU API, widget or plugins, you agree to these terms, our{" "}
           <Link href="/privacy">privacy policy</Link> and our <Link href="/photo-policy">photo &amp; data policy</Link>.
@@ -42,8 +45,12 @@ export default function TermsPage() {
           <li>Try-ons use credits. The price of a try-on in credits is shown before you start.</li>
           <li>If a try-on fails, its credits are returned automatically.</li>
           <li>Credits have no cash value, can&apos;t be transferred or exchanged for money, and are used only on TryOnU.</li>
-          <li>Purchases are final once credits are added, except where the law gives you a right to a refund. If something went wrong with a payment, <Link href="/contact?topic=tryon">contact us</Link>.</li>
-          <li>Payments are processed by PayPal under PayPal&apos;s own terms.</li>
+          <li>You can get a full refund within 14 days of a purchase. See our <Link href="/refunds">refund policy</Link>.</li>
+          <li>
+            Our order process is conducted by our online reseller <strong>Paddle.com</strong>. Paddle.com is the Merchant of Record
+            for all orders paid by card, Apple Pay or Google Pay, and provides customer service enquiries and handles returns for
+            those orders. PayPal payments are processed by PayPal under PayPal&apos;s own terms.
+          </li>
         </ul>
 
         <h2>5. Shopping through TryOnU</h2>
@@ -95,7 +102,8 @@ export default function TermsPage() {
 
         <h2>12. Contact</h2>
         <p>
-          Questions about these terms? <Link href="/contact">Send us a message</Link>.
+          Questions about these terms? <Link href="/contact">Send us a message</Link> or email{" "}
+          <a href="mailto:sales@greatodeal.com">sales@greatodeal.com</a>.
         </p>
       </LegalBody>
     </ContentPage>

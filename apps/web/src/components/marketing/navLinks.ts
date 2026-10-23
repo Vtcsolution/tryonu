@@ -59,6 +59,7 @@ export const GROUPS: NavGroup[] = [
 export const LEGAL: NavItem[] = [
   { label: "Privacy", href: "/privacy" },
   { label: "Terms", href: "/terms" },
+  { label: "Refunds", href: "/refunds" },
   { label: "Photo policy", href: "/photo-policy" },
   { label: "Affiliate disclosure", href: "/affiliate-disclosure" },
 ];

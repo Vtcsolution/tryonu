@@ -11,9 +11,9 @@ export const metadata: Metadata = {
 export default function PrivacyPage() {
   return (
     <ContentPage kicker="Legal" title="Privacy policy" intro="What we collect, why we collect it, and the choices you have." narrow>
-      <LegalBody updated="16 October 2026">
+      <LegalBody updated="23 October 2026">
         <p>
-          This policy explains how TryOnU (&quot;we&quot;, &quot;us&quot;) handles personal information when you use tryonu.app, the
+          This policy explains how TryOnU, operated by Greatodeal AI Automation Solutions, Pakistan (&quot;we&quot;, &quot;us&quot;), handles personal information when you use tryonu.app, the
           try-on API, the website widget and our plugins. For how we treat your photos in particular, also see our{" "}
           <Link href="/photo-policy">Photo &amp; data policy</Link>.
         </p>
@@ -23,7 +23,7 @@ export default function PrivacyPage() {
           <li><strong>Account details:</strong> your name, email address, country, and a password (stored only in scrambled form) or your Google sign-in.</li>
           <li><strong>Photos you upload</strong> and the try-on pictures we make from them.</li>
           <li><strong>Your activity:</strong> products you try on, looks you save or share, style preferences you choose, and AI Stylist requests.</li>
-          <li><strong>Purchases:</strong> what you bought and when. Payments are handled by PayPal; we never see or store your card details.</li>
+          <li><strong>Purchases:</strong> what you bought and when. Payments are handled by Paddle and PayPal; we never see or store your card details.</li>
           <li><strong>Technical data:</strong> pages visited, device and browser type, approximate location from your IP address, and cookies needed to keep you signed in.</li>
           <li><strong>Messages</strong> you send us through the contact form.</li>
         </ul>
@@ -41,7 +41,7 @@ export default function PrivacyPage() {
         <h2>3. Who we share it with</h2>
         <ul>
           <li><strong>AI providers</strong> that create the try-on picture, receive your photo and the product image only to make that picture.</li>
-          <li><strong>PayPal</strong> processes payments. <strong>Google</strong> handles Google sign-in if you choose it.</li>
+          <li><strong>Paddle</strong> (our reseller for card, Apple Pay and Google Pay) and <strong>PayPal</strong> process payments. <strong>Google</strong> handles Google sign-in if you choose it.</li>
           <li><strong>Hosting and email providers</strong> that run our servers and send our emails.</li>
           <li><strong>Stores and shops:</strong> when you click a shop link, you go to that store, which has its own privacy policy. A store on TryOnU sees your try-on picture only if you choose a free try-on that the store pays for and agree to share it.</li>
           <li><strong>People you share with:</strong> a look you share is visible to anyone with its link until you stop sharing it.</li>
