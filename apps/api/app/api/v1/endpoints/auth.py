@@ -34,7 +34,7 @@ settings = get_settings()
 )
 async def register(payload: RegisterRequest, request: Request, response: Response, db: DbSession):
     user = await auth_service.register_user(
-        db, email=payload.email.lower(), password=payload.password, full_name=payload.full_name
+        db, email=payload.email.lower(), password=payload.password, full_name=payload.full_name, next_path=payload.next
     )
     if payload.country:
         from app.models.preference import UserPreference

@@ -1,5 +1,6 @@
 "use client";
 
+import { safePath, usePendingReturnTo } from "@/lib/returnTo";
 import { CheckIcon } from "@/components/ui/Icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CountrySelect } from "@/components/business/BusinessDashboard";
@@ -96,13 +97,15 @@ function genderFor(audiences: string[]): Gender | null {
 export function PreferencesWizard() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get("next") || "/for-you";
+  const pending = usePendingReturnTo();
+  const asked = params.get("next");
+  const next = (safePath(asked) && asked !== "/for-you" ? asked : null) || pending || "/for-you";
   const qc = useQueryClient();
   const { user, isLoading: sessionLoading } = useSession();
 
   useEffect(() => {
     if (!sessionLoading && !user) {
-      router.replace(`/sign-in?next=${encodeURIComponent(`/preferences?next=${next}`)}`);
+      router.replace(`/sign-in?next=${encodeURIComponent(`/preferences?next=${encodeURIComponent(next)}`)}`);
     }
   }, [sessionLoading, user, router, next]);
 

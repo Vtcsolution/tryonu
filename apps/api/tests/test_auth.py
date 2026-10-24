@@ -205,3 +205,22 @@ async def test_google_never_sends_people_to_another_site(client, monkeypatch):
     state = start.headers["location"].split("state=")[1].split("&")[0]
     back = await client.get("/api/v1/auth/google/callback", params={"code": "g2", "state": state}, follow_redirects=False)
     assert back.headers["location"].endswith("/try") and "evil" not in back.headers["location"]
+
+
+async def test_the_verification_email_leads_back_to_the_look_shared_with_them(client):
+    """A friend's shared look: opened on a phone, the email link still goes back to it."""
+    from app.email.registry import get_email_provider
+
+    email = unique_email()
+    resp = await client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "password": "password123", "next": "/look/abc123/try"},
+    )
+    assert resp.status_code == 201
+    body = next(m["body"] for m in reversed(get_email_provider().sent) if m["to"] == email)
+    assert "/verify-email?token=" in body and "&next=%2Flook%2Fabc123%2Ftry" in body
+
+    other = unique_email()  # never another website
+    await client.post("/api/v1/auth/register", json={"email": other, "password": "password123", "next": "//evil.example"})
+    body = next(m["body"] for m in reversed(get_email_provider().sent) if m["to"] == other)
+    assert "next=" not in body

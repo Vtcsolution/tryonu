@@ -1,5 +1,6 @@
 "use client";
 
+import { safePath, usePendingReturnTo } from "@/lib/returnTo";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
@@ -14,7 +15,9 @@ import { useLogin } from "@/lib/auth/useSession";
 export function SignInForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get("next") || "/try";
+  const pending = usePendingReturnTo();
+  const asked = params.get("next");
+  const next = (safePath(asked) ? asked : null) || pending || "/try";
   const login = useLogin();
 
   const [email, setEmail] = useState("");

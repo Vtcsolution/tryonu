@@ -67,7 +67,7 @@ import type {
 /* ---------------------------------- auth --------------------------------- */
 
 export const auth = {
-  register: (input: { email: string; password: string; full_name?: string; country?: string }) =>
+  register: (input: { email: string; password: string; full_name?: string; country?: string; next?: string }) =>
     apiFetch<AuthResponse>("/api/v1/auth/register", { method: "POST", body: input }),
 
   login: (input: { email: string; password: string }) =>

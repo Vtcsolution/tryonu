@@ -9,10 +9,14 @@ import { Button } from "@/components/ui/Button";
 import { ApiError } from "@/lib/api/client";
 import { auth } from "@/lib/api/endpoints";
 import { SESSION_QUERY_KEY } from "@/lib/auth/useSession";
+import { safePath, usePendingReturnTo } from "@/lib/returnTo";
 
 export function VerifyEmailPanel() {
   const params = useSearchParams();
   const token = params.get("token");
+  const pending = usePendingReturnTo();
+  const asked = params.get("next");
+  const next = (safePath(asked) ? asked : null) || pending || "/for-you";
   const qc = useQueryClient();
   const attempted = useRef(false);
 
@@ -50,8 +54,8 @@ export function VerifyEmailPanel() {
         }
         subtitle="Your account is fully set up."
       >
-        <Button href="/preferences?next=%2Ffor-you" size="md" className="w-full">
-          Start your first try-on <span aria-hidden="true">→</span>
+        <Button href={`/preferences?next=${encodeURIComponent(next)}`} size="md" className="w-full">
+          {next.startsWith("/look/") ? "Try on the look shared with you" : "Start your first try-on"} <span aria-hidden="true">→</span>
         </Button>
       </AuthCard>
     );

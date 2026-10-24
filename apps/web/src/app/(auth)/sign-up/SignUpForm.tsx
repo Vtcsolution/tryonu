@@ -13,10 +13,14 @@ import { GoogleButton } from "@/components/auth/GoogleButton";
 import { ApiError } from "@/lib/api/client";
 import { auth } from "@/lib/api/endpoints";
 import { useRegister } from "@/lib/auth/useSession";
+import { safePath, usePendingReturnTo } from "@/lib/returnTo";
 
 export function SignUpForm() {
   const params = useSearchParams();
-  const next = params.get("next") || "/try";
+  const pending = usePendingReturnTo();
+  const asked = params.get("next");
+  const wanted = (safePath(asked) ? asked : null) || pending;
+  const next = wanted || "/try";
   const register = useRegister();
   const resend = useMutation({ mutationFn: auth.resendVerification });
 
@@ -40,7 +44,7 @@ export function SignUpForm() {
       return;
     }
     try {
-      await register.mutateAsync({ email, password, full_name: fullName || undefined, country });
+      await register.mutateAsync({ email, password, full_name: fullName || undefined, country, next: wanted || undefined });
       setRegistered(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.detail : "Couldn't create your account. Please try again.");
@@ -59,7 +63,7 @@ export function SignUpForm() {
         subtitle={`Your account is ready. We also sent a verification link to ${email}; verify when you get a chance.`}
       >
         <div className="space-y-3">
-          <Button href={`/preferences?next=${encodeURIComponent(params.get("next") || "/for-you")}`} size="md" className="w-full">
+          <Button href={`/preferences?next=${encodeURIComponent(wanted || "/for-you")}`} size="md" className="w-full">
             Continue to TryOnU <span aria-hidden="true">→</span>
           </Button>
           <Button

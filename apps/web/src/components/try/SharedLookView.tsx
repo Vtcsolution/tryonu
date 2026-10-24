@@ -10,6 +10,7 @@ import { ApiError, relayedImageUrl, resolveMediaUrl } from "@/lib/api/client";
 import { shared as sharedApi } from "@/lib/api/endpoints";
 import type { SharedLook } from "@/lib/api/types";
 import { useSession } from "@/lib/auth/useSession";
+import { rememberReturnTo } from "@/lib/returnTo";
 
 type SharedProduct = SharedLook["products"][number];
 
@@ -17,7 +18,12 @@ type SharedProduct = SharedLook["products"][number];
  * as the owner's result page, shop links, and "Try this look on yourself". */
 export function SharedLookView({ look, pageUrl }: { look: SharedLook; pageUrl: string }) {
   const count = look.products.length;
+  const { user, isLoading } = useSession();
   useEffect(() => rememberReferral(`look:${look.token}`), [look.token]);
+  // no account yet: this look waits for them after sign-up, however they sign up
+  useEffect(() => {
+    if (!isLoading && !user) rememberReturnTo(`/look/${look.token}/try`);
+  }, [isLoading, user, look.token]);
   return (
     <section className="tu-container py-8 md:py-12">
       {/* phones: title on top, buttons on their own row below; wider screens: side by side */}
@@ -144,6 +150,7 @@ function TryThisLookButton({ token, compact = false }: { token: string; compact?
   });
   const go = () => {
     if (!user) {
+      rememberReturnTo(`/look/${token}/try`);
       router.push(`/sign-up?next=${encodeURIComponent(`/look/${token}/try`)}`);
       return;
     }

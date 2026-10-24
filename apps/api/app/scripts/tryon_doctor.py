@@ -7,6 +7,8 @@ switch it, without the admin panel.
     python -m app.scripts.tryon_doctor --use openai --openai-model gpt-image-1.5
     python -m app.scripts.tryon_doctor --fashn-model tryon-max  # FASHN's model that
         # also draws shoes, bags and jewellery while keeping the person's face
+    python -m app.scripts.tryon_doctor --recent 10  # read-only: the last 10 try-ons,
+        # each item asked for, how it was labelled and whether it was drawn
     python -m app.scripts.tryon_doctor --debug-job <job-id>  # signed URLs to that
         # job's saved debug-capture images (requires TRYON_SAVE_DEBUG=true and the
         # job's own account on TRYON_DEBUG_USER_EMAILS at render time — see
@@ -89,16 +91,61 @@ async def _print_debug_urls(job_id: str) -> int:
     return 0
 
 
+async def _print_recent(limit: int) -> int:
+    """Each recent try-on with what was asked for and what happened to every
+    item. Changes nothing; no email addresses or keys."""
+    from sqlalchemy.orm import selectinload
+
+    async with AsyncSessionLocal() as session:
+        jobs = (
+            await session.execute(
+                select(TryOnJob)
+                .options(selectinload(TryOnJob.result), selectinload(TryOnJob.product))
+                .order_by(TryOnJob.created_at.desc())
+                .limit(limit)
+            )
+        ).scalars().all()
+    for job in jobs:
+        print(f"\n{job.id}  {job.created_at:%Y-%m-%d %H:%M}  {job.provider}/{job.provider_model}  {job.status.value}"
+              f"  credits={job.credit_cost}  round={job.look_round}")
+        if job.product is not None:
+            print(f"  product      : {job.product.name[:90]}")
+        if job.error_message:
+            print(f"  error        : {job.error_message[:200]}")
+        if job.review_state:
+            print(f"  review       : {job.review_state} {(job.review_reason or '')[:160]}")
+        for step in job.steps or []:
+            label = f"  label={step['board_label']!r}" if step.get("board_label") else ""
+            checks = f"  failed={step['failed_checks']}" if step.get("failed_checks") else ""
+            status = step.get("final_status") or step.get("status")
+            print(f"  item {step.get('index', '?')}: {str(step.get('name', ''))[:70]!r}  slot={step.get('slot', '-')}  {status}{label}{checks}")
+        result = job.result
+        if result is not None:
+            placed = result.placements or []
+            for pl in placed:
+                if isinstance(pl, dict) and pl.get("drawn") is False:
+                    print(f"  NOT drawn    : {str(pl.get('name', '?'))[:60]!r}  reason={str(pl.get('reason') or '-')[:120]}")
+            if result.qc_report:
+                qc = {k: v for k, v in result.qc_report.items() if not isinstance(v, (dict, list))}
+                print(f"  quality      : {str(qc)[:220]}")
+    if not jobs:
+        print("(no try-ons yet)")
+    return 0
+
+
 async def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--use", choices=["openai", "fashn", "mock"])
     parser.add_argument("--fashn-model", choices=["tryon-max", "tryon-v1.6"])
     parser.add_argument("--openai-model", help="OpenAI image model for try-ons, e.g. gpt-image-1.5")
     parser.add_argument("--debug-job", help="Print signed URLs to a job's saved debug-capture images, then exit")
+    parser.add_argument("--recent", type=int, help="Read-only: the last N try-ons, item by item, then exit")
     args = parser.parse_args()
 
     if args.debug_job:
         return await _print_debug_urls(args.debug_job)
+    if args.recent:
+        return await _print_recent(min(args.recent, 50))
 
     try:
         if args.use:

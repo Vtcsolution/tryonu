@@ -7,13 +7,18 @@ import { PostCard } from "@/components/community/PostCard";
 import { Button } from "@/components/ui/Button";
 import { community } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
+import { clearReturnTo, rememberReturnTo } from "@/lib/returnTo";
 
 /** /community/post/<id>: one look with its comments open. */
 export function PostDetail({ id }: { id: string }) {
   const router = useRouter();
   const { user, isLoading } = useSession();
   useEffect(() => {
-    if (!isLoading && !user) router.replace(`/sign-in?next=${encodeURIComponent(`/community/post/${id}`)}`);
+    if (isLoading) return;
+    if (!user) {
+      rememberReturnTo(`/community/post/${id}`);
+      router.replace(`/sign-up?next=${encodeURIComponent(`/community/post/${id}`)}`);
+    } else clearReturnTo(`/community/post/${id}`);
   }, [isLoading, user, router, id]);
   const post = useQuery({ queryKey: ["community", "post", id], queryFn: () => community.post(id), enabled: !!user, retry: false });
   if (!user || post.isLoading) {

@@ -27,6 +27,8 @@ class RegisterRequest(BaseModel):
     full_name: str | None = Field(default=None, max_length=255)
     # where the shopper lives (ISO alpha-2): stores that deliver there are shown
     country: str | None = Field(default=None, pattern=r"^[A-Za-z]{2}$")
+    # the page they were going to (a look someone shared): the verification email leads back to it
+    next: str | None = Field(default=None, max_length=300)
 
 
 class LoginRequest(BaseModel):

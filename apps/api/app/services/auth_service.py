@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import hashlib
 import secrets
+from urllib.parse import quote
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
@@ -33,7 +34,9 @@ def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-async def register_user(db: AsyncSession, *, email: str, password: str, full_name: str | None) -> User:
+async def register_user(
+    db: AsyncSession, *, email: str, password: str, full_name: str | None, next_path: str | None = None
+) -> User:
     existing = await db.execute(select(User).where(User.email == email))
     if existing.scalar_one_or_none() is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="An account with this email already exists")
@@ -56,13 +59,13 @@ async def register_user(db: AsyncSession, *, email: str, password: str, full_nam
             reference_id=user.id,
             note="Welcome bonus",
         )
-    await _send_verification_email(db, user)
+    await _send_verification_email(db, user, next_path)
     await db.commit()
     await db.refresh(user)
     return user
 
 
-async def _send_verification_email(db: AsyncSession, user: User) -> None:
+async def _send_verification_email(db: AsyncSession, user: User, next_path: str | None = None) -> None:
     raw_token = secrets.token_urlsafe(32)
     db.add(
         EmailVerificationToken(
@@ -73,6 +76,9 @@ async def _send_verification_email(db: AsyncSession, user: User) -> None:
         )
     )
     verify_url = f"{settings.FRONTEND_URL}/verify-email?token={raw_token}"
+    # a look someone shared with them: the email leads back to it (on any phone or computer)
+    if next_path and next_path.startswith("/") and not next_path.startswith("//") and "\\" not in next_path:
+        verify_url += f"&next={quote(next_path[:300], safe='')}"
     provider = get_email_provider()
     await provider.send(
         to=user.email,

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { ApiError } from "@/lib/api/client";
 import { shared as sharedApi } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
+import { clearReturnTo, rememberReturnTo } from "@/lib/returnTo";
 
 /** Signed in: copy the shared look's products into the visitor's own outfit and
  * open the try-on page with it (their photo comes first if they have none yet). */
@@ -19,12 +20,16 @@ export function TrySharedLook({ token }: { token: string }) {
     if (isLoading || started.current) return;
     started.current = true;
     if (!user) {
+      rememberReturnTo(`/look/${token}/try`);
       router.replace(`/sign-up?next=${encodeURIComponent(`/look/${token}/try`)}`);
       return;
     }
     sharedApi
       .tryThis(token)
-      .then((res) => router.replace(res.outfit_id ? `/try?outfit=${res.outfit_id}` : `/try?product=${res.product_id}`))
+      .then((res) => {
+        clearReturnTo(`/look/${token}/try`);
+        router.replace(res.outfit_id ? `/try?outfit=${res.outfit_id}` : `/try?product=${res.product_id}`);
+      })
       .catch((err) => setError(err instanceof ApiError ? err.detail : "Couldn't open this look. Please try again."));
   }, [isLoading, user, token, router]);
 
