@@ -913,3 +913,53 @@ async def test_a_store_product_never_replaces_a_better_match(client, monkeypatch
 
     resp = await client.post("/api/v1/stylist/ask", json={"prompt": "women red dress", "max_items": 1})
     assert [p["name"] for p in resp.json()["products"]] == ["Women Red Wrap Dress"]
+
+
+def test_equally_good_listings_from_different_shops_take_turns_item_by_item():
+    """Live, a 10-item bridal look came back eBay-only although AliExpress had
+    matching jewellery: eBay always answered first."""
+    from app.services.stylist_service import _mix_shops
+
+    ebay = _live_results("gold jhumka earrings a", "gold jhumka earrings b")
+    ali = _live_results(
+        _raw("gold jhumka earrings c", retailer_product_id="c"), _raw("gold jhumka earrings d", retailer_product_id="d"),
+        provider=_FakeAliExpressProvider(),
+    )
+    merged = [ebay[0], ali[0], ebay[1], ali[1]]
+    first = _mix_shops(merged, "women gold jhumka earrings", 0)
+    second = _mix_shops(merged, "women gold jhumka earrings", 1)
+    assert [r.provider.slug for r in first] == ["ebay", "aliexpress", "ebay", "aliexpress"]
+    assert [r.provider.slug for r in second] == ["aliexpress", "ebay", "aliexpress", "ebay"]
+
+    # a better match still comes first, whichever shop it's from
+    plain = _live_results("jhumka earrings plain")[0]
+    assert _mix_shops([ali[0], plain], "women gold jhumka earrings", 1)[0] is ali[0]
+    assert _mix_shops([ebay[0], plain], "women gold jhumka earrings", 1)[0] is ebay[0]
+
+
+async def test_the_server_decides_how_many_items_a_look_can_have(client, monkeypatch):
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "TRYON_DIRECT_MAX_PRODUCTS", 3)
+    seen: dict[str, object] = {}
+
+    class _Spy:
+        name = "spy"
+        model = "spy"
+
+        async def recommend(self, query: StylistQuery, candidates: list[StylistCandidate]) -> StylistRecommendation:
+            seen["max_items"], seen["prompt"] = query.max_items, query.prompt
+            return StylistRecommendation(summary="ok", chosen_indexes=[], tokens_input=None, tokens_output=None)
+
+    monkeypatch.setattr("app.services.stylist_service.get_stylist_provider", lambda: _Spy())
+    _patch_live_search(monkeypatch, _live_results("pink lehenga"))
+    await register_and_login(client)
+    resp = await client.post(
+        "/api/v1/stylist/ask",
+        json={"prompt": "pink lehenga, gold earrings, gold necklace, gold bangles, pink khussa", "max_items": 10},
+    )
+    assert resp.status_code == 200, resp.text
+    assert seen["max_items"] == 3
+    # the model is told what was searched, so it can't claim the rest "isn't available"
+    assert "Only these items were searched" in str(seen["prompt"])
+    assert "up to 3 products" in str(resp.json())

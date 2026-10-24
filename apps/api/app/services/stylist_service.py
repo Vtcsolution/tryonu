@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.llm.base import StylistCandidate, StylistQuery
 from app.core.taxonomy import audience_of
 from app.ai.llm.registry import get_stylist_provider
+from app.core.config import get_settings
 from app.core.logging import logger
 from app.models.ai_usage import AIUsage
 from app.models.enums import AIUsageKind, OutfitSlot
@@ -525,12 +526,14 @@ async def _fetch_pool(
 
         pool: list[_Candidate] = []
         seen_ids: set[tuple[str, str]] = set()
-        for term, results in zip(terms, term_results):
+        for n, (term, results) in enumerate(zip(terms, term_results)):
             results = [r for r in results if not _unsuitable(term, r.raw.name, req.prompt)]
             # only listings that are the item asked for, while any are
             exact = [r for r in results if _is_the_item(term, r.raw.name)]
             # equally good listings: a TryOnU store's first (recommended to shoppers)
             results = sorted(exact or results, key=lambda r: (-_fit(term, r.raw.name), store_rank(r)))
+            # then the shops take turns, a different one first for each item
+            results = _mix_shops(results, term, n)
             # among store products: the best match for the words asked, then the bigger plan
             results = _stores_by_match(results, term)
             # Retailers match words, not shoppers: "men leather ankle boots"
@@ -564,6 +567,37 @@ async def _fetch_pool(
         # though its signature says Product.
         pool.sort(key=lambda c: (affinity_score(c.result.raw, profile), -store_rank(c.result)), reverse=True)  # type: ignore[arg-type]
     return pool
+
+
+def _mix_shops(results: list[LiveSearchResult], term: str, start: int) -> list[LiveSearchResult]:
+    """Equally good listings from different shops take turns, and each item
+    starts with a different shop. eBay answers first and its titles carry every
+    keyword, so live a 10-item bridal look came back eBay-only although
+    AliExpress had matching jhumkas, necklaces, watches and clutches. A better
+    match still comes first, and TryOnU stores keep their place in front."""
+    out: list[LiveSearchResult] = []
+    i = 0
+    while i < len(results):
+        fit = _fit(term, results[i].raw.name)
+        j = i
+        while j < len(results) and _fit(term, results[j].raw.name) == fit:
+            j += 1
+        group = results[i:j]
+        by_shop: dict[str, list[LiveSearchResult]] = {}
+        for r in group:
+            if not _from_store(r):
+                by_shop.setdefault(r.provider.slug, []).append(r)
+        queues = list(by_shop.values())
+        if queues:
+            k = start % len(queues)
+            queues = queues[k:] + queues[:k]
+        out.extend(r for r in group if _from_store(r))
+        while any(queues):
+            for q in queues:
+                if q:
+                    out.append(q.pop(0))
+        i = j
+    return out
 
 
 def _trim_pool(pool: list[_Candidate]) -> list[_Candidate]:
@@ -730,6 +764,10 @@ def _left_out_note(left_out: list[str], max_items: int, gender: str | None) -> s
 async def ask_stylist(
     db: AsyncSession, *, user_id: str, req: StylistAskRequest
 ) -> tuple[StylistRequest, dict[str, tuple[str, list[LiveSearchResult]]]]:
+    # the most products one look applies is the server's setting (Admin), not the page's
+    look_limit = max(1, get_settings().TRYON_DIRECT_MAX_PRODUCTS)
+    if req.max_items > look_limit:
+        req = req.model_copy(update={"max_items": look_limit})
     wardrobe_item: WardrobeItem | None = None
     if req.wardrobe_item_id:
         wardrobe_item = await _load_owned_wardrobe_item(db, user_id, req.wardrobe_item_id)
@@ -758,8 +796,17 @@ async def ask_stylist(
     ]
 
     provider = get_stylist_provider()
+    searched = _extract_search_terms(req.prompt, gender)[: req.max_items]
     query = StylistQuery(
-        prompt=req.prompt,
+        # items past the limit weren't searched: without this the model told
+        # shoppers "no suitable bangles or clutch are available"
+        prompt=req.prompt
+        + (
+            f"\n(Only these items were searched this time: {', '.join(searched)}. Say nothing about any"
+            " other item; the shopper is told about those separately.)"
+            if left_out
+            else ""
+        ),
         occasion=req.occasion,
         budget_min_cents=req.budget_min_cents,
         budget_max_cents=req.budget_max_cents,

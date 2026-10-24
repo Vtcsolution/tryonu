@@ -71,7 +71,7 @@ export function StylistChat() {
       prompt: prompt.trim(),
       budget_max_cents: budgetMax && !Number.isNaN(budget) ? Math.round(budget * 100) : undefined,
       wardrobe_item_id: wardrobeItemId || undefined,
-      max_items: 5, // the most products one try-on look applies — see TryFlow.tsx's askStylist
+      max_items: 10, // the server lowers this to its own limit (Admin: Most products in one look)
     });
   };
 

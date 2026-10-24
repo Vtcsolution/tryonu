@@ -75,6 +75,9 @@ SPECS: tuple[SettingSpec, ...] = (
     SettingSpec("FASHN_API_KEY", "FASHN API key", "ai_tryon", "secret"),
     SettingSpec("FASHN_MODEL", "FASHN model", "ai_tryon", "choice", ("tryon-max", "tryon-v1.6"),
                 help="tryon-max: clothes, shoes, bags and jewellery, and keeps the face. tryon-v1.6: clothes only."),
+    SettingSpec("TRYON_DIRECT_MAX_PRODUCTS", "Most products in one look", "ai_tryon", "int", min_value=1,
+                help="How many items one try-on can put on, e.g. a 10-piece bridal look. With the look board (one "
+                "FASHN call per look) more items cost no more credits. Up to 10 is recommended."),
     SettingSpec("GEMINI_API_KEY", "Gemini API key", "ai_tryon", "secret",
                 help="From Google AI Studio. Used when the try-on provider is “gemini” or “best_of”."),
     SettingSpec("GEMINI_IMAGE_MODEL", "Gemini model", "ai_tryon", "text",

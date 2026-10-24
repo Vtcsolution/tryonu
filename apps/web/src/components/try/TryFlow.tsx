@@ -316,12 +316,11 @@ export function TryFlow() {
   // invents a product; it just picks real matches and (when more than one)
   // bundles them into an Outfit for the sequential multi-item try-on.
   //
-  // max_items is the most products one look applies (the API's
-  // TRYON_DIRECT_MAX_PRODUCTS). More than that and quality dropped live
-  // (skin tone shifted, a held clutch vanished), so only the first 5 things
-  // named are searched and the reply says which were left out.
+  // The server lowers max_items to the most products one look applies
+  // (Admin → "Most products in one look", TRYON_DIRECT_MAX_PRODUCTS); only
+  // that many things named are searched and the reply says which were left out.
   const askStylist = useMutation({
-    mutationFn: (text: string) => stylistApi.ask({ prompt: text.trim(), max_items: 5 }),
+    mutationFn: (text: string) => stylistApi.ask({ prompt: text.trim(), max_items: 10 }),
     onSuccess: (res) => {
       setLastStylistReply(res);
       setCustomItem(null);
