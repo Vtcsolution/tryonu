@@ -961,5 +961,19 @@ async def test_the_server_decides_how_many_items_a_look_can_have(client, monkeyp
     assert resp.status_code == 200, resp.text
     assert seen["max_items"] == 3
     # the model is told what was searched, so it can't claim the rest "isn't available"
-    assert "Only these items were searched" in str(seen["prompt"])
+    assert "These items were searched" in str(seen["prompt"])
     assert "up to 3 products" in str(resp.json())
+
+
+def test_a_short_ask_like_pink_bridal_look_becomes_the_whole_look():
+    """Shoppers type "pink bridal look", not ten item names."""
+    from app.services.stylist_service import _extract_search_terms
+
+    bridal = _extract_search_terms("Pink bridal look", None)
+    assert bridal[0] == "women pink bridal lehenga" and "women gold maang tikka" in bridal and len(bridal) == 10
+    assert _extract_search_terms("groom look", None)[0] == "men sherwani"
+    assert _extract_search_terms("Eid outfit for men", None)[:2] == ["men shalwar kameez", "men waistcoat"]
+    # an item asked for stays just that item; items named by the shopper are kept as they are
+    assert _extract_search_terms("party dress", None) == ["party dress"]
+    assert _extract_search_terms("bridal lehenga with jhumka earrings", None) == ["bridal lehenga", "jhumka earrings"]
+    assert _extract_search_terms("lehenga with heavy work", None) == ["lehenga"]

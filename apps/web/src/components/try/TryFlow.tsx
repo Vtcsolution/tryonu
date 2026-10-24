@@ -53,20 +53,10 @@ import type {
 // link, just never visually applied. Must match the backend's
 // _renderable_slots("tryon-max") in app/workers/tasks/tryon_tasks.py.
 // Tap-to-ask starters under the stylist box, matched to the shopper's gender preference
-const WOMEN_PROMPTS = [
-  "Embroidered shalwar kameez for women with gold bangles and khussa shoes",
-  "Lawn kurti for women with palazzo and kolhapuri chappals",
-  "Bridal lehenga for women with jhumka earrings and a gold necklace",
-  "Black abaya for women with a clutch and heels",
-  "Pishwas frock for women with a dupatta and maang tikka",
-  "Silver bangles, rings and jhumka earrings for women",
-];
-const MEN_PROMPTS = [
-  "White shalwar kameez for men with a black waistcoat and peshawari chappals",
-  "Cream sherwani for men with khussa shoes",
-  "Cotton kurta for men with jeans and sneakers",
-  "Navy suit for men with brown loafers and a watch",
-];
+// short on purpose: the server fills in the whole look ("Pink bridal look" =
+// lehenga, dupatta, jewellery, khussa, clutch; see _ready_look in stylist_service.py)
+const WOMEN_PROMPTS = ["Pink bridal look", "Red bridal look", "Mehndi look", "Eid outfit", "Party look", "Office look", "Casual look"];
+const MEN_PROMPTS = ["Groom look", "Eid outfit for men", "Party look for men", "Office look for men", "Casual look for men"];
 
 
 const STEPS = ["Fitting profile", "Choose product", "Your look"] as const;
@@ -124,15 +114,10 @@ export function TryFlow() {
     enabled: !!user,
   });
   const personalPrompts = suggestionsQuery.data?.prompts ?? [];
-  // built from the categories/colours they picked; generic starters until they've picked any
-  const starterPrompts =
-    personalPrompts.length > 0
-      ? personalPrompts
-      : gender === "men"
-        ? MEN_PROMPTS
-        : gender === "women"
-          ? WOMEN_PROMPTS
-          : [...WOMEN_PROMPTS.slice(0, 3), ...MEN_PROMPTS.slice(0, 2)];
+  // short ready looks first, then two built from the styles they picked
+  const readyLooks =
+    gender === "men" ? MEN_PROMPTS : gender === "women" ? WOMEN_PROMPTS : [...WOMEN_PROMPTS.slice(0, 4), ...MEN_PROMPTS.slice(0, 2)];
+  const starterPrompts = [...readyLooks, ...personalPrompts.slice(0, 2)];
   const [lastStylistReply, setLastStylistReply] = useState<StylistResponse | null>(null);
   // after "Try on" swaps an alternative in: which item to highlight, and what to restore on Undo
   const [swappedInId, setSwappedInId] = useState<string | null>(null);
@@ -731,7 +716,7 @@ export function TryFlow() {
                 placeholder={
                   baseLook
                     ? "What to add — e.g. gold necklace, gold ring, gold watch and pink khussa"
-                    : "Ask your stylist — e.g. shalwar kameez with bangles and khussa"
+                    : "Type a look, e.g. pink bridal look"
                 }
                 className="h-11 flex-1 rounded-full bg-transparent px-2.5 text-[15px] text-ink outline-none placeholder:text-faint"
               />
@@ -755,17 +740,8 @@ export function TryFlow() {
 
           {!lastStylistReply && (
             <div className="mt-3">
-              <p className="text-[12.5px] text-faint">
-                {personalPrompts.length > 0 ? (
-                  <>
-                    Suggested from your preferences — tap to ask ·{" "}
-                    <Link href="/preferences" className="underline-offset-2 hover:text-ink hover:underline">
-                      edit
-                    </Link>
-                  </>
-                ) : (
-                  "Try one of these — tap to ask"
-                )}
+              <p className="text-[14px] text-muted">
+                Tap a look, or type your own
               </p>
               <div className="tu-stagger mt-2 flex flex-wrap gap-2">
                 {starterPrompts.map((text) => (
@@ -777,7 +753,7 @@ export function TryFlow() {
                       setPrompt(text);
                       askStylist.mutate(text);
                     }}
-                    className="tu-press rounded-full border border-line bg-surface px-3.5 py-1.5 text-left text-[13.5px] text-ink-soft transition-colors hover:border-sage hover:text-ink disabled:opacity-50"
+                    className="tu-press min-h-[40px] rounded-full border border-line bg-surface px-4 py-1.5 text-left text-[15px] text-ink-soft transition-colors hover:border-sage hover:text-ink disabled:opacity-50"
                   >
                     {text}
                   </button>

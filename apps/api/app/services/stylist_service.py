@@ -326,7 +326,74 @@ def _gender_in_prompt(prompt: str) -> str | None:
     return "men" if any(w in _MEN_WORDS for w in words) else None
 
 
-def _extract_search_terms(prompt: str, gender: str | None = None) -> list[str]:
+# "Pink bridal look", "Eid outfit": a shopper can name the occasion instead of
+# every item, and gets the whole look. {c} is the colour they asked for (or
+# nothing), {m} the metal (gold unless they said silver). Most important
+# first: when Admin allows fewer items per look, the first ones are kept.
+_READY_LOOKS: dict[str, dict[str, list[str]]] = {
+    "bridal": {
+        "women": ["{c} bridal lehenga", "{c} dupatta", "{m} maang tikka", "{m} jhumka earrings", "{m} bridal necklace set",
+                  "{m} bangles", "{m} rings", "{m} wristwatch", "{c} khussa", "{m} clutch bag"],
+        "men": ["{c} sherwani", "khussa", "{m} wristwatch", "shawl"],
+    },
+    "mehndi": {
+        "women": ["{c} lehenga", "{c} dupatta", "{m} jhumka earrings", "{m} bangles", "{m} maang tikka", "{c} khussa",
+                  "{m} clutch bag"],
+        "men": ["{c} kurta shalwar", "waistcoat", "khussa", "{m} wristwatch"],
+    },
+    "eid": {
+        "women": ["{c} shalwar kameez", "{c} dupatta", "{m} jhumka earrings", "{m} bangles", "khussa", "clutch bag"],
+        "men": ["{c} shalwar kameez", "waistcoat", "peshawari chappal", "{m} wristwatch"],
+    },
+    "party": {
+        "women": ["{c} dress", "heels", "clutch bag", "{m} earrings", "{m} necklace", "{m} bracelet"],
+        "men": ["{c} blazer", "shirt", "trousers", "loafers", "{m} wristwatch"],
+    },
+    "office": {
+        "women": ["{c} blouse", "trousers", "heels", "handbag", "{m} wristwatch"],
+        "men": ["{c} shirt", "trousers", "blazer", "loafers", "{m} wristwatch"],
+    },
+    "casual": {
+        "women": ["{c} top", "jeans", "sneakers", "handbag", "sunglasses"],
+        "men": ["{c} t-shirt", "jeans", "sneakers", "{m} wristwatch", "sunglasses"],
+    },
+}
+# the words shoppers use for each occasion
+_OCCASION_WORDS = {
+    "bridal": "bridal", "bride": "bridal", "wedding": "bridal", "barat": "bridal", "baraat": "bridal",
+    "dulhan": "bridal", "shaadi": "bridal", "shadi": "bridal", "nikah": "bridal", "walima": "bridal",
+    "groom": "bridal", "dulha": "bridal",
+    "mehndi": "mehndi", "mehendi": "mehndi", "mayun": "mehndi", "haldi": "mehndi",
+    "eid": "eid", "festive": "eid",
+    "party": "party", "dinner": "party",
+    "office": "office", "interview": "office",
+    "casual": "casual", "everyday": "casual", "weekend": "casual", "college": "casual", "university": "casual",
+}
+_METALS = {"gold", "golden", "silver"}
+_LOOK_WORDS = {"look", "looks", "outfit", "outfits", "complete", "full", "everything"}
+
+
+def _ready_look(prompt: str, gender: str | None) -> str | None:
+    """The item list behind a short ask like "pink bridal look", or None.
+    Only when no item is named, or one item plus "look"/"outfit" ("red bridal
+    lehenga look"): "party dress" still means just a dress."""
+    words = re.findall(r"[a-z']+", prompt.lower())
+    occasion = next((_OCCASION_WORDS[w] for w in words if w in _OCCASION_WORDS), None)
+    if occasion is None:
+        return None
+    named = len(_extract_search_terms(prompt, gender, ready=False))
+    if named >= 2 or (named == 1 and not _LOOK_WORDS & set(words)):
+        return None
+    who = _gender_in_prompt(prompt) or (gender if gender in ("men", "women") else None)
+    if who is None:
+        who = "men" if any(w in ("groom", "dulha") for w in words) else "women"
+    colour = next((w for w in words if w in _COLOUR_WORDS and w not in _METALS), "")
+    metal = "silver" if "silver" in words else "gold"
+    items = [i.format(c=colour, m=metal).strip() for i in _READY_LOOKS[occasion][who]]
+    return ", ".join(" ".join(i.split()) for i in items) + f" for {who}"
+
+
+def _extract_search_terms(prompt: str, gender: str | None = None, *, ready: bool = True) -> list[str]:
     """Finds each recognized item in the prompt, one short query per item,
     in the order they appear, deduplicated:
     - item words written back to back ("shalwar kameez", "khussa shoes")
@@ -335,7 +402,11 @@ def _extract_search_terms(prompt: str, gender: str | None = None) -> list[str]:
       jacket", "white lawn shalwar kameez")
     - "for women" / "men's" anywhere in the prompt — or, failing that, the
       shopper's own saved gender — is added to every query, since eBay
-      otherwise mixes in the other gender's listings."""
+      otherwise mixes in the other gender's listings.
+    - a short ask naming an occasion ("pink bridal look") becomes that
+      occasion's whole look (_ready_look)"""
+    if ready and (whole_look := _ready_look(prompt, gender)):
+        prompt = whole_look
     tokens = [(m.group(), m.start(), m.end()) for m in re.finditer(r"[a-z']+", prompt.lower())]
     words = [t[0] for t in tokens]
     gender = _gender_in_prompt(prompt) or (gender if gender in ("men", "women") else "")
@@ -802,9 +873,9 @@ async def ask_stylist(
         # shoppers "no suitable bangles or clutch are available"
         prompt=req.prompt
         + (
-            f"\n(Only these items were searched this time: {', '.join(searched)}. Say nothing about any"
+            f"\n(These items were searched this time: {', '.join(searched)}. Say nothing about any"
             " other item; the shopper is told about those separately.)"
-            if left_out
+            if left_out or _ready_look(req.prompt, gender)
             else ""
         ),
         occasion=req.occasion,
