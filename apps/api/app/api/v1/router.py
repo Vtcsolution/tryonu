@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
+    showcase,
     admin,
     admin_controls,
     admin_ops,
@@ -88,3 +89,4 @@ api_router.include_router(lens.router)
 api_router.include_router(price_alerts.router)
 api_router.include_router(sizes.router)
 api_router.include_router(extension.router)
+api_router.include_router(showcase.router)

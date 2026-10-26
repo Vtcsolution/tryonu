@@ -1052,3 +1052,9 @@ export const adminDevelopers = {
   updatePack: (id: string, input: Partial<Pick<DeveloperCreditPack, "name" | "tryons" | "price_cents" | "is_active">>) =>
     apiFetch<DeveloperCreditPack>(`/api/v1/admin/developers/packs/${id}`, { method: "PATCH", body: input }),
 };
+
+/** the home page's example look: its real shop products, live from the shops */
+export type ShowcaseItem = { name: string; shop: string; price_cents: number; currency: string; image_url: string; buy_url: string };
+export const showcase = {
+  look: () => apiFetch<ShowcaseItem[]>("/api/v1/showcase/look"),
+};
