@@ -4,7 +4,7 @@ import { ContentPage, LegalBody } from "@/components/content/ContentPage";
 
 export const metadata: Metadata = {
   title: "Affiliate disclosure",
-  description: "How TryOnU earns money from shop links, and what that means for you.",
+  description: "How TryOnU earns a small commission from shop links, why you always pay the same price, and how products are chosen for you.",
   alternates: { canonical: "/affiliate-disclosure" },
 };
 

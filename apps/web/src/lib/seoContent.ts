@@ -145,7 +145,7 @@ export const LANDINGS: Landing[] = [
     audience: "shopper",
     title: "Virtual Try-On for Clothes Online: See It on You",
     description:
-      "Try real clothes, shoes and accessories on your own photo with AI before you buy. Upload one photo, pick a product, see yourself wearing it, then shop the original store.",
+      "Try real clothes, shoes and accessories on your own photo with AI before you buy. One photo, pick a product, see it on you, then shop the store.",
     kicker: "Virtual try-on",
     h1: "Virtual try-on for clothes: see any outfit on your own photo",
     answer:
@@ -292,7 +292,7 @@ export const LANDINGS: Landing[] = [
     audience: "business",
     title: "Virtual Try-On for Shopify Stores",
     description:
-      "Add a \"Try it on\" button to your Shopify product pages in minutes: no app code. Shoppers see your product on their own photo before they buy. Pay per try-on.",
+      "Add a \"Try it on\" button to your Shopify product pages in minutes, no app code. Shoppers see your product on their own photo. Pay per try-on.",
     kicker: "For Shopify",
     h1: "Add virtual try-on to your Shopify store",
     answer:
@@ -321,7 +321,7 @@ export const LANDINGS: Landing[] = [
     audience: "business",
     title: "Virtual Try-On Plugin for WordPress & WooCommerce",
     description:
-      "Install the TryOnU plugin, paste your website key, and a \"Try it on\" button appears on every WooCommerce product. Shoppers see your products on their own photo.",
+      "Install the TryOnU plugin, paste your website key, and every WooCommerce product gets a \"Try it on\" button. Shoppers see it on their own photo.",
     kicker: "For WooCommerce",
     h1: "Virtual try-on plugin for WordPress and WooCommerce",
     answer:

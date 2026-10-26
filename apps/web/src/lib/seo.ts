@@ -56,7 +56,8 @@ export function pageMeta({
   image?: string;
 }): Metadata {
   const url = `${SITE}${path === "/" ? "" : path}`;
-  const images = image ? [{ url: image }] : undefined;
+  // a page's own openGraph replaces the site's, so the site card is named here
+  const images = [image ? { url: image } : { url: `${SITE}/opengraph-image`, width: 1200, height: 630, alt: SITE_TAGLINE }];
   // the brand once, at the end, unless the title already names it
   const full = title.includes(SITE_NAME) ? title : `${title} | ${SITE_NAME}`;
   return {
@@ -64,8 +65,8 @@ export function pageMeta({
     description,
     keywords: [...keywords, ...CORE_KEYWORDS].slice(0, 20),
     alternates: { canonical: path },
-    openGraph: { type: "website", url, title: full, description, siteName: SITE_NAME, ...(images ? { images } : {}) },
-    twitter: { card: "summary_large_image", title: full, description, ...(image ? { images: [image] } : {}) },
+    openGraph: { type: "website", url, title: full, description, siteName: SITE_NAME, images },
+    twitter: { card: "summary_large_image", title: full, description, images: [images[0].url] },
   };
 }
 

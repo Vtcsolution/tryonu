@@ -7,7 +7,7 @@ import { SITE, pageMeta } from "@/lib/seo";
 export const metadata = pageMeta({
   title: "TryOnU Browser Extension: Try On Clothes From Any Shop",
   description:
-    "Free Chrome and Edge extension: try clothes, shoes and accessories from eBay, AliExpress or any online shop on your own photo. Shops: add products to TryOnU in one click.",
+    "Free Chrome and Edge extension: try clothes, shoes and accessories from eBay, AliExpress or any shop on your own photo. Shops add products in one click.",
   path: "/extension",
   keywords: ["virtual try on extension", "try on clothes chrome extension", "eBay try on", "AliExpress try on"],
 });

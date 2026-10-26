@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/Button";
 import { SITE_DEFINITION, pageMeta } from "@/lib/seo";
 
 export const metadata = pageMeta({
-  title: "About TryOnU: AI Virtual Try-On for Shoppers, Shops & Developers",
+  title: "About TryOnU: AI Virtual Try-On for Everyone",
   description:
     "TryOnU lets anyone see real products on their own photo before they buy, helps local shops reach shoppers, and gives developers a try-on API.",
   path: "/about",
