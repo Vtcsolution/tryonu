@@ -4,16 +4,16 @@ import { LensIcon } from "@/components/lens/LensIcon";
 import { Kicker, Section } from "@/components/marketing/primitives";
 import { Button } from "@/components/ui/Button";
 import { Reveal } from "@/components/ui/Reveal";
+import { PHOTOS } from "@/lib/media";
 
-// where each item is on the example photo (public/showcase/after.jpg, 600x900),
-// as fractions of its width and height. The frame has the photo's own 2:3
-// shape, so nothing is cropped and every dot sits on its item.
+// where each item is on the example photo (PHOTOS.lookPinkCoat, 1200x1800),
+// as fractions of its width and height, checked by drawing them on the photo.
+// The frame has the photo's own 2:3 shape, so nothing is cropped.
 const SPOTS: { n: number; label: string; x: number; y: number }[] = [
-  { n: 1, label: "Embroidered kameez", x: 0.5, y: 0.37 },
-  { n: 2, label: "Printed dupatta", x: 0.64, y: 0.52 },
-  { n: 3, label: "Watch", x: 0.31, y: 0.505 },
-  { n: 4, label: "Leather tote bag", x: 0.32, y: 0.76 },
-  { n: 5, label: "Sandals", x: 0.41, y: 0.955 },
+  { n: 1, label: "Pink wool coat", x: 0.63, y: 0.58 },
+  { n: 2, label: "Paisley scarf", x: 0.565, y: 0.42 },
+  { n: 3, label: "Black tights", x: 0.585, y: 0.775 },
+  { n: 4, label: "Ankle boots", x: 0.56, y: 0.895 },
 ];
 
 /** On the home page: Find the look (search the shops with a photo). */
@@ -46,8 +46,8 @@ export function FindLookPromo() {
           <div className="mx-auto flex max-w-[520px] items-center gap-4">
             <div className="relative aspect-[2/3] w-[58%] shrink-0 overflow-hidden rounded-[22px] border border-white/70 bg-white shadow-lift">
               <Image
-                src="/showcase/after.jpg"
-                alt="An outfit photo with each item marked: kameez, dupatta, watch, tote bag and sandals"
+                src={PHOTOS.lookPinkCoat.src}
+                alt="An outfit photo with each item marked: coat, scarf, tights and ankle boots"
                 fill
                 className="object-cover"
                 sizes="(max-width: 1024px) 55vw, 300px"
