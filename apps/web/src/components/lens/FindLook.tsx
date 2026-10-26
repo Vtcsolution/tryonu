@@ -6,10 +6,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProductCard } from "@/components/product/ProductCard";
 import { RECOMMENDED, fromTryOnUStore, shopName } from "@/components/try/shop";
-import { ApiError, affiliateGoUrl, resolveMediaUrl } from "@/lib/api/client";
+import { ApiError, affiliateGoUrl, mediaThumb, resolveMediaUrl } from "@/lib/api/client";
 import { community, lens, outfits, products as productsApi, type LensItem, type LensMatch, type LensResult } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
 import { LensIcon } from "@/components/lens/LensIcon";
+import { XIcon } from "@/components/ui/Icons";
 
 const STEPS = [
   "Looking at your photo…",
@@ -159,6 +160,11 @@ function Start({ onFile, onLook, error }: { onFile: (f: File | undefined) => voi
   const [drag, setDrag] = useState(false);
   const looks = useQuery({ queryKey: ["community", "my-looks"], queryFn: community.myLooks });
   const recent = useQuery({ queryKey: ["lens", "mine"], queryFn: lens.list });
+  const qc = useQueryClient();
+  const remove = useMutation({
+    mutationFn: (id: string) => lens.remove(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["lens", "mine"] }),
+  });
   return (
     <div className="mx-auto mt-5 max-w-3xl lg:mt-8">
       <label
@@ -199,7 +205,7 @@ function Start({ onFile, onLook, error }: { onFile: (f: File | undefined) => voi
                 title="Find the products in this look"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={resolveMediaUrl(l.image_url)} alt="One of your looks" loading="lazy" className="aspect-[3/4] w-full bg-paper-2 object-cover object-top" />
+                <img src={mediaThumb(l.image_url, 240)} alt="One of your looks" loading="lazy" className="aspect-[3/4] w-full bg-paper-2 object-cover object-top" />
               </button>
             ))}
           </div>
@@ -211,11 +217,24 @@ function Start({ onFile, onLook, error }: { onFile: (f: File | undefined) => voi
           <p className="text-[16px] font-semibold text-ink">Your recent searches</p>
           <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
             {recent.data.map((r) => (
-              <Link key={r.id} href={`/find-look?id=${r.id}`} className="w-28 shrink-0 overflow-hidden rounded-xl border border-line bg-surface hover:border-sage">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={resolveMediaUrl(r.image_url)} alt="" loading="lazy" className="aspect-square w-full bg-paper-2 object-cover object-top" />
-                <span className="block px-2 py-1.5 text-[12.5px] text-muted">{r.items} {r.items === 1 ? "item" : "items"} found</span>
-              </Link>
+              <div key={r.id} className="relative w-28 shrink-0">
+                <Link href={`/find-look?id=${r.id}`} className="block overflow-hidden rounded-xl border border-line bg-surface hover:border-sage">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={mediaThumb(r.image_url, 240)} alt="" loading="lazy" className="aspect-square w-full bg-paper-2 object-cover object-top" />
+                  <span className="block px-2 py-1.5 text-[12.5px] text-muted">{r.items} {r.items === 1 ? "item" : "items"} found</span>
+                </Link>
+                {/* remove this search and its photo */}
+                <button
+                  type="button"
+                  onClick={() => remove.mutate(r.id)}
+                  disabled={remove.isPending && remove.variables === r.id}
+                  aria-label="Remove this search"
+                  title="Remove"
+                  className="absolute right-1.5 top-1.5 grid h-8 w-8 place-items-center rounded-full bg-black/60 text-white hover:bg-black/80 disabled:opacity-50"
+                >
+                  <XIcon size={16} />
+                </button>
+              </div>
             ))}
           </div>
         </div>

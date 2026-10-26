@@ -85,6 +85,18 @@ def activate_plan(store: Store, plan: StorePlan, *, free: bool = False) -> None:
     store.plan_free = free
 
 
+async def approve_after_payment(db: AsyncSession, store: Store) -> None:
+    """A store still waiting for review is approved when it pays for a plan,
+    so the plan works straight away with no step for the admin. A store the
+    admin rejected or suspended stays as it is (it can't buy a plan anyway)."""
+    if store.status != "pending":
+        return
+    store.status = "approved"
+    store.status_note = "Approved automatically when the plan was paid."
+    subject, body = STATUS_EMAILS["approved"]
+    await notify_owner(db, store, subject, body.format(name=store.name, note=""))
+
+
 def end_plan(store: Store) -> None:
     """The plan stops now; the store's products leave search until a new plan."""
     now = utcnow()
@@ -686,6 +698,7 @@ async def sync_subscription(db: AsyncSession, store: Store, provider) -> str:  #
         plan = await db.scalar(select(StorePlan).where(StorePlan.code == store.subscription_plan_code))
         if paid_at and (counted is None or paid_at > counted) and plan is not None:
             activate_plan(store, plan)
+            await approve_after_payment(db, store)
             store.subscription_last_paid_at = paid_at
             db.add(
                 Payment(

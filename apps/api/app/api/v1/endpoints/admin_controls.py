@@ -117,7 +117,7 @@ async def _user_extras(db: DbSession, user_id: str) -> dict:
     from app.models.preference import UserPreference
     from app.models.store import Store, StorePlan, StoreTryOn
     from app.models.subscription import Payment
-    from app.schemas.admin import AdminUserLink, AdminUserPayment, AdminUserTryOn
+    from app.schemas.admin import AdminUserLink, AdminUserPayment, AdminUserPhoto, AdminUserTryOn
 
     country = await db.scalar(select(UserPreference.country).where(UserPreference.user_id == user_id))
     jobs = (
@@ -157,6 +157,7 @@ async def _user_extras(db: DbSession, user_id: str) -> dict:
         )
     ).scalars().all()
     plan_names = dict((await db.execute(select(StorePlan.id, StorePlan.name))).all())
+    plan_by_code = dict((await db.execute(select(StorePlan.code, StorePlan.name))).all())
     payments = [
         AdminUserPayment(
             id=p.id,
@@ -171,21 +172,46 @@ async def _user_extras(db: DbSession, user_id: str) -> dict:
                 else "Subscription" if p.subscription_id
                 else "Payment"
             ),
+            provider=p.provider,
         )
         for p in payments_rows
     ]
+    photo_rows = (
+        await db.execute(
+            select(UserPhoto)
+            .where(UserPhoto.user_id == user_id, UserPhoto.is_deleted.is_(False))
+            .order_by(UserPhoto.created_at.desc())
+            .limit(8)
+        )
+    ).scalars().all()
+    photos = [AdminUserPhoto(id=ph.id, kind=ph.kind.value, url=ph.url, created_at=ph.created_at) for ph in photo_rows]
     store = await db.scalar(select(Store).where(Store.owner_user_id == user_id))
     developer = await db.scalar(select(DeveloperAccount).where(DeveloperAccount.user_id == user_id))
     return {
         "country": country,
         "recent_tryons": tryons,
         "payments": payments,
-        "store": AdminUserLink(id=store.id, name=store.name, status=store.status, detail=f"tryonu.app/stores/{store.slug}")
+        "store": AdminUserLink(id=store.id, name=store.name, status=store.status, detail=_plan_line(store, plan_by_code))
         if store else None,
         "developer": AdminUserLink(
             id=developer.id, name=developer.company_name, status=developer.status, detail=f"{developer.credits} API credits"
         ) if developer else None,
+        "photos": photos,
     }
+
+
+def _plan_line(store, plan_by_code: dict[str, str]) -> str:  # noqa: ANN001
+    """tryonu.app/stores/x · Standard plan until 25 Nov 2026 (or: no active plan)."""
+    from app.services.store_service import plan_active
+
+    where = f"tryonu.app/stores/{store.slug}"
+    if store.plan_code and store.plan_expires_at and plan_active(store):
+        name = plan_by_code.get(store.plan_code, store.plan_code)
+        free = ", given free" if store.plan_free else ""
+        return f"{where} · {name} plan until {store.plan_expires_at:%d %b %Y}{free}"
+    if store.plan_expires_at:
+        return f"{where} · plan ended {store.plan_expires_at:%d %b %Y}"
+    return f"{where} · no plan yet"
 
 
 @router.patch("/users/{user_id}", response_model=AdminUserOut)

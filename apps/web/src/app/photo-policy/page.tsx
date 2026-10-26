@@ -16,19 +16,21 @@ export default function PhotoPolicyPage() {
       intro="Your photos show your face and body. Here is exactly what happens to them."
       narrow
     >
-      <LegalBody updated="16 October 2026">
+      <LegalBody updated="26 October 2026">
         <h2>In short</h2>
         <ul>
           <li>Your photos are used only to make your try-ons.</li>
           <li>We never sell your photos, and we don&apos;t use them to train our own AI models.</li>
-          <li>Nobody else sees your photos or try-on pictures unless you choose to share them.</li>
+          <li>Other people never see your photos or try-on pictures unless you choose to share them.</li>
+          <li>A few TryOnU staff can look at them only to help you with a problem or to keep TryOnU safe.</li>
           <li>You can delete them at any time.</li>
         </ul>
 
         <h2>1. When you upload a photo</h2>
         <p>
           Your photo is stored privately and linked to your account. Links to it are temporary and signed, so they stop working after a
-          short time.
+          short time. Only a few TryOnU staff can open it, and only to help you (for example when a try-on went wrong) or to stop
+          misuse.
         </p>
 
         <h2>2. When you try something on</h2>

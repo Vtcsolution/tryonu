@@ -254,6 +254,11 @@ async def buy_plan(code: str, user: CurrentUser, db: DbSession, gateway: str | N
     plan = await db.scalar(select(StorePlan).where(StorePlan.code == code, StorePlan.is_active.is_(True)))
     if plan is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
+    if store.status in ("rejected", "suspended"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Your store isn't approved, so a plan can't be bought for it. Please contact us.",
+        )
     provider = checkout_provider(gateway, get_payment_provider)
     payment = Payment(
         user_id=user.id,
@@ -294,6 +299,7 @@ async def buy_plan(code: str, user: CurrentUser, db: DbSession, gateway: str | N
     if checkout.status == "succeeded":  # a provider that settles at once (the mock, in development)
         payment.status = PaymentStatus.SUCCEEDED
         svc.activate_plan(store, plan)
+        await svc.approve_after_payment(db, store)
         from app.services.referral_service import reward_store_plan
 
         await reward_store_plan(db, store.owner_user_id, plan)

@@ -47,6 +47,15 @@ class AdminUserPayment(BaseModel):
     currency: str
     status: str
     what: str
+    # paypal | paddle | stripe | mock | admin
+    provider: str | None = None
+
+
+class AdminUserPhoto(BaseModel):
+    id: str
+    kind: str
+    url: str
+    created_at: datetime
 
 
 class AdminUserLink(BaseModel):
@@ -68,6 +77,8 @@ class AdminUserDetail(BaseModel):
     payments: list[AdminUserPayment] = []
     store: AdminUserLink | None = None
     developer: AdminUserLink | None = None
+    # the photos they uploaded to try things on (to help them with a problem)
+    photos: list[AdminUserPhoto] = []
 
 
 class AdminUserUpdate(BaseModel):

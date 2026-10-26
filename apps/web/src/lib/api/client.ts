@@ -151,6 +151,14 @@ export function relayedImageUrl(url: string | null | undefined, width = 600): st
   return `${API_BASE_URL}/api/v1/img?u=${encodeURIComponent(resolved)}&w=${width}`;
 }
 
+/** A small copy of one of our own stored pictures (a try-on, a search photo)
+ * for thumbnail strips; other URLs are returned as they are. */
+export function mediaThumb(url: string | null | undefined, width: 240 | 400 | 600 = 240): string {
+  const resolved = resolveMediaUrl(url);
+  if (!resolved || !resolved.includes("/media/") || !resolved.includes("sig=")) return resolved;
+  return `${resolved}&w=${width}`;
+}
+
 export function affiliateGoUrl(productId: string, source?: string): string {
   const q = source ? `?source=${encodeURIComponent(source)}` : "";
   return `${API_BASE_URL}/api/v1/affiliate/go/${productId}${q}`;

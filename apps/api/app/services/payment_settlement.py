@@ -89,13 +89,14 @@ async def settle(db: AsyncSession, payment: Payment) -> PurchaseCreditsResponse:
     if payment.store_plan_id:
         # a company's store plan: unlock (or extend) its 30-day pass
         from app.models.store import Store, StorePlan
-        from app.services.store_service import activate_plan
+        from app.services.store_service import activate_plan, approve_after_payment
 
         plan = await db.get(StorePlan, payment.store_plan_id)
         store = await db.get(Store, payment.store_id) if payment.store_id else None
         payment.status = PaymentStatus.SUCCEEDED
         if plan is not None and store is not None:
             activate_plan(store, plan)
+            await approve_after_payment(db, store)
             # share and earn: whoever invited this store's owner earns by plan
             from app.services.referral_service import reward_store_plan
 

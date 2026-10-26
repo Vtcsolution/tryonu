@@ -1,5 +1,6 @@
 "use client";
 
+import { mediaThumb, resolveMediaUrl } from "@/lib/api/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { admin as adminApi } from "@/lib/api/endpoints";
@@ -20,6 +21,16 @@ import {
   money,
   when,
 } from "./ui";
+
+
+// payment gateways, as admins call them
+const PAID_WITH: Record<string, string> = {
+  paypal: "PayPal",
+  paddle: "Paddle (card)",
+  stripe: "Stripe (card)",
+  mock: "Test payment",
+  admin: "Given by admin",
+};
 
 export function UsersTab({ currentAdminId }: { currentAdminId: string }) {
   const [search, setSearch] = useState("");
@@ -290,6 +301,28 @@ function UserDetailPanel({ userId, isSelf, onClose }: { userId: string; isSelf: 
             </div>
           </div>
 
+          {(detail.data.photos ?? []).length > 0 && (
+            <>
+              <p className="mb-2 mt-5 text-[14px] font-semibold text-ink">Their photos</p>
+              <div className="flex gap-3 overflow-x-auto pb-2">
+                {(detail.data.photos ?? []).map((ph) => (
+                  <a
+                    key={ph.id}
+                    href={resolveMediaUrl(ph.url)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-24 shrink-0 overflow-hidden rounded-xl border border-line hover:border-sage"
+                    title={`${ph.kind.replaceAll("_", " ")} photo, ${when(ph.created_at)}`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={mediaThumb(ph.url, 240)} alt={`${ph.kind} photo`} loading="lazy" className="aspect-[3/4] w-full bg-paper-2 object-cover object-top" />
+                    <span className="block px-2 py-1 text-[12px] text-muted">{ph.kind.replaceAll("_", " ")}</span>
+                  </a>
+                ))}
+              </div>
+            </>
+          )}
+
           <p className="mb-2 mt-5 text-[14px] font-semibold text-ink">Recent try-ons</p>
           <Table
             columns={["When", "What", "Status", "Paid with", "Result / problem"]}
@@ -303,8 +336,10 @@ function UserDetailPanel({ userId, isSelf, onClose }: { userId: string; isSelf: 
               t.problem ? (
                 <span key="p" className="text-[#a4553f]">{t.problem}</span>
               ) : t.result_image_url ? (
-                <a key="r" href={t.result_image_url} target="_blank" rel="noopener noreferrer" className="font-medium text-sage-deep hover:underline">
-                  View picture ↗
+                <a key="r" href={resolveMediaUrl(t.result_image_url)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 font-medium text-sage-deep hover:underline">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={mediaThumb(t.result_image_url, 240)} alt="Try-on result" loading="lazy" className="h-14 w-10 rounded-md bg-paper-2 object-cover object-top" />
+                  Open
                 </a>
               ) : (
                 "—"
@@ -317,11 +352,12 @@ function UserDetailPanel({ userId, isSelf, onClose }: { userId: string; isSelf: 
             <>
               <p className="mb-2 mt-5 text-[14px] font-semibold text-ink">Payments</p>
               <Table
-                columns={["When", "For", "Amount", "Status"]}
+                columns={["When", "For", "Amount", "Paid with", "Status"]}
                 rows={(detail.data.payments ?? []).map((p) => [
                   when(p.created_at),
                   p.what,
                   money(p.amount_cents, p.currency),
+                  PAID_WITH[p.provider ?? ""] ?? p.provider ?? "—",
                   <Badge key="s" tone={p.status === "succeeded" ? "good" : p.status === "failed" ? "bad" : "neutral"}>{p.status}</Badge>,
                 ])}
               />

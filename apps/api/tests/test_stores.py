@@ -72,8 +72,20 @@ async def test_a_new_store_waits_for_approval_and_needs_a_plan_to_list_products(
     assert bought.json()["status"] == "succeeded"
     me = (await client.get("/api/v1/stores/me")).json()
     assert me["plan_code"] == "basic" and me["plan_product_limit"] == 50 and me["plan_active"] is True
-    assert me["live"] is False  # still waiting for the admin
+    # paying for a plan approves a store that was waiting: nothing for the admin to do
+    assert me["status"] == "approved" and me["live"] is True
     assert (await _product(client)).status_code == 201
+
+
+async def test_a_rejected_store_cannot_pay_for_a_plan_it_could_not_use(client, db):  # noqa: ANN001
+    store = await _company(client)
+    row = await db.get(Store, store["id"])
+    row.status = "rejected"
+    await db.commit()
+    refused = await client.post("/api/v1/stores/me/plans/basic/purchase")
+    assert refused.status_code == 400 and "isn't approved" in refused.json()["detail"]
+    await db.refresh(row)
+    assert row.status == "rejected" and row.plan_expires_at is None
 
 
 async def test_the_plan_limits_how_many_products_a_store_lists(client, db):  # noqa: ANN001
@@ -99,7 +111,10 @@ async def test_shoppers_see_only_approved_paid_stores_and_their_own_country_firs
         await _with_photo(db, item["id"])
     provider = StoreProductProvider()
 
-    assert await provider.search_live(query="pink bridal lehenga", limit=10) == []  # not approved yet
+    for s in (us, pk):  # paying approved them; an admin puts both on hold: hidden from shoppers
+        (await db.get(Store, s["id"])).status = "pending"
+    await db.commit()
+    assert await provider.search_live(query="pink bridal lehenga", limit=10) == []
 
     await _approve(db, us["id"])
     await _approve(db, pk["id"])
@@ -308,6 +323,7 @@ async def test_admins_see_a_store_in_detail_moderate_products_and_grant_a_plan(c
     data = await register_and_login(client)
     await make_admin(db, data["user"]["id"])
 
+    sent.clear()  # the plan payment already sent one "approved" email
     await client.post(f"/api/v1/admin/stores/{store['id']}/status", json={"status": "approved"})
     assert sent == ["Your TryOnU store is approved"]
 
@@ -345,6 +361,7 @@ async def test_plan_reminders_go_out_once_per_expiry(client, db, monkeypatch):  
     row.plan_expires_at = svc.utcnow() + timedelta(days=2)
     await db.commit()
 
+    sent.clear()  # the plan payment's "approved" email
     await svc.send_plan_reminders(db)
     await svc.send_plan_reminders(db)
     assert sent == ["Your TryOnU store plan ends soon"]

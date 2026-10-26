@@ -415,7 +415,16 @@ export type AdminUserDetail = {
     problem: string | null;
     result_image_url: string | null;
   }[];
-  payments?: { id: string; created_at: string; amount_cents: number; currency: string; status: string; what: string }[];
+  payments?: {
+    id: string;
+    created_at: string;
+    amount_cents: number;
+    currency: string;
+    status: string;
+    what: string;
+    provider?: string | null;
+  }[];
+  photos?: { id: string; kind: string; url: string; created_at: string }[];
   store?: { id: string; name: string; status: string; detail: string } | null;
   developer?: { id: string; name: string; status: string; detail: string } | null;
 };
