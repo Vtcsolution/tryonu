@@ -426,10 +426,13 @@ function Results({ result, onAgain }: { result: LensResult; onAgain: () => void 
           className="mt-4 flex gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            setSearched(searchText.trim());
+            // nothing typed yet: put the cursor in the box instead
+            if (searchText.trim().length < 2) (e.currentTarget.elements.namedItem("q") as HTMLInputElement | null)?.focus();
+            else setSearched(searchText.trim());
           }}
         >
           <input
+            name="q"
             type="search"
             value={searchText}
             onChange={(e) => {
@@ -438,14 +441,13 @@ function Results({ result, onAgain }: { result: LensResult; onAgain: () => void 
             }}
             placeholder={`Search any product or brand, e.g. ${item ? `brown ${item.label.toLowerCase()}` : "Gucci loafers"}`}
             aria-label="Search any product or brand"
-            className={`h-12 min-w-0 flex-1 rounded-full border border-sage/60 bg-surface px-4 text-[15.5px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25 ${
-              searchText ? "" : "tu-attention"
+            className={`h-12 min-w-0 flex-1 rounded-full border border-line-strong bg-surface px-4 text-[15.5px] text-ink outline-none placeholder:text-muted focus:border-sage focus:ring-2 focus:ring-sage/25 ${
+              searchText ? "" : "tu-glow"
             }`}
           />
           <button
             type="submit"
-            disabled={searchText.trim().length < 2}
-            className="tu-press h-12 shrink-0 rounded-full bg-sage px-5 text-[15.5px] font-semibold text-white disabled:opacity-50"
+            className="tu-press h-12 shrink-0 rounded-full bg-sage px-6 text-[15.5px] font-semibold text-white hover:bg-sage-deep"
           >
             Search
           </button>

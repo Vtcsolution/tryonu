@@ -49,6 +49,11 @@
   color-scheme: light;
 }
 
+/* the glow behind search bars, as an rgb triple so animations can fade it */
+:root {
+  --glow-rgb: 87, 99, 79;
+}
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
@@ -64,6 +69,7 @@
 
     --color-line: #322f28;
     --color-line-strong: #423f36;
+    --glow-rgb: 168, 190, 158;
 
     --color-sage: #808f7b;
     --color-sage-deep: #97a690;
@@ -93,6 +99,7 @@
 
   --color-line: #322f28;
   --color-line-strong: #423f36;
+  --glow-rgb: 168, 190, 158;
 
   --color-sage: #808f7b;
   --color-sage-deep: #97a690;
@@ -504,6 +511,23 @@ html {
 /* A gentle "try me" glow for the most important button on a card (Try it on):
    a soft ring breathes out every few seconds. Off for people who ask their
    device for less motion. */
+/* a search box that wants to be used: its border lights up and a soft glow
+   pulses around it, clearly visible in light and dark (search bars) */
+@keyframes tu-glow {
+  0%,
+  100% {
+    border-color: rgba(var(--glow-rgb), 0.45);
+    box-shadow: 0 0 0 0 rgba(var(--glow-rgb), 0), 0 0 0 0 rgba(var(--glow-rgb), 0);
+  }
+  50% {
+    border-color: rgba(var(--glow-rgb), 1);
+    box-shadow: 0 0 0 3px rgba(var(--glow-rgb), 0.3), 0 0 24px 6px rgba(var(--glow-rgb), 0.45);
+  }
+}
+.tu-glow {
+  border-width: 2px;
+  animation: tu-glow 2s ease-in-out infinite;
+}
 @keyframes tu-shine {
   0%,
   70% {
@@ -612,6 +636,7 @@ summary,
 }
 @media (prefers-reduced-motion: reduce) {
   .tu-attention,
+  .tu-glow,
   .tu-shine::after,
   .tu-scan,
   .tu-enter {
