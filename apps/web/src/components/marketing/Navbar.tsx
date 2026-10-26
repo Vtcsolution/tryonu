@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Logo } from "@/components/ui/Logo";
+import { FirstOutfitOffer } from "@/components/credits/FirstOutfitOffer";
 import { Button } from "@/components/ui/Button";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { AccountMenu } from "@/components/marketing/AccountMenu";
@@ -39,9 +40,15 @@ export function Navbar() {
           </span>
           <PhoneAccount />
           <span className="hidden lg:inline-flex">
-            <Button href="/try" size="sm" className="whitespace-nowrap">
-              Try it now <span aria-hidden="true">→</span>
-            </Button>
+            {/* the $1 first outfit while the visitor can get it; otherwise "Try it now" */}
+            <FirstOutfitOffer
+              variant="compact"
+              fallback={
+                <Button href="/try" size="sm" className="whitespace-nowrap">
+                  Try it now <span aria-hidden="true">→</span>
+                </Button>
+              }
+            />
           </span>
           <MobileNav />
         </div>

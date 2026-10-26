@@ -1,5 +1,6 @@
 "use client";
 
+import { FirstOutfitOffer } from "@/components/credits/FirstOutfitOffer";
 import { isDevPortal } from "@/lib/devLinks";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -136,6 +137,7 @@ export function MobileNav() {
                     </Link>
                   </div>
                 )}
+                <FirstOutfitOffer className="w-full" />
                 <Link
                   href="/try"
                   className="flex min-h-[50px] items-center justify-center rounded-full bg-sage text-[16px] font-semibold text-white hover:bg-sage-deep"
