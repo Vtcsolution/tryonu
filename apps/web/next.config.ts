@@ -1,7 +1,19 @@
+import { execSync } from "node:child_process";
 import type { NextConfig } from "next";
+
+// this build's name (the git commit, else the build time): open tabs compare
+// it with the server's to load fresh after an update (components/app/VersionWatch.tsx)
+function buildId(): string {
+  try {
+    return execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+  } catch {
+    return String(Date.now());
+  }
+}
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  env: { NEXT_PUBLIC_BUILD_ID: buildId() },
   devIndicators: false,
   // Lean runtime image for Docker (see apps/web/Dockerfile) — bundles only
   // the traced production dependencies, not the whole node_modules tree.

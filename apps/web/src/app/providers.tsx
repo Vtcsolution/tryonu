@@ -10,6 +10,7 @@ import { AnalyticsTracker } from "@/components/analytics/AnalyticsTracker";
 import { CountryGate } from "@/components/auth/CountryGate";
 import { Welcome } from "@/components/app/Welcome";
 import { PwaSetup } from "@/components/pwa/InstallApp";
+import { VersionWatch } from "@/components/app/VersionWatch";
 import { ReferralCapture } from "@/components/referrals/ReferralCapture";
 
 function makeQueryClient() {
@@ -46,6 +47,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ReferralCapture />
       <PwaSetup />
       <Welcome />
+      <VersionWatch />
       {children}
     </QueryClientProvider>
   );
