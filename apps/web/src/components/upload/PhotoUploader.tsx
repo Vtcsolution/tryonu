@@ -53,7 +53,7 @@ export function PhotoUploader({
         if (!cancelled) setPhotos(list);
       })
       .catch(() => {
-        if (!cancelled) setLoadError("Couldn't load your fitting profile. Try refreshing.");
+        if (!cancelled) setLoadError("Couldn't load your photos. Please refresh the page.");
       })
       .finally(() => {
         if (!cancelled) setLoaded(true);
@@ -249,7 +249,7 @@ export function PhotoUploader({
         </p>
       )}
       {!loaded && !loadError && (
-        <p className="mt-2 text-[13px] text-faint">Loading your fitting profile…</p>
+        <p className="mt-2 text-[13px] text-faint">Loading your photos…</p>
       )}
     </div>
   );

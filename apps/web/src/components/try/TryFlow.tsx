@@ -59,7 +59,7 @@ const WOMEN_PROMPTS = ["Pink bridal look", "Red bridal look", "Mehndi look", "Ei
 const MEN_PROMPTS = ["Groom look", "Eid outfit for men", "Party look for men", "Office look for men", "Casual look for men"];
 
 
-const STEPS = ["Fitting profile", "Choose product", "Your look"] as const;
+const STEPS = ["Your photo", "Choose product", "Your look"] as const;
 const TERMINAL: TryOnJob["status"][] = ["completed", "failed", "cancelled"];
 // the try-on still running when the shopper left /try, opened again when they come back
 const RUNNING_KEY = "tu_running_tryon";
@@ -549,7 +549,7 @@ export function TryFlow() {
             {/* phones: say it in plain words */}
             <span className="lg:hidden">Add your photo</span>
             <span className="max-lg:hidden">
-              Build your <em>fitting profile</em>
+              Add your <em>photo</em>
             </span>
           </h1>
           <p className="mt-2 max-w-lg text-[15px] leading-relaxed text-muted lg:mt-3 lg:text-[16px]">

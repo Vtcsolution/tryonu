@@ -5,6 +5,7 @@
  * detail, which is how answer engines quote a page. Keep every claim true:
  * only stores and features that work today.
  */
+import { HOW_IT_WORKS_ANSWER, SOURCES_ANSWER } from "@/lib/howItWorks";
 
 export type QA = { q: string; a: string };
 
@@ -12,6 +13,18 @@ export const FAQ_GROUPS: { title: string; items: QA[] }[] = [
   {
     title: "Trying on clothes",
     items: [
+      {
+        q: "How does TryOnU work?",
+        a: HOW_IT_WORKS_ANSWER,
+      },
+      {
+        q: "How does TryOnU work?",
+        a: HOW_IT_WORKS_ANSWER,
+      },
+      {
+        q: "How does TryOnU work?",
+        a: HOW_IT_WORKS_ANSWER,
+      },
       {
         q: "What is TryOnU?",
         a: "TryOnU (tryonu.app) is an AI virtual try-on and fashion shopping website. You upload a photo of yourself once, try real clothes, shoes and accessories from real online stores on your own photo, and then buy each piece from the original store.",
@@ -22,7 +35,7 @@ export const FAQ_GROUPS: { title: string; items: QA[] }[] = [
       },
       {
         q: "Can I try on a whole outfit at once?",
-        a: "Yes. TryOnU puts up to five pieces on your photo in one look, for example trousers, a shirt, shoes, sunglasses and a watch. You can then add more pieces to the same look.",
+        a: "Yes. TryOnU puts a whole outfit on your photo in one look, for example a bridal lehenga, dupatta, jewellery, khussa and clutch, or trousers, a shirt, shoes and a watch. Type a ready look like \"Pink bridal look\" and TryOnU finds every piece. You can then add more pieces to the same look.",
       },
       {
         q: "What can I try on?",
@@ -46,12 +59,12 @@ export const FAQ_GROUPS: { title: string; items: QA[] }[] = [
         a: "On TryOnU every product in your look has a Shop now button that opens the original store's product page, such as eBay, AliExpress, a brand's own shop or a local shop on TryOnU, where you buy it directly. TryOnU never sells the product itself, and you pay the store's normal price.",
       },
       {
-        q: "Which stores does TryOnU show products from?",
-        a: "eBay, AliExpress, many brand stores through affiliate networks, and local shops that sell on TryOnU. Local shops that deliver to your country are shown first.",
+        q: "Where do the products on TryOnU come from?",
+        a: SOURCES_ANSWER,
       },
       {
         q: "Can an AI pick an outfit for me?",
-        a: "Yes. Describe what you want to the TryOnU AI Stylist, for example \"a navy chino, white shirt and brown loafers for an office in Lahore\", and it picks real products that match and puts them on your photo.",
+        a: "Yes. Tap a ready look such as \"Pink bridal look\", \"Eid outfit\" or \"Office look\", or describe what you want in your own words, and the AI Stylist picks real products that match and puts them on your photo.",
       },
       {
         q: "Can I try on clothes from eBay, AliExpress or other shops?",
@@ -99,7 +112,8 @@ export const ALL_FAQ: QA[] = FAQ_GROUPS.flatMap((g) => g.items);
 
 /** The few questions shown on the home page. */
 export const HOME_FAQ: QA[] = [
-  ALL_FAQ.find((x) => x.q.startsWith("How can I see clothes"))!,
+  ALL_FAQ.find((x) => x.q.startsWith("How does TryOnU work"))!,
+  ALL_FAQ.find((x) => x.q.startsWith("Where do the products"))!,
   ALL_FAQ.find((x) => x.q.startsWith("Where can I buy"))!,
   ALL_FAQ.find((x) => x.q.startsWith("Can I try on a whole outfit"))!,
   ALL_FAQ.find((x) => x.q.startsWith("How much does"))!,
@@ -153,7 +167,7 @@ export const LANDINGS: Landing[] = [
     benefits: [
       { title: "Your body, not a model's", text: "See how a product looks on you, with your own face, skin tone and shape." },
       { title: "Real products, real stores", text: "Every piece comes from a real store with a real price, and links straight to it." },
-      { title: "Whole outfits", text: "Put up to five pieces on in one look: top, bottom, shoes, bag and accessories." },
+      { title: "Whole outfits", text: "Put a whole outfit on in one look: clothes, shoes, bag and jewellery." },
     ],
     steps: SHOPPER_STEPS,
     faqs: [ALL_FAQ.find((x) => x.q.startsWith("How can I see clothes"))!, ACCURACY, WHERE_TO_BUY, PHOTO_SAFE],
@@ -170,7 +184,7 @@ export const LANDINGS: Landing[] = [
     kicker: "AI outfit try-on",
     h1: "AI outfit try-on: a complete look on you in one picture",
     answer:
-      "With TryOnU you can put a whole outfit on your own photo at once: up to five real products such as trousers, a shirt, shoes, sunglasses and a watch. You see the complete look in one picture, and every piece links to the store that sells it.",
+      "With TryOnU you can put a whole outfit on your own photo at once: real products such as trousers, a shirt, shoes, sunglasses and a watch. You see the complete look in one picture, and every piece links to the store that sells it.",
     benefits: [
       { title: "See how pieces go together", text: "Colours and styles that look good separately don't always match. See the whole look first." },
       { title: "Describe it in your words", text: "Type \"white shirt, navy chinos, brown loafers\" and the AI Stylist finds real products." },
@@ -219,7 +233,7 @@ export const LANDINGS: Landing[] = [
       { title: "From idea to picture", text: "The suggested pieces go straight onto your photo as one look." },
     ],
     steps: SHOPPER_STEPS,
-    faqs: [ALL_FAQ.find((x) => x.q.startsWith("Can an AI pick"))!, ALL_FAQ.find((x) => x.q.startsWith("Which stores"))!, WHERE_TO_BUY, PRICE],
+    faqs: [ALL_FAQ.find((x) => x.q.startsWith("Can an AI pick"))!, ALL_FAQ.find((x) => x.q.startsWith("Where do the products"))!, WHERE_TO_BUY, PRICE],
     cta: { label: "Ask the AI Stylist", href: "/stylist" },
     keywords: ["AI stylist", "AI personal stylist", "AI fashion assistant", "what should I wear AI"],
     related: ["ai-outfit-try-on", "virtual-try-on", "eastern-wear-virtual-try-on"],
@@ -261,7 +275,7 @@ export const LANDINGS: Landing[] = [
       { title: "For every occasion", text: "Eid, weddings, office or everyday: describe the occasion to the AI Stylist." },
     ],
     steps: SHOPPER_STEPS,
-    faqs: [ALL_FAQ.find((x) => x.q.startsWith("Which stores"))!, ALL_FAQ.find((x) => x.q.startsWith("Can an AI pick"))!, WHERE_TO_BUY, PRICE],
+    faqs: [ALL_FAQ.find((x) => x.q.startsWith("Where do the products"))!, ALL_FAQ.find((x) => x.q.startsWith("Can an AI pick"))!, WHERE_TO_BUY, PRICE],
     cta: { label: "Try eastern wear", href: "/try" },
     keywords: ["shalwar kameez virtual try on", "kurta try on online", "eastern wear try on", "lawn suit try on"],
     related: ["bridal-dress-virtual-try-on", "ai-personal-stylist", "virtual-try-on"],

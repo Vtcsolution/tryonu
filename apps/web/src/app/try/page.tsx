@@ -7,7 +7,7 @@ import { PRIVATE_PAGE } from "@/lib/seo";
 export const metadata: Metadata = {
   title: "Try it",
   description:
-    "Build your fitting profile, pick a product, and see it rendered on you by AI — then shop the original listing.",
+    "Add your photo, pick a product or a ready look, and see it on you with AI. Then buy from the shop itself.",
   robots: PRIVATE_PAGE,
 };
 

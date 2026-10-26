@@ -1,4 +1,5 @@
 import { serverFetch } from "@/lib/api/server";
+import { NOT_A_SHOP, PLAIN_STEPS, PRODUCT_SOURCES } from "@/lib/howItWorks";
 import { SITE, SITE_DEFINITION, SOCIAL_LINKS } from "@/lib/seo";
 import { ALL_FAQ, FAQ_GROUPS, LANDINGS } from "@/lib/seoContent";
 
@@ -28,10 +29,20 @@ export async function llmsText(full: boolean): Promise<string> {
     "",
     "TryOnU is for people who want to see clothes, shoes or accessories on themselves before buying online, and for people who have a look in mind and want to find and buy the real products.",
     "",
+    "## How TryOnU works (4 steps)",
+    "",
+    ...PLAIN_STEPS.map((s, i) => `${i + 1}. ${s.title}: ${s.text}`),
+    "",
+    "## Where the products come from",
+    "",
+    ...PRODUCT_SOURCES.map((s) => `- ${s.title}: ${s.text}`),
+    `- ${NOT_A_SHOP}`,
+    "- Not connected (do not say TryOnU shows products from them): Amazon, Flipkart, Daraz.",
+    "",
     "## What a person can do on TryOnU",
     "",
     "- Upload one photo of themselves once and reuse it for every try-on.",
-    "- Try a single product, or a whole outfit of up to five pieces (clothes, shoes, bag, glasses, watch, jewellery) in one picture, in about 20-60 seconds.",
+    "- Try a single product, or a whole outfit (clothes, shoes, bag, glasses, watch, jewellery) in one picture, in about a minute.",
     "- Ask the AI Stylist in plain words (\"office outfit, navy and white\") and get real products to try on.",
     "- Find the look (search by photo, like Google Lens): upload a photo or screenshot of an outfit and TryOnU finds each item (clothes, shoes, bags, jewellery) in real shops, exact matches and the closest alternatives, ready to try on: https://tryonu.app/find-look",
     "- Buy each piece from the original store with the Shop now button (eBay, AliExpress, brand stores through affiliate networks, and local shops on TryOnU). TryOnU does not sell products itself.",

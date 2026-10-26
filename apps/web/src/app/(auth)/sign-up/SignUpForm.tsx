@@ -85,7 +85,7 @@ export function SignUpForm() {
       kicker="Try it. See you. Shop it."
       title={
         <>
-          Create your <em>fitting profile</em>
+          Create your <em>free account</em>
         </>
       }
       subtitle="See every outfit on your own photo before you buy."

@@ -15,7 +15,7 @@ const ROWS: Row[] = [
   {
     kicker: "Virtual try-on",
     title: "The product, on your body",
-    body: "Pick anything from a connected store and our AI renders it on your fitting profile — fabric drape, fit and proportion held true, not a flat paste-on.",
+    body: "Pick anything from a real shop and the AI puts it on your own photo, with the fabric, fit and shape kept true, not a flat sticker.",
     photo: PHOTOS.lookPinkCoat,
     pill: "Photoreal output",
   },
@@ -35,7 +35,7 @@ const MINI = [
   },
   {
     title: "One reusable profile",
-    body: "Upload photos once; every future try-on reuses them.",
+    body: "Add your photo once; every try-on uses it."
   },
   {
     title: "Shop the original",

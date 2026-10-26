@@ -59,7 +59,7 @@ export default function PhotoPolicyPage() {
 
         <h2>6. Deleting your photos</h2>
         <p>
-          Delete photos from your fitting profile, and remove saved looks, at any time. To delete everything, ask us to delete your
+          Delete your photos, and remove saved looks, at any time. To delete everything, ask us to delete your
           account through the <Link href="/contact?topic=privacy">contact form</Link>.
         </p>
 

@@ -31,12 +31,12 @@ export function FinalCTA() {
             Ready to try it <em>before you buy it?</em>
           </h2>
           <p className="relative mx-auto mt-4 max-w-md text-[16px] text-white/80">
-            Build your fitting profile once. Use it on every product, from every
-            store, every time.
+            Add one photo of yourself once. Then see anything from any shop on TryOnU on you, and buy
+            from the shop itself.
           </p>
           <div className="relative mt-8 flex justify-center">
             <Button href="/try" variant="light" size="lg">
-              Create my fitting profile <span aria-hidden="true">→</span>
+              Start now <span aria-hidden="true">→</span>
             </Button>
           </div>
         </Reveal>

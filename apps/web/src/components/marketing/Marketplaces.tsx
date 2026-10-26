@@ -14,7 +14,7 @@ type CardData = { id: string | null; retailer: string; name: string; price: stri
 const FALLBACK: CardData[] = [
   {
     id: null,
-    retailer: "Amazon",
+    retailer: "AliExpress",
     name: "Cream Knit Poncho",
     price: "$32.00",
     image: PHOTOS.productSweater.src,
@@ -30,9 +30,9 @@ const FALLBACK: CardData[] = [
   },
   {
     id: null,
-    retailer: "Flipkart",
+    retailer: "Local store",
     name: "Rust Bomber Jacket",
-    price: "₹3,499",
+    price: "$39.00",
     image: PHOTOS.productJacket.src,
     href: "https://www.example-retailer.com/rust-bomber-jacket",
   },
@@ -62,7 +62,7 @@ export async function Marketplaces() {
             Same you. <em>More choices.</em>
           </>
         }
-        sub="One fitting profile, every store. Try the look, then buy it from the original retailer — TryOnU never sits between you and checkout."
+        sub="Products come from real shops. Try them on your photo, then buy from the shop itself, at its normal price."
       />
 
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">

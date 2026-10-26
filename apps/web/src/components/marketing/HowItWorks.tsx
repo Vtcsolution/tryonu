@@ -1,36 +1,8 @@
-import Image from "next/image";
 import { Reveal } from "@/components/ui/Reveal";
+import { NOT_A_SHOP, PLAIN_STEPS, PRODUCT_SOURCES } from "@/lib/howItWorks";
 import { Section, SectionHead } from "./primitives";
-import { PHOTOS, type Photo } from "@/lib/media";
 
-type Step = {
-  n: number;
-  title: string;
-  body: string;
-  photo: Photo;
-};
-
-const STEPS: Step[] = [
-  {
-    n: 1,
-    title: "Upload 7–10 photos",
-    body: "Front, side, 45° and full-body shots become one reusable fitting profile.",
-    photo: PHOTOS.portraitWinter,
-  },
-  {
-    n: 2,
-    title: "Pick a product",
-    body: "Browse connected retailers or paste a product link. TryOnU normalises it and queues the try-on.",
-    photo: PHOTOS.clothingRail,
-  },
-  {
-    n: 3,
-    title: "See it & shop it",
-    body: "Compare looks side by side, then click through to buy from the original store.",
-    photo: PHOTOS.lookYellowSet,
-  },
-];
-
+/** Home page: how TryOnU works and where the products come from, in plain words. */
 export function HowItWorks() {
   return (
     <Section id="how" className="bg-paper-2">
@@ -38,53 +10,49 @@ export function HowItWorks() {
         kicker="How it works"
         title={
           <>
-            Three steps. <em>That&rsquo;s it.</em>
+            Four easy steps. <em>That&rsquo;s it.</em>
           </>
         }
-        sub="Your photos become one reusable fitting profile. Pick products, compare looks, then buy from the original marketplace."
+        sub="From your photo to the shop, in about a minute."
       />
 
-      <div className="grid gap-5 md:grid-cols-3">
-        {STEPS.map((s, i) => (
-          <Reveal
-            key={s.n}
-            delay={i * 90}
-            className="flex flex-col overflow-hidden rounded-[24px] border border-line bg-surface"
-          >
-            <div className="flex items-center gap-3 px-5 pt-5 text-[15px] font-semibold text-ink">
-              <span className="grid h-8 w-8 place-items-center rounded-full bg-sage text-white">
-                {s.n}
+      <ol className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {PLAIN_STEPS.map((s, i) => (
+          <li key={s.title} className="list-none">
+            <Reveal delay={i * 80} className="h-full rounded-[22px] border border-line bg-surface p-5">
+              <span className="grid h-10 w-10 place-items-center rounded-full bg-sage text-[17px] font-semibold text-white" aria-hidden="true">
+                {i + 1}
               </span>
-              {s.title}
-            </div>
-            <div className="relative m-5 h-[210px] overflow-hidden rounded-[16px] border border-line">
-              <Image
-                src={s.photo.src}
-                alt={s.photo.alt}
-                fill
-                className="object-cover object-top"
-                sizes="(max-width: 768px) 100vw, 360px"
-              />
-            </div>
-            <p className="px-5 pb-6 text-[14.5px] leading-relaxed text-muted">
-              {s.body}
-            </p>
-          </Reveal>
+              <h3 className="mt-3 text-[18px] font-semibold leading-snug text-ink">{s.title}</h3>
+              <p className="mt-1.5 text-[15.5px] leading-relaxed text-ink-soft">{s.text}</p>
+            </Reveal>
+          </li>
         ))}
-      </div>
+      </ol>
 
-      <Reveal className="mt-10 flex justify-center">
+      <Reveal className="mt-8 rounded-[24px] border border-line bg-surface p-5 md:p-7">
+        <h3 className="font-display text-[24px] leading-tight text-ink">Where do the products come from?</h3>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          {PRODUCT_SOURCES.map((s) => (
+            <div key={s.title} className="rounded-[16px] bg-paper-2 p-4">
+              <p className="text-[16.5px] font-semibold text-ink">{s.title}</p>
+              <p className="mt-1 text-[15px] leading-relaxed text-ink-soft">{s.text}</p>
+            </div>
+          ))}
+        </div>
+        <p className="mt-4 text-[15.5px] font-medium text-ink">{NOT_A_SHOP}</p>
+        <p className="mt-2 text-[15px] text-muted">
+          Have a shop? <a href="/sell" className="text-sage-deep underline">Sell on TryOnU</a>. Have a website?{" "}
+          <a href="/developers" className="text-sage-deep underline">Add a Try it on button</a>.
+        </p>
+      </Reveal>
+
+      <Reveal className="mt-8 flex justify-center">
         <a
           href="/how-it-works"
           className="group inline-flex items-center gap-2 font-display text-[16px] text-sage transition-colors hover:text-sage-deep"
         >
-          See the full flow
-          <span
-            aria-hidden="true"
-            className="transition-transform duration-300 group-hover:translate-x-1"
-          >
-            →
-          </span>
+          See the full guide <span aria-hidden="true" className="transition-transform group-hover:translate-x-1">→</span>
         </a>
       </Reveal>
     </Section>

@@ -101,13 +101,13 @@ export function Hero() {
                 ⇧
               </div>
               <h3 className="text-[17px] font-semibold tracking-[-0.01em] text-ink">
-                Create your fitting profile
+                Add your photo
               </h3>
               <p className="mt-1.5 text-[14px] text-muted">
-                Upload 7–10 clear photos once.
+                One clear photo of you, standing. You do this only once.
               </p>
               <Button href="/try" size="md" className="mt-4 w-full">
-                Create my fitting profile <span aria-hidden="true">→</span>
+                Start with my photo <span aria-hidden="true">→</span>
               </Button>
             </div>
             <div className="my-3.5 flex items-center gap-3 text-[13px] text-faint">

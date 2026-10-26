@@ -46,7 +46,7 @@ export function SignInForm() {
           Sign in to <em>TryOnU</em>
         </>
       }
-      subtitle="Pick up your fitting profile and looks where you left off."
+      subtitle="Your photo and your looks are waiting for you."
       footer={
         <>
           New here?{" "}

@@ -28,30 +28,30 @@ type Step = {
 const STEPS: Step[] = [
   {
     n: "01",
-    title: "Build your fitting profile",
-    body: "Upload 7–10 clear photos — front, sides, 45° and full body. TryOnU turns them into one reusable fitting profile, so you never do this again.",
-    meta: "~2 minutes · one time",
+    title: "Add one photo of yourself",
+    body: "A clear photo of you standing, facing the front. You do this only once, and only you can see it. A side or back photo is optional.",
+    meta: "About 1 minute · one time",
     photo: PHOTOS.portraitWinter,
   },
   {
     n: "02",
-    title: "Choose any product",
-    body: "Browse real products from eBay, AliExpress, brand stores and local shops on TryOnU, or describe what you want to the AI Stylist. Each one comes with its photo, price and a link to the store.",
-    meta: "Any connected retailer",
+    title: "Say what you want",
+    body: "Tap a ready look like \"Pink bridal look\", type what you want in your own words, or upload a photo of an outfit you like. TryOnU then searches real shops for you right away: local shops on TryOnU that deliver to you first, then eBay, AliExpress and brand stores.",
+    meta: "Real products, real shops",
     photo: PHOTOS.clothingRail,
   },
   {
     n: "03",
-    title: "AI renders it on you",
-    body: "The try-on runs as a background job: credits are reserved, the request is queued, an AI worker generates the look, and the result is stored privately. You watch the status update live.",
-    meta: "queued → processing → completed · ~10–30s",
+    title: "See it on you",
+    body: "Press Try it on. In about a minute the AI shows you wearing the products, a single piece or a whole outfit. You can leave the page; your look waits for you. If a try-on fails, your credits come back.",
+    meta: "About 1 minute",
     photo: PHOTOS.lookBlueCoat,
   },
   {
     n: "04",
-    title: "Compare, then shop the original",
-    body: "Line looks up side by side, keep the ones you love, and click straight through to buy from the original retailer. TryOnU never sits between you and checkout.",
-    meta: "Shop Now → original listing",
+    title: "Buy from the shop",
+    body: "Like it? Tap Shop now next to each product to buy it from the shop itself, at its normal price. TryOnU does not sell anything itself. Save the look or share it with friends.",
+    meta: "Shop now → the shop's own page",
     photo: PHOTOS.shoppingBags,
   },
 ];
@@ -81,8 +81,8 @@ export default function HowItWorksPage() {
               From your photo to <em>your cart</em>
             </h1>
             <p className="mx-auto mt-5 max-w-xl text-[17px] leading-relaxed text-muted">
-              One fitting profile. Every store. Real products, rendered on you by
-              AI, in about half a minute.
+              Add your photo, say what you want, and see real products from real shops on you in about a
+              minute. Then buy from the shop itself.
             </p>
             <div className="mt-8 flex justify-center">
               <Button href="/try" size="lg">
