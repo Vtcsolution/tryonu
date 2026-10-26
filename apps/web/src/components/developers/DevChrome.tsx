@@ -1,5 +1,6 @@
 "use client";
 
+import { copyrightLine } from "@/lib/seo";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -176,7 +177,7 @@ export function DevFooter() {
       </div>
       <div className="border-t border-white/10">
         <div className="mx-auto flex w-[min(1280px,calc(100%-32px))] flex-wrap items-center justify-between gap-3 py-5 text-[13px] text-white/45">
-          <span>© {new Date().getFullYear()} TryOnU · Developer platform</span>
+          <span>{copyrightLine()}</span>
           <span className="flex items-center gap-2">
             Light or dark <ThemeToggle />
           </span>

@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function TermsPage() {
   return (
     <ContentPage kicker="Legal" title="Terms of use" intro="The rules for using TryOnU. Please read them before you use the service." narrow>
-      <LegalBody updated="23 October 2026">
+      <LegalBody updated="26 October 2026">
         <p>
           TryOnU (tryonu.app) is operated by <strong>Greatodeal AI Automation Solutions</strong>, Pakistan (&quot;we&quot;, &quot;us&quot;).
         </p>
@@ -86,7 +86,24 @@ export default function TermsPage() {
           harass, impersonate or deceive anyone.
         </p>
 
-        <h2>10. Our responsibility</h2>
+        <h2>10. Our content and brand</h2>
+        <ul>
+          <li>
+            TryOnU, including its design, layout, text, pictures, logo, software and code, belongs to Greatodeal AI Automation
+            Solutions and is protected by copyright and trademark law. &quot;TryOnU&quot; and the TryOnU logo are our trademarks.
+          </li>
+          <li>
+            You may not copy, reproduce, scrape, resell or imitate TryOnU or any part of it, or use our name or logo, without our
+            written permission. This includes building a copy of our website, app or design.
+          </li>
+          <li>
+            We act against copying, including takedown requests to search engines, hosting companies and app stores, and legal
+            action where needed.
+          </li>
+          <li>Products, photos and brands of stores and retailers shown on TryOnU belong to their owners.</li>
+        </ul>
+
+        <h2>11. Our responsibility</h2>
         <p>
           We work hard to keep TryOnU available and accurate, but we provide it &quot;as is&quot; and can&apos;t promise it will always
           be available or error-free. To the extent the law allows, we are not liable for indirect losses, and our total liability is
@@ -94,13 +111,13 @@ export default function TermsPage() {
           can&apos;t be limited.
         </p>
 
-        <h2>11. Changes and ending</h2>
+        <h2>12. Changes and ending</h2>
         <p>
           We may update these terms; for important changes we will tell you before they apply. You can stop using TryOnU at any time
           and ask us to delete your account.
         </p>
 
-        <h2>12. Contact</h2>
+        <h2>13. Contact</h2>
         <p>
           Questions about these terms? <Link href="/contact">Send us a message</Link> or email{" "}
           <a href="mailto:sales@greatodeal.com">sales@greatodeal.com</a>.

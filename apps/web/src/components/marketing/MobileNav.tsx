@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { GROUPS, LEGAL } from "@/components/marketing/navLinks";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { copyrightLine } from "@/lib/seo";
 import { useSession } from "@/lib/auth/useSession";
 
 // a member's own pages: in the "Me" tab, not in the website menu
@@ -111,6 +112,7 @@ export function MobileNav() {
                       </li>
                     ))}
                   </ul>
+                  <p className="mt-2 text-[13px] text-muted">{copyrightLine()}</p>
                 </div>
                 <div className="flex items-center justify-between border-t border-line pt-4">
                   <span className="text-[16.5px] text-ink">Light or dark look</span>

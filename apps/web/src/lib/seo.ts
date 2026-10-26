@@ -16,6 +16,9 @@ export const SITE_DEFINITION =
   "TryOnU (tryonu.app) is an AI virtual try-on and fashion shopping platform: you upload a photo of yourself once, try real clothes, shoes, bags, watches, glasses and jewellery from real online stores on your own photo, then buy each piece from the original store.";
 
 export const SITE_TAGLINE = "Try it. See you. Shop it.";
+/** Who owns TryOnU: the copyright line in every footer and the Terms. */
+export const OWNER = "Greatodeal AI Automation Solutions";
+export const copyrightLine = () => `© ${new Date().getFullYear()} ${OWNER}. TryOnU™ is our trademark. All rights reserved.`;
 
 /** TryOnU's official social accounts: linked from the footer and named in the
  * site's structured data (sameAs), so search engines and AI assistants know

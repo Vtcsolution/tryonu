@@ -1,7 +1,7 @@
 import { isDevPortal } from "@/lib/devLinks";
 import Link from "next/link";
 import { Logo } from "@/components/ui/Logo";
-import { SOCIAL_LINKS, type SocialName } from "@/lib/seo";
+import { SOCIAL_LINKS, copyrightLine, type SocialName } from "@/lib/seo";
 import { LANDINGS } from "@/lib/seoContent";
 import { GROUPS, LEGAL } from "@/components/marketing/navLinks";
 
@@ -82,7 +82,7 @@ export function Footer() {
 
         <div className="mt-8 flex flex-col gap-3 border-t border-line pt-6 text-[13.5px] text-faint lg:flex-row lg:items-center lg:justify-between">
           <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            <span>© {new Date().getFullYear()} TryOnU</span>
+            <span>{copyrightLine()}</span>
             {LEGAL.map((l) => (
               <Link key={l.href} href={l.href} prefetch={false} className="hover:text-ink-soft">
                 {l.label}
