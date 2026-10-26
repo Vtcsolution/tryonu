@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
 from app.core.config import get_settings
-from app.core.deps import CurrentUser, DbSession
+from app.core.deps import CurrentUser, DbSession, OptionalUser
 from app.models.credit import CreditPackage
 from app.models.enums import CreditReason, PaymentStatus
 from app.models.subscription import Payment
@@ -53,10 +53,26 @@ async def pricing():
     return CreditPricingOut(tryon_cost=s.TRYON_CREDIT_COST, outfit_tryon_cost=s.OUTFIT_TRYON_CREDIT_COST)
 
 
+async def has_bought_credits(db: DbSession, user_id: str) -> bool:
+    """Whether this member already paid for credits once (first-purchase offers end then)."""
+    return (
+        await db.scalar(
+            select(Payment.id)
+            .where(Payment.user_id == user_id, Payment.credit_package_id.is_not(None), Payment.status == PaymentStatus.SUCCEEDED)
+            .limit(1)
+        )
+    ) is not None
+
+
 @router.get("/packages", response_model=list[CreditPackageOut])
-async def packages(db: DbSession):
-    result = await db.execute(select(CreditPackage).where(CreditPackage.is_active.is_(True)))
-    return list(result.scalars().all())
+async def packages(db: DbSession, user: OptionalUser):
+    """Credit packs on sale, the first-purchase offer first. A member who has
+    bought before no longer sees the offer; visitors without an account do."""
+    rows = list((await db.execute(select(CreditPackage).where(CreditPackage.is_active.is_(True)))).scalars().all())
+    if user is not None and await has_bought_credits(db, user.id):
+        rows = [p for p in rows if not p.new_members_only]
+    rows.sort(key=lambda p: (not p.new_members_only, p.price_cents))
+    return rows
 
 
 @router.get("/checkout-config")
@@ -82,6 +98,11 @@ async def purchase(payload: PurchaseCreditsRequest, user: CurrentUser, db: DbSes
     package = await db.get(CreditPackage, payload.credit_package_id)
     if package is None or not package.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Credit package not found")
+    if package.new_members_only and await has_bought_credits(db, user.id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This offer is for your first purchase only. Please choose another pack.",
+        )
 
     provider = checkout_provider(gateway, get_payment_provider)
     # the payment row first, so a redirect provider (PayPal) can send the

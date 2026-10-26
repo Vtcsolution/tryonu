@@ -1,5 +1,6 @@
 "use client";
 
+import { FirstOutfitOffer } from "@/components/credits/FirstOutfitOffer";
 import Image from "next/image";
 import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -156,7 +157,8 @@ export function CompareSlider() {
         <p className="mt-3 text-center text-[13.5px] text-muted">
           A real TryOnU try-on of real shop products, shown on an AI-generated model. Prices come live from the shops.
         </p>
-        <Button href="/try" size="lg" className="mt-4 w-full">
+        <FirstOutfitOffer className="mt-4 w-full" />
+        <Button href="/try" size="lg" variant="outline" className="mt-3 w-full">
           Try it on yourself <span aria-hidden="true">→</span>
         </Button>
       </div>

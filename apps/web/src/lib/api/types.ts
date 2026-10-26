@@ -314,6 +314,8 @@ export type CreditPackage = {
   credits: number;
   price_cents: number;
   currency: string;
+  /** a first-purchase offer (the $1 first outfit) */
+  new_members_only?: boolean;
 };
 
 export type SubscriptionPlanId = "starter" | "pro" | "business";
@@ -464,6 +466,7 @@ export type AdminCreditPackage = {
   price_cents: number;
   currency: string;
   is_active: boolean;
+  new_members_only?: boolean;
   created_at: string;
 };
 

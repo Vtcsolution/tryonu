@@ -137,6 +137,7 @@ class AdminCreditPackageOut(ORMModel):
     price_cents: int
     currency: str
     is_active: bool
+    new_members_only: bool = False
     created_at: datetime
 
 
@@ -145,6 +146,7 @@ class AdminCreditPackageCreate(BaseModel):
     credits: int = Field(gt=0, le=1_000_000)
     price_cents: int = Field(gt=0, le=100_000_00)
     currency: str = Field(default="usd", min_length=3, max_length=8)
+    new_members_only: bool = False
 
 
 class AdminCreditPackageUpdate(BaseModel):
@@ -152,6 +154,7 @@ class AdminCreditPackageUpdate(BaseModel):
     credits: int | None = Field(default=None, gt=0, le=1_000_000)
     price_cents: int | None = Field(default=None, gt=0, le=100_000_00)
     is_active: bool | None = None
+    new_members_only: bool | None = None
 
 
 class AdminSystemStatus(BaseModel):

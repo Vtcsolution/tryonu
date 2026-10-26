@@ -59,7 +59,10 @@ export function CreditPackagesTab() {
             tryOnCost && p.credits >= tryOnCost
               ? `${(p.price_cents / 100 / Math.floor(p.credits / tryOnCost)).toFixed(2)} ${p.currency.toUpperCase()}`
               : "—",
-            p.is_active ? <Badge key="s" tone="good">On sale</Badge> : <Badge key="s">Hidden</Badge>,
+            <span key="s" className="flex flex-wrap gap-1">
+              {p.is_active ? <Badge tone="good">On sale</Badge> : <Badge>Hidden</Badge>}
+              {p.new_members_only && <Badge tone="warn">First purchase only</Badge>}
+            </span>,
             <div key="a" className="flex gap-1.5">
               <SmallButton onClick={() => setEditing(p)}>Edit</SmallButton>
               <SmallButton tone={p.is_active ? "danger" : "primary"} disabled={toggle.isPending} onClick={() => toggle.mutate(p)}>
@@ -86,6 +89,7 @@ function PackageForm({
   const [name, setName] = useState(initial?.name ?? "");
   const [credits, setCredits] = useState(initial?.credits.toString() ?? "");
   const [price, setPrice] = useState(initial ? (initial.price_cents / 100).toFixed(2) : "");
+  const [firstOnly, setFirstOnly] = useState(initial?.new_members_only ?? false);
 
   const creditsNum = Number(credits);
   const priceCents = Math.round(Number(price) * 100);
@@ -94,13 +98,14 @@ function PackageForm({
   const save = useMutation({
     mutationFn: () =>
       initial
-        ? adminApi.updateCreditPackage(initial.id, { name: name.trim(), credits: creditsNum, price_cents: priceCents })
-        : adminApi.createCreditPackage({ name: name.trim(), credits: creditsNum, price_cents: priceCents }),
+        ? adminApi.updateCreditPackage(initial.id, { name: name.trim(), credits: creditsNum, price_cents: priceCents, new_members_only: firstOnly })
+        : adminApi.createCreditPackage({ name: name.trim(), credits: creditsNum, price_cents: priceCents, new_members_only: firstOnly }),
     onSuccess: () => {
       if (!initial) {
         setName("");
         setCredits("");
         setPrice("");
+        setFirstOnly(false);
       }
       onDone();
     },
@@ -135,6 +140,10 @@ function PackageForm({
           placeholder="Price (USD)"
           className={`${inputClass} w-32`}
         />
+        <label className="flex min-h-[40px] items-center gap-2 text-[14px] text-ink" title="Only members who never bought credits can see and buy it">
+          <input type="checkbox" checked={firstOnly} onChange={(e) => setFirstOnly(e.target.checked)} className="h-4 w-4 accent-[var(--color-sage)]" />
+          First purchase only (new members)
+        </label>
         <SmallButton type="submit" tone="primary" disabled={!valid || save.isPending}>
           {save.isPending ? "Saving…" : initial ? "Save changes" : "Create"}
         </SmallButton>

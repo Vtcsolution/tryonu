@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { FirstOutfitOffer } from "@/components/credits/FirstOutfitOffer";
 import { Reveal } from "@/components/ui/Reveal";
 import { Button } from "@/components/ui/Button";
 import { PHOTOS } from "@/lib/media";
@@ -34,7 +35,8 @@ export function FinalCTA() {
             Add one photo of yourself once. Then see anything from any shop on TryOnU on you, and buy
             from the shop itself.
           </p>
-          <div className="relative mt-8 flex justify-center">
+          <div className="relative mt-8 flex flex-wrap justify-center gap-3">
+            <FirstOutfitOffer variant="light" />
             <Button href="/try" variant="light" size="lg">
               Start now <span aria-hidden="true">→</span>
             </Button>

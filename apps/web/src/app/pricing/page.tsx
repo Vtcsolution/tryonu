@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FirstOutfitOffer } from "@/components/credits/FirstOutfitOffer";
 import { ContentPage, InfoCard, SectionTitle, cardGrid } from "@/components/content/ContentPage";
 import { formatPrice } from "@/components/try/shop";
 import { Button } from "@/components/ui/Button";
@@ -38,6 +39,7 @@ export default async function PricingPage() {
       >
         Credits for shoppers
       </SectionTitle>
+      <FirstOutfitOffer variant="banner" className="mb-6" />
       {sortedPacks.length > 0 ? (
         <div className={cardGrid(sortedPacks.length)}>
           {sortedPacks.map((p, i) => (

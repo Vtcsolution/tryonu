@@ -239,11 +239,11 @@ export const admin = {
     apiFetch<AdminRetailer[]>(`/api/v1/admin/retailers/${slug}`, { method: "PATCH", body: input }),
 
   creditPackages: () => apiFetch<AdminCreditPackage[]>("/api/v1/admin/credit-packages"),
-  createCreditPackage: (input: { name: string; credits: number; price_cents: number; currency?: string }) =>
+  createCreditPackage: (input: { name: string; credits: number; price_cents: number; currency?: string; new_members_only?: boolean }) =>
     apiFetch<AdminCreditPackage>("/api/v1/admin/credit-packages", { method: "POST", body: input }),
   updateCreditPackage: (
     packageId: string,
-    input: { name?: string; credits?: number; price_cents?: number; is_active?: boolean },
+    input: { name?: string; credits?: number; price_cents?: number; is_active?: boolean; new_members_only?: boolean },
   ) => apiFetch<AdminCreditPackage>(`/api/v1/admin/credit-packages/${packageId}`, { method: "PATCH", body: input }),
 
   affiliateClicks: (params: { limit?: number; offset?: number } = {}) =>

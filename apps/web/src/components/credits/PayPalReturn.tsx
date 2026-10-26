@@ -65,6 +65,7 @@ export function PayPalReturn() {
         });
         qc.invalidateQueries({ queryKey: SESSION_QUERY_KEY });
         qc.invalidateQueries({ queryKey: ["credit-history"] });
+        qc.invalidateQueries({ queryKey: ["credit-packages"] }); // a first-purchase offer ends now
       } else if (res.status === "pending") {
         if (attempts.current < 15) {
           attempts.current += 1;

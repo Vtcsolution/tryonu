@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { FirstOutfitOffer } from "@/components/credits/FirstOutfitOffer";
 import { CheckIcon } from "@/components/ui/Icons";
 import { Reveal } from "@/components/ui/Reveal";
 import { Button } from "@/components/ui/Button";
@@ -46,6 +47,8 @@ export function Hero() {
               ↗ Affiliate powered
             </span>
           </div>
+
+          <FirstOutfitOffer className="mt-7" />
 
           <ul className="mt-7 flex flex-wrap gap-x-6 gap-y-2 text-[14px] text-ink-soft">
             {TICKS.map((t) => (

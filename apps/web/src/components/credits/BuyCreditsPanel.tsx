@@ -27,10 +27,17 @@ export function BuyCreditsPanel() {
   }, [sessionLoading, user, router]);
 
   const packagesQuery = useQuery({
-    queryKey: ["credit-packages"],
+    queryKey: ["credit-packages", user?.id ?? "visitor"],
     queryFn: creditsApi.packages,
     enabled: !!user,
   });
+  // from a "$1 complete outfit" button (?offer=1): that pack is chosen already
+  useEffect(() => {
+    if (selected || !packagesQuery.data) return;
+    if (new URLSearchParams(window.location.search).get("offer") !== "1") return;
+    const offer = packagesQuery.data.find((p) => p.new_members_only);
+    if (offer) setSelected(offer);
+  }, [packagesQuery.data, selected]);
 
   const pricingQuery = useQuery({ queryKey: ["credit-pricing"], queryFn: creditsApi.pricing });
   const tryOnCost = pricingQuery.data
@@ -56,6 +63,7 @@ export function BuyCreditsPanel() {
       if (res.status === "succeeded") {
         qc.invalidateQueries({ queryKey: SESSION_QUERY_KEY });
         qc.invalidateQueries({ queryKey: ["credit-history"] });
+        qc.invalidateQueries({ queryKey: ["credit-packages"] }); // a first-purchase offer ends now
       } else if (res.checkout_url) {
         // PayPal: pay on PayPal's page; it sends the shopper back to /credits/paypal,
         // which then offers to continue where they were (?next=)
@@ -109,7 +117,7 @@ export function BuyCreditsPanel() {
       )}
 
       {packagesQuery.data && packagesQuery.data.length > 0 && (
-        <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {packagesQuery.data.map((pkg) => (
             <button
               key={pkg.id}
@@ -119,10 +127,15 @@ export function BuyCreditsPanel() {
                 setNeedsCardConfirmation(false);
                 purchase.reset();
               }}
-              className={`rounded-[20px] border p-5 text-left transition-colors ${
+              className={`relative rounded-[20px] border p-5 text-left transition-colors ${
                 selected?.id === pkg.id ? "border-sage ring-2 ring-sage/30" : "border-line hover:border-line-strong"
-              }`}
+              } ${pkg.new_members_only ? "tu-attention bg-sage-tint/30" : ""}`}
             >
+              {pkg.new_members_only && (
+                <span className="mb-2 inline-block rounded-full bg-sage px-2.5 py-1 text-[12px] font-semibold text-white">
+                  New members · first purchase only
+                </span>
+              )}
               <p className="font-display text-[20px] text-ink">{pkg.credits} credits</p>
               <p className="mt-1 text-[16px] text-muted">
                 {(pkg.price_cents / 100).toFixed(2)} {pkg.currency.toUpperCase()}

@@ -1,5 +1,6 @@
 "use client";
 
+import { FirstOutfitOffer, useFirstOffer } from "@/components/credits/FirstOutfitOffer";
 import { CheckIcon, XIcon } from "@/components/ui/Icons";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
@@ -329,9 +330,10 @@ export function TryFlow() {
   });
 
   // "Buy credits" comes back here afterwards, with the same products selected
-  const buyHref = `/credits?next=${encodeURIComponent(
-    outfit ? `/try?outfit=${outfit.id}` : product ? `/try?product=${product.id}` : "/try",
-  )}`;
+  const tryOnReturnPath = outfit ? `/try?outfit=${outfit.id}` : product ? `/try?product=${product.id}` : "/try";
+  const buyHref = `/credits?next=${encodeURIComponent(tryOnReturnPath)}`;
+  // the $1 first-outfit offer, while this member can still buy it
+  const firstOffer = useFirstOffer();
 
   // a TryOnU store paying for this try-on (the shopper chooses: free and shared, or private)
   const sponsorTarget = !customItem && !(multiAngle && canMultiAngle) ? (outfit ? { outfit_id: outfit.id } : product ? { product_id: product.id } : null) : null;
@@ -1106,9 +1108,13 @@ export function TryFlow() {
 
           <div className="mt-8 flex flex-wrap items-center gap-4">
             {sponsorName ? null : shortOfCredits && (product || outfit || customItem) ? (
-              <Button size="md" href={buyHref}>
-                Buy credits to try this on <span aria-hidden="true">→</span>
-              </Button>
+              firstOffer ? (
+                <FirstOutfitOffer next={tryOnReturnPath} />
+              ) : (
+                <Button size="md" href={buyHref}>
+                  Buy credits to try this on <span aria-hidden="true">→</span>
+                </Button>
+              )
             ) : (
             <Button
               size="md"

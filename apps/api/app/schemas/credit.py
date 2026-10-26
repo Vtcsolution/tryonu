@@ -29,6 +29,7 @@ class CreditPackageOut(ORMModel):
     credits: int
     price_cents: int
     currency: str
+    new_members_only: bool = False
 
 
 class CreditPricingOut(BaseModel):

@@ -45,3 +45,6 @@ class CreditPackage(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     price_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     currency: Mapped[str] = mapped_column(String(8), default="usd", nullable=False)
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
+    # a first-purchase offer (the $1 first outfit): shown and sold only to a
+    # member who has never bought credits
+    new_members_only: Mapped[bool] = mapped_column(default=False, server_default="0", nullable=False)
