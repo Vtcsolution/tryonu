@@ -11,24 +11,51 @@ import { showcase, type ShowcaseItem } from "@/lib/api/endpoints";
 
 /**
  * Interactive before/after wipe: one model, before and after a real TryOnU
- * try-on of real shop products (public/showcase). The model is AI-generated in
- * a studio, not a real customer, so the caption says so. Both pictures are
- * framed on the same head and feet, so the wipe lines up.
+ * try-on of real shop products (public/showcase). The models are AI-generated in
+ * a studio, not real customers, so the caption says so. Each pair is framed on
+ * the same face and feet, so the wipe lines up. Winter looks for women, men and
+ * children; the products under the picture come live from the shops
+ * (GET /api/v1/showcase/look?look=...), and these saved details only show until
+ * that answers.
  */
-const BEFORE = { src: "/showcase/studio-before.jpg", alt: "Before: a model in a white T-shirt, light-blue jeans and white sneakers" };
-const AFTER = {
-  src: "/showcase/studio-after.jpg",
-  alt: "After a TryOnU try-on: the same model in a camel double-breasted coat, a black midi dress, black ankle boots and a leather bag",
+export type LookId = "women" | "men" | "kids";
+
+const LOOKS: Record<LookId, { before: string; after: string; beforeAlt: string; afterAlt: string; placeholder: ShowcaseItem[] }> = {
+  women: {
+    before: "/showcase/studio-before.jpg",
+    after: "/showcase/studio-after.jpg",
+    beforeAlt: "Before: a model in a white T-shirt, light-blue jeans and white sneakers",
+    afterAlt: "After a TryOnU try-on: the same model in a camel double-breasted coat, a black midi dress, black ankle boots and a leather bag",
+    placeholder: [
+      { name: "Camel double-breasted long coat", shop: "eBay", price_cents: 5769, currency: "usd", image_url: "https://i.ebayimg.com/images/g/za0AAeSwp0RpSKM2/s-l1600.jpg", buy_url: "" },
+      { name: "Naturalizer black leather ankle boots", shop: "eBay", price_cents: 4999, currency: "usd", image_url: "https://i.ebayimg.com/images/g/AOQAAeSw3JVq2UD~/s-l1600.jpg", buy_url: "" },
+      { name: "Chloé leather bracelet bag", shop: "Giglio", price_cents: 146250, currency: "gbp", image_url: "https://img.giglio.com/images/prodZoom/I31201.032_1.jpg", buy_url: "" },
+    ],
+  },
+  men: {
+    before: "/showcase/men-before.jpg",
+    after: "/showcase/men-after.jpg",
+    beforeAlt: "Before: a male model in a white T-shirt, grey trousers and white sneakers",
+    afterAlt: "After a TryOnU try-on: the same model in a charcoal wool overcoat, a cream cable-knit sweater, a navy wool scarf and brown Chelsea boots",
+    placeholder: [
+      { name: "Charcoal wool double-breasted overcoat", shop: "eBay", price_cents: 12000, currency: "usd", image_url: "https://i.ebayimg.com/images/g/C1UAAeSwSiVq3lsJ/s-l1600.jpg", buy_url: "" },
+      { name: "Polo Ralph Lauren cable-knit sweater", shop: "eBay", price_cents: 9600, currency: "usd", image_url: "https://i.ebayimg.com/images/g/9sAAAeSwV71qwA-P/s-l1600.jpg", buy_url: "" },
+      { name: "Maison Margiela ribbed wool scarf", shop: "Giglio", price_cents: 22500, currency: "gbp", image_url: "https://img.giglio.com/images/prodZoom/I24007.045_1.jpg", buy_url: "" },
+      { name: "Brown leather Chelsea boots", shop: "eBay", price_cents: 17546, currency: "usd", image_url: "https://i.ebayimg.com/images/g/oI0AAeSwRfNq0Le8/s-l1600.jpg", buy_url: "" },
+    ],
+  },
+  kids: {
+    before: "/showcase/kids-before.jpg",
+    after: "/showcase/kids-after.jpg",
+    beforeAlt: "Before: a child in a white long-sleeve T-shirt, jeans and white sneakers",
+    afterAlt: "After a TryOnU try-on: the same child in a red hooded puffer jacket, a white knit beanie and black snow boots",
+    placeholder: [
+      { name: "Red hooded puffer jacket", shop: "eBay", price_cents: 1099, currency: "usd", image_url: "https://i.ebayimg.com/images/g/vu4AAeSwrGFq0QQI/s-l1600.jpg", buy_url: "" },
+      { name: "Carhartt kids knit beanie", shop: "eBay", price_cents: 2999, currency: "usd", image_url: "https://i.ebayimg.com/images/g/9h0AAeSwtbBq32GM/s-l1600.jpg", buy_url: "" },
+      { name: "Waterproof winter snow boots", shop: "eBay", price_cents: 2499, currency: "usd", image_url: "https://i.ebayimg.com/images/g/dOgAAOSwnB5nGbff/s-l1600.jpg", buy_url: "" },
+    ],
+  },
 };
-// the real shop products in the "after" picture, fetched live from the shops
-// through TryOnU (GET /api/v1/showcase/look). These saved details only show
-// until that answers.
-const PLACEHOLDER: ShowcaseItem[] = [
-  { name: "Max Mara jersey midi dress", shop: "Giglio", price_cents: 24000, currency: "gbp", image_url: "https://img.giglio.com/images/prodZoom/I35070.002_1.jpg", buy_url: "" },
-  { name: "Camel double-breasted long coat", shop: "eBay", price_cents: 5769, currency: "usd", image_url: "https://i.ebayimg.com/images/g/za0AAeSwp0RpSKM2/s-l1600.jpg", buy_url: "" },
-  { name: "Naturalizer black leather ankle boots", shop: "eBay", price_cents: 4999, currency: "usd", image_url: "https://i.ebayimg.com/images/g/AOQAAeSw3JVq2UD~/s-l1600.jpg", buy_url: "" },
-  { name: "Chloé leather bracelet bag", shop: "Giglio", price_cents: 146250, currency: "gbp", image_url: "https://img.giglio.com/images/prodZoom/I31201.032_1.jpg", buy_url: "" },
-];
 
 function LookThumb({ src, alt }: { src: string; alt: string }) {
   const [url, setUrl] = useState(relayedImageUrl(src, 240));
@@ -38,10 +65,16 @@ function LookThumb({ src, alt }: { src: string; alt: string }) {
   );
 }
 
-export function CompareSlider() {
+export function CompareSlider({ look: lookId = "women" }: { look?: LookId }) {
+  const L = LOOKS[lookId];
   const [pos, setPos] = useState(50);
-  const look = useQuery({ queryKey: ["showcase", "look"], queryFn: showcase.look, placeholderData: PLACEHOLDER, staleTime: 30 * 60_000 });
-  const items = look.data ?? PLACEHOLDER;
+  const live = useQuery({
+    queryKey: ["showcase", "look", lookId],
+    queryFn: () => showcase.look(lookId),
+    placeholderData: L.placeholder,
+    staleTime: 30 * 60_000,
+  });
+  const items = live.data ?? L.placeholder;
   // the more of the "after" picture is showing, the more the products stand out
   const afterShown = pos <= 55;
   const id = useId();
@@ -65,8 +98,8 @@ export function CompareSlider() {
       >
         {/* result (base) */}
         <Image
-          src={AFTER.src}
-          alt={AFTER.alt}
+          src={L.after}
+          alt={L.afterAlt}
           fill
           className="object-cover"
           sizes="(max-width: 500px) 100vw, 560px"
@@ -82,8 +115,8 @@ export function CompareSlider() {
             style={{ width: frameWidth ? `${frameWidth}px` : "100%" }}
           >
             <Image
-              src={BEFORE.src}
-              alt={BEFORE.alt}
+              src={L.before}
+              alt={L.beforeAlt}
               fill
               className="object-cover"
               sizes="(max-width: 500px) 100vw, 560px"

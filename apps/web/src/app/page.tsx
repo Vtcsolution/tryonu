@@ -2,7 +2,7 @@ import { SiteChrome } from "@/components/layout/SiteChrome";
 import { Hero } from "@/components/marketing/Hero";
 import { TrustedBand } from "@/components/marketing/TrustedBand";
 import { Section, SectionHead } from "@/components/marketing/primitives";
-import { CompareSlider } from "@/components/marketing/CompareSlider";
+import { ShowcaseTabs } from "@/components/marketing/ShowcaseLooks";
 import { Features } from "@/components/marketing/Features";
 import { Marketplaces } from "@/components/marketing/Marketplaces";
 import { HowItWorks } from "@/components/marketing/HowItWorks";
@@ -88,7 +88,7 @@ export default async function HomePage() {
           }
           sub="The same person, before and after. Drag the line to compare."
         />
-        <CompareSlider />
+        <ShowcaseTabs />
       </Section>
 
       <FindLookPromo />

@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { ShowcaseSection } from "@/components/marketing/ShowcaseLooks";
 import Link from "next/link";
 import { SiteChrome } from "@/components/layout/SiteChrome";
 import { Reveal } from "@/components/ui/Reveal";
@@ -218,6 +219,10 @@ export default function HowItWorksPage() {
           ))}
         </div>
       </Section>
+
+      <div className="tu-container pb-20">
+        <ShowcaseSection look="men" />
+      </div>
 
       {/* cta */}
       <section className="pb-24">

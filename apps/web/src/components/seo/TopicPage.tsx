@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { ShowcaseSection } from "@/components/marketing/ShowcaseLooks";
+import type { LookId } from "@/components/marketing/CompareSlider";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ContentPage, InfoCard, SectionTitle, Steps } from "@/components/content/ContentPage";
@@ -15,6 +17,17 @@ export function topicMetadata(slug: string): Metadata {
 
 /** A topic page (virtual try-on, bridal try-on, Shopify…): the direct answer
  * first, then benefits, steps, questions and a clear next step. */
+// which before/after look each shopper topic page shows (winter looks)
+const SHOWCASE: Record<string, LookId> = {
+  "virtual-try-on": "men",
+  "ai-outfit-try-on": "women",
+  "virtual-fitting-room": "kids",
+  "ai-personal-stylist": "women",
+  "ai-clothes-changer": "men",
+  "virtual-try-on-app": "kids",
+  "virtual-try-on-pakistan": "men",
+};
+
 export function TopicPage({ slug }: { slug: string }) {
   const l = LANDINGS_BY_SLUG[slug];
   if (!l) notFound();
@@ -53,6 +66,8 @@ export function TopicPage({ slug }: { slug: string }) {
           </Button>
         </div>
       </div>
+
+      {SHOWCASE[l.slug] && <ShowcaseSection look={SHOWCASE[l.slug]} className="mt-14" />}
 
       <div className="mt-14">
         <SectionTitle>Why use TryOnU</SectionTitle>

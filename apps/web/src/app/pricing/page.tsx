@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ShowcaseSection } from "@/components/marketing/ShowcaseLooks";
 import { FirstOutfitOffer } from "@/components/credits/FirstOutfitOffer";
 import { ContentPage, InfoCard, SectionTitle, cardGrid } from "@/components/content/ContentPage";
 import { formatPrice } from "@/components/try/shop";
@@ -113,6 +114,8 @@ export default async function PricingPage() {
           </div>
         </div>
       )}
+
+      <ShowcaseSection look="kids" className="mt-16" />
 
       <div className="mt-16">
         <SectionTitle>For developers</SectionTitle>

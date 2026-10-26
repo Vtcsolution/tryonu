@@ -17,22 +17,50 @@ from app.core.logging import logger
 
 router = APIRouter(prefix="/showcase", tags=["showcase"])
 
-# what the model in public/showcase/studio-after.jpg wears: the shop, its
-# product id, and the search that finds it again
-LOOK: list[dict] = [
-    {"name": "Max Mara jersey midi dress", "shop": "Giglio", "r": "rakuten", "id": "13639623", "q": "women black midi dress",
-     "price_cents": 24000, "currency": "gbp", "image": "https://img.giglio.com/images/prodZoom/I35070.002_1.jpg"},
-    {"name": "Camel double-breasted long coat", "shop": "eBay", "r": "ebay", "id": "v1|397232866979|665629854938",
-     "q": "women camel wool long coat", "price_cents": 5769, "currency": "usd",
-     "image": "https://i.ebayimg.com/images/g/za0AAeSwp0RpSKM2/s-l1600.jpg"},
-    {"name": "Naturalizer black leather ankle boots", "shop": "eBay", "r": "ebay", "id": "v1|278445526745|2561029494610",
-     "q": "women black leather ankle boots", "price_cents": 4999, "currency": "usd",
-     "image": "https://i.ebayimg.com/images/g/AOQAAeSw3JVq2UD~/s-l1600.jpg"},
-    {"name": "Chloé leather bracelet bag", "shop": "Giglio", "r": "rakuten", "id": "13617007", "q": "women tan leather handbag",
-     "price_cents": 146250, "currency": "gbp", "image": "https://img.giglio.com/images/prodZoom/I31201.032_1.jpg"},
-]
+# what each model in public/showcase/*-after.jpg wears (winter looks): the shop,
+# its product id, and the search that finds it again
+LOOKS: dict[str, list[dict]] = {
+    "women": [
+        {"name": "Max Mara jersey midi dress", "shop": "Giglio", "r": "rakuten", "id": "13639623", "q": "women black midi dress",
+         "price_cents": 24000, "currency": "gbp", "image": "https://img.giglio.com/images/prodZoom/I35070.002_1.jpg"},
+        {"name": "Camel double-breasted long coat", "shop": "eBay", "r": "ebay", "id": "v1|397232866979|665629854938",
+         "q": "women camel wool long coat", "price_cents": 5769, "currency": "usd",
+         "image": "https://i.ebayimg.com/images/g/za0AAeSwp0RpSKM2/s-l1600.jpg"},
+        {"name": "Naturalizer black leather ankle boots", "shop": "eBay", "r": "ebay", "id": "v1|278445526745|2561029494610",
+         "q": "women black leather ankle boots", "price_cents": 4999, "currency": "usd",
+         "image": "https://i.ebayimg.com/images/g/AOQAAeSw3JVq2UD~/s-l1600.jpg"},
+        {"name": "Chloé leather bracelet bag", "shop": "Giglio", "r": "rakuten", "id": "13617007", "q": "women tan leather handbag",
+         "price_cents": 146250, "currency": "gbp", "image": "https://img.giglio.com/images/prodZoom/I31201.032_1.jpg"},
+    ],
+    "men": [
+        {"name": "Charcoal wool double-breasted overcoat", "shop": "eBay", "r": "ebay", "id": "v1|820277076408|0",
+         "q": "men charcoal wool overcoat", "price_cents": 12000, "currency": "usd",
+         "image": "https://i.ebayimg.com/images/g/C1UAAeSwSiVq3lsJ/s-l1600.jpg"},
+        {"name": "Polo Ralph Lauren cable-knit sweater", "shop": "eBay", "r": "ebay", "id": "v1|920001928938|0",
+         "q": "men cream cable knit sweater", "price_cents": 9600, "currency": "usd",
+         "image": "https://i.ebayimg.com/images/g/9sAAAeSwV71qwA-P/s-l1600.jpg"},
+        {"name": "Maison Margiela ribbed wool scarf", "shop": "Giglio", "r": "rakuten", "id": "13578990",
+         "q": "men grey wool scarf", "price_cents": 22500, "currency": "gbp",
+         "image": "https://img.giglio.com/images/prodZoom/I24007.045_1.jpg"},
+        {"name": "Brown leather Chelsea boots", "shop": "eBay", "r": "ebay", "id": "v1|336845329467|546159154638",
+         "q": "men brown leather chelsea boots", "price_cents": 17546, "currency": "usd",
+         "image": "https://i.ebayimg.com/images/g/oI0AAeSwRfNq0Le8/s-l1600.jpg"},
+    ],
+    "kids": [
+        {"name": "Red hooded puffer jacket", "shop": "eBay", "r": "ebay", "id": "v1|407292784171|0",
+         "q": "kids red puffer jacket", "price_cents": 1099, "currency": "usd",
+         "image": "https://i.ebayimg.com/images/g/vu4AAeSwrGFq0QQI/s-l1600.jpg"},
+        {"name": "Carhartt kids knit beanie", "shop": "eBay", "r": "ebay", "id": "v1|800840922201|0",
+         "q": "kids knit beanie hat", "price_cents": 2999, "currency": "usd",
+         "image": "https://i.ebayimg.com/images/g/9h0AAeSwtbBq32GM/s-l1600.jpg"},
+        {"name": "Waterproof winter snow boots", "shop": "eBay", "r": "ebay", "id": "v1|303332402464|602417280993",
+         "q": "boys black winter boots", "price_cents": 2499, "currency": "usd",
+         "image": "https://i.ebayimg.com/images/g/dOgAAOSwnB5nGbff/s-l1600.jpg"},
+    ],
+}
+LOOK = LOOKS["women"]
 _CACHE_SECONDS = 6 * 3600
-_cache: tuple[float, list[ShowcaseItem]] | None = None
+_cache: dict[str, tuple[float, list[ShowcaseItem]]] = {}
 
 
 class ShowcaseItem(BaseModel):
@@ -71,20 +99,24 @@ async def _fresh(item: dict) -> ShowcaseItem | None:
 
 
 @router.get("/look", response_model=list[ShowcaseItem])
-async def showcase_look():
-    """The products in the home page's example look, as the shops sell them now."""
-    global _cache  # noqa: PLW0603 - one small per-process cache
-    if _cache and time.monotonic() - _cache[0] < _CACHE_SECONDS:
-        return _cache[1]
-    found = await asyncio.gather(*(_fresh(item) for item in LOOK))
+async def showcase_look(look: str = "women"):
+    """The products in one of the example looks (women, men, kids), as the shops sell them now."""
+    from fastapi import HTTPException, status
+
+    items_spec = LOOKS.get(look)
+    if items_spec is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown look")
+    cached = _cache.get(look)
+    if cached and time.monotonic() - cached[0] < _CACHE_SECONDS:
+        return cached[1]
+    found = await asyncio.gather(*(_fresh(item) for item in items_spec))
     items = [i for i in found if i is not None]
     if not items:
         # no shop answered (keys missing, network): the saved details, links still work
-        items = [
+        return [  # not cached: try the shops again next time
             ShowcaseItem(name=i["name"], shop=i["shop"], price_cents=i["price_cents"], currency=i["currency"],
                          image_url=i["image"], buy_url=_buy_url(i))
-            for i in LOOK
+            for i in items_spec
         ]
-        return items  # not cached: try the shops again next time
-    _cache = (time.monotonic(), items)
+    _cache[look] = (time.monotonic(), items)
     return items

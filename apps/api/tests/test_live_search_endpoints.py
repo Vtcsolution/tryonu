@@ -122,7 +122,10 @@ async def test_the_home_example_look_lists_its_products_with_live_prices(client,
         return LiveSearchResult(provider=_FakeEbayProvider(), raw=_raw(retailer_product_id))
 
     monkeypatch.setattr("app.services.live_search_service.find_live_result", fake_find_live_result)
-    monkeypatch.setattr(showcase, "_cache", None)
+    monkeypatch.setattr(showcase, "_cache", {})
     items = (await client.get("/api/v1/showcase/look")).json()
     assert [i["name"] for i in items] == [x["name"] for x in showcase.LOOK[1:]]
     assert items[0]["price_cents"] == 3000 and "/api/v1/affiliate/live?" in items[0]["buy_url"]
+    men = (await client.get("/api/v1/showcase/look", params={"look": "men"})).json()
+    assert [i["name"] for i in men] == [x["name"] for x in showcase.LOOKS["men"]]
+    assert (await client.get("/api/v1/showcase/look", params={"look": "nope"})).status_code == 404

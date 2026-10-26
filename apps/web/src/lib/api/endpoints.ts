@@ -1056,5 +1056,5 @@ export const adminDevelopers = {
 /** the home page's example look: its real shop products, live from the shops */
 export type ShowcaseItem = { name: string; shop: string; price_cents: number; currency: string; image_url: string; buy_url: string };
 export const showcase = {
-  look: () => apiFetch<ShowcaseItem[]>("/api/v1/showcase/look"),
+  look: (look: "women" | "men" | "kids" = "women") => apiFetch<ShowcaseItem[]>(`/api/v1/showcase/look?look=${look}`),
 };
