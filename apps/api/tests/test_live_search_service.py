@@ -310,3 +310,23 @@ async def test_a_short_query_is_only_asked_once(monkeypatch):
     monkeypatch.setattr("app.services.live_search_service.get_all_providers", lambda: [counting])
     assert await find_live_result("blue denim jacket", retailer_slug="a", retailer_product_id="a1") is None
     assert counting.asked == ["blue denim jacket"]
+
+
+async def test_a_product_with_no_price_is_never_shown():
+    """A price of 0 is a shop's missing data ("£0.00" looked broken), not a free product."""
+    from app.retailers.base import RawProduct
+    from app.services.live_search_service import _ask
+
+    class Shop:
+        slug = "admitad"
+
+        async def search_live(self, *, query: str, limit: int = 24):  # noqa: ARG002
+            return [
+                RawProduct(retailer_product_id="a", name="Leather Loafers", price_cents=0, currency="gbp",
+                           product_url="https://shop.example/a", images=["https://shop.example/a.jpg"]),
+                RawProduct(retailer_product_id="b", name="Leather Loafers Brown", price_cents=8900, currency="gbp",
+                           product_url="https://shop.example/b", images=["https://shop.example/b.jpg"]),
+            ]
+
+    found = await _ask(Shop(), "loafers", 10)  # type: ignore[arg-type]
+    assert [r.raw.retailer_product_id for r in found] == ["b"]

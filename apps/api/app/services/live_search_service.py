@@ -271,7 +271,8 @@ async def _ask(provider: ProductProvider, query: str, limit: int) -> list[LiveSe
     except Exception as exc:  # noqa: BLE001 — one bad retailer must not break the whole search
         logger.warning("live_search_provider_failed", retailer=provider.slug, error=str(exc))
         return []
-    return [LiveSearchResult(provider=provider, raw=raw) for raw in found]
+    # a price of 0 is a shop's missing data, never a free product ("£0.00" looked broken)
+    return [LiveSearchResult(provider=provider, raw=raw) for raw in found if (raw.price_cents or 0) > 0]
 
 
 async def live_search(query: str, *, limit: int = 24) -> list[LiveSearchResult]:

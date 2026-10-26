@@ -151,10 +151,16 @@ export function TryFlow() {
   // own catalog — nothing here is a locally stored product until a user
   // actually picks one (see selectLive below).
   const [browseQuery, setBrowseQuery] = useState("");
+  // searched once the shopper stops typing, not on every letter
+  const [searchedQuery, setSearchedQuery] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setSearchedQuery(browseQuery.trim()), 500);
+    return () => clearTimeout(t);
+  }, [browseQuery]);
   const liveSearchQuery = useQuery({
-    queryKey: ["search", "live", browseQuery],
-    queryFn: () => liveSearchApi.search(browseQuery.trim(), 12),
-    enabled: step === 1 && browseQuery.trim().length > 1,
+    queryKey: ["search", "live", searchedQuery],
+    queryFn: () => liveSearchApi.search(searchedQuery, 12),
+    enabled: step === 1 && searchedQuery.length > 1,
   });
 
   // The one place a browsed (not AI-picked) item becomes a real, saved
@@ -864,7 +870,7 @@ export function TryFlow() {
 
           <div className="mt-8 flex items-center gap-3 text-[13px] text-faint">
             <span className="h-px flex-1 bg-line" />
-            or search for something specific
+            or search any product or brand
             <span className="h-px flex-1 bg-line" />
           </div>
 
@@ -873,8 +879,9 @@ export function TryFlow() {
               type="text"
               value={browseQuery}
               onChange={(e) => setBrowseQuery(e.target.value)}
-              placeholder="e.g. blue denim jacket"
-              className="h-11 min-w-0 flex-1 rounded-xl border border-line-strong bg-paper px-3.5 text-[15px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25"
+              placeholder="e.g. Gucci loafers, Khaadi lawn suit, gold jhumka"
+              aria-label="Search any product or brand"
+              className="h-12 min-w-0 flex-1 rounded-xl border border-line-strong bg-paper px-3.5 text-[15.5px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25"
             />
             <Link
               href="/find-look"
@@ -887,8 +894,7 @@ export function TryFlow() {
             </Link>
           </div>
           <p className="mt-2 text-[12.5px] text-faint">
-            Pulled live from connected retailers every time you search — nothing here is stored
-            until you pick one.
+            Results come live from real shops. Tap one to try it on.
           </p>
 
           <div className="mt-4">

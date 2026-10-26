@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProductCard } from "@/components/product/ProductCard";
 import { RECOMMENDED, fromTryOnUStore, shopName } from "@/components/try/shop";
 import { ApiError, affiliateGoUrl, mediaThumb, resolveMediaUrl } from "@/lib/api/client";
-import { community, lens, outfits, products as productsApi, type LensItem, type LensMatch, type LensResult } from "@/lib/api/endpoints";
+import { community, lens, liveSearch, outfits, products as productsApi, type LensItem, type LensMatch, type LensResult } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
 import { LensIcon } from "@/components/lens/LensIcon";
 import { XIcon } from "@/components/ui/Icons";
@@ -273,11 +273,29 @@ function Results({ result, onAgain }: { result: LensResult; onAgain: () => void 
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const item: LensItem | undefined = result.items[active];
+  // the shopper's own search (any product or brand), shown in place of the matches
+  const [searchText, setSearchText] = useState("");
+  const [searched, setSearched] = useState("");
+  const own = useQuery({
+    queryKey: ["search", "live", searched, 24],
+    queryFn: () => liveSearch.search(searched, 24),
+    enabled: searched.length > 1,
+  });
+  const ownMatches: LensMatch[] = useMemo(
+    () => (own.data ?? []).map((p) => ({ product: p, score: 0, match: "similar" as const })),
+    [own.data],
+  );
+  const showingOwn = searched.length > 1;
   const matches = useMemo(() => {
-    const list = [...(item?.matches ?? [])];
+    const list = [...(showingOwn ? ownMatches : item?.matches ?? [])];
     if (sort === "price") list.sort((a, b) => a.product.price_cents - b.product.price_cents);
     return list;
-  }, [item, sort]);
+  }, [item, sort, showingOwn, ownMatches]);
+  const pick = (i: number) => {
+    setActive(i);
+    setSearched("");
+    setSearchText("");
+  };
 
   const choose = async (m: LensMatch) =>
     productsApi.selectLive({ query: m.product.search_term ?? item?.query ?? m.product.name, retailer_slug: m.product.retailer_slug, retailer_product_id: m.product.retailer_product_id });
@@ -352,7 +370,7 @@ function Results({ result, onAgain }: { result: LensResult; onAgain: () => void 
               <button
                 key={i}
                 type="button"
-                onClick={() => setActive(i)}
+                onClick={() => pick(i)}
                 aria-label={`Show ${it.label}`}
                 className={`absolute rounded-lg transition-[border-color,background-color] ${on ? "border-[2.5px] border-white bg-white/10 shadow-[0_0_0_2px_rgba(0,0,0,0.35)]" : "border border-white/0 hover:border-white/70"}`}
                 style={{ left: `${x0 * 100}%`, top: `${y0 * 100}%`, width: `${(x1 - x0) * 100}%`, height: `${(y1 - y0) * 100}%` }}
@@ -392,7 +410,7 @@ function Results({ result, onAgain }: { result: LensResult; onAgain: () => void 
               type="button"
               role="tab"
               aria-selected={i === active}
-              onClick={() => setActive(i)}
+              onClick={() => pick(i)}
               className={`flex min-h-[44px] shrink-0 items-center gap-2 rounded-full border px-3.5 text-[14.5px] font-semibold ${
                 i === active ? "border-sage bg-sage text-white" : "border-line-strong bg-surface text-ink hover:border-sage"
               }`}
@@ -403,17 +421,59 @@ function Results({ result, onAgain }: { result: LensResult; onAgain: () => void 
           ))}
         </div>
 
+        {/* search any product or brand: results show right here */}
+        <form
+          className="mt-4 flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setSearched(searchText.trim());
+          }}
+        >
+          <input
+            type="search"
+            value={searchText}
+            onChange={(e) => {
+              setSearchText(e.target.value);
+              if (!e.target.value.trim()) setSearched("");
+            }}
+            placeholder={`Search any product or brand, e.g. ${item ? `brown ${item.label.toLowerCase()}` : "Gucci loafers"}`}
+            aria-label="Search any product or brand"
+            className="h-12 min-w-0 flex-1 rounded-full border border-line-strong bg-surface px-4 text-[15.5px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25"
+          />
+          <button
+            type="submit"
+            disabled={searchText.trim().length < 2}
+            className="tu-press h-12 shrink-0 rounded-full bg-sage px-5 text-[15.5px] font-semibold text-white disabled:opacity-50"
+          >
+            Search
+          </button>
+        </form>
+
         {item && (
           <>
             <div className="mt-5 flex flex-wrap items-end justify-between gap-3">
               <div>
-                <h2 className="font-display text-[26px] leading-tight text-ink">{item.label}</h2>
-                <p className="text-[14.5px] text-muted">
-                  {[item.color, item.details].filter(Boolean).join(" · ")}
-                  {item.matches.length > 0 && ` · ${item.matches.length} products`}
-                </p>
+                {showingOwn ? (
+                  <>
+                    <h2 className="font-display text-[26px] leading-tight text-ink">Results for &ldquo;{searched}&rdquo;</h2>
+                    <p className="text-[14.5px] text-muted">
+                      {own.isFetching ? "Searching real shops…" : `${ownMatches.length} products from real shops`} ·{" "}
+                      <button type="button" onClick={() => pick(active)} className="font-semibold text-sage-deep hover:underline">
+                        Back to {item.label}
+                      </button>
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <h2 className="font-display text-[26px] leading-tight text-ink">{item.label}</h2>
+                    <p className="text-[14.5px] text-muted">
+                      {[item.color, item.details].filter(Boolean).join(" · ")}
+                      {item.matches.length > 0 && ` · ${item.matches.length} products`}
+                    </p>
+                  </>
+                )}
               </div>
-              {item.matches.length > 1 && (
+              {matches.length > 1 && (
                 <div className="flex rounded-full border border-line p-1" role="group" aria-label="Order">
                   {(
                     [
@@ -435,9 +495,17 @@ function Results({ result, onAgain }: { result: LensResult; onAgain: () => void 
               )}
             </div>
             {error && <p role="alert" className="mt-3 text-[14.5px] text-[#a4553f]">{error}</p>}
-            {item.matches.length === 0 ? (
+            {showingOwn && own.isFetching ? (
+              <div className="mt-5 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3" aria-hidden="true">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="aspect-[3/4] animate-pulse rounded-[20px] bg-paper-2" />
+                ))}
+              </div>
+            ) : matches.length === 0 ? (
               <div className="mt-5 rounded-[20px] border border-dashed border-line p-8 text-center">
-                <p className="text-[16px] text-muted">No shop has this right now.</p>
+                <p className="text-[16px] text-muted">
+                  {showingOwn ? "Nothing found. Try other words, or a brand name." : "No shop has this right now."}
+                </p>
                 <Link href="/stylist" className="mt-3 inline-block text-[15px] font-semibold text-sage-deep hover:underline">
                   Ask the AI Stylist for one like it →
                 </Link>
@@ -454,7 +522,7 @@ function Results({ result, onAgain }: { result: LensResult; onAgain: () => void 
                       priceCents={m.product.price_cents}
                       currency={m.product.currency}
                       shop={shopName(m.product.merchant_name, m.product.retailer_name)}
-                      label={BADGE[m.match]}
+                      label={showingOwn ? null : BADGE[m.match]}
                       badge={fromTryOnUStore(m.product.retailer_slug) ? RECOMMENDED : null}
                       busy={busyKey === key}
                       primary={{ label: "Try it on", onClick: () => act(m, "try"), disabled: !!busyKey }}
