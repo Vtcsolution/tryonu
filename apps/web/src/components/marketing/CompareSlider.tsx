@@ -5,15 +5,15 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 
 /**
- * Interactive before/after wipe: one person, before and after a real TryOnU
- * try-on (public/showcase). She is an AI-generated model made for our quality
- * tests, not a real customer, so the label says so. Both pictures are the same
- * size and pose, so the wipe lines up.
+ * Interactive before/after wipe: one model, before and after a real TryOnU
+ * try-on of real shop products (public/showcase). The model is AI-generated in
+ * a studio, not a real customer, so the caption says so. Both pictures are
+ * framed on the same head and feet, so the wipe lines up.
  */
-const BEFORE = { src: "/showcase/before.jpg", alt: "Before: a woman in a white T-shirt, black trousers and white sneakers" };
+const BEFORE = { src: "/showcase/studio-before.jpg", alt: "Before: a model in a white T-shirt, light-blue jeans and white sneakers" };
 const AFTER = {
-  src: "/showcase/after.jpg",
-  alt: "After a TryOnU try-on: the same woman in a pink embroidered suit with a dupatta, a brown tote bag, a watch and sandals",
+  src: "/showcase/studio-after.jpg",
+  alt: "After a TryOnU try-on: the same model in a camel double-breasted coat, a black midi dress, black ankle boots and a leather bag",
 };
 export function CompareSlider() {
   const [pos, setPos] = useState(50);
@@ -101,8 +101,10 @@ export function CompareSlider() {
       </div>
       {/* under the picture, so it never covers the outfit */}
       <div className="mx-auto mt-4 max-w-[460px] text-center">
-        <p className="text-[15.5px] font-semibold text-ink">Pink embroidered suit, dupatta, tote bag and watch</p>
-        <p className="mt-0.5 text-[13.5px] text-muted">A real TryOnU try-on, shown on an AI-generated model. Drag the line to compare.</p>
+        <p className="text-[15.5px] font-semibold text-ink">Camel coat, black midi dress, ankle boots and leather bag</p>
+        <p className="mt-0.5 text-[13.5px] text-muted">
+          A real TryOnU try-on of real shop products, shown on an AI-generated model. Drag the line to compare.
+        </p>
         <Button href="/try" size="lg" className="mt-4 w-full">
           Try it on yourself <span aria-hidden="true">→</span>
         </Button>
