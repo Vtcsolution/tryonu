@@ -41,6 +41,8 @@ export const CORE_KEYWORDS = [
   "AI stylist",
   "see clothes on yourself before buying",
   "online shopping try before you buy",
+  "AI clothes changer",
+  "virtual try on app",
   "TryOnU",
 ];
 

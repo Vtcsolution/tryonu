@@ -3,14 +3,18 @@
 import Image from "next/image";
 import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { PHOTOS } from "@/lib/media";
 
 /**
- * Interactive before/after wipe. The two photos are illustrative stock
- * images for now (not the same person, no real try-on yet) — swap each
- * <Image> for the original photo / AI result when renders exist; the
- * wipe + handle logic is unchanged.
+ * Interactive before/after wipe: one person, before and after a real TryOnU
+ * try-on (public/showcase). She is an AI-generated model made for our quality
+ * tests, not a real customer, so the label says so. Both pictures are the same
+ * size and pose, so the wipe lines up.
  */
+const BEFORE = { src: "/showcase/before.jpg", alt: "Before: a woman in a white T-shirt, black trousers and white sneakers" };
+const AFTER = {
+  src: "/showcase/after.jpg",
+  alt: "After a TryOnU try-on: the same woman in a pink embroidered suit with a dupatta, a brown tote bag, a watch and sandals",
+};
 export function CompareSlider() {
   const [pos, setPos] = useState(50);
   const id = useId();
@@ -30,15 +34,15 @@ export function CompareSlider() {
       {/* a portrait frame, like the photos: the whole person shows on every screen */}
       <div
         ref={frame}
-        className="relative mx-auto aspect-[4/5] w-full max-w-[640px] overflow-hidden rounded-[28px] border border-line bg-paper-2 shadow-lift"
+        className="relative mx-auto aspect-[2/3] w-full max-w-[460px] overflow-hidden rounded-[28px] border border-line bg-paper-2 shadow-lift"
       >
         {/* result (base) */}
         <Image
-          src={PHOTOS.lookBlueCoat.src}
-          alt={`Try-on result — ${PHOTOS.lookBlueCoat.alt}`}
+          src={AFTER.src}
+          alt={AFTER.alt}
           fill
-          className="object-cover object-[50%_20%]"
-          sizes="(max-width: 680px) 100vw, 640px"
+          className="object-cover"
+          sizes="(max-width: 500px) 100vw, 460px"
         />
 
         {/* original (clipped overlay) */}
@@ -51,11 +55,11 @@ export function CompareSlider() {
             style={{ width: frameWidth ? `${frameWidth}px` : "100%" }}
           >
             <Image
-              src={PHOTOS.portraitStudio.src}
-              alt={`Original — ${PHOTOS.portraitStudio.alt}`}
+              src={BEFORE.src}
+              alt={BEFORE.alt}
               fill
-              className="object-cover object-[50%_20%]"
-              sizes="(max-width: 680px) 100vw, 640px"
+              className="object-cover"
+              sizes="(max-width: 500px) 100vw, 460px"
             />
           </div>
         </div>
@@ -67,10 +71,10 @@ export function CompareSlider() {
         />
 
         <span className="absolute left-4 top-4 z-[15] rounded-full bg-white/90 px-3 py-1.5 text-[12px] font-semibold text-[#1c1b17] backdrop-blur">
-          Original
+          Before
         </span>
         <span className="absolute right-4 top-4 z-[15] rounded-full bg-sage px-3 py-1.5 text-[12px] font-semibold text-white">
-          Try-on result
+          After try-on
         </span>
 
         {/* handle */}
@@ -94,23 +98,13 @@ export function CompareSlider() {
           className="absolute inset-0 z-20 h-full w-full cursor-ew-resize opacity-0"
         />
 
-        <div className="absolute bottom-4 right-4 z-[15] hidden w-[220px] rounded-[18px] border border-line bg-surface/95 p-4 backdrop-blur sm:block">
-          <p className="text-[12px] text-muted">Illustrative preview</p>
-          <p className="mb-3 mt-1 text-[15px] font-semibold text-ink">
-            Sky Wrap Coat · $128.00
-          </p>
-          {/* This demo pairs stock photos, not a real try-on of a real
-              product — so it links into the real flow rather than a
-              fabricated retailer URL. */}
-          <Button href="/try" size="sm" className="w-full">
-            Try it yourself <span aria-hidden="true">→</span>
-          </Button>
-        </div>
       </div>
-      {/* phones: the picture stays clear, the button goes underneath */}
-      <div className="mx-auto mt-4 max-w-[640px] sm:hidden">
-        <Button href="/try" size="lg" className="w-full">
-          Try it yourself <span aria-hidden="true">→</span>
+      {/* under the picture, so it never covers the outfit */}
+      <div className="mx-auto mt-4 max-w-[460px] text-center">
+        <p className="text-[15.5px] font-semibold text-ink">Pink embroidered suit, dupatta, tote bag and watch</p>
+        <p className="mt-0.5 text-[13.5px] text-muted">A real TryOnU try-on, shown on an AI-generated model. Drag the line to compare.</p>
+        <Button href="/try" size="lg" className="mt-4 w-full">
+          Try it on yourself <span aria-hidden="true">→</span>
         </Button>
       </div>
     </div>

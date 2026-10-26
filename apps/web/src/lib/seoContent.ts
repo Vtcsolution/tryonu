@@ -388,6 +388,111 @@ export const LANDINGS: Landing[] = [
     keywords: ["virtual try on API", "AI try on API", "clothing try on API", "fashion try on API"],
     related: ["virtual-try-on-for-shopify", "virtual-try-on-for-woocommerce"],
   },
+  {
+    slug: "ai-clothes-changer",
+    audience: "shopper",
+    title: "AI Clothes Changer: Change Clothes on Your Photo",
+    description:
+      "Change the clothes in your own photo with AI, using real products from real shops. See the new outfit on you, then buy each piece from the shop.",
+    kicker: "AI clothes changer",
+    h1: "Change the clothes on your photo with AI, using real products",
+    answer:
+      "TryOnU is an AI clothes changer that uses real products: add one photo of yourself, pick clothes, shoes or jewellery from real shops (or type a look like \"Eid outfit\"), and in about a minute you see yourself wearing them. Unlike photo filters, every piece is a real product you can buy.",
+    benefits: [
+      { title: "Real clothes, not filters", text: "Every item is a real product from a real shop, with its price and a Shop now button." },
+      { title: "Your own face and body", text: "The AI keeps your face, body and background and changes only the clothes." },
+      { title: "One piece or a whole outfit", text: "Change just the shirt, or the whole look: clothes, shoes, bag and jewellery." },
+    ],
+    steps: SHOPPER_STEPS,
+    faqs: [ALL_FAQ.find((x) => x.q.startsWith("How does TryOnU work"))!, ACCURACY, PHOTO_SAFE, PRICE],
+    cta: { label: "Change my clothes", href: "/try" },
+    keywords: ["AI clothes changer", "change clothes in photo", "outfit changer AI", "change clothes AI", "AI dress changer"],
+    related: ["virtual-try-on", "ai-outfit-try-on", "virtual-try-on-app"],
+  },
+  {
+    slug: "virtual-try-on-app",
+    audience: "shopper",
+    title: "Virtual Try-On App for Clothes on Your Phone",
+    description:
+      "Try clothes on your own photo from your phone. TryOnU works in any phone browser and can be added to your home screen like an app, no download needed.",
+    kicker: "Try-on app",
+    h1: "A virtual try-on app that works on any phone",
+    answer:
+      "TryOnU works on any phone, Android or iPhone, straight from the browser at tryonu.app, and you can add it to your home screen so it opens like an app. Add one photo of yourself, pick real products from real shops, and see them on you in about a minute.",
+    benefits: [
+      { title: "No app store needed", text: "Open tryonu.app and tap Add to Home Screen. It opens like an app, with no download." },
+      { title: "Works on every phone", text: "Android, iPhone and tablets, and on computers too, with the same account." },
+      { title: "Your looks everywhere", text: "Looks you save on your phone are on your computer too." },
+    ],
+    steps: SHOPPER_STEPS,
+    faqs: [ALL_FAQ.find((x) => x.q.startsWith("How does TryOnU work"))!, ALL_FAQ.find((x) => x.q.startsWith("What photo"))!, PRICE, PHOTO_SAFE],
+    cta: { label: "Open TryOnU", href: "/try" },
+    keywords: ["virtual try on app", "try on clothes app", "AI try on app", "virtual fitting app", "try on clothes online app"],
+    related: ["virtual-try-on", "ai-clothes-changer", "virtual-fitting-room"],
+  },
+  {
+    slug: "eid-outfit-try-on",
+    audience: "shopper",
+    title: "Eid Outfit Try-On: See Your Eid Dress on You",
+    description:
+      "See your Eid dress, shalwar kameez, kurta and jewellery on your own photo before you buy. Type \"Eid outfit\" and TryOnU finds every piece in real shops.",
+    kicker: "Eid outfits",
+    h1: "See your Eid outfit on you before you buy",
+    answer:
+      "Type \"Eid outfit\" on TryOnU and it finds a complete look in real shops (shalwar kameez, dupatta, jewellery and shoes for women, or shalwar kameez, waistcoat and chappals for men) and shows it on your own photo in about a minute. Then buy each piece from the shop.",
+    benefits: [
+      { title: "The whole Eid look", text: "Clothes, dupatta, jewellery and shoes together, so you see the full outfit." },
+      { title: "For women and men", text: "Shalwar kameez and kurta for men and women, with matching accessories." },
+      { title: "Share with family", text: "Send the look on WhatsApp and decide together before you buy." },
+    ],
+    steps: SHOPPER_STEPS,
+    faqs: [ALL_FAQ.find((x) => x.q.startsWith("Can I try on a whole outfit"))!, ALL_FAQ.find((x) => x.q.startsWith("Where do the products"))!, WHERE_TO_BUY, PRICE],
+    cta: { label: "Try an Eid outfit", href: "/try" },
+    keywords: ["Eid outfit", "Eid dress", "Eid outfit ideas", "Eid shalwar kameez", "Eid kurta for men", "Eid dress try on"],
+    related: ["eastern-wear-virtual-try-on", "bridal-dress-virtual-try-on", "groom-sherwani-virtual-try-on"],
+  },
+  {
+    slug: "groom-sherwani-virtual-try-on",
+    audience: "shopper",
+    title: "Groom Sherwani Virtual Try-On: See It on You",
+    description:
+      "See a sherwani, khussa, shawl and watch on your own photo before your wedding. Type \"Groom look\" and TryOnU finds every piece in real shops.",
+    kicker: "Groom try-on",
+    h1: "Try on a groom sherwani and wedding look on your own photo",
+    answer:
+      "Type \"Groom look\" on TryOnU and it finds a sherwani, khussa, shawl and watch in real shops and shows them on your own photo in about a minute. Compare colours and styles, then buy each piece from the shop.",
+    benefits: [
+      { title: "The full groom look", text: "Sherwani, khussa, shawl and watch together in one picture." },
+      { title: "Compare colours", text: "Ivory, gold, maroon or black: see which suits you before you buy." },
+      { title: "Decide with family", text: "Share the look on WhatsApp so everyone can see it." },
+    ],
+    steps: SHOPPER_STEPS,
+    faqs: [ALL_FAQ.find((x) => x.q.startsWith("Can I try on a whole outfit"))!, ALL_FAQ.find((x) => x.q.startsWith("Can I share"))!, WHERE_TO_BUY, ACCURACY],
+    cta: { label: "Try a groom look", href: "/try" },
+    keywords: ["sherwani try on", "groom sherwani", "groom outfit", "barat dress for groom", "wedding sherwani for men"],
+    related: ["bridal-dress-virtual-try-on", "eid-outfit-try-on", "eastern-wear-virtual-try-on"],
+  },
+  {
+    slug: "virtual-try-on-pakistan",
+    audience: "shopper",
+    title: "Virtual Try-On in Pakistan: Try Clothes Online",
+    description:
+      "Try clothes, lehengas, shalwar kameez and jewellery on your own photo before you buy online in Pakistan. Local shops that deliver to you are shown first.",
+    kicker: "Pakistan",
+    h1: "Try clothes on your photo before you buy online in Pakistan",
+    answer:
+      "TryOnU lets shoppers in Pakistan see clothes on their own photo before buying online. Local shops on TryOnU that deliver to you are shown first, then eBay, AliExpress and brand stores. You see the product on you in about a minute, then buy from the shop itself.",
+    benefits: [
+      { title: "Local shops first", text: "Shops on TryOnU that deliver in your city are shown before shops abroad." },
+      { title: "Eastern and western wear", text: "Lehenga, shalwar kameez, kurta, abaya, jeans, shoes and jewellery." },
+      { title: "Pay by card or PayPal", text: "Buy credit packs by card or PayPal. A failed try-on gives its credits back." },
+    ],
+    steps: SHOPPER_STEPS,
+    faqs: [ALL_FAQ.find((x) => x.q.startsWith("Where do the products"))!, ALL_FAQ.find((x) => x.q.startsWith("How can my clothing shop"))!, PRICE, PHOTO_SAFE],
+    cta: { label: "Start trying on", href: "/try" },
+    keywords: ["virtual try on Pakistan", "try clothes online Pakistan", "online shopping Pakistan", "Pakistani dresses online", "AI try on Pakistan"],
+    related: ["eastern-wear-virtual-try-on", "bridal-dress-virtual-try-on", "eid-outfit-try-on"],
+  },
 ];
 
 export const LANDINGS_BY_SLUG: Record<string, Landing> = Object.fromEntries(LANDINGS.map((l) => [l.slug, l]));

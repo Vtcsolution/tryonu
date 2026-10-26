@@ -86,7 +86,7 @@ export default async function HomePage() {
               See it <em>on you</em>
             </>
           }
-          sub="Drag the divider — same person, real product, rendered by AI. Then shop the original listing."
+          sub="The same person, before and after. Drag the line to compare."
         />
         <CompareSlider />
       </Section>

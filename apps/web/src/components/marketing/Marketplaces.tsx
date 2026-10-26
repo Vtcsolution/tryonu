@@ -72,14 +72,15 @@ export async function Marketplaces() {
             delay={i * 80}
             className="group tu-hover-card overflow-hidden rounded-[24px] border border-line bg-surface hover:border-line-strong"
           >
-            <div className="relative h-[300px] overflow-hidden">
+            {/* shop photos come in every shape: shown whole on white, never cut off */}
+            <div className="relative h-[300px] overflow-hidden bg-white">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={relayedImageUrl(p.image, 600)}
                 alt={p.name}
                 loading="lazy"
                 decoding="async"
-                className="tu-hover-media h-full w-full object-cover object-top"
+                className="tu-hover-media h-full w-full object-contain p-3"
               />
               <span className="absolute left-3.5 top-3.5 rounded-lg bg-surface/95 px-2.5 py-1.5 text-[13px] font-semibold text-ink">
                 {p.retailer}
@@ -87,7 +88,7 @@ export async function Marketplaces() {
             </div>
             <div className="flex items-center justify-between gap-3 p-5">
               <div>
-                <h4 className="text-[16px] font-semibold tracking-[-0.01em] text-ink">
+                <h4 className="line-clamp-2 text-[16px] font-semibold tracking-[-0.01em] text-ink">
                   {p.name}
                 </h4>
                 <p className="mt-0.5 text-[14px] text-muted">{p.price}</p>
