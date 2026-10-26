@@ -91,3 +91,22 @@ async def test_select_live_returns_404_when_the_item_is_gone(client, monkeypatch
         json={"query": "denim jacket", "retailer_slug": "ebay", "retailer_product_id": "gone"},
     )
     assert resp.status_code == 404
+
+
+async def test_a_shop_link_for_a_live_product_saves_it_counts_the_click_and_opens_the_shop(client, db, monkeypatch):
+    """The home page's example look links to products that aren't saved yet."""
+    from sqlalchemy import func, select
+
+    from app.models.affiliate import AffiliateClick
+
+    async def fake_find_live_result(query, *, retailer_slug, retailer_product_id):  # noqa: ANN001, ANN202, ARG001
+        return LiveSearchResult(provider=_FakeEbayProvider(), raw=_raw(retailer_product_id)) if retailer_product_id == "v1|9|0" else None
+
+    monkeypatch.setattr("app.services.live_search_service.find_live_result", fake_find_live_result)
+    before = await db.scalar(select(func.count(AffiliateClick.id)))
+    resp = await client.get("/api/v1/affiliate/live", params={"r": "ebay", "id": "v1|9|0", "q": "denim jacket"})
+    assert resp.status_code == 302 and "ebay" in resp.headers["location"]
+    assert await db.scalar(select(func.count(AffiliateClick.id))) == before + 1
+
+    ended = await client.get("/api/v1/affiliate/live", params={"r": "ebay", "id": "gone", "q": "denim jacket"})
+    assert ended.status_code == 302 and ended.headers["location"].endswith("/try")

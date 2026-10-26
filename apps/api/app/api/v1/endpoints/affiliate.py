@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import hashlib
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 
 from app.core.config import get_settings
 from app.core.deps import DbSession, OptionalUser
+from app.core.rate_limit import rate_limiter
 from app.models.affiliate import AffiliateClick
 from app.models.enums import AffiliateSource
 from app.models.product import Product
@@ -70,6 +71,33 @@ async def go(
 
     await _record_click(db, request, user, product=product, source=where, session_id=session_id)
     return RedirectResponse(product.affiliate_url, status_code=status.HTTP_302_FOUND)
+
+
+@router.get(
+    "/live",
+    dependencies=[Depends(rate_limiter("affiliate_live", limit=60, window_seconds=3600))],
+)
+async def go_live(
+    request: Request,
+    db: DbSession,
+    user: OptionalUser,
+    r: str = Query(max_length=32),
+    id: str = Query(max_length=255),  # noqa: A002 - the retailer's product id
+    q: str = Query(max_length=200),
+    source: str = Query(default=AffiliateSource.PRODUCT_CARD.value, max_length=32),
+):
+    """A shop link for a product found by live search but not saved yet (the
+    home page's example look): found again live, saved, then exactly like
+    /go/{id}. A listing that has ended sends the shopper to the try-on page
+    instead of an error."""
+    from app.services.live_search_service import find_live_result
+    from app.services.product_ingestion_service import persist_single_product
+
+    result = await find_live_result(q, retailer_slug=r, retailer_product_id=id)
+    if result is None:
+        return RedirectResponse(f"{str(get_settings().FRONTEND_URL).rstrip('/')}/try", status_code=status.HTTP_302_FOUND)
+    product = await persist_single_product(db, result.provider, result.raw)
+    return await go(product.id, request, db, user, source=source, session_id=None)
 
 
 async def _whatsapp_store(db: DbSession, product: Product) -> Store | None:
