@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
   // Lean runtime image for Docker (see apps/web/Dockerfile) — bundles only
   // the traced production dependencies, not the whole node_modules tree.
   output: "standalone",
+  // the deploy script builds beside the running site (NEXT_DIST_DIR=.next-build), then swaps it in
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   // one address for every page: www.tryonu.app was a second copy of the site
   async redirects() {
     return [

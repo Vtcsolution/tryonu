@@ -1,5 +1,8 @@
 /node_modules
 /.next/
+/.next-build/
+/.next-old/
+/.next-broken/
 /out/
 /build
 next-env.d.ts
