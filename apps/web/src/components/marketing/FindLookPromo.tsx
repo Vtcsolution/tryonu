@@ -4,14 +4,16 @@ import { LensIcon } from "@/components/lens/LensIcon";
 import { Kicker, Section } from "@/components/marketing/primitives";
 import { Button } from "@/components/ui/Button";
 import { Reveal } from "@/components/ui/Reveal";
-import { PHOTOS } from "@/lib/media";
 
-// where the example's items are on the photo (fractions), as Find the look marks them
+// where each item is on the example photo (public/showcase/after.jpg, 600x900),
+// as fractions of its width and height. The frame has the photo's own 2:3
+// shape, so nothing is cropped and every dot sits on its item.
 const SPOTS: { n: number; label: string; x: number; y: number }[] = [
-  { n: 1, label: "Pink wool coat", x: 0.52, y: 0.5 },
-  { n: 2, label: "Paisley scarf", x: 0.5, y: 0.34 },
-  { n: 3, label: "Black tights", x: 0.56, y: 0.8 },
-  { n: 4, label: "Ankle boots", x: 0.53, y: 0.95 },
+  { n: 1, label: "Embroidered kameez", x: 0.5, y: 0.37 },
+  { n: 2, label: "Printed dupatta", x: 0.64, y: 0.52 },
+  { n: 3, label: "Watch", x: 0.31, y: 0.505 },
+  { n: 4, label: "Leather tote bag", x: 0.32, y: 0.76 },
+  { n: 5, label: "Sandals", x: 0.41, y: 0.955 },
 ];
 
 /** On the home page: Find the look (search the shops with a photo). */
@@ -42,8 +44,14 @@ export function FindLookPromo() {
 
         <Reveal delay={120}>
           <div className="mx-auto flex max-w-[520px] items-center gap-4">
-            <div className="relative aspect-[3/4] w-[58%] shrink-0 overflow-hidden rounded-[22px] border border-white/70 bg-white shadow-lift">
-              <Image src={PHOTOS.lookPinkCoat.src} alt="An outfit photo with each item marked" fill className="object-cover object-top" sizes="(max-width: 1024px) 55vw, 300px" />
+            <div className="relative aspect-[2/3] w-[58%] shrink-0 overflow-hidden rounded-[22px] border border-white/70 bg-white shadow-lift">
+              <Image
+                src="/showcase/after.jpg"
+                alt="An outfit photo with each item marked: kameez, dupatta, watch, tote bag and sandals"
+                fill
+                className="object-cover"
+                sizes="(max-width: 1024px) 55vw, 300px"
+              />
               {SPOTS.map((s) => (
                 <span
                   key={s.n}
