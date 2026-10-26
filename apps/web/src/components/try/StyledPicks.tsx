@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ProductCard } from "@/components/product/ProductCard";
 import { affiliateGoUrl, resolveMediaUrl, thumbnailUrl } from "@/lib/api/client";
+import { liveSearch } from "@/lib/api/endpoints";
 import type { LiveProduct, Product } from "@/lib/api/types";
 import { FEATURED, RECOMMENDED, formatPrice, fromTryOnUStore, shopName } from "./shop";
 
@@ -146,6 +148,7 @@ export function StyledPicks({
                 label: count === 0 ? "No other options" : active ? "Close options" : `Change (${count})`,
                 onClick: () => setOpenKey(active ? null : item.key),
                 disabled: count === 0,
+                attention: !active && count > 0,
               }}
               secondary={{
                 label: "View in shop ↗",
@@ -165,6 +168,7 @@ export function StyledPicks({
           sort={sort}
           onSort={setSort}
           onClose={() => setOpenKey(null)}
+          key={open.key}
           onUse={(alt) => onUse(alt, open.product.id)}
           onBuy={onBuy}
           busyId={busyId}
@@ -193,18 +197,48 @@ function ChangePanel({
   onBuy: (alt: LiveProduct) => void;
   busyId?: string;
 }) {
+  // the shopper's own search for this piece: any product or brand
+  const [text, setText] = useState("");
+  const [searched, setSearched] = useState("");
+  const found = useQuery({
+    queryKey: ["search", "live", searched, 24],
+    queryFn: () => liveSearch.search(searched, 24),
+    enabled: searched.length > 1,
+  });
+  const searching = searched.length > 1;
+  const shown = searching ? found.data ?? [] : options;
   const sorted = useMemo(() => {
-    if (sort === "best") return options;
-    return [...options].sort((a, b) => (sort === "low" ? a.price_cents - b.price_cents : b.price_cents - a.price_cents));
-  }, [options, sort]);
+    if (sort === "best") return shown;
+    return [...shown].sort((a, b) => (sort === "low" ? a.price_cents - b.price_cents : b.price_cents - a.price_cents));
+  }, [shown, sort]);
   const busy = busyId !== undefined;
 
   return (
     <div className="border-t border-line bg-paper-2/50 px-5 py-5 sm:px-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="font-display text-[20px] text-ink">Choose a different {label.toLowerCase()}</p>
-          <p className="text-[14.5px] text-muted">{options.length} options · tap <b>Choose this</b> to put it in your look</p>
+          <p className="font-display text-[20px] text-ink">
+            {searching ? <>Results for &ldquo;{searched}&rdquo;</> : <>Choose a different {label.toLowerCase()}</>}
+          </p>
+          <p className="text-[14.5px] text-muted">
+            {searching && found.isFetching ? "Searching real shops…" : `${shown.length} options`} · tap <b>Choose this</b> to put it in your
+            look
+            {searching && (
+              <>
+                {" · "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearched("");
+                    setText("");
+                  }}
+                  className="font-semibold text-sage-deep hover:underline"
+                >
+                  Back to the {options.length} options
+                </button>
+              </>
+            )}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div role="group" aria-label="Sort options" className="flex rounded-full border border-line bg-surface p-1">
@@ -238,8 +272,48 @@ function ChangePanel({
         </div>
       </div>
 
+      {/* search for this piece by name or brand; it pulses until it's used */}
+      <form
+        className="mt-4 flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setSearched(text.trim());
+        }}
+      >
+        <input
+          type="search"
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            if (!e.target.value.trim()) setSearched("");
+          }}
+          placeholder={`Search any ${label.toLowerCase()} or brand, e.g. Gucci, Khaadi, gold`}
+          aria-label={`Search any ${label.toLowerCase()} or brand`}
+          className={`h-12 min-w-0 flex-1 rounded-full border border-sage/60 bg-surface px-4 text-[15.5px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25 ${
+            text ? "" : "tu-attention"
+          }`}
+        />
+        <button
+          type="submit"
+          disabled={text.trim().length < 2}
+          className="tu-press h-12 shrink-0 rounded-full bg-sage px-5 text-[15.5px] font-semibold text-white disabled:opacity-50"
+        >
+          Search
+        </button>
+      </form>
+
+      {searching && !found.isFetching && shown.length === 0 && (
+        <p className="mt-4 rounded-[16px] border border-dashed border-line p-5 text-center text-[15px] text-muted">
+          Nothing found. Try other words, or a brand name.
+        </p>
+      )}
+
       <div className="mt-4 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-3">
-        {sorted.map((alt) => (
+        {searching && found.isFetching &&
+          Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} aria-hidden="true" className="h-[360px] w-[230px] shrink-0 animate-pulse rounded-[20px] bg-paper-2" />
+          ))}
+        {!(searching && found.isFetching) && sorted.map((alt) => (
           <div key={`${alt.retailer_slug}:${alt.retailer_product_id}`} className="w-[230px] shrink-0 snap-start">
             <ProductCard
               compact

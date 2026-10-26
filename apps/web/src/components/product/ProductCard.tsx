@@ -13,6 +13,8 @@ export type CardAction = {
   external?: boolean;
   disabled?: boolean;
   ariaLabel?: string;
+  /** a gentle pulse so people notice it ("Change (19)") */
+  attention?: boolean;
 };
 
 /**
@@ -127,7 +129,7 @@ function ActionButton({ action, kind }: { action: CardAction; kind: "primary" | 
     kind === "primary"
       ? "bg-sage text-white hover:bg-sage-deep"
       : "border border-line-strong bg-surface text-ink hover:border-ink/50"
-  }`;
+  }${action.attention && !action.disabled ? " tu-attention" : ""}`;
   if (action.href && !action.disabled) {
     if (action.external) {
       return (

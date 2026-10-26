@@ -438,7 +438,9 @@ function Results({ result, onAgain }: { result: LensResult; onAgain: () => void 
             }}
             placeholder={`Search any product or brand, e.g. ${item ? `brown ${item.label.toLowerCase()}` : "Gucci loafers"}`}
             aria-label="Search any product or brand"
-            className="h-12 min-w-0 flex-1 rounded-full border border-line-strong bg-surface px-4 text-[15.5px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25"
+            className={`h-12 min-w-0 flex-1 rounded-full border border-sage/60 bg-surface px-4 text-[15.5px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25 ${
+              searchText ? "" : "tu-attention"
+            }`}
           />
           <button
             type="submit"
