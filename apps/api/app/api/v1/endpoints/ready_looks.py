@@ -67,6 +67,9 @@ class ReadyLookOut(BaseModel):
     currency: str | None
     created_by: str | None = None
     created_at: datetime | None = None
+    # the outfit picture's layout (1080 x 1350): the try-on picture and each
+    # product card ("item" = its place in items), for drawing the cards as links
+    layout: dict | None = None
     # team panel only: made by the signed-in team member, and the try-on it came from
     mine: bool = False
     tryon_job_id: str | None = None
@@ -128,6 +131,7 @@ def _out(look: ReadyLook, creator: str | None = None, me: User | None = None) ->
         currency=items[0].currency if same and items else None,
         created_by=creator,
         created_at=look.created_at,
+        layout=json.loads(look.layout) if look.layout else None,
         mine=bool(me and look.created_by == me.id),
         tryon_job_id=look.tryon_job_id if me else None,
     )
@@ -169,7 +173,8 @@ async def _render(db: DbSession, look: ReadyLook) -> None:
         )
         for it, pic in zip(look.items, photos)
     ]
-    data = await asyncio.to_thread(render_card, look.title, person, cards)
+    data, layout = await asyncio.to_thread(render_card, look.title, person, cards)
+    look.layout = json.dumps(layout)
 
     def small(jpeg: bytes) -> bytes:
         import io
@@ -330,7 +335,7 @@ async def publish_look(payload: PublishIn, me: TeamUser, db: DbSession):
     key = new_key("ready-looks", look.id, f"model.{ext}")
     await asyncio.to_thread(storage.put, key, await asyncio.to_thread(storage.read, src), f"image/{'png' if ext == 'png' else 'jpeg'}")
     look.image_key = key
-    for pos, (product, _slot) in enumerate(pairs[:6]):
+    for pos, (product, _slot) in enumerate(pairs[:10]):
         box = boxes.get(product.id)
         db.add(ReadyLookItem(look_id=look.id, product_id=product.id, position=pos, box=json.dumps(box) if box else None))
     await db.commit()

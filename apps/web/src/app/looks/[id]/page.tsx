@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FirstOutfitOffer } from "@/components/credits/FirstOutfitOffer";
 import { SiteChrome } from "@/components/layout/SiteChrome";
+import { LookCanvas } from "@/components/looks/LookCanvas";
 import { TryLookButton } from "@/components/looks/TryLookButton";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { formatPrice } from "@/components/try/shop";
@@ -64,16 +65,7 @@ export default async function LookPage({ params }: Props) {
         </Link>
         <div className="mt-4 grid items-start gap-8 lg:grid-cols-[minmax(0,560px)_minmax(0,1fr)] lg:gap-12">
           <div className="overflow-hidden rounded-[26px] border border-line bg-paper-2 shadow-lift">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={look.card_url}
-              alt={`${look.title}: ${look.items.map((it) => it.name).join(", ")}`}
-              width={1080}
-              height={1350}
-              fetchPriority="high"
-              decoding="async"
-              className="h-auto w-full"
-            />
+            <LookCanvas look={look} priority />
           </div>
 
           <div className="min-w-0">

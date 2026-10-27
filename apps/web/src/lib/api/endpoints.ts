@@ -1100,6 +1100,23 @@ export type ReadyLook = {
   mine?: boolean;
   tryon_job_id?: string | null;
   community?: { post_id: string; handle: string }[];
+  /** the outfit picture's layout (1080 x 1350), for drawing its product cards as links */
+  layout?: LookLayout | null;
+};
+export type LookLayout = {
+  w: number;
+  h: number;
+  band: number;
+  image: [number, number, number, number];
+  tiles: {
+    item: number;
+    n: number;
+    label: string;
+    price: string;
+    box: [number, number, number, number];
+    img: [number, number, number, number];
+    line: [[number, number], [number, number]];
+  }[];
 };
 /** One try-on in the team panel's history: finished, failed or still working. */
 export type TeamTryOn = {

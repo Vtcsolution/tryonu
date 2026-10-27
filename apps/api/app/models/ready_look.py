@@ -9,7 +9,7 @@ try-on is later deleted.
 
 from __future__ import annotations
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String
+from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -28,6 +28,8 @@ class ReadyLook(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # the model wearing the outfit, and the outfit-receipt picture made from it
     image_key: Mapped[str] = mapped_column(String(512), nullable=False)
     card_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    # where the picture, each product card and each line go on it (JSON, see ready_look_card)
+    layout: Mapped[str | None] = mapped_column(Text, nullable=True)
     # bumped whenever the pictures change, so browsers fetch the new ones
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     is_published: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)

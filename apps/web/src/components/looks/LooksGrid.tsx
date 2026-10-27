@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { formatPrice } from "@/components/try/shop";
 import { readyLooks, type ReadyLook } from "@/lib/api/endpoints";
+import { LookCanvas } from "./LookCanvas";
 import { TryLookButton } from "./TryLookButton";
 
 const FILTERS: [string, string][] = [
@@ -61,25 +62,15 @@ export function LooksGrid({ initial, limit }: { initial: ReadyLook[]; limit?: nu
         <div className="grid grid-cols-1 gap-6 min-[480px]:grid-cols-2 lg:grid-cols-3">
           {shown.map((look, i) => (
             <article key={look.id} className="flex flex-col overflow-hidden rounded-[24px] border border-line bg-surface">
+              <div className="relative">
+                <LookCanvas look={look} href={`/looks/${look.id}`} priority={i < 3} />
+              </div>
               <Link href={`/looks/${look.id}`} className="group block">
-                <div className="relative aspect-[4/5] overflow-hidden bg-paper-2">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={look.card_small_url}
-                    alt={`${look.title}: ${look.items.map((it) => it.name).join(", ")}`}
-                    loading={i < 3 ? "eager" : "lazy"}
-                    fetchPriority={i < 3 ? "high" : "auto"}
-                    decoding="async"
-                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-                  />
-                  {look.season && (
-                    <span className="absolute left-3 top-3 rounded-full bg-black/70 px-3 py-1 text-[12.5px] font-semibold text-white">
-                      {look.season}
-                    </span>
-                  )}
-                </div>
                 <div className="px-4 pt-4">
-                  <h2 className="text-[18px] font-semibold leading-snug text-ink group-hover:text-sage-deep">{look.title}</h2>
+                  <h2 className="text-[18px] font-semibold leading-snug text-ink group-hover:text-sage-deep">
+                    {look.title}
+                    {look.season && <span className="ml-2 rounded-full bg-paper-2 px-2 py-0.5 align-middle text-[12px] font-semibold text-ink-soft">{look.season}</span>}
+                  </h2>
                   <p className="mt-0.5 text-[14.5px] text-muted">
                     {look.items.length} {look.items.length === 1 ? "product" : "products"}
                     {look.total_cents != null && look.currency ? ` · ${formatPrice(look.total_cents, look.currency)} in total` : ""}

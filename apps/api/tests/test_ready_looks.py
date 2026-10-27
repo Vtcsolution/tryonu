@@ -31,6 +31,7 @@ async def test_a_team_member_publishes_a_look_and_shoppers_try_it(client, db, mo
     assert made.status_code == 201, made.text
     look = made.json()
     assert look["title"] == "Pink bridal look" and [i["product_id"] for i in look["items"]] == [product.id]
+    assert [t["item"] for t in look["layout"]["tiles"]] == [0]
     assert "/affiliate/go/" in look["items"][0]["buy_url"]
     assert look["mine"] is True and look["tryon_job_id"] == job_id and look["created_at"]
 
@@ -74,7 +75,7 @@ async def test_the_outfit_receipt_picture_is_a_post_sized_jpeg():
     Image.Image.paste(person, (40, 40, 40), (300, 200, 470, 900))  # a dark figure on a light backdrop
     buf = io.BytesIO()
     person.save(buf, "JPEG")
-    card = render_card(
+    card, layout = render_card(
         "Men's winter look",
         buf.getvalue(),
         [CardItem("Wool overcoat", "$120.00", small_jpeg_bytes()), CardItem("Ribbed wool scarf", "£225.00", None),
@@ -82,6 +83,12 @@ async def test_the_outfit_receipt_picture_is_a_post_sized_jpeg():
     )
     img = Image.open(io.BytesIO(card))
     assert img.size == (1080, 1350) and img.format == "JPEG"
+    # each product gets a numbered card with a short name, inside the frame
+    assert sorted(t["n"] for t in layout["tiles"]) == [1, 2, 3]
+    assert {t["label"] for t in layout["tiles"]} == {"Coat", "Scarf", "Boots"}
+    for t in layout["tiles"]:
+        x, y, w, h = t["box"]
+        assert 0 <= x and x + w <= 1080 and 0 <= y and y + h <= 1350 - layout["band"]
 
 
 async def test_the_team_posts_a_look_to_the_community_as_a_person(client, db, monkeypatch):  # noqa: ANN001
