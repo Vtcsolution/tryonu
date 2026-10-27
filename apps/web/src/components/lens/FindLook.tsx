@@ -6,7 +6,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProductCard } from "@/components/product/ProductCard";
 import { RECOMMENDED, fromTryOnUStore, shopName } from "@/components/try/shop";
-import { ApiError, affiliateGoUrl, mediaThumb, resolveMediaUrl } from "@/lib/api/client";
+import { API_BASE_URL, ApiError, affiliateGoUrl, mediaThumb, resolveMediaUrl } from "@/lib/api/client";
+import { ShareLook } from "@/components/try/ShareLook";
+import { rememberReturnTo } from "@/lib/returnTo";
 import { community, lens, liveSearch, outfits, products as productsApi, type LensItem, type LensMatch, type LensResult } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
 import { LensIcon } from "@/components/lens/LensIcon";
@@ -66,10 +68,12 @@ export function FindLook() {
 
   // opened with ?id= (a saved search), ?post= (a community photo) or ?look= (one of my looks)
   useEffect(() => {
-    if (!user) return;
+    if (isLoading) return;
     const id = params.get("id");
     const post = params.get("post");
     const look = params.get("look");
+    // a search's link opens for anyone (a friend it was sent to); new searches need an account
+    if (!user && !id) return;
     const key = id ?? post ?? look;
     if (!key || started.current === key || result?.id === id) return;
     started.current = key;
@@ -80,7 +84,7 @@ export function FindLook() {
     } else if (look) {
       run(() => lens.from({ tryon_job_id: look }), null);
     }
-  }, [params, user, run, result?.id]);
+  }, [params, user, isLoading, run, result?.id]);
 
   const pickFile = (file: File | undefined) => {
     if (!file) return;
@@ -95,13 +99,26 @@ export function FindLook() {
     run(() => lens.search(file, () => undefined), URL.createObjectURL(file));
   };
 
-  if (isLoading) return <div className="mx-auto my-24 h-8 w-8 animate-spin rounded-full border-2 border-line-strong border-t-sage" />;
+  // a shared link still loading: a spinner, not the sign-up box
+  const opening = !!params.get("id") && !result && !error;
+  if (isLoading || opening) return <div className="mx-auto my-24 h-8 w-8 animate-spin rounded-full border-2 border-line-strong border-t-sage" />;
 
   return (
     <section className="tu-container pb-10 pt-4 lg:py-12">
       {!result && !busy && <Intro signedIn={!!user} />}
 
-      {!user ? (
+      {result ? (
+        <Results
+          result={result}
+          signedIn={!!user}
+          onAgain={() => {
+            setResult(null);
+            setPreview(null);
+            started.current = null;
+            router.replace("/find-look", { scroll: false });
+          }}
+        />
+      ) : !user ? (
         <div className="mx-auto mt-8 max-w-xl rounded-[22px] border border-line bg-surface p-6 text-center">
           <p className="text-[17px] font-semibold text-ink">Create a free account to search by photo</p>
           <p className="mt-1 text-[15px] text-muted">It takes a minute, and your first try-ons are free.</p>
@@ -116,16 +133,6 @@ export function FindLook() {
         </div>
       ) : busy ? (
         <Searching preview={preview} step={step} />
-      ) : result ? (
-        <Results
-          result={result}
-          onAgain={() => {
-            setResult(null);
-            setPreview(null);
-            started.current = null;
-            router.replace("/find-look", { scroll: false });
-          }}
-        />
       ) : (
         <Start onFile={pickFile} onLook={(jobId, url) => run(() => lens.from({ tryon_job_id: jobId }), resolveMediaUrl(url))} error={error} />
       )}
@@ -266,8 +273,14 @@ function Searching({ preview, step }: { preview: string | null; step: number }) 
   );
 }
 
-function Results({ result, onAgain }: { result: LensResult; onAgain: () => void }) {
+function Results({ result, onAgain, signedIn }: { result: LensResult; onAgain: () => void; signedIn: boolean }) {
   const router = useRouter();
+  const here = `/find-look?id=${result.id}`;
+  // trying on needs an account: sign up first, then back to these same results
+  const joinFirst = () => {
+    rememberReturnTo(here);
+    router.push(`/sign-up?next=${encodeURIComponent(here)}`);
+  };
   const [active, setActive] = useState(0);
   const [sort, setSort] = useState<"best" | "price">("best");
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -301,6 +314,17 @@ function Results({ result, onAgain }: { result: LensResult; onAgain: () => void 
     productsApi.selectLive({ query: m.product.search_term ?? item?.query ?? m.product.name, retailer_slug: m.product.retailer_slug, retailer_product_id: m.product.retailer_product_id });
 
   const act = async (m: LensMatch, then: "try" | "shop") => {
+    if (!signedIn) {
+      if (then === "try") return joinFirst();
+      // the shop through TryOnU (click counted, affiliate link), no account needed
+      const q = m.product.search_term ?? item?.query ?? m.product.name;
+      window.open(
+        `${API_BASE_URL}/api/v1/affiliate/live?${new URLSearchParams({ r: m.product.retailer_slug, id: m.product.retailer_product_id, q, source: "lens" })}`,
+        "_blank",
+        "noopener",
+      );
+      return;
+    }
     const key = `${m.product.retailer_slug}:${m.product.retailer_product_id}`;
     setError(null);
     setBusyKey(key);
@@ -389,7 +413,7 @@ function Results({ result, onAgain }: { result: LensResult; onAgain: () => void 
         <div className="mt-4 grid gap-2">
           <button
             type="button"
-            onClick={() => wholeLook.mutate()}
+            onClick={() => (signedIn ? wholeLook.mutate() : joinFirst())}
             disabled={wholeLook.isPending}
             className="tu-press tu-attention min-h-[50px] rounded-full bg-sage px-5 text-[16px] font-semibold text-white hover:bg-sage-deep disabled:opacity-60"
           >
@@ -402,7 +426,17 @@ function Results({ result, onAgain }: { result: LensResult; onAgain: () => void 
       </div>
 
       <div className="min-w-0">
-        {result.summary && <p className="text-[16px] text-ink-soft">{result.summary}</p>}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          {result.summary ? <p className="min-w-0 flex-1 text-[16px] text-ink-soft">{result.summary}</p> : <span />}
+          <ShareLook
+            url={typeof window === "undefined" ? `https://tryonu.app${here}` : `${window.location.origin}${here}`}
+            label="Share"
+            title="Share these finds"
+          />
+        </div>
+        {result.mine === true && (
+          <p className="mt-1 text-[13px] text-muted">Anyone you send this page&apos;s link to can see your photo and these products.</p>
+        )}
         <div className="mt-3 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Items found">
           {result.items.map((it, i) => (
             <button

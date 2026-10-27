@@ -14,7 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
-from app.core.deps import CurrentUser, DbSession
+from app.core.deps import CurrentUser, DbSession, OptionalUser
 from app.core.logging import logger
 from app.core.rate_limit import rate_limiter
 from app.models.community import CommunityPost
@@ -53,6 +53,8 @@ class LensOut(BaseModel):
     summary: str | None
     items: list[LensItemOut]
     created_at: datetime
+    # the person viewing made this search (shared links show it to anyone)
+    mine: bool = True
 
 
 class LensSummaryOut(BaseModel):
@@ -167,9 +169,21 @@ async def _mine(db: DbSession, search_id: str, me: User) -> VisualSearch:
     return search
 
 
-@router.get("/{search_id}", response_model=LensOut)
-async def get_search(search_id: str, me: CurrentUser, db: DbSession):
-    return _out(await _mine(db, search_id, me))
+@router.get(
+    "/{search_id}",
+    response_model=LensOut,
+    dependencies=[Depends(rate_limiter("lens_view", limit=600, window_seconds=3600))],
+)
+async def get_search(search_id: str, db: DbSession, me: OptionalUser):
+    """A search's results. Anyone with its link can see them (the link is
+    unguessable, like a shared look's), so a search can be sent to a friend;
+    only the person who made it can delete it."""
+    search = await db.get(VisualSearch, search_id)
+    if search is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Search not found")
+    out = _out(search)
+    out.mine = me is not None and me.id == search.user_id
+    return out
 
 
 @router.delete("/{search_id}", status_code=status.HTTP_204_NO_CONTENT)

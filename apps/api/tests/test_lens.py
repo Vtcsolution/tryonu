@@ -88,8 +88,14 @@ async def test_a_photo_finds_its_products(client, monkeypatch):  # noqa: ANN001
     mine = (await client.get("/api/v1/lens")).json()
     assert mine[0]["id"] == body["id"] and mine[0]["items"] == 2
     assert (await client.get(f"/api/v1/lens/{body['id']}")).json()["items"][0]["matches"][0]["score"] == 93
+    assert (await client.get(f"/api/v1/lens/{body['id']}")).json()["mine"] is True
+    # its link works for anyone (sent to a friend), but only the owner can delete it
     await register_and_login(client)
-    assert (await client.get(f"/api/v1/lens/{body['id']}")).status_code == 404  # someone else's
+    seen = await client.get(f"/api/v1/lens/{body['id']}")
+    assert seen.status_code == 200 and seen.json()["mine"] is False and seen.json()["items"]
+    assert (await client.delete(f"/api/v1/lens/{body['id']}")).status_code == 404
+    await client.post("/api/v1/auth/logout")
+    assert (await client.get(f"/api/v1/lens/{body['id']}")).status_code == 200  # no account needed to look
 
 
 async def test_my_own_look_and_the_daily_allowance(client, db, monkeypatch):  # noqa: ANN001

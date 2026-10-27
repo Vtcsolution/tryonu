@@ -749,7 +749,17 @@ export type LensItem = {
   box: number[];
   matches: LensMatch[];
 };
-export type LensResult = { id: string; image_url: string; width: number; height: number; summary: string | null; items: LensItem[]; created_at: string };
+export type LensResult = {
+  id: string;
+  image_url: string;
+  width: number;
+  height: number;
+  summary: string | null;
+  items: LensItem[];
+  created_at: string;
+  /** the viewer made this search (a shared link shows it to anyone) */
+  mine?: boolean;
+};
 export type LensSummary = { id: string; image_url: string; summary: string | null; items: number; created_at: string };
 export const lens = {
   search: (file: File, onProgress: (pct: number) => void) => {

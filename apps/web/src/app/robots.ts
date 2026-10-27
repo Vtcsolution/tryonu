@@ -6,6 +6,7 @@ import { SITE } from "@/lib/seo";
 const PRIVATE = [
   "/admin",
   "/team",
+  "/find-look?id=",
   "/account",
   "/credits/paypal",
   "/saved",
