@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/community/parts";
 import { ApiError } from "@/lib/api/client";
 import { community, team, type ReadyLook, type TeamPerson } from "@/lib/api/endpoints";
@@ -166,7 +166,7 @@ export function PostAsPicker({
   const people = usePeople();
   const [adding, setAdding] = useState(false);
   const chip = (active: boolean) =>
-    `flex items-center gap-2 rounded-full border-2 py-1 pl-1 pr-3 text-[14px] font-semibold disabled:opacity-40 ${active ? "border-sage text-ink" : "border-line text-ink-soft hover:border-line-strong"}`;
+    `flex items-center gap-2 rounded-full border-2 py-1 pl-1 pr-3 text-[14px] font-semibold disabled:opacity-40 ${active ? "border-sage bg-sage text-white" : "border-line text-ink-soft hover:border-line-strong"}`;
 
   return (
     <div className="space-y-3">
@@ -240,6 +240,12 @@ export function ShareToCommunity({
     },
   });
   const postedAs = new Set((posted ?? look?.community ?? []).map((c) => c.handle));
+  // the first person who hasn't posted it yet is picked already
+  const people = usePeople();
+  const firstFree = people.data?.find((p) => !postedAs.has(p.handle))?.id ?? null;
+  useEffect(() => {
+    if (personId === null && firstFree) setPersonId(firstFree);
+  }, [personId, firstFree]);
 
   if (post.isSuccess) {
     return (
@@ -276,6 +282,7 @@ export function ShareToCommunity({
       >
         {post.isPending ? "Posting…" : "3. Post to community"}
       </button>
+      {!personId && people.data && <p className="text-[14px] text-muted">Tap a person above, or add a new one, then press Post.</p>}
       {post.isError && <p role="alert" className="text-[14px] text-[#a4553f]">{errText(post.error)}</p>}
     </div>
   );
