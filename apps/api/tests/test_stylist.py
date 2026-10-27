@@ -977,3 +977,35 @@ def test_a_short_ask_like_pink_bridal_look_becomes_the_whole_look():
     assert _extract_search_terms("party dress", None) == ["party dress"]
     assert _extract_search_terms("bridal lehenga with jhumka earrings", None) == ["bridal lehenga", "jhumka earrings"]
     assert _extract_search_terms("lehenga with heavy work", None) == ["lehenga"]
+
+
+def test_a_winter_look_finds_every_piece_with_its_colour():
+    """Live: a 6-piece winter ask lost its overcoat (an unknown word), and the
+    sweater and boots lost their colours; a sweater-and-trousers set stood in
+    for the sweater."""
+    from app.services.stylist_service import _extract_search_terms, _unsuitable
+
+    ask = (
+        "a young man on a snowy street wearing a black wool overcoat, cream cable-knit sweater, charcoal slim "
+        "trousers, brown leather Chelsea boots, silver watch and a grey knit scarf"
+    )
+    assert _extract_search_terms(ask, "men") == [
+        "men black wool overcoat",
+        "men cream cable knit sweater",
+        "men charcoal slim trousers",
+        "men brown leather chelsea boots",
+        "men silver watch",
+        "men grey knit scarf",
+    ]
+    assert _unsuitable("men cream cable knit sweater", "Men's knitted sweater set 3D jacquard", ask)
+    assert not _unsuitable("men cream cable knit sweater", "Mens Cable Knit Sweater Cream", ask)
+    assert not _unsuitable("men tracksuit set", "Men's Tracksuit Set 2 Piece", "a grey tracksuit set")
+
+
+def test_winter_pieces_go_where_they_are_worn():
+    from app.models.enums import OutfitSlot
+    from app.services.outfit_slots import slot_for
+
+    assert slot_for("Mens Wool Overcoat Black Long") == OutfitSlot.OUTERWEAR
+    assert slot_for("Men's Turtleneck Pullover") == OutfitSlot.TOP
+    assert slot_for("Grey Knit Scarf Winter") == OutfitSlot.ACCESSORY

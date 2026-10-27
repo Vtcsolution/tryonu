@@ -22,6 +22,7 @@ _SLOT_WORDS: list[tuple[OutfitSlot, tuple[str, ...]]] = [
         "nose pin", "jewelry", "jewellery", "cufflinks", "brooch", "sunglasses", "glasses", "eyeglasses",
         "spectacles", "belt", "belts", "cap", "caps", "hat", "hats", "beanie", "beret", "fedora", "turban",
         "pagri", "topi", "headband", "hairband", "hair clip", "bandana", "scarf", "scarves", "stole", "muffler",
+        "beanies", "mufflers",
         "hijab", "niqab", "tie", "necktie", "bow tie", "gloves", "mittens", "socks", "stockings", "wallet",
     )),
     (OutfitSlot.WATCH, ("watch", "watches", "smartwatch")),
@@ -40,7 +41,8 @@ _SLOT_WORDS: list[tuple[OutfitSlot, tuple[str, ...]]] = [
     )),
     (OutfitSlot.OUTERWEAR, (
         "waistcoat", "vest", "blazer", "jacket", "jackets", "coat", "coats", "bomber", "cardigan", "shawl",
-        "pashmina", "poncho", "parka",
+        "pashmina", "poncho", "parka", "parkas", "overcoat", "overcoats", "peacoat", "peacoats", "puffer",
+        "trench", "windbreaker",
     )),
     (OutfitSlot.BOTTOM, (
         "jeans", "jean", "trouser", "trousers", "pant", "pants", "chinos", "palazzo", "shorts", "skirt",
@@ -48,7 +50,7 @@ _SLOT_WORDS: list[tuple[OutfitSlot, tuple[str, ...]]] = [
     )),
     (OutfitSlot.TOP, (
         "shirt", "shirts", "t-shirt", "tshirt", "tee", "top", "tops", "blouse", "kurta", "kurtas", "kurti",
-        "kurtis", "tunic", "sweater", "hoodie", "polo",
+        "kurtis", "tunic", "sweater", "sweaters", "hoodie", "polo", "turtleneck", "pullover", "jumper",
     )),
 ]
 _PATTERNS = [

@@ -29,7 +29,10 @@ const PIECE_LABELS: [RegExp, string][] = [
   [/\b(clutch|handbag|bag|purse|tote)\b/i, "Bag"],
   [/\b(sunglasses|eyeglasses|glasses)\b/i, "Glasses"],
   [/\b(khussa|jutti|heels|sandals?|shoes|sneakers|flats|boots|loafers|mojari)\b/i, "Shoes"],
-  [/\b(dupatta|shawl|stole|scarf)\b/i, "Dupatta"],
+  [/\bdupattas?\b/i, "Dupatta"],
+  [/\b(scarf|scarves|muffler)\b/i, "Scarf"],
+  [/\b(shawls?|stoles?|pashmina)\b/i, "Shawl"],
+  [/\b(beanie|hat|cap|beret)\b/i, "Hat"],
 ];
 const SLOT_LABELS: Record<string, string> = {
   dress: "Outfit",

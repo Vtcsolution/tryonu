@@ -79,7 +79,29 @@ _ITEM_CATEGORY_WORDS = {
     "jilbab", "shawl", "shawls", "blouse", "blouses", "top", "tops", "activewear", "pin",
     "smartwatch", "wristwatch", "wristwatches", "chinos", "tuxedo", "wallet", "wallets", "cufflinks", "accessories",
     "backpack", "backpacks", "payal", "chappal", "purse", "tote", "romper", "rompers", "set", "sets",
+    # winter wear — live: "black wool overcoat" was not searched at all
+    "overcoat", "overcoats", "peacoat", "peacoats", "parka", "parkas", "puffer", "puffers", "trench",
+    "turtleneck", "turtlenecks", "pullover", "pullovers", "jumper", "jumpers", "beanie", "beanies",
+    "muffler", "mufflers", "gloves", "mittens",
 }
+# a third describing word is kept when it's a colour: live, "brown leather
+# Chelsea boots" was searched as "leather chelsea boots", any colour
+_LEAD_COLOURS = {
+    "white", "black", "red", "blue", "green", "pink", "yellow", "maroon", "grey", "gray", "gold", "silver",
+    "brown", "navy", "purple", "orange", "beige", "cream", "ivory", "teal", "charcoal", "camel", "tan",
+    "khaki", "olive", "burgundy", "mustard", "rust",
+}
+# one garment worn on its own: a listing selling it as a set (sweater and
+# trousers together) is not it. Live: "cream cable-knit sweater" picked a
+# "knitted sweater set" with matching trousers, the shopper's own trousers
+# already chosen.
+_SEPARATES = {
+    "sweater", "sweaters", "shirt", "shirts", "t-shirt", "tshirt", "hoodie", "hoodies", "cardigan", "blouse",
+    "jacket", "jackets", "coat", "coats", "overcoat", "overcoats", "peacoat", "parka", "puffer", "blazer",
+    "blazers", "trouser", "trousers", "pant", "pants", "jean", "jeans", "chinos", "turtleneck", "pullover",
+    "jumper", "top", "tops",
+}
+_SET_OFFER = re.compile(r"\b(sets?|tracksuits?|co-?ords?|two[- ]piece|2[- ]?(piece|pc|pcs))\b")
 # Generic umbrella words, each mapped to the specific items it's a mere
 # lead-in for — real bug, found live: "two jewelry pieces (earrings and
 # bangles)" produced three separate searches ("jewelry", "earrings",
@@ -258,7 +280,10 @@ def _unsuitable(term: str, name: str, prompt: str) -> bool:
     lowered = name.lower()
     if _COSTUME.search(lowered) and not _COSTUME.search(prompt.lower()):
         return True
-    one_piece = {_fold(w) for w in _words(term) & _ITEM_CATEGORY_WORDS} & _ONE_PIECE_ITEMS
+    asked = _words(term) & _ITEM_CATEGORY_WORDS
+    if asked & _SEPARATES and _SET_OFFER.search(lowered) and not _SET_OFFER.search(prompt.lower()):
+        return True
+    one_piece = {_fold(w) for w in asked} & _ONE_PIECE_ITEMS
     return bool(one_piece) and bool(_MULTI_PACK.search(lowered))
 
 
@@ -407,7 +432,7 @@ def _extract_search_terms(prompt: str, gender: str | None = None, *, ready: bool
       occasion's whole look (_ready_look)"""
     if ready and (whole_look := _ready_look(prompt, gender)):
         prompt = whole_look
-    tokens = [(m.group(), m.start(), m.end()) for m in re.finditer(r"[a-z']+", prompt.lower())]
+    tokens = [(m.group(), m.start(), m.end()) for m in re.finditer(r"[a-z']+(?:-[a-z']+)*", prompt.lower())]
     words = [t[0] for t in tokens]
     gender = _gender_in_prompt(prompt) or (gender if gender in ("men", "women") else "")
 
@@ -459,10 +484,13 @@ def _extract_search_terms(prompt: str, gender: str | None = None, *, ready: bool
             and words[k - 1] not in _MEN_WORDS
         ):
             k -= 1
+        if i - k == 2 and joined(k - 1, k) and words[k - 1] in _LEAD_COLOURS:
+            k -= 1
         parts = [*words[k:i], *parts]
         if gender:
             parts = [gender, *parts]
-        term = " ".join(parts)
+        # "cable-knit" is searched as "cable knit" ("t-shirt" stays, shops spell it so)
+        term = " ".join(p if p in _ITEM_CATEGORY_WORDS else p.replace("-", " ") for p in parts)
         if term not in seen:
             seen.add(term)
             terms.append(term)
