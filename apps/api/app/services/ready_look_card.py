@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
 
 W, H = 1080, 1350
-BAND = 84  # the call-to-action band at the bottom
+BAND = 0  # no band under the picture: the try-on fills the frame to the bottom
 MARGIN = 22  # cards from the frame's edges
 INK = (28, 27, 23)
 SAGE = (87, 99, 79)
@@ -328,12 +328,6 @@ def render_card(title: str, person: bytes, items: list[CardItem]) -> tuple[bytes
         ty = label_top + (label_h - (size + 6 + pf.size)) / 2
         draw.text((x + (tw - draw.textlength(text, font=f)) / 2, ty), text, font=f, fill=INK)
         draw.text((x + (tw - draw.textlength(t["price"], font=pf)) / 2, ty + size + 6), t["price"], font=pf, fill=SAGE)
-
-    # the call to action
-    draw.rectangle((0, H - BAND, W, H), fill=SAGE)
-    cta = "Try this look on you first  ·  tryonu.app"
-    cf = _font(30, bold=True)
-    draw.text(((W - draw.textlength(cta, font=cf)) / 2, H - BAND + (BAND - 36) / 2), cta, font=cf, fill=(255, 255, 255))
 
     out = io.BytesIO()
     canvas.convert("RGB").save(out, "JPEG", quality=88, optimize=True, progressive=True)

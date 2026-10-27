@@ -94,13 +94,6 @@ export function LookCanvas({ look, href, priority = false }: { look: ReadyLook; 
           </a>
         );
       })}
-
-      <div
-        className="absolute inset-x-0 bottom-0 z-[2] grid place-items-center bg-[#57634f] font-bold text-white"
-        style={{ height: pct(L.band, L.h), fontSize: cqw(30, L.w) }}
-      >
-        Try this look on you first · tryonu.app
-      </div>
     </div>
   );
 }
