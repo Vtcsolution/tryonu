@@ -150,14 +150,72 @@ export function PeopleSection() {
   );
 }
 
+/** "Post as": the team member themself (when allowed) or one of the team's
+ * people, with a quick way to add a new person. null = as themself. */
+export function PostAsPicker({
+  value,
+  onChange,
+  me,
+  done = new Set(),
+}: {
+  value: string | null;
+  onChange: (personId: string | null) => void;
+  me?: { name: string | null; handle: string; avatar_url: string | null } | null;
+  done?: Set<string>;
+}) {
+  const people = usePeople();
+  const [adding, setAdding] = useState(false);
+  const chip = (active: boolean) =>
+    `flex items-center gap-2 rounded-full border-2 py-1 pl-1 pr-3 text-[14px] font-semibold disabled:opacity-40 ${active ? "border-sage text-ink" : "border-line text-ink-soft hover:border-line-strong"}`;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2">
+        {me && (
+          <button type="button" onClick={() => onChange(null)} aria-pressed={value === null} className={chip(value === null)}>
+            <Avatar name={me.name} handle={me.handle} url={me.avatar_url} size={28} />
+            Me
+          </button>
+        )}
+        {(people.data ?? []).map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            disabled={done.has(p.handle)}
+            onClick={() => onChange(p.id)}
+            aria-pressed={value === p.id}
+            title={done.has(p.handle) ? "Already posted as this person" : p.name}
+            className={chip(value === p.id)}
+          >
+            <Avatar name={p.name} handle={p.handle} url={p.avatar_url} size={28} />@{p.handle}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => setAdding((v) => !v)}
+          className="rounded-full border border-dashed border-line-strong px-3 py-1.5 text-[14px] font-semibold text-ink hover:border-sage"
+        >
+          {adding ? "Close" : "+ New person"}
+        </button>
+      </div>
+      {adding && (
+        <PersonForm
+          onDone={(p) => {
+            setAdding(false);
+            onChange(p.id);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 /** Inside a look's card: post its try-on to the community as one of the
  * team's people. There it shows as the try-on picture with the products,
  * not the outfit-receipt picture used on Ready looks. */
 export function ShareToCommunity({ look }: { look: ReadyLook }) {
   const qc = useQueryClient();
-  const people = usePeople();
   const [personId, setPersonId] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
   const [caption, setCaption] = useState("Tried it on before buying it. What do you think: buy or skip?");
   const [poll, setPoll] = useState(true);
   const post = useMutation({
@@ -179,39 +237,7 @@ export function ShareToCommunity({ look }: { look: ReadyLook }) {
   return (
     <div className="mt-4 space-y-3 border-t border-line pt-4">
       <p className="text-[15px] font-semibold text-ink">1. Post as</p>
-      <div className="flex flex-wrap gap-2">
-        {(people.data ?? []).map((p) => {
-          const done = postedAs.has(p.handle);
-          return (
-            <button
-              key={p.id}
-              type="button"
-              disabled={done}
-              onClick={() => setPersonId(p.id)}
-              aria-pressed={personId === p.id}
-              title={done ? "Already posted as this person" : undefined}
-              className={`flex items-center gap-2 rounded-full border-2 py-1 pl-1 pr-3 text-[14px] font-semibold disabled:opacity-40 ${personId === p.id ? "border-sage text-ink" : "border-line text-ink-soft hover:border-line-strong"}`}
-            >
-              <Avatar name={p.name} handle={p.handle} url={p.avatar_url} size={28} />@{p.handle}
-            </button>
-          );
-        })}
-        <button
-          type="button"
-          onClick={() => setAdding((v) => !v)}
-          className="rounded-full border border-dashed border-line-strong px-3 py-1.5 text-[14px] font-semibold text-ink hover:border-sage"
-        >
-          {adding ? "Close" : "+ New person"}
-        </button>
-      </div>
-      {adding && (
-        <PersonForm
-          onDone={(p) => {
-            setAdding(false);
-            setPersonId(p.id);
-          }}
-        />
-      )}
+      <PostAsPicker value={personId} onChange={setPersonId} done={postedAs} />
       <p className="text-[15px] font-semibold text-ink">2. Write the post</p>
       <textarea
         value={caption}

@@ -8,6 +8,8 @@ import { createPortal } from "react-dom";
 import { ApiError, resolveMediaUrl } from "@/lib/api/client";
 import { PostOptions } from "@/components/community/extras";
 import { community, type PostExtras } from "@/lib/api/endpoints";
+import { useSession } from "@/lib/auth/useSession";
+import { PostAsPicker } from "@/components/looks/TeamCommunity";
 
 export const COMMUNITY_RULES = [
   "Post only looks made with your own photo.",
@@ -22,9 +24,15 @@ export function PostToCommunity({ jobId, imageUrl }: { jobId: string; imageUrl?:
   const [caption, setCaption] = useState("");
   const [agree, setAgree] = useState(false);
   const [extras, setExtras] = useState<PostExtras>({});
+  const { user } = useSession();
+  const isTeam = !!(user && (user.is_team || user.is_admin));
+  // team only: one of the team's people posts it (null = the member themself)
+  const [personId, setPersonId] = useState<string | null>(null);
+  const me = useQuery({ queryKey: ["community", "me"], queryFn: community.me, enabled: open && isTeam });
   const existing = useQuery({ queryKey: ["community", "by-job", jobId], queryFn: () => community.postForJob(jobId) });
   const post = useMutation({
-    mutationFn: () => community.create({ tryon_job_id: jobId, caption: caption.trim() || undefined, accept_rules: agree, ...extras }),
+    mutationFn: () =>
+      community.create({ tryon_job_id: jobId, caption: caption.trim() || undefined, accept_rules: agree, person_id: personId ?? undefined, ...extras }),
     onSuccess: () => existing.refetch(),
   });
 
@@ -36,7 +44,8 @@ export function PostToCommunity({ jobId, imageUrl }: { jobId: string; imageUrl?:
   }, [open]);
 
   const postId = post.data?.id ?? existing.data?.post_id ?? null;
-  if (postId && !open) {
+  // the team can post the same look again as other people
+  if (postId && !open && !isTeam) {
     return (
       <Link
         href={`/community/post/${postId}`}
@@ -51,7 +60,10 @@ export function PostToCommunity({ jobId, imageUrl }: { jobId: string; imageUrl?:
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          post.reset(); // the team can post again as someone else
+          setOpen(true);
+        }}
         className="tu-press flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full border border-line-strong bg-surface px-5 text-[15.5px] font-semibold text-ink hover:border-ink/40"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
@@ -75,7 +87,7 @@ export function PostToCommunity({ jobId, imageUrl }: { jobId: string; imageUrl?:
                   <p className="mt-1 text-[15px] text-muted">Members can now like it, comment and try your look.</p>
                   <div className="mt-5 flex flex-wrap justify-center gap-3">
                     <Link href={`/community/post/${post.data.id}`} className="inline-flex min-h-[44px] items-center rounded-full bg-sage px-5 text-[15px] font-semibold text-white">
-                      View my post
+                      View the post
                     </Link>
                     <button type="button" onClick={() => setOpen(false)} className="min-h-[44px] rounded-full border border-line-strong px-5 text-[15px] font-semibold text-ink">
                       Close
@@ -86,6 +98,17 @@ export function PostToCommunity({ jobId, imageUrl }: { jobId: string; imageUrl?:
                 <>
                   <h2 className="text-[19px] font-semibold text-ink">Post to the TryOnU community</h2>
                   <p className="mt-1 text-[14.5px] text-muted">Members can see this look, like it, comment and try it on themselves. You can delete it any time.</p>
+                  {isTeam && (
+                    <div className="mt-4 rounded-xl border border-line p-3">
+                      <p className="mb-2 text-[14.5px] font-semibold text-ink">Post as</p>
+                      <PostAsPicker
+                        value={personId}
+                        onChange={setPersonId}
+                        me={me.data ? { name: me.data.name, handle: me.data.handle, avatar_url: me.data.avatar_url } : null}
+                      />
+                      <p className="mt-2 text-[13px] text-muted">The post shows this person&apos;s photo, name and username.</p>
+                    </div>
+                  )}
                   <div className="mt-4 flex gap-3">
                     {imageUrl && (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -112,7 +135,9 @@ export function PostToCommunity({ jobId, imageUrl }: { jobId: string; imageUrl?:
                   </div>
                   <label className="mt-3 flex items-start gap-2.5 text-[14.5px] text-ink">
                     <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-1 h-4 w-4 accent-[#5f7a5b]" />
-                    I agree to the community rules, and this look uses my own photo.
+                    {personId
+                      ? "I agree to the community rules, and this person agreed to have their photo posted."
+                      : "I agree to the community rules, and this look uses my own photo."}
                   </label>
                   {post.isError && (
                     <p className="mt-3 text-[14px] text-[#a4553f]">{post.error instanceof ApiError ? post.error.detail : "Couldn't post. Please try again."}</p>

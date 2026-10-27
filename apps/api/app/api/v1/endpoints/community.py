@@ -335,6 +335,8 @@ class NewPostIn(BaseModel):
     poll: bool = False  # ask the community: Buy or skip?
     challenge_id: str | None = None  # enter this week's style challenge
     music_track_id: str | None = None  # a song from the music library
+    # team only: post as one of the team's people (their photo, name and @username)
+    person_id: str | None = None
 
 
 async def _challenge_entry(db: DbSession, challenge_id: str | None, me: User) -> str | None:
@@ -371,20 +373,30 @@ async def create_post(payload: NewPostIn, me: CurrentUser, db: DbSession):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Look not found")
     if job.status != JobStatus.COMPLETED or job.result is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only a finished look can be posted.")
-    existing = await db.scalar(select(CommunityPost).where(CommunityPost.user_id == me.id, CommunityPost.tryon_job_id == job.id))
+    author = me
+    if payload.person_id:
+        if not (me.is_team or me.is_admin):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only TryOnU team members can do this")
+        author = await db.get(User, payload.person_id)
+        if author is None or not author.team_person:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Person not found")
+    existing = await db.scalar(select(CommunityPost).where(CommunityPost.user_id == author.id, CommunityPost.tryon_job_id == job.id))
     if existing is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="You've already posted this look.")
-    challenge_id = await _challenge_entry(db, payload.challenge_id, me)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You've already posted this look." if author is me else f"@{author.handle} has already posted this look.",
+        )
+    challenge_id = await _challenge_entry(db, payload.challenge_id, author)
     song = await pick_music(db, payload.music_track_id)
-    await ensure_handle(db, me)
+    await ensure_handle(db, author)
     caption, removed = clean_text(payload.caption)
     post = CommunityPost(
-        user_id=me.id, tryon_job_id=job.id, caption=caption or None, links_removed=removed, poll=payload.poll,
+        user_id=author.id, tryon_job_id=job.id, caption=caption or None, links_removed=removed, poll=payload.poll,
         challenge_id=challenge_id, music_track_id=song,
     )
     db.add(post)
     await db.flush()
-    await _notify_mentions(db, me, caption, post_id=post.id)
+    await _notify_mentions(db, author, caption, post_id=post.id)
     await db.commit()
     await db.refresh(post)
     out = (await _posts_out(db, [post], me))[0]

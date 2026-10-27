@@ -531,7 +531,8 @@ export const community = {
   post: (id: string) => apiFetch<CommunityPost>(`${C}/posts/${id}`),
   /** the free music library members can add to a post */
   music: () => apiFetch<MusicTrack[]>(`${C}/music`),
-  create: (input: { tryon_job_id: string; caption?: string; accept_rules: boolean } & PostExtras) =>
+  /** person_id (team only): post as one of the team's people */
+  create: (input: { tryon_job_id: string; caption?: string; accept_rules: boolean; person_id?: string } & PostExtras) =>
     apiFetch<CommunityPost>(`${C}/posts`, { method: "POST", body: input }),
   postForJob: (jobId: string) => apiFetch<{ post_id: string | null }>(`${C}/posts/by-job/${jobId}`),
   /** my own photo or video, with upload progress (0-100) */

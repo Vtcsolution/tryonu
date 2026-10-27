@@ -128,3 +128,25 @@ async def test_the_team_posts_a_look_to_the_community_as_a_person(client, db, mo
     # a team person can't sign in, and gets no emails
     stored = await db.get(User, person["id"])
     assert stored.hashed_password is None and stored.notify_email is False and stored.team_person is True
+
+
+async def test_a_team_member_posts_a_try_on_as_a_person_from_the_post_window(client, db, monkeypatch):  # noqa: ANN001
+    job_id, _product = await _finished_look(client, db, monkeypatch)
+    me = (await client.get("/api/v1/auth/me")).json()
+    body = {"tryon_job_id": job_id, "caption": "New look", "accept_rules": True}
+
+    # a member who isn't on the team can't post as someone else
+    assert (await client.post("/api/v1/community/posts", json={**body, "person_id": me["id"]})).status_code == 403
+
+    await _team(db, me["id"])
+    photo = {"photo": ("ayesha.jpg", small_jpeg_bytes(), "image/jpeg")}
+    person = (await client.post("/api/v1/team/people", data={"name": "Ayesha", "handle": "ayesha"}, files=photo)).json()
+    # only a team person, not any member's account
+    assert (await client.post("/api/v1/community/posts", json={**body, "person_id": me["id"]})).status_code == 404
+
+    made = await client.post("/api/v1/community/posts", json={**body, "person_id": person["id"]})
+    assert made.status_code == 201, made.text
+    assert made.json()["author"]["handle"] == "ayesha" and made.json()["author"]["name"] == "Ayesha"
+    assert (await client.post("/api/v1/community/posts", json={**body, "person_id": person["id"]})).status_code == 409
+    # the team member can still post the same look as themselves
+    assert (await client.post("/api/v1/community/posts", json=body)).status_code == 201
