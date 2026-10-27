@@ -39,9 +39,10 @@ def _cache_key(image_url: str) -> str:
     return "tryon/described/v2-" + hashlib.sha256(image_url.encode()).hexdigest()[:32] + ".json"
 
 
-async def describe_product(image: np.ndarray, image_url: str, name: str) -> str:
+async def describe_product(image: np.ndarray, image_url: str, name: str, *, timeout: float = 120.0) -> str:
     """A detail description of the product in its main photo; the product's
-    name if the vision model is unavailable. Cached per photo."""
+    name if the vision model is unavailable or slower than `timeout` seconds.
+    Cached per photo."""
     storage = get_storage()
     key = _cache_key(image_url)
     try:
@@ -50,7 +51,7 @@ async def describe_product(image: np.ndarray, image_url: str, name: str) -> str:
         pass
     try:
         answer = await ask_json(
-            _INSTRUCTIONS, [{"type": "text", "text": f"Listing title: {name}"}, image_part(image, 768)]
+            _INSTRUCTIONS, [{"type": "text", "text": f"Listing title: {name}"}, image_part(image, 768)], timeout=timeout
         )
         description = str(answer.get("description") or name)[:400]
     except VisionError as exc:

@@ -101,7 +101,7 @@ def _use_gemini(monkeypatch, direct, **kw):  # noqa: ANN001
     monkeypatch.setattr(direct, "GEMINI_API_KEY", "g-test-not-real")
     monkeypatch.setattr(tryon_tasks, "GeminiImageTryOnProvider", lambda **a: FakeGemini(**a, **kw))
 
-    async def describe(image, url, name):  # noqa: ANN001 — never the real (paid) vision call
+    async def describe(image, url, name, **_):  # noqa: ANN001 — never the real (paid) vision call
         return f"exact details of {name}"
 
     monkeypatch.setattr(tryon_tasks, "describe_product", describe)
@@ -355,7 +355,7 @@ async def test_small_jewellery_on_a_board_is_also_described_in_words(client, db,
     _use_board(monkeypatch, direct)
     monkeypatch.setattr(direct, "OPENAI_API_KEY", "sk-test-not-real")
 
-    async def describe(image, url, name):  # noqa: ANN001 — never the real (paid) vision call
+    async def describe(image, url, name, **_):  # noqa: ANN001 — never the real (paid) vision call
         return "thin plain gold hoop nose ring, no chain" if "Nose" in name else f"details of {name}"
 
     monkeypatch.setattr(tryon_tasks, "describe_product", describe)

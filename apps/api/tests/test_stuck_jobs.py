@@ -161,3 +161,108 @@ async def test_a_stuck_one_product_direct_try_on_stops_after_twenty_minutes(clie
     # the shared test database: leave nothing running for later sweeps to find
     await db.execute(update(TryOnJob).where(TryOnJob.id == three).values(status=JobStatus.FAILED))
     await db.commit()
+
+
+async def _lost_job(db, client, monkeypatch, *, running: set[str] | None = None, **kwargs):  # noqa: ANN001, ANN202
+    """A try-on that says "processing" for 2 minutes, with the workers running `running`."""
+    from app.services import stuck_jobs
+
+    job = await _queued_job(db, client, age_minutes=2, status=JobStatus.PROCESSING, **kwargs)
+    enqueued: list[str] = []
+    monkeypatch.setattr(stuck_jobs, "running_tryon_job_ids", lambda: set() if running is None else running)
+    monkeypatch.setattr(stuck_jobs, "enqueue_tryon_job", enqueued.append)
+    return job, enqueued
+
+
+async def _status(db, job_id: str) -> TryOnJob:
+    db.expire_all()
+    return (await db.execute(select(TryOnJob).where(TryOnJob.id == job_id))).scalar_one()
+
+
+async def _settle(db, job_id: str) -> None:
+    # the shared test database: leave nothing running for later sweeps to find
+    from sqlalchemy import update
+
+    await db.execute(update(TryOnJob).where(TryOnJob.id == job_id).values(status=JobStatus.FAILED))
+    await db.commit()
+
+
+async def test_a_try_on_whose_worker_died_starts_again_by_itself(client, db, monkeypatch):
+    """Live: "Drawing 4 products in one image" for 13 minutes: the process
+    drawing it was gone, and the job would have waited 65 minutes to fail."""
+    job, enqueued = await _lost_job(db, client, monkeypatch)
+    user_id, cost = job.user_id, job.credit_cost
+    before = await credit_balance(db, user_id)
+
+    await sweep_stuck_jobs()
+    again = await _status(db, job.id)
+    assert again.status == JobStatus.QUEUED and again.attempt == 2 and again.started_at is None
+    assert job.id in enqueued
+    assert await credit_balance(db, user_id) == before  # still reserved for the new attempt
+    assert cost > 0
+    await _settle(db, job.id)
+
+
+async def test_a_try_on_lost_twice_is_refunded(client, db, monkeypatch):
+    job, enqueued = await _lost_job(db, client, monkeypatch)
+    from sqlalchemy import update
+
+    await db.execute(update(TryOnJob).where(TryOnJob.id == job.id).values(attempt=2))
+    await db.commit()
+    user_id, cost = job.user_id, job.credit_cost
+    before = await credit_balance(db, user_id)
+
+    await sweep_stuck_jobs()
+    gone = await _status(db, job.id)
+    assert gone.status == JobStatus.FAILED and job.id not in enqueued
+    assert await credit_balance(db, user_id) == before + cost
+
+
+async def test_a_lost_try_on_fashn_already_has_is_held_not_redrawn(client, db, monkeypatch):
+    job, enqueued = await _lost_job(db, client, monkeypatch, provider_job_id="fashn_123")
+    user_id = job.user_id
+    before = await credit_balance(db, user_id)
+
+    await sweep_stuck_jobs()
+    held = await _status(db, job.id)
+    assert held.status == JobStatus.FAILED and held.review_state == "pending" and job.id not in enqueued
+    assert await credit_balance(db, user_id) == before
+
+
+async def test_a_try_on_a_worker_is_drawing_is_left_alone(client, db, monkeypatch):
+    job, enqueued = await _lost_job(db, client, monkeypatch, running=set())
+    from app.services import stuck_jobs
+
+    monkeypatch.setattr(stuck_jobs, "running_tryon_job_ids", lambda: {job.id})
+    await sweep_stuck_jobs()
+    assert (await _status(db, job.id)).status == JobStatus.PROCESSING and job.id not in enqueued
+    await _settle(db, job.id)
+
+
+async def test_without_a_queue_to_ask_nothing_counts_as_lost(client, db, monkeypatch):
+    job, enqueued = await _lost_job(db, client, monkeypatch)
+    from app.services import stuck_jobs
+
+    monkeypatch.setattr(stuck_jobs, "running_tryon_job_ids", lambda: None)
+    await sweep_stuck_jobs()
+    assert (await _status(db, job.id)).status == JobStatus.PROCESSING and job.id not in enqueued
+    await _settle(db, job.id)
+
+
+async def test_a_one_call_look_board_stops_after_twelve_minutes(client, db, monkeypatch):
+    """One FASHN call per look: 4 products used to be allowed 65 minutes."""
+    from app.core.config import get_settings
+    from app.services import stuck_jobs
+    from sqlalchemy import update
+
+    monkeypatch.setattr(get_settings(), "TRYON_ENGINE_MODE", "direct")
+    monkeypatch.setattr(get_settings(), "TRYON_MULTI_ENGINE", "fashn_board")
+    monkeypatch.setattr(stuck_jobs, "running_tryon_job_ids", lambda: None)
+    job = await _queued_job(db, client, age_minutes=13, status=JobStatus.PROCESSING, provider_job_id="board_1")
+    await db.execute(
+        update(TryOnJob).where(TryOnJob.id == job.id).values(steps=[{"index": i, "status": "sent"} for i in range(4)])
+    )
+    await db.commit()
+
+    await sweep_stuck_jobs()
+    assert (await _status(db, job.id)).status == JobStatus.FAILED

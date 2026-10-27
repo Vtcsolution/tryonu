@@ -59,6 +59,31 @@ def queue_state() -> dict:
         return {"mode": "redis", "error": str(exc)[:120]}
 
 
+def running_tryon_job_ids() -> set[str] | None:
+    """The try-ons RQ workers are running right now (by our job id), or None
+    when that can't be told: no Redis (in-process mode) or Redis unreachable.
+
+    A try-on the database calls "processing" that no worker has was lost: the
+    process drawing it was killed (out of memory, a restart during an update)
+    and nothing else would ever finish it. Blocking Redis calls: run it in a
+    thread from async code."""
+    if not settings.REDIS_URL:
+        return None
+    try:
+        from rq import Worker
+
+        queue = _get_rq_queue("tryon")
+        running: set[str] = set()
+        for worker in Worker.all(queue=queue):
+            job = worker.get_current_job()
+            if job is not None and job.args:
+                running.add(str(job.args[0]))
+        return running
+    except Exception as exc:  # noqa: BLE001 — unknown is never "lost"
+        logger.warning("rq_running_jobs_unknown", error=str(exc)[:120])
+        return None
+
+
 def enqueue_tryon_job(job_id: str) -> None:
     if settings.REDIS_URL:
         queue = _get_rq_queue("tryon")

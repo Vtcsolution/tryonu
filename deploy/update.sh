@@ -24,7 +24,10 @@ main() {
   cd "$ROOT/apps/api"
   ./.venv/bin/pip install -q -r requirements.txt
   ./.venv/bin/python -m alembic upgrade head
-  pm2 restart tryonu-api tryonu-worker
+  pm2 restart tryonu-api
+  # never cut off a try-on that's being drawn (waits up to 4 minutes)
+  ./.venv/bin/python -m app.scripts.wait_worker_idle --max 240 || true
+  pm2 restart tryonu-worker
 
   echo "== Website: building beside the running site (the site stays up)"
   cd "$ROOT/apps/web"

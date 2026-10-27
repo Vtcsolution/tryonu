@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 from types import SimpleNamespace
 import io
 import base64
@@ -772,6 +773,31 @@ async def _paused_for_budget(session, job: TryOnJob, needed: int, available: int
     await _fail_job(session, job, PAUSED_MESSAGE, refund=True)
 
 
+# How long one product description may take while a shopper waits: it is
+# usually 5-15s, and without it the product's name is used instead.
+_DESCRIBE_TIMEOUT = 25.0
+
+
+class _Clock:
+    """How long each stage of a try-on took. Logged as it goes, so a job that
+    stalls shows in the worker log where it stopped, and kept with the result
+    (qc_report.final_check.timings) for tryon_timing."""
+
+    def __init__(self, job_id: str) -> None:
+        self.job_id = job_id
+        self._started = self._last = time.monotonic()
+        self.stages: dict[str, float] = {}
+
+    def lap(self, stage: str) -> None:
+        now = time.monotonic()
+        self.stages[stage] = round(now - self._last, 1)
+        self._last = now
+        logger.info("tryon_stage", job_id=self.job_id, stage=stage, seconds=self.stages[stage])
+
+    def summary(self) -> dict:
+        return {**self.stages, "total": round(time.monotonic() - self._started, 1)}
+
+
 async def _billed(job: TryOnJob) -> bool:  # noqa: ANN001
     return any((step or {}).get("provider_job_id") for step in (job.steps or []))
 
@@ -790,16 +816,21 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
             await _fail_job(session, job, "This look has no products, or more than the limit allows.", refund=True)
             return
         cost = credits_per_render(settings.FASHN_RESOLUTION, settings.FASHN_GENERATION_MODE)
+        clock = _Clock(job.id)
 
         await _progress_writer(session, job)("Preparing your photo and products")
         try:
             person = await asyncio.to_thread(get_storage().read, job.user_photo.storage_key)
-            products: list[ProductInput] = []
-            for layer in layers:
+
+            async def fetched(layer: _Layer) -> ProductInput:
                 url = hires_product_url(_absolute_url(layer.image_url))
                 image = await fetch_product_image(url)
                 require_hires_product(image)
-                products.append(ProductInput(name=layer.name, product_id=layer.product_id, image_url=url, image=image))
+                return ProductInput(name=layer.name, product_id=layer.product_id, image_url=url, image=image)
+
+            # all at once: one after another, a slow shop added up per product
+            products: list[ProductInput] = list(await asyncio.gather(*(fetched(layer) for layer in layers)))
+            clock.lap("products")
             mode = settings.TRYON_MULTI_ENGINE
             garment_at = [i for i, layer in enumerate(layers) if layer.slot in _HYBRID_GARMENTS]
             hybrid = len(products) >= 2 and mode == "hybrid" and 0 < len(garment_at) < len(products)
@@ -852,7 +883,7 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
             return
 
         if one_call:
-            await _run_one_call_look(session, job, person, products, layers)
+            await _run_one_call_look(session, job, person, products, layers, clock=clock)
             return
         if board:
             available = await provider.credits_available()
@@ -860,7 +891,7 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
                 await _paused_for_budget(session, job, cost, available)
                 return
             if job.base_job_id is None:
-                await _run_one_call_look(session, job, person, products, layers, board_engine=provider)
+                await _run_one_call_look(session, job, person, products, layers, board_engine=provider, clock=clock)
                 return
             carried = await _carry_forward(session, job, layers)
             if carried is None:
@@ -876,6 +907,7 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
                 prior_steps=prior_steps,
                 board_engine=provider,
                 replaced=replaced,
+                clock=clock,
             )
             return
 
@@ -1099,7 +1131,7 @@ def _bgr(data: bytes) -> np.ndarray:
     return cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
 
 
-async def _draw_look_board(session, job: TryOnJob, fashn: VirtualTryOnProvider, person: bytes, products: list[ProductInput], layers: list[_Layer], steps: list[dict], *, adding: bool = False):  # noqa: ANN001, ANN202
+async def _draw_look_board(session, job: TryOnJob, fashn: VirtualTryOnProvider, person: bytes, products: list[ProductInput], layers: list[_Layer], steps: list[dict], *, adding: bool = False, clock: _Clock | None = None):  # noqa: ANN001, ANN202
     """Every product composed into one labelled look image, sent as the product
     image of ONE FASHN Try-On Max call. Returns FASHN's output, or None once the
     job has been failed (refunded) or held (FASHN accepted and billed it)."""
@@ -1107,8 +1139,22 @@ async def _draw_look_board(session, job: TryOnJob, fashn: VirtualTryOnProvider, 
         BoardItem(p.image, p.image_url, p.name, (layer.slot or OutfitSlot.OTHER) in _HYBRID_GARMENTS)
         for p, layer in zip(products, layers)
     ]
+    # Small jewellery in words as well: live, a plain thin nose hoop shown as a
+    # close-up of a nose came out as a bridal nath on a chain. The cached
+    # description says "thin plain gold hoop, no chain"; one vision call per
+    # new product photo, never per look. Asked while the board is being cut
+    # out, not after it.
+    small = [
+        (p, label)
+        for p, label in zip(products, (label_for(i.name, i.garment) for i in items))
+        if label in _DESCRIBED_ON_BOARD
+    ] if settings.OPENAI_API_KEY else []
+    making = asyncio.create_task(asyncio.to_thread(build_look_board, items))
+    described = await asyncio.gather(
+        *(describe_product(_bgr(p.image), p.image_url, p.name, timeout=_DESCRIBE_TIMEOUT) for p, _ in small)
+    )
     try:
-        board, labels = await asyncio.to_thread(build_look_board, items)
+        board, labels = await making
     except Exception as exc:  # noqa: BLE001 — nothing was sent
         await _fail_job(session, job, f"We couldn't prepare this look: {exc}. Nothing was sent.", refund=True)
         return None
@@ -1118,14 +1164,8 @@ async def _draw_look_board(session, job: TryOnJob, fashn: VirtualTryOnProvider, 
         step["board_key"] = board_key
         step["board_label"] = label
 
-    # Small jewellery in words as well: live, a plain thin nose hoop shown as a
-    # close-up of a nose came out as a bridal nath on a chain. The cached
-    # description says "thin plain gold hoop, no chain"; one vision call per
-    # new product photo, never per look.
     details = []
-    if settings.OPENAI_API_KEY:
-        small = [(p, label) for p, label in zip(products, labels) if label in _DESCRIBED_ON_BOARD]
-        described = await asyncio.gather(*(describe_product(_bgr(p.image), p.image_url, p.name) for p, _ in small))
+    if small:
         for (p, label), description in zip(small, described):
             if description and description != p.name:
                 details.append(f"{label}: {description.rstrip('.')}.")
@@ -1170,6 +1210,8 @@ async def _draw_look_board(session, job: TryOnJob, fashn: VirtualTryOnProvider, 
         "Keep the person's face, expression, skin tone, hair, body, pose and background "
         "unchanged. Do not add anything that is not shown."
     )
+    if clock is not None:
+        clock.lap("board")
     job.progress = f"Drawing all {len(products)} products in one image"
     await session.commit()
     try:
@@ -1216,6 +1258,7 @@ async def _run_one_call_look(  # noqa: ANN001
     prior_steps: list[dict] | None = None,
     board_engine: VirtualTryOnProvider | None = None,
     replaced: list[str] | None = None,
+    clock: _Clock | None = None,
 ) -> None:
     """The whole look in ONE Gemini generation: the customer's photo and every
     product photo in a single request, the output stored exactly as returned.
@@ -1227,6 +1270,7 @@ async def _run_one_call_look(  # noqa: ANN001
     Hybrid looks pass `base` (FASHN's image with the garments already on) and
     `prior_steps` (those garments' FASHN steps): only the remaining products
     are drawn, on that image, and the final check covers every product."""
+    clock = clock or _Clock(job.id)
     prior = [dict(s) for s in prior_steps or []]
     first_new = len(prior)
     engine = board_engine or GeminiImageTryOnProvider(
@@ -1263,8 +1307,11 @@ async def _run_one_call_look(  # noqa: ANN001
     if settings.OPENAI_API_KEY and board_engine is None:
         await _progress_writer(session, job)("Reading each product's details")
         descriptions = list(
-            await asyncio.gather(*(describe_product(_bgr(p.image), p.image_url, p.name) for p in to_draw))
+            await asyncio.gather(
+                *(describe_product(_bgr(p.image), p.image_url, p.name, timeout=_DESCRIBE_TIMEOUT) for p in to_draw)
+            )
         )
+        clock.lap("describe")
     for step, description in zip(steps[first_new:], descriptions):
         step["description"] = description
     pieces = [
@@ -1278,7 +1325,7 @@ async def _run_one_call_look(  # noqa: ANN001
     ]
     if board_engine is not None:
         output = await _draw_look_board(
-            session, job, board_engine, base or person, to_draw, draw_layers, steps, adding=base is not None
+            session, job, board_engine, base or person, to_draw, draw_layers, steps, adding=base is not None, clock=clock
         )
         if output is None:
             return
@@ -1289,6 +1336,7 @@ async def _run_one_call_look(  # noqa: ANN001
             await _fail_job(session, job, f"The image generator could not draw this look: {exc}", refund=True)
             return
 
+    clock.lap("draw")
     storage = get_storage()
     raw_key = new_key("tryon", "direct-steps", job.user_id, f"{job.id}-all.png")
     storage.put(raw_key, output.image_bytes, output.content_type)
@@ -1324,9 +1372,11 @@ async def _run_one_call_look(  # noqa: ANN001
         rows.append({"index": step["index"], "name": step["name"], "status": step["final_status"]})
 
     identity_ok = _identity_ok(face_flags, vlm, [p.name for p in products])
+    clock.lap("check")
     final = {"passed": identity_ok and all(s["verified"] for s in steps), "identity_ok": identity_ok,
              "products": rows, "vlm": vlm, "face": report.get("face"), "face_flags": face_flags,
-             "look_round": job.look_round, "replaced": replaced or []}
+             "look_round": job.look_round, "replaced": replaced or [], "timings": clock.summary()}
+    logger.info("tryon_timings", job_id=job.id, **clock.summary())
     sequence = SimpleNamespace(output=output, image=output.image_bytes, steps=steps)
     label = engine if not prior or board_engine is not None else SimpleNamespace(
         name="fashn+gemini", model=f"tryon-max+{engine.model}"[:64]

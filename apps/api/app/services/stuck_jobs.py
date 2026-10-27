@@ -12,6 +12,7 @@ waiting on it, so it needs no scheduler of its own.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
@@ -22,6 +23,7 @@ from app.db.session import AsyncSessionLocal
 from app.models.enums import JobStatus
 from app.models.tryon import TryOnJob
 from app.services import credit_service
+from app.services.queue import enqueue_tryon_job, running_tryon_job_ids
 
 # A render is 20-40s per item and can retry, so a long job is normal;
 # never having started is not.
@@ -34,6 +36,14 @@ DIRECT_RUNNING_LIMIT = timedelta(minutes=90)
 # memory, mid-render) left the shopper watching a spinner for an hour and a half.
 DIRECT_MINUTES_PER_PRODUCT = 15
 DIRECT_MINUTES_BASE = 5
+# A look drawn in ONE FASHN call (fashn_board) is one 5-minute wait at most,
+# whatever its number of products: 4 products used to be allowed 65 minutes.
+BOARD_RUNNING_LIMIT = timedelta(minutes=12)
+# A "processing" try-on that no worker is running is lost once it is older
+# than this (a worker takes the job a moment before the job says "processing").
+LOST_AFTER = timedelta(seconds=45)
+# how often a lost try-on is started again before it is given up and refunded
+LOST_RESTARTS = 1
 
 
 def _stuck_for(job: TryOnJob) -> timedelta | None:
@@ -51,8 +61,17 @@ def _stuck_for(job: TryOnJob) -> timedelta | None:
 
 def _direct_limit(job: TryOnJob) -> timedelta:
     """How long a direct try-on may run: by its number of products, never past DIRECT_RUNNING_LIMIT."""
+    if get_settings().TRYON_MULTI_ENGINE == "fashn_board":
+        return BOARD_RUNNING_LIMIT
     products = max(1, len(job.steps or []))
     return min(DIRECT_RUNNING_LIMIT, timedelta(minutes=DIRECT_MINUTES_BASE + DIRECT_MINUTES_PER_PRODUCT * products))
+
+
+def _lost(job: TryOnJob, running: set[str]) -> bool:
+    """Says "processing", but no worker is drawing it."""
+    if job.status != JobStatus.PROCESSING or not job.started_at or job.id in running:
+        return False
+    return datetime.now(timezone.utc) - _aware(job.started_at) > LOST_AFTER
 
 
 def _aware(moment: datetime) -> datetime:
@@ -67,19 +86,51 @@ async def sweep_stuck_jobs() -> int:
     made the request hold a transaction long enough to block the worker —
     the rescue was causing the thing it was meant to rescue. A sweep also
     reaches jobs nobody is watching, which is exactly the case where a
-    customer has closed the tab with their credits still reserved."""
+    customer has closed the tab with their credits still reserved.
+
+    A try-on whose worker process died (out of memory, or restarted by an
+    update) is found here within a minute instead of at its time limit:
+    started again when nothing was sent to FASHN yet, otherwise held or
+    refunded like any stalled job. Live: one sat at its first step for 13
+    minutes, and would have for 65."""
+    running = await asyncio.to_thread(running_tryon_job_ids)
     async with AsyncSessionLocal() as db:
         rows = await db.execute(
             select(TryOnJob).where(TryOnJob.status.in_((JobStatus.QUEUED, JobStatus.PROCESSING)))
         )
-        stuck_jobs = [(job, _stuck_for(job)) for job in rows.scalars().all()]
         given_up = 0
-        for job, stuck in stuck_jobs:
+        for job in rows.scalars().all():
+            if running is not None and _lost(job, running):
+                if not job.provider_job_id and not _billed(job) and job.attempt <= LOST_RESTARTS:
+                    await _start_again(db, job)
+                    continue
+                await _give_up(db, job, datetime.now(timezone.utc) - _aware(job.started_at))
+                given_up += 1
+                continue
+            stuck = _stuck_for(job)
             if stuck is None:
                 continue
             await _give_up(db, job, stuck)
             given_up += 1
         return given_up
+
+
+def _billed(job: TryOnJob) -> bool:
+    return any((step or {}).get("provider_job_id") for step in (job.steps or []))
+
+
+async def _start_again(db, job: TryOnJob) -> None:  # noqa: ANN001
+    """Back in the queue from the start. Its credits stay reserved for it."""
+    lost_at = job.progress
+    job.status = JobStatus.QUEUED
+    job.attempt += 1
+    job.queued_at = datetime.now(timezone.utc)
+    job.started_at = None
+    job.progress = None
+    job.steps = None
+    await db.commit()
+    enqueue_tryon_job(job.id)
+    logger.error("tryon_lost_job_restarted", job_id=job.id, attempt=job.attempt, lost_at=lost_at)
 
 
 async def _give_up(db, job: TryOnJob, stuck: timedelta) -> None:  # noqa: ANN001
@@ -123,7 +174,7 @@ async def _give_up(db, job: TryOnJob, stuck: timedelta) -> None:  # noqa: ANN001
     )
 
 
-SWEEP_EVERY_SECONDS = 60
+SWEEP_EVERY_SECONDS = 20
 
 
 async def sweep_forever() -> None:
