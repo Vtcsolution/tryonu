@@ -4,7 +4,7 @@ import type { ReadyLook } from "@/lib/api/endpoints";
 import { Hero } from "@/components/marketing/Hero";
 import { TrustedBand } from "@/components/marketing/TrustedBand";
 import { Section, SectionHead } from "@/components/marketing/primitives";
-import { ShowcaseTabs } from "@/components/marketing/ShowcaseLooks";
+import { ShowcaseRow } from "@/components/marketing/ShowcaseLooks";
 import { Features } from "@/components/marketing/Features";
 import { Marketplaces } from "@/components/marketing/Marketplaces";
 import { HowItWorks } from "@/components/marketing/HowItWorks";
@@ -89,9 +89,9 @@ export default async function HomePage() {
               See it <em>on you</em>
             </>
           }
-          sub="The same person, before and after. Drag the line to compare."
+          sub="Women, men and kids: the same person before and after. Drag the line to compare."
         />
-        <ShowcaseTabs />
+        <ShowcaseRow />
       </Section>
 
       {readyLooks.length > 0 && (

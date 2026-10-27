@@ -65,7 +65,9 @@ function LookThumb({ src, alt }: { src: string; alt: string }) {
   );
 }
 
-export function CompareSlider({ look: lookId = "women" }: { look?: LookId }) {
+/** compact: one of three side by side (home page), so the products list in one
+ * column and the "try it yourself" buttons are left to the row below. */
+export function CompareSlider({ look: lookId = "women", compact = false }: { look?: LookId; compact?: boolean }) {
   const L = LOOKS[lookId];
   const [pos, setPos] = useState(50);
   const live = useQuery({
@@ -90,7 +92,7 @@ export function CompareSlider({ look: lookId = "women" }: { look?: LookId }) {
   }, []);
 
   return (
-    <div className="relative mx-auto w-full max-w-[560px]">
+    <div className={`relative mx-auto w-full ${compact ? "" : "max-w-[560px]"}`}>
       {/* a portrait frame, like the photos: the whole person shows on every screen */}
       <div
         ref={frame}
@@ -102,7 +104,7 @@ export function CompareSlider({ look: lookId = "women" }: { look?: LookId }) {
           alt={L.afterAlt}
           fill
           className="object-cover"
-          sizes="(max-width: 500px) 100vw, 560px"
+          sizes={compact ? "(max-width: 768px) 85vw, 420px" : "(max-width: 500px) 100vw, 560px"}
         />
 
         {/* original (clipped overlay) */}
@@ -119,7 +121,7 @@ export function CompareSlider({ look: lookId = "women" }: { look?: LookId }) {
               alt={L.beforeAlt}
               fill
               className="object-cover"
-              sizes="(max-width: 500px) 100vw, 560px"
+              sizes={compact ? "(max-width: 768px) 85vw, 420px" : "(max-width: 500px) 100vw, 560px"}
             />
           </div>
         </div>
@@ -162,7 +164,7 @@ export function CompareSlider({ look: lookId = "women" }: { look?: LookId }) {
       {/* right under the picture: every product in the "after" look, with its price and shop link */}
       <div className="mt-4">
         <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-sage-deep">In this look</p>
-        <ul className="mt-2 grid grid-cols-1 gap-2.5 min-[420px]:grid-cols-2">
+        <ul className={`mt-2 grid grid-cols-1 gap-2.5 ${compact ? "" : "min-[420px]:grid-cols-2"}`}>
           {items.map((p) => (
             <li key={p.name}>
               <a
@@ -187,13 +189,17 @@ export function CompareSlider({ look: lookId = "women" }: { look?: LookId }) {
             </li>
           ))}
         </ul>
-        <p className="mt-3 text-center text-[13.5px] text-muted">
-          A real TryOnU try-on of real shop products, shown on an AI-generated model. Prices come live from the shops.
-        </p>
-        <FirstOutfitOffer className="mt-4 w-full" />
-        <Button href="/try" size="lg" variant="outline" className="mt-3 w-full">
-          Try it on yourself <span aria-hidden="true">→</span>
-        </Button>
+        {!compact && (
+          <>
+            <p className="mt-3 text-center text-[13.5px] text-muted">
+              A real TryOnU try-on of real shop products, shown on an AI-generated model. Prices come live from the shops.
+            </p>
+            <FirstOutfitOffer className="mt-4 w-full" />
+            <Button href="/try" size="lg" variant="outline" className="mt-3 w-full">
+              Try it on yourself <span aria-hidden="true">→</span>
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );

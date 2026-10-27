@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { FirstOutfitOffer } from "@/components/credits/FirstOutfitOffer";
 import { CompareSlider, type LookId } from "@/components/marketing/CompareSlider";
+import { Button } from "@/components/ui/Button";
 
 const TABS: [LookId, string][] = [
   ["women", "Women"],
@@ -9,28 +10,29 @@ const TABS: [LookId, string][] = [
   ["kids", "Kids"],
 ];
 
-/** The before/after slider with Women / Men / Kids tabs (winter looks). */
-export function ShowcaseTabs({ initial = "women" }: { initial?: LookId }) {
-  const [look, setLook] = useState<LookId>(initial);
+/** Women, men and kids side by side, each its own before/after slider with its
+ * live products (home page). On phones they sit in one row you swipe through. */
+export function ShowcaseRow() {
   return (
     <div>
-      <div role="tablist" aria-label="Choose a look" className="mx-auto mb-5 flex w-fit rounded-full border border-line bg-surface p-1">
+      <p className="mb-3 text-center text-[14px] text-muted md:hidden">Swipe to see Women, Men and Kids</p>
+      <div className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 md:mx-0 md:grid md:grid-cols-3 md:gap-6 md:overflow-visible md:px-0">
         {TABS.map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={look === id}
-            onClick={() => setLook(id)}
-            className={`min-h-[42px] rounded-full px-5 text-[15px] font-semibold transition-colors ${
-              look === id ? "bg-sage text-white" : "text-ink-soft hover:text-ink"
-            }`}
-          >
-            {label}
-          </button>
+          <div key={id} className="w-[85%] shrink-0 snap-center md:w-auto">
+            <h3 className="mb-3 text-center font-display text-[24px] text-ink">{label}</h3>
+            <CompareSlider look={id} compact />
+          </div>
         ))}
       </div>
-      <CompareSlider key={look} look={look} />
+      <p className="mt-6 text-center text-[13.5px] text-muted">
+        Real TryOnU try-ons of real shop products, shown on AI-generated models. Prices come live from the shops.
+      </p>
+      <div className="mx-auto mt-4 grid max-w-[560px] gap-3">
+        <FirstOutfitOffer className="w-full" />
+        <Button href="/try" size="lg" variant="outline" className="w-full">
+          Try it on yourself <span aria-hidden="true">→</span>
+        </Button>
+      </div>
     </div>
   );
 }
