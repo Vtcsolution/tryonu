@@ -3,6 +3,7 @@ as the first Ready looks on tryonu.app/looks. Safe to run again: a look whose
 title already exists is skipped.
 
     python -m app.scripts.seed_ready_looks
+    python -m app.scripts.seed_ready_looks --remove   # take these three off again
 
 Finds each product live in its shop, saves it, copies the "after" picture from
 apps/web/public/showcase and makes the outfit-receipt picture. Uses no try-on
@@ -33,7 +34,30 @@ SEED = [
 ]
 
 
+async def remove() -> int:
+    """Delete the three example looks (the team's own looks stay)."""
+    storage = get_storage()
+    async with AsyncSessionLocal() as db:
+        for _audience, title, _picture in SEED:
+            look = await db.scalar(select(ReadyLook).where(ReadyLook.title == title, ReadyLook.created_by.is_(None)))
+            if look is None:
+                print(f"none   {title}")
+                continue
+            keys = [look.image_key] + ([look.card_key, look.card_key.replace(".jpg", "-sm.jpg")] if look.card_key else [])
+            await db.delete(look)
+            await db.commit()
+            for k in keys:
+                try:
+                    storage.delete(k)
+                except Exception:  # noqa: BLE001 - a leftover file is harmless
+                    pass
+            print(f"removed {title}")
+    return 0
+
+
 async def main() -> int:
+    if "--remove" in sys.argv:
+        return await remove()
     storage = get_storage()
     async with AsyncSessionLocal() as db:
         for order, (audience, title, picture) in enumerate(SEED):

@@ -66,6 +66,8 @@ class PublishIn(BaseModel):
     title: str = Field(min_length=2, max_length=120)
     audience: str = Field(default="women", pattern="^(women|men|kids)$")
     season: str | None = Field(default="Winter", max_length=24)
+    # False: saved as a draft (hidden), published later from the team panel
+    publish: bool = True
 
 
 class LookUpdateIn(BaseModel):
@@ -289,7 +291,7 @@ async def publish_look(payload: PublishIn, me: TeamUser, db: DbSession):
     storage = get_storage()
     look = ReadyLook(
         title=payload.title.strip(), audience=payload.audience, season=(payload.season or "").strip() or None,
-        created_by=me.id, tryon_job_id=job.id, image_key="pending",
+        created_by=me.id, tryon_job_id=job.id, image_key="pending", is_published=payload.publish,
     )
     db.add(look)
     await db.flush()

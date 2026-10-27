@@ -74,7 +74,7 @@ function Publish() {
   const [audience, setAudience] = useState("women");
   const [season, setSeason] = useState("Winter");
   const publish = useMutation({
-    mutationFn: () => team.publish({ tryon_job_id: jobId!, title: title.trim(), audience, season: season.trim() || null }),
+    mutationFn: (now: boolean) => team.publish({ tryon_job_id: jobId!, title: title.trim(), audience, season: season.trim() || null, publish: now }),
     onSuccess: () => {
       setJobId(null);
       setTitle("");
@@ -88,8 +88,14 @@ function Publish() {
       <h2 className="font-display text-[24px] text-ink">1. Publish a finished try-on</h2>
       {publish.isSuccess && (
         <p className="mt-3 rounded-[14px] bg-sage-tint/60 px-4 py-3 text-[15px] text-ink">
-          Published. It&apos;s on the Ready looks page now.{" "}
-          <Link href={`/looks/${publish.data.id}`} target="_blank" className="font-semibold text-sage-deep underline">Open it ↗</Link>
+          {publish.data.is_published ? (
+            <>
+              Published. It&apos;s on the Ready looks page now.{" "}
+              <Link href={`/looks/${publish.data.id}`} target="_blank" className="font-semibold text-sage-deep underline">Open it ↗</Link>
+            </>
+          ) : (
+            <>Saved as a draft. Publish it below when it&apos;s ready (press &quot;Hidden&quot; to show it).</>
+          )}
         </p>
       )}
       {looks.data && looks.data.length === 0 && (
@@ -114,7 +120,7 @@ function Publish() {
           className="mt-4 flex flex-wrap items-end gap-3 rounded-[18px] border border-line bg-surface p-4"
           onSubmit={(e) => {
             e.preventDefault();
-            if (title.trim().length >= 2) publish.mutate();
+            if (title.trim().length >= 2) publish.mutate(true);
           }}
         >
           <label className="grid gap-1 text-[14px] text-ink-soft">
@@ -138,7 +144,15 @@ function Publish() {
             disabled={publish.isPending || title.trim().length < 2}
             className="tu-press min-h-[44px] rounded-full bg-sage px-5 text-[15.5px] font-semibold text-white disabled:opacity-50"
           >
-            {publish.isPending ? "Publishing…" : "Publish to Ready looks"}
+            {publish.isPending ? "Saving…" : "Publish to Ready looks"}
+          </button>
+          <button
+            type="button"
+            disabled={publish.isPending || title.trim().length < 2}
+            onClick={() => publish.mutate(false)}
+            className="min-h-[44px] rounded-full border border-line-strong px-5 text-[15.5px] font-semibold text-ink disabled:opacity-50"
+          >
+            Save as draft
           </button>
           {publish.isError && <p role="alert" className="w-full text-[14px] text-[#a4553f]">{errText(publish.error)}</p>}
         </form>
