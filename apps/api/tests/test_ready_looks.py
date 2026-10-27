@@ -216,3 +216,26 @@ def test_who_a_look_is_for_is_worked_out_by_itself():
     assert guess_audience("Boyfriend jeans look", [p("Denim", Gender.WOMEN)]) == ("women", False)
     assert guess_audience("Winter look", [p("Coat", Gender.MEN), p("Mens Chelsea Boots"), p("Scarf")]) == ("men", False)
     assert guess_audience("Winter look", [p("Scarf"), p("Sunglasses")]) == ("women", False)
+
+
+def test_a_look_gets_its_title_audience_and_season_from_its_products():
+    """The team panel's form is filled in from the try-on's products."""
+    from types import SimpleNamespace
+
+    from app.api.v1.endpoints.ready_looks import suggest_look
+    from app.models.enums import Gender, OutfitSlot
+
+    def p(name: str, gender: Gender = Gender.UNISEX):  # noqa: ANN202
+        return SimpleNamespace(name=name, gender=gender)
+
+    men = [
+        (p("Mens Chelsea Boots Brown", Gender.MEN), OutfitSlot.SHOES),
+        (p("Men's Turtleneck Sweater Grey", Gender.MEN), OutfitSlot.TOP),
+        (p("Mens Wool Overcoat Black Long", Gender.MEN), OutfitSlot.OUTERWEAR),
+        (p("Silver Watch"), OutfitSlot.WATCH),
+    ]
+    assert suggest_look(men) == {"title": "Men's Winter Coat Look", "audience": "men", "season": "Winter"}
+    bridal = [(p("Pink Bridal Lehenga Choli", Gender.WOMEN), OutfitSlot.DRESS), (p("Gold Jhumka Earrings"), OutfitSlot.ACCESSORY)]
+    assert suggest_look(bridal) == {"title": "Women's Wedding Lehenga Look", "audience": "women", "season": "Wedding"}
+    kids = [(p("Girls Pink Puffer Jacket", Gender.KIDS), OutfitSlot.OUTERWEAR)]
+    assert suggest_look(kids)["title"] == "Kids' Winter Puffer Jacket Look"

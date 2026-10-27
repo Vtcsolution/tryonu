@@ -61,6 +61,34 @@ def guess_audience(title: str, products: list[Product]) -> tuple[str, bool]:
         if who:
             votes[who] += 1
     return (votes.most_common(1)[0][0] if votes else "women"), False
+
+
+# the season a look is for, from its products: an occasion first
+_SEASONS = (
+    ("Wedding", re.compile(r"\b(bridal|bride|groom|lehenga|sherwani|wedding|nikah|walima|baraat|mehndi)\b", re.I)),
+    ("Eid", re.compile(r"\beid\b", re.I)),
+    ("Winter", re.compile(
+        r"\b(coats?|overcoats?|jackets?|puffer|parka|sweaters?|jumpers?|pullover|turtleneck|cardigan|hoodie|"
+        r"scarf|scarves|muffler|beanie|gloves|shawl|wool|woolen|woollen|fleece|knit|knitted|thermal|boots?)\b", re.I)),
+    ("Summer", re.compile(r"\b(lawn|linen|shorts|sandals?|chappals?|flip[- ]flops?|tank|swim\w*|summer)\b", re.I)),
+)
+# which product names the look: the outer layer, then the outfit, the top, ...
+_MAIN_SLOT = (OutfitSlot.OUTERWEAR, OutfitSlot.DRESS, OutfitSlot.TOP, OutfitSlot.BOTTOM, OutfitSlot.SHOES)
+_WHO = {"men": "Men's", "women": "Women's", "kids": "Kids'"}
+
+
+def suggest_look(products: list[tuple[Product, OutfitSlot | None]]) -> dict:
+    """A title, who it's for and a season tag for a look, from its products
+    ("Men's Winter Coat Look"): the team panel fills its form with these."""
+    from app.services.ready_look_card import short_label
+
+    names = " ".join(p.name for p, _ in products)
+    audience, _ = guess_audience("", [p for p, _ in products])
+    season = next((s for s, pattern in _SEASONS if pattern.search(names)), None)
+    main = next((p for slot in _MAIN_SLOT for p, s in products if s == slot), products[0][0] if products else None)
+    piece = short_label(main.name) if main else "Outfit"
+    words = [_WHO[audience], season, piece if piece != "Outfit" else None, "Look"]
+    return {"title": " ".join(w for w in words if w)[:120], "audience": audience, "season": season}
 _LOAD = selectinload(ReadyLook.items).selectinload(ReadyLookItem.product).selectinload(Product.images)
 _LOAD_RETAILER = selectinload(ReadyLook.items).selectinload(ReadyLookItem.product).selectinload(Product.retailer)
 
@@ -389,6 +417,24 @@ async def team_looks(me: TeamUser, db: DbSession):
         item.community = posted.get(look.tryon_job_id or "", [])
         out.append(item)
     return out
+
+
+class LookSuggestionOut(BaseModel):
+    title: str
+    audience: str
+    season: str | None
+
+
+@router.get("/team/looks/suggest", response_model=LookSuggestionOut)
+async def suggest_for_tryon(tryon_job_id: str, me: TeamUser, db: DbSession):
+    """What to call a finished try-on as a Ready look, from its products."""
+    from app.services.look_products import look_products
+
+    job = await db.scalar(select(TryOnJob).where(TryOnJob.id == tryon_job_id))
+    if job is None or (job.user_id != me.id and not me.is_admin):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Try-on not found")
+    pairs, _ = await look_products(db, job)
+    return suggest_look(pairs)
 
 
 @router.post("/team/looks", response_model=ReadyLookOut, status_code=status.HTTP_201_CREATED)

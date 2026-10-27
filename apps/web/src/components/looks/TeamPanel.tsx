@@ -166,6 +166,20 @@ function Publish({
   const [title, setTitle] = useState("");
   const [audience, setAudience] = useState("auto");
   const [season, setSeason] = useState("Winter");
+  // the form filled in from the picked try-on's products; anything can be changed
+  const suggestion = useQuery({
+    queryKey: ["team", "suggest", jobId],
+    queryFn: () => team.suggest(jobId!),
+    enabled: !!jobId,
+    staleTime: Infinity,
+  });
+  const [filledFor, setFilledFor] = useState<string | null>(null);
+  if (suggestion.data && jobId && filledFor !== jobId) {
+    setFilledFor(jobId);
+    setTitle(suggestion.data.title);
+    setAudience(suggestion.data.audience);
+    setSeason(suggestion.data.season ?? "");
+  }
   const publish = useMutation({
     mutationFn: (now: boolean) => team.publish({ tryon_job_id: jobId!, title: title.trim(), audience: audience === "auto" ? null : audience, season: season.trim() || null, publish: now }),
     onSuccess: () => {
@@ -238,6 +252,9 @@ function Publish({
             if (title.trim().length >= 2) publish.mutate(true);
           }}
         >
+          {filledFor === jobId && (
+            <p className="w-full text-[13.5px] text-muted">Filled in from the products in this try-on. Change anything you like.</p>
+          )}
           <label className="grid gap-1 text-[14px] text-ink-soft">
             Title
             <input id="look-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Men's winter overcoat look" maxLength={120} className={`${field} w-72 max-w-full`} />
