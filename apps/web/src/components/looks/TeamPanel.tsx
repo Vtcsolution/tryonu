@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { formatPrice } from "@/components/try/shop";
 import { ApiError, mediaThumb } from "@/lib/api/client";
-import { community, team, type ReadyLook } from "@/lib/api/endpoints";
+import { community, team, type ReadyLook, type TeamTryOn } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
 import { PeopleSection, ShareToCommunity } from "./TeamCommunity";
 
@@ -55,6 +55,8 @@ export function TeamPanel() {
 }
 
 function Panel({ name, credits }: { name: string; credits: number }) {
+  // the try-on picked to publish (from step 2's pictures or the history)
+  const [jobId, setJobId] = useState<string | null>(null);
   const looks = useQuery({ queryKey: ["team", "looks"], queryFn: team.looks });
   const all = looks.data ?? [];
   const mine = all.filter((l) => l.mine);
@@ -104,17 +106,30 @@ function Panel({ name, credits }: { name: string; credits: number }) {
         ))}
       </ol>
 
-      <Publish published={new Set(all.map((l) => l.tryon_job_id).filter(Boolean) as string[])} />
+      <Publish jobId={jobId} setJobId={setJobId} published={new Set(all.map((l) => l.tryon_job_id).filter(Boolean) as string[])} />
       <Looks all={all} mine={mine} loading={looks.isLoading} />
+      <History
+        onPublish={(id) => {
+          setJobId(id);
+          document.getElementById("publish")?.scrollIntoView({ behavior: "smooth" });
+        }}
+      />
       <PeopleSection />
     </section>
   );
 }
 
-function Publish({ published }: { published: Set<string> }) {
+function Publish({
+  jobId,
+  setJobId,
+  published,
+}: {
+  jobId: string | null;
+  setJobId: (id: string | null) => void;
+  published: Set<string>;
+}) {
   const qc = useQueryClient();
   const looks = useQuery({ queryKey: ["community", "my-looks"], queryFn: community.myLooks });
-  const [jobId, setJobId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [audience, setAudience] = useState("women");
   const [season, setSeason] = useState("Winter");
@@ -124,9 +139,11 @@ function Publish({ published }: { published: Set<string> }) {
       setJobId(null);
       setTitle("");
       qc.invalidateQueries({ queryKey: ["team", "looks"] });
+      qc.invalidateQueries({ queryKey: ["team", "tryons"] });
       qc.invalidateQueries({ queryKey: ["ready-looks"] });
     },
   });
+  const picked = looks.data?.find((l) => l.job_id === jobId);
 
   return (
     <div id="publish" className="mt-12 scroll-mt-24">
@@ -167,6 +184,9 @@ function Publish({ published }: { published: Set<string> }) {
           );
         })}
       </div>
+      {jobId && !picked && looks.data && (
+        <p className="mt-3 text-[15px] text-ink">The try-on you picked from your history is ready to publish: fill in the title below.</p>
+      )}
       {jobId && (
         <form
           className="mt-4 flex flex-wrap items-end gap-3 rounded-[18px] border border-line bg-surface p-4"
@@ -211,6 +231,114 @@ function Publish({ published }: { published: Set<string> }) {
           )}
           {publish.isError && <p role="alert" className="w-full text-[14px] text-[#a4553f]">{errText(publish.error)}</p>}
         </form>
+      )}
+    </div>
+  );
+}
+
+const STATUS: Record<TeamTryOn["status"], [string, string]> = {
+  done: ["Done", "bg-sage text-white"],
+  failed: ["Failed", "bg-[#a4553f] text-white"],
+  working: ["Working…", "bg-[#c9a13b] text-[#1c1b17]"],
+};
+
+/** Every try-on the team member made, finished or failed, newest first. */
+function History({ onPublish }: { onPublish: (jobId: string) => void }) {
+  const [show, setShow] = useState<"done" | "failed" | "working" | null>(null);
+  const list = useInfiniteQuery({
+    queryKey: ["team", "tryons", show],
+    queryFn: ({ pageParam }) => team.tryons(show, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (last) => last.next_offset ?? undefined,
+    // a try-on still working shows its result without a reload
+    refetchInterval: (q) => (q.state.data?.pages.some((p) => p.items.some((i) => i.status === "working")) ? 8000 : false),
+  });
+  const first = list.data?.pages[0];
+  const rows = list.data?.pages.flatMap((p) => p.items) ?? [];
+  const chip = (active: boolean) =>
+    `min-h-[40px] rounded-full px-4 text-[15px] font-semibold ${active ? "bg-ink text-paper" : "border border-line-strong text-ink hover:border-sage"}`;
+  const when = (iso: string) =>
+    new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+
+  return (
+    <div id="history" className="mt-12 scroll-mt-24">
+      <h2 className="font-display text-[24px] text-ink">Try-on history</h2>
+      <p className="mt-1 text-[15px] text-muted">Every try-on you made, finished or failed. A failed one gives its credits back.</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {(
+          [
+            [null, `All (${first?.total ?? 0})`],
+            ["done", `Done (${first?.done ?? 0})`],
+            ["failed", `Failed (${first?.failed ?? 0})`],
+            ["working", `Working (${first?.working ?? 0})`],
+          ] as [typeof show, string][]
+        ).map(([v, label]) => (
+          <button key={String(v)} type="button" aria-pressed={show === v} onClick={() => setShow(v)} className={chip(show === v)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {list.isLoading && <div className="mx-auto my-12 h-8 w-8 animate-spin rounded-full border-2 border-line-strong border-t-sage" />}
+      {!list.isLoading && rows.length === 0 && (
+        <p className="mt-6 rounded-[18px] border border-dashed border-line-strong p-6 text-center text-[16px] text-muted">No try-ons here yet.</p>
+      )}
+      <ul className="mt-5 grid gap-3 md:grid-cols-2">
+        {rows.map((r) => {
+          const [label, color] = STATUS[r.status];
+          return (
+            <li key={r.id} className="flex gap-3 rounded-[18px] border border-line bg-surface p-3">
+              <Link href={`/try?job=${r.id}`} className="relative w-20 shrink-0 self-start overflow-hidden rounded-xl bg-paper-2">
+                {r.image_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={mediaThumb(r.image_url, 240)}
+                    alt=""
+                    loading="lazy"
+                    className={`aspect-[3/4] w-full object-cover object-top ${r.status === "done" ? "" : "opacity-60 grayscale"}`}
+                  />
+                )}
+              </Link>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="line-clamp-2 text-[15.5px] font-semibold leading-snug text-ink">{r.what}</p>
+                  <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[12.5px] font-semibold ${color}`}>{label}</span>
+                </div>
+                <p className="mt-0.5 text-[13.5px] text-muted">
+                  {when(r.created_at)}
+                  {r.items > 1 ? ` · ${r.items} products` : ""}
+                  {" · "}
+                  {r.status === "failed" ? (r.refunded ? `${r.credits} credits returned` : `${r.credits} credits`) : `${r.credits} credits`}
+                </p>
+                {r.error && <p className="mt-1 line-clamp-2 text-[13.5px] text-[#a4553f]">{r.error}</p>}
+                <div className="mt-2 flex flex-wrap gap-2 text-[14px]">
+                  <Link href={`/try?job=${r.id}`} className="rounded-full border border-line px-3 py-1.5 font-semibold text-ink hover:border-sage">
+                    {r.status === "failed" ? "Open and try again" : "Open"}
+                  </Link>
+                  {r.status === "done" &&
+                    (r.look_id ? (
+                      <Link href={`/looks/${r.look_id}`} target="_blank" className="rounded-full border border-line px-3 py-1.5 font-semibold text-ink hover:border-sage">
+                        Visit look ↗
+                      </Link>
+                    ) : (
+                      <button type="button" onClick={() => onPublish(r.id)} className="rounded-full bg-sage px-3 py-1.5 font-semibold text-white hover:bg-sage-deep">
+                        Publish it
+                      </button>
+                    ))}
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      {list.hasNextPage && (
+        <button
+          type="button"
+          onClick={() => list.fetchNextPage()}
+          disabled={list.isFetchingNextPage}
+          className="mx-auto mt-4 block min-h-[44px] rounded-full border border-line-strong px-6 text-[15px] font-semibold text-ink"
+        >
+          {list.isFetchingNextPage ? "Loading…" : "Show more"}
+        </button>
       )}
     </div>
   );

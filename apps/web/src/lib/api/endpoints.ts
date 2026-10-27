@@ -1101,6 +1101,20 @@ export type ReadyLook = {
   tryon_job_id?: string | null;
   community?: { post_id: string; handle: string }[];
 };
+/** One try-on in the team panel's history: finished, failed or still working. */
+export type TeamTryOn = {
+  id: string;
+  status: "done" | "failed" | "working";
+  what: string;
+  items: number;
+  image_url: string | null;
+  error: string | null;
+  credits: number;
+  refunded: boolean;
+  look_id: string | null;
+  created_at: string;
+};
+export type TeamTryOns = { items: TeamTryOn[]; total: number; done: number; failed: number; working: number; next_offset: number | null };
 /** A community profile the team posts Ready looks as. */
 export type TeamPerson = { id: string; name: string; handle: string; avatar_url: string | null; posts: number };
 const personForm = (input: { name?: string; handle?: string; photo?: File | null }) => {
@@ -1126,6 +1140,8 @@ export const team = {
   removeItem: (id: string, itemId: string) => apiFetch<ReadyLook>(`/api/v1/team/looks/${id}/items/${itemId}`, { method: "DELETE" }),
   remove: (id: string) => apiFetch<void>(`/api/v1/team/looks/${id}`, { method: "DELETE" }),
   people: () => apiFetch<TeamPerson[]>("/api/v1/team/people"),
+  tryons: (show: string | null, offset = 0) =>
+    apiFetch<TeamTryOns>(`/api/v1/team/tryons?offset=${offset}${show ? `&show=${show}` : ""}`),
   addPerson: (input: { name: string; handle: string; photo: File }) =>
     apiFetch<TeamPerson>("/api/v1/team/people", { method: "POST", body: personForm(input), isFormData: true }),
   editPerson: (id: string, input: { name?: string; handle?: string; photo?: File | null }) =>

@@ -150,3 +150,31 @@ async def test_a_team_member_posts_a_try_on_as_a_person_from_the_post_window(cli
     assert (await client.post("/api/v1/community/posts", json={**body, "person_id": person["id"]})).status_code == 409
     # the team member can still post the same look as themselves
     assert (await client.post("/api/v1/community/posts", json=body)).status_code == 201
+
+
+async def test_the_team_panel_history_lists_finished_and_failed_try_ons(client, db, monkeypatch):  # noqa: ANN001
+    from app.models.enums import JobStatus
+    from app.models.tryon import TryOnJob
+
+    job_id, product = await _finished_look(client, db, monkeypatch)
+    me = (await client.get("/api/v1/auth/me")).json()
+    assert (await client.get("/api/v1/team/tryons")).status_code == 403
+    await _team(db, me["id"])
+
+    done = await db.get(TryOnJob, job_id)
+    failed = TryOnJob(
+        user_id=me["id"], user_photo_id=done.user_photo_id, product_id=product.id, provider="openai",
+        provider_model="test", status=JobStatus.FAILED, credit_cost=10, error_message="The picture couldn't be made.",
+    )
+    db.add(failed)
+    await db.commit()
+
+    history = (await client.get("/api/v1/team/tryons")).json()
+    assert history["total"] >= 2 and history["failed"] >= 1 and history["done"] >= 1
+    rows = {r["id"]: r for r in history["items"]}
+    assert rows[job_id]["status"] == "done" and rows[job_id]["image_url"] and rows[job_id]["what"] == product.name
+    assert rows[failed.id]["status"] == "failed" and rows[failed.id]["error"] == "The picture couldn't be made."
+    assert rows[failed.id]["image_url"]  # the photo it started from
+
+    only_failed = (await client.get("/api/v1/team/tryons", params={"show": "failed"})).json()
+    assert {r["status"] for r in only_failed["items"]} == {"failed"}

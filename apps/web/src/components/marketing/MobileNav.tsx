@@ -3,6 +3,7 @@
 import { FirstOutfitOffer } from "@/components/credits/FirstOutfitOffer";
 import { isDevPortal } from "@/lib/devLinks";
 import Link from "next/link";
+import { SocialLinks } from "@/components/marketing/SocialLinks";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -78,6 +79,7 @@ export function MobileNav() {
                     <span className="block text-[13.5px] text-muted">On your home screen, free, no app store</span>
                   </span>
                 </Link>
+                <SocialLinks label="Follow TryOnU" />
                 {GROUPS.map((g) => (
                   <div key={g.label}>
                     <p className="text-[12.5px] font-semibold uppercase tracking-[0.12em] text-faint">{g.label}</p>

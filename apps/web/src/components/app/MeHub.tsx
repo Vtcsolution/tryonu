@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { Avatar } from "@/components/community/parts";
+import { SocialLinks } from "@/components/marketing/SocialLinks";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { HelpWhatsApp } from "@/components/whatsapp/WhatsApp";
 import { auth, community, notifications } from "@/lib/api/endpoints";
@@ -82,6 +83,12 @@ export function MeHub() {
           </div>
         </div>
       )}
+
+      {/* right under the profile: TryOnU's social pages */}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-line bg-surface px-4 py-2.5">
+        <span className="text-[15px] font-semibold text-ink">Follow us</span>
+        <SocialLinks small />
+      </div>
 
       {user && !user.email_verified && (
         <div className="mt-4 rounded-2xl border border-[#c9a13b]/50 bg-[#c9a13b]/[0.08] p-4">

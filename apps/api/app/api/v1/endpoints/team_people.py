@@ -1,26 +1,35 @@
-"""Team people: community profiles (name, @username, photo) the TryOnU team
+"""The team panel's people and history.
+
+Team people: community profiles (name, @username, photo) the TryOnU team
 posts its Ready looks as. On the community feed such a post looks like any
 member's post: the try-on picture with its products. On tryonu.app/looks the
 same look shows as the outfit-receipt picture.
 
 A team person is an account that can't sign in (no password, an address
 nobody reads) and gets no emails. Any team member can post as any of them.
+
+History: every try-on the team member made, finished or failed, with what
+happened to the credits.
 """
 
 from __future__ import annotations
 
 import secrets
 import uuid
+from datetime import datetime
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
 
 from app.api.v1.endpoints.community import AVATAR_PREFIX, AVATAR_URL, HANDLE_RE, RESERVED, _remove_old_avatar, _square_avatar
 from app.core.deps import DbSession, TeamUser
 from app.core.logging import logger
 from app.models.community import CommunityPost
-from app.models.enums import AuthProvider, JobStatus
+from app.models.credit import CreditTransaction
+from app.models.enums import AuthProvider, CreditReason, JobStatus
+from app.models.outfit import Outfit
 from app.models.ready_look import ReadyLook
 from app.models.tryon import TryOnJob
 from app.models.user import User
@@ -177,3 +186,128 @@ async def post_to_community(look_id: str, payload: CommunityPostIn, me: TeamUser
     await db.commit()
     logger.info("team_community_post", look_id=look.id, person_id=person.id, post_id=post.id, by=me.id)
     return CommunityPostOut(post_id=post.id, handle=person.handle or "")
+
+
+# ------------------------------------------------------------------ try-on history
+
+
+class TeamTryOnOut(BaseModel):
+    id: str
+    status: str  # done | failed | working
+    what: str
+    items: int
+    image_url: str | None  # the result, or the photo it started from
+    error: str | None
+    credits: int
+    refunded: bool  # a failed try-on's credits came back
+    look_id: str | None  # the Ready look made from it
+    created_at: datetime
+
+
+class TeamTryOnsOut(BaseModel):
+    items: list[TeamTryOnOut]
+    total: int
+    done: int
+    failed: int
+    working: int
+    next_offset: int | None
+
+
+_STATE = {
+    JobStatus.COMPLETED: "done",
+    JobStatus.FAILED: "failed",
+    JobStatus.CANCELLED: "failed",
+    JobStatus.QUEUED: "working",
+    JobStatus.PROCESSING: "working",
+}
+_SHOW = {
+    "done": [JobStatus.COMPLETED],
+    "failed": [JobStatus.FAILED, JobStatus.CANCELLED],
+    "working": [JobStatus.QUEUED, JobStatus.PROCESSING],
+}
+
+
+@router.get("/tryons", response_model=TeamTryOnsOut)
+async def my_tryons(
+    me: TeamUser,
+    db: DbSession,
+    show: str | None = Query(default=None, pattern="^(done|failed|working)$"),
+    limit: int = Query(default=24, ge=1, le=60),
+    offset: int = Query(default=0, ge=0),
+):
+    """Every try-on this team member made, newest first: finished, failed or still working."""
+    counts = dict(
+        (await db.execute(select(TryOnJob.status, func.count()).where(TryOnJob.user_id == me.id).group_by(TryOnJob.status))).all()
+    )
+    tally = {"done": 0, "failed": 0, "working": 0}
+    for st, n in counts.items():
+        tally[_STATE.get(JobStatus(st), "failed")] += n
+    query = select(TryOnJob).where(TryOnJob.user_id == me.id)
+    if show:
+        query = query.where(TryOnJob.status.in_(_SHOW[show]))
+    jobs = list(
+        (
+            await db.execute(
+                query.options(
+                    selectinload(TryOnJob.result),
+                    selectinload(TryOnJob.user_photo),
+                    selectinload(TryOnJob.product),
+                    selectinload(TryOnJob.wardrobe_item),
+                    selectinload(TryOnJob.outfit).selectinload(Outfit.items),
+                )
+                .order_by(TryOnJob.created_at.desc())
+                .limit(limit + 1)
+                .offset(offset)
+            )
+        ).scalars()
+    )
+    more = len(jobs) > limit
+    jobs = jobs[:limit]
+    ids = [j.id for j in jobs] or [""]
+    refunded = set(
+        (
+            await db.execute(
+                select(CreditTransaction.reference_id).where(
+                    CreditTransaction.reason == CreditReason.TRYON_REFUND,
+                    CreditTransaction.reference_type == "tryon_job",
+                    CreditTransaction.reference_id.in_(ids),
+                )
+            )
+        ).scalars()
+    )
+    looks = dict((await db.execute(select(ReadyLook.tryon_job_id, ReadyLook.id).where(ReadyLook.tryon_job_id.in_(ids)))).all())
+    storage = get_storage()
+    items = []
+    for j in jobs:
+        if j.outfit is not None:
+            what, count = j.outfit.name or "Outfit", len(j.outfit.items)
+        elif j.product is not None:
+            what, count = j.product.name, 1
+        elif j.wardrobe_item is not None:
+            what, count = j.wardrobe_item.name, 1
+        else:
+            what, count = "Try-on", 0
+        if j.look_round > 1:
+            what = f"{what} (added to a look)"
+        key = j.result.storage_key if j.result is not None else (j.user_photo.storage_key if j.user_photo else None)
+        state = _STATE.get(j.status, "failed")
+        items.append(
+            TeamTryOnOut(
+                id=j.id,
+                status=state,
+                what=what,
+                items=count,
+                image_url=storage.signed_url(key) if key else None,
+                error=(j.error_message or "It didn't work this time.") if state == "failed" else None,
+                credits=j.credit_cost,
+                refunded=j.id in refunded,
+                look_id=looks.get(j.id),
+                created_at=j.created_at,
+            )
+        )
+    return TeamTryOnsOut(
+        items=items,
+        total=sum(tally.values()),
+        next_offset=offset + limit if more else None,
+        **tally,
+    )
