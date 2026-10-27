@@ -20,7 +20,7 @@ import {
   ThumbIcon,
   timeAgo,
 } from "@/components/community/parts";
-import { ApiError, resolveMediaUrl } from "@/lib/api/client";
+import { ApiError, mediaThumb, resolveMediaUrl } from "@/lib/api/client";
 import { community, type CommunityPost } from "@/lib/api/endpoints";
 
 // kept here too, for the pages that import them from the post card
@@ -99,7 +99,8 @@ export function PostCard({
     onSuccess: () => setNotice("Thanks for telling us. Our team will look at it."),
   });
 
-  const image = resolveMediaUrl(p.image_url);
+  // a feed-sized copy: loads at once (the full picture is several MB)
+  const image = mediaThumb(p.image_url, 900);
   // the post's song: plays with its video (whose own sound it replaces), or on a tap
   const song = useRef<HTMLAudioElement>(null);
   const [songOn, setSongOn] = useState(false);
@@ -180,7 +181,7 @@ export function PostCard({
         <div className="bg-black">
           <video
             src={resolveMediaUrl(p.video_url)}
-            poster={p.poster_url ? resolveMediaUrl(p.poster_url) : undefined}
+            poster={p.poster_url ? mediaThumb(p.poster_url, 900) : undefined}
             controls
             playsInline
             muted={!!p.music}

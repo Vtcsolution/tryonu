@@ -17,9 +17,9 @@ export function PendingShareBanner() {
     setPath(user ? pendingReturnTo() : null);
   }, [user, pathname]);
 
-  if (!user || !path || pathname === path || /^\/(sign-in|sign-up|verify-email|preferences|look\/)/.test(pathname))
+  if (!user || !path || pathname === path || /^\/(sign-in|sign-up|verify-email|preferences|looks?\/)/.test(pathname))
     return null;
-  const isLook = path.startsWith("/look/");
+  const isLook = path.startsWith("/look/") || path.startsWith("/looks/");
   return (
     <div className="tu-container pt-3">
       <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-3 rounded-[20px] border border-sage/40 bg-sage-tint/30 px-4 py-3">

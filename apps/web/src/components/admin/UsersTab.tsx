@@ -120,6 +120,7 @@ function UserBadges({ user }: { user: AdminUser }) {
     <div className="flex flex-wrap gap-1">
       {user.is_active ? <Badge tone="good">Active</Badge> : <Badge tone="bad">Suspended</Badge>}
       {user.is_admin && <Badge tone="warn">Admin</Badge>}
+      {user.is_team && <Badge tone="good">Team</Badge>}
       {!user.email_verified && <Badge>Unverified</Badge>}
       {user.auth_provider === "google" && <Badge>Google</Badge>}
     </div>
@@ -141,7 +142,7 @@ function UserDetailPanel({ userId, isSelf, onClose }: { userId: string; isSelf: 
   };
 
   const update = useMutation({
-    mutationFn: (input: { is_active?: boolean; is_admin?: boolean; email_verified?: boolean }) =>
+    mutationFn: (input: { is_active?: boolean; is_admin?: boolean; is_team?: boolean; email_verified?: boolean }) =>
       adminApi.updateUser(userId, input),
     onSuccess: refresh,
   });
@@ -289,6 +290,23 @@ function UserDetailPanel({ userId, isSelf, onClose }: { userId: string; isSelf: 
                     }
                   >
                     Make admin
+                  </SmallButton>
+                )}
+                {detail.data.user.is_team ? (
+                  <SmallButton disabled={update.isPending} onClick={() => update.mutate({ is_team: false })}>
+                    Remove from team
+                  </SmallButton>
+                ) : (
+                  <SmallButton
+                    disabled={update.isPending}
+                    onClick={() =>
+                      confirmThen(
+                        `Make ${detail.data!.user.email} a team member? They can publish Ready looks and edit or delete them. Give them credits with "Adjust credits" (10 credits = one outfit try-on).`,
+                        () => update.mutate({ is_team: true }),
+                      )
+                    }
+                  >
+                    Make team member
                   </SmallButton>
                 )}
                 {!detail.data.user.email_verified && (

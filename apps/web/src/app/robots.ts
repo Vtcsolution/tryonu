@@ -5,6 +5,7 @@ import { SITE } from "@/lib/seo";
  * everything public is open to search engines and AI assistants alike. */
 const PRIVATE = [
   "/admin",
+  "/team",
   "/account",
   "/credits/paypal",
   "/saved",

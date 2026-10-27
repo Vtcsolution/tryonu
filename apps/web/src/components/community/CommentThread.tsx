@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Avatar, HangerIcon, LinkCards, PhotoIcon, ProductChips, RichText, ThumbIcon, timeAgo } from "@/components/community/parts";
-import { ApiError, resolveMediaUrl } from "@/lib/api/client";
+import { ApiError, mediaThumb, resolveMediaUrl } from "@/lib/api/client";
 import { community, type CommunityComment, type CommunityPost } from "@/lib/api/endpoints";
 
 /** replies move in under their comment this many times; deeper ones stay in line, with the @name they answer */
@@ -388,7 +388,7 @@ function CommentComposer({
               {look && (
                 <Attachment label="Remove look" onRemove={() => setLook(null)}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={resolveMediaUrl(look.image_url)} alt="Your look" className="h-20 w-16 rounded-xl object-cover object-top" />
+                  <img src={mediaThumb(look.image_url, 240)} alt="Your look" className="h-20 w-16 rounded-xl object-cover object-top" />
                 </Attachment>
               )}
             </div>
@@ -463,7 +463,7 @@ function CommentComposer({
                     className={`overflow-hidden rounded-lg border-2 ${look?.job_id === l.job_id ? "border-sage" : "border-transparent hover:border-line-strong"}`}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={resolveMediaUrl(l.image_url)} alt="One of your looks" loading="lazy" className="aspect-[3/4] w-full bg-paper-2 object-cover object-top" />
+                    <img src={mediaThumb(l.image_url, 240)} alt="One of your looks" loading="lazy" className="aspect-[3/4] w-full bg-paper-2 object-cover object-top" />
                   </button>
                 ))}
               </div>

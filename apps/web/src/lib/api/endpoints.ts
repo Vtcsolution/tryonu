@@ -219,7 +219,7 @@ export const admin = {
   users: (params: { q?: string; limit?: number; offset?: number } = {}) =>
     apiFetch<Page<AdminUser>>(`/api/v1/admin/users${qs(params)}`),
   userDetail: (userId: string) => apiFetch<AdminUserDetail>(`/api/v1/admin/users/${userId}`),
-  updateUser: (userId: string, input: { is_active?: boolean; is_admin?: boolean; email_verified?: boolean }) =>
+  updateUser: (userId: string, input: { is_active?: boolean; is_admin?: boolean; is_team?: boolean; email_verified?: boolean }) =>
     apiFetch<AdminUser>(`/api/v1/admin/users/${userId}`, { method: "PATCH", body: input }),
   adjustCredits: (userId: string, input: { amount: number; note: string }) =>
     apiFetch<AdminUser>(`/api/v1/admin/users/${userId}/credits`, { method: "POST", body: input }),
@@ -1057,4 +1057,47 @@ export const adminDevelopers = {
 export type ShowcaseItem = { name: string; shop: string; price_cents: number; currency: string; image_url: string; buy_url: string };
 export const showcase = {
   look: (look: "women" | "men" | "kids" = "women") => apiFetch<ShowcaseItem[]>(`/api/v1/showcase/look?look=${look}`),
+};
+
+/** Ready looks (tryonu.app/looks): outfits the TryOnU team tried on a model, to try on yourself */
+export type ReadyLookItem = {
+  id: string;
+  product_id: string;
+  name: string;
+  shop: string | null;
+  price_cents: number;
+  currency: string;
+  image_url: string | null;
+  buy_url: string;
+};
+export type ReadyLook = {
+  id: string;
+  title: string;
+  audience: "women" | "men" | "kids";
+  season: string | null;
+  card_url: string;
+  card_small_url: string;
+  image_url: string;
+  is_published: boolean;
+  sort_order: number;
+  items: ReadyLookItem[];
+  total_cents: number | null;
+  currency: string | null;
+  created_by?: string | null;
+};
+export const readyLooks = {
+  list: (audience?: string) => apiFetch<ReadyLook[]>(`/api/v1/looks${audience ? `?audience=${audience}` : ""}`),
+  get: (id: string) => apiFetch<ReadyLook>(`/api/v1/looks/${encodeURIComponent(id)}`),
+  tryIt: (id: string) =>
+    apiFetch<{ outfit_id: string | null; product_id: string | null }>(`/api/v1/looks/${encodeURIComponent(id)}/try`, { method: "POST" }),
+};
+export const team = {
+  looks: () => apiFetch<ReadyLook[]>("/api/v1/team/looks"),
+  publish: (input: { tryon_job_id: string; title: string; audience: string; season?: string | null }) =>
+    apiFetch<ReadyLook>("/api/v1/team/looks", { method: "POST", body: input }),
+  update: (id: string, input: { title?: string; audience?: string; season?: string | null; is_published?: boolean; sort_order?: number }) =>
+    apiFetch<ReadyLook>(`/api/v1/team/looks/${id}`, { method: "PATCH", body: input }),
+  refresh: (id: string) => apiFetch<ReadyLook>(`/api/v1/team/looks/${id}/refresh`, { method: "POST" }),
+  removeItem: (id: string, itemId: string) => apiFetch<ReadyLook>(`/api/v1/team/looks/${id}/items/${itemId}`, { method: "DELETE" }),
+  remove: (id: string) => apiFetch<void>(`/api/v1/team/looks/${id}`, { method: "DELETE" }),
 };

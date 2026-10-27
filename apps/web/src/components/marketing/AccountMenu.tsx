@@ -96,6 +96,7 @@ export function AccountMenu() {
             { href: "/credits", label: "Buy credits" },
             { href: "/earn", label: "Invite & earn" },
             { href: "/account", label: "Settings" },
+            ...(user.is_admin || user.is_team ? [{ href: "/team", label: "Team panel" }] : []),
             ...(user.is_admin ? [{ href: "/admin", label: "Admin" }] : []),
           ].map((item) => (
             <Link

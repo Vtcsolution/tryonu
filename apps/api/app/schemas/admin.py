@@ -21,6 +21,7 @@ class AdminUserOut(ORMModel):
     auth_provider: AuthProvider
     is_active: bool
     is_admin: bool
+    is_team: bool = False
     email_verified: bool
     credits_balance: int
     last_login_at: datetime | None
@@ -84,6 +85,7 @@ class AdminUserDetail(BaseModel):
 class AdminUserUpdate(BaseModel):
     is_active: bool | None = None
     is_admin: bool | None = None
+    is_team: bool | None = None
     email_verified: bool | None = None
 
 

@@ -40,6 +40,8 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # a TryOnU team member: makes and publishes the Ready looks (tryonu.app/looks)
+    is_team: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Denormalized for fast reads; CreditTransaction is the source of truth

@@ -7,6 +7,7 @@ export type NavGroup = { label: string; items: NavItem[] };
 /** The header's links on computers. */
 export const MAIN: NavItem[] = [
   { label: "Try on", href: "/try" },
+  { label: "Ready looks", href: "/looks" },
   { label: "Find by photo", href: "/find-look" },
   { label: "AI Stylist", href: "/stylist" },
   { label: "Community", href: "/community" },
@@ -20,6 +21,7 @@ export const GROUPS: NavGroup[] = [
     label: "TryOnU",
     items: [
       { label: "Try on", href: "/try" },
+      { label: "Ready looks", href: "/looks" },
       { label: "Find by photo", href: "/find-look" },
       { label: "AI Stylist", href: "/stylist" },
       { label: "Build an outfit", href: "/outfits" },

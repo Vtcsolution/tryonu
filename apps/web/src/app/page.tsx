@@ -1,4 +1,6 @@
 import { SiteChrome } from "@/components/layout/SiteChrome";
+import { LooksGrid } from "@/components/looks/LooksGrid";
+import type { ReadyLook } from "@/lib/api/endpoints";
 import { Hero } from "@/components/marketing/Hero";
 import { TrustedBand } from "@/components/marketing/TrustedBand";
 import { Section, SectionHead } from "@/components/marketing/primitives";
@@ -32,6 +34,7 @@ const IMPACT_SITE_VERIFICATION = {
 
 export default async function HomePage() {
   const packs = (await serverFetch<Pack[]>("/api/v1/credits/packages", { revalidateSeconds: 3600 })) ?? [];
+  const readyLooks = (await serverFetch<ReadyLook[]>("/api/v1/looks", { revalidateSeconds: 300 })) ?? [];
   const prices = packs.map((p) => p.price_cents / 100);
   const app = {
     "@context": "https://schema.org",
@@ -90,6 +93,26 @@ export default async function HomePage() {
         />
         <ShowcaseTabs />
       </Section>
+
+      {readyLooks.length > 0 && (
+        <Section id="ready-looks" className="bg-paper-2/50">
+          <SectionHead
+            kicker="Winter collection"
+            title={
+              <>
+                Ready looks, <em>try them on you</em>
+              </>
+            }
+            sub="Complete outfits from real shops. Pick one, see it on your own photo, then buy each piece."
+          />
+          <LooksGrid initial={readyLooks} limit={3} />
+          <div className="mt-6 text-center">
+            <a href="/looks" className="font-display text-[17px] text-sage-deep hover:underline">
+              See all ready looks →
+            </a>
+          </div>
+        </Section>
+      )}
 
       <FindLookPromo />
       <Features />

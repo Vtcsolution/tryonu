@@ -22,6 +22,8 @@ export type User = {
   avatar_url: string | null;
   auth_provider: "local" | "google";
   is_admin: boolean;
+  /** a TryOnU team member: makes and publishes Ready looks */
+  is_team?: boolean;
   email_verified: boolean;
   credits_balance: number;
   created_at: string;
@@ -393,6 +395,7 @@ export type AdminUser = {
   auth_provider: "local" | "google";
   is_active: boolean;
   is_admin: boolean;
+  is_team?: boolean;
   email_verified: boolean;
   credits_balance: number;
   last_login_at: string | null;

@@ -15,6 +15,7 @@ class UserOut(ORMModel):
     avatar_url: str | None
     auth_provider: AuthProvider
     is_admin: bool
+    is_team: bool = False
     email_verified: bool
     credits_balance: int
     created_at: datetime

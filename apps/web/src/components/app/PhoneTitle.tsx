@@ -28,6 +28,8 @@ const TITLES: [string, string][] = [
   ["/app", "Get the app"],
   ["/look/", "Shared look"],
   ["/stores/", "Store"],
+  ["/looks", "Ready looks"],
+  ["/team", "Team panel"],
   ["/pricing", "Pricing"],
   ["/how-it-works", "How it works"],
   ["/faq", "Help & FAQ"],

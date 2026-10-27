@@ -9,7 +9,7 @@ import { SongLabel } from "@/components/community/Music";
 import { ShareIcon, ShareSheet, postShare } from "@/components/community/ShareSheet";
 import { Avatar, CommentIcon, Comments, HangerIcon, HeartIcon } from "@/components/community/PostCard";
 import { formatPrice } from "@/components/try/shop";
-import { resolveMediaUrl } from "@/lib/api/client";
+import { mediaThumb, resolveMediaUrl } from "@/lib/api/client";
 import { community, type CommunityPost } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
 
@@ -226,7 +226,7 @@ function Slide({
           <video
             ref={video}
             src={near ? resolveMediaUrl(p.video_url) : undefined}
-            poster={p.poster_url ? resolveMediaUrl(p.poster_url) : undefined}
+            poster={p.poster_url ? mediaThumb(p.poster_url, 900) : undefined}
             loop
             playsInline
             muted={muted || !!p.music}
@@ -236,7 +236,7 @@ function Slide({
         ) : (
           p.image_url && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={resolveMediaUrl(p.image_url)} alt={p.caption || `A post by @${p.author.handle}`} loading={near ? "eager" : "lazy"} className="absolute inset-0 h-full w-full object-contain" />
+            <img src={mediaThumb(p.image_url, 900)} alt={p.caption || `A post by @${p.author.handle}`} loading={near ? "eager" : "lazy"} className="absolute inset-0 h-full w-full object-contain" />
           )
         )}
       </div>

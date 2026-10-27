@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { PostOptions } from "@/components/community/extras";
 import { COMMUNITY_RULES } from "@/components/community/PostToCommunity";
-import { ApiError, resolveMediaUrl } from "@/lib/api/client";
+import { ApiError, mediaThumb, resolveMediaUrl } from "@/lib/api/client";
 import { community, type PostExtras } from "@/lib/api/endpoints";
 
 /** "Post a look" on the community page: pick one of my finished looks (saved
@@ -198,7 +198,7 @@ export function PostALook({
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
-                            src={resolveMediaUrl(l.image_url)}
+                            src={mediaThumb(l.image_url, 400)}
                             alt=""
                             loading="lazy"
                             className={`h-full w-full object-cover object-top transition-transform ${l.post_id ? "opacity-50" : "group-hover:scale-[1.03]"}`}

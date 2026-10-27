@@ -8,7 +8,7 @@ import { EarnRules, earnRuleLines } from "@/components/referrals/EarnRules";
 import { LookThumb, lookPrice, lookTitle } from "@/components/saved/SavedLookDetail";
 import { ShareLook } from "@/components/try/ShareLook";
 import { Button } from "@/components/ui/Button";
-import { resolveMediaUrl } from "@/lib/api/client";
+import { mediaThumb, resolveMediaUrl } from "@/lib/api/client";
 import { referrals as referralsApi, savedLooks as savedLooksApi } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
 import type { SavedLook } from "@/lib/api/types";
@@ -133,7 +133,7 @@ function SavedLookCard({ look }: { look: SavedLook }) {
     mutationFn: () => savedLooksApi.remove(look.id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["saved-looks"] }),
   });
-  const image = resolveMediaUrl(look.image_url);
+  const image = mediaThumb(look.image_url, 600);
   const items = look.items ?? [];
   const price = lookPrice(look);
   const href = `/saved/${look.id}`;

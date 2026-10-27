@@ -40,4 +40,4 @@ async def serve_media(key: str, exp: int = Query(...), sig: str = Query(...), w:
     return FileResponse(path)
 
 
-_THUMB_WIDTHS = (240, 400, 600)
+_THUMB_WIDTHS = (240, 400, 600, 900)

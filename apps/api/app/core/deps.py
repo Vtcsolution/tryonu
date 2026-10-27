@@ -76,3 +76,13 @@ async def get_current_admin(user: CurrentUser) -> User:
 
 
 AdminUser = Annotated[User, Depends(get_current_admin)]
+
+
+async def get_current_team(user: CurrentUser) -> User:
+    """A TryOnU team member (or an admin): makes and publishes Ready looks."""
+    if not (user.is_team or user.is_admin):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only TryOnU team members can do this")
+    return user
+
+
+TeamUser = Annotated[User, Depends(get_current_team)]

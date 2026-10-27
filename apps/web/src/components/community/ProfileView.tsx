@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { Medal, PLACE } from "@/components/community/extras";
 import { Avatar, ThumbIcon } from "@/components/community/parts";
 import { Button } from "@/components/ui/Button";
-import { ApiError, resolveMediaUrl } from "@/lib/api/client";
+import { ApiError, mediaThumb, resolveMediaUrl } from "@/lib/api/client";
 import { community, type CommunityProfile } from "@/lib/api/endpoints";
 import { SESSION_QUERY_KEY, useSession } from "@/lib/auth/useSession";
 
@@ -110,7 +110,7 @@ export function ProfileView({ handle }: { handle: string }) {
                 <>
                   {post.poster_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={resolveMediaUrl(post.poster_url)} alt={post.caption || "A video"} loading="lazy" className="h-full w-full object-cover" />
+                    <img src={mediaThumb(post.poster_url, 400)} alt={post.caption || "A video"} loading="lazy" className="h-full w-full object-cover" />
                   ) : (
                     <video src={resolveMediaUrl(post.video_url)} muted playsInline preload="metadata" className="h-full w-full object-cover" />
                   )}
@@ -121,7 +121,7 @@ export function ProfileView({ handle }: { handle: string }) {
               ) : (
                 post.image_url && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={resolveMediaUrl(post.image_url)} alt={post.caption || "A look"} loading="lazy" className="h-full w-full object-cover object-top transition-transform group-hover:scale-[1.02]" />
+                  <img src={mediaThumb(post.image_url, 400)} alt={post.caption || "A look"} loading="lazy" className="h-full w-full object-cover object-top transition-transform group-hover:scale-[1.02]" />
                 )
               )}
               <span className="absolute bottom-2 left-2 flex items-center gap-3 rounded-full bg-black/55 px-2.5 py-1 text-[12.5px] font-semibold text-white">

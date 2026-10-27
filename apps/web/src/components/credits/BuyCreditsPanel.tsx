@@ -132,8 +132,8 @@ export function BuyCreditsPanel() {
               } ${pkg.new_members_only ? "tu-attention bg-sage-tint/30" : ""}`}
             >
               {pkg.new_members_only && (
-                <span className="mb-2 inline-block rounded-full bg-sage px-2.5 py-1 text-[12px] font-semibold text-white">
-                  New members · first purchase only
+                <span className="absolute -top-3 left-4 whitespace-nowrap rounded-full bg-sage px-3 py-1 text-[12px] font-semibold text-white shadow-sm">
+                  New members only
                 </span>
               )}
               <p className="font-display text-[20px] text-ink">{pkg.credits} credits</p>
