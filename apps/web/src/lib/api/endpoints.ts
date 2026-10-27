@@ -1150,7 +1150,7 @@ export const readyLooks = {
 };
 export const team = {
   looks: () => apiFetch<ReadyLook[]>("/api/v1/team/looks"),
-  publish: (input: { tryon_job_id: string; title: string; audience: string; season?: string | null; publish?: boolean }) =>
+  publish: (input: { tryon_job_id: string; title: string; audience: string | null; season?: string | null; publish?: boolean }) =>
     apiFetch<ReadyLook>("/api/v1/team/looks", { method: "POST", body: input }),
   update: (id: string, input: { title?: string; audience?: string; season?: string | null; is_published?: boolean; sort_order?: number }) =>
     apiFetch<ReadyLook>(`/api/v1/team/looks/${id}`, { method: "PATCH", body: input }),

@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
+from collections import Counter
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -22,7 +24,7 @@ from app.core.deps import CurrentUser, DbSession, OptionalUser, TeamUser
 from app.core.logging import logger
 from app.core.rate_limit import rate_limiter
 from app.models.community import CommunityPost
-from app.models.enums import JobStatus, OutfitSlot
+from app.models.enums import Gender, JobStatus, OutfitSlot
 from app.models.product import Product
 from app.models.ready_look import ReadyLook, ReadyLookItem
 from app.models.tryon import TryOnJob
@@ -32,6 +34,33 @@ from app.services.storage_service import get_storage
 router = APIRouter(tags=["ready looks"])
 
 AUDIENCES = ("women", "men", "kids")
+# who a look is for, from words: kids first ("Boys' winter look"), and "men"
+# as a whole word so "women" never counts as men
+_FOR = (
+    ("kids", re.compile(r"\b(kids?|child|children|boys?|girls?|baby|babies|toddlers?|infants?|junior|youth)\b", re.I)),
+    ("men", re.compile(r"\b(men|mens|men's|man|male|gents?|for him)\b", re.I)),
+    ("women", re.compile(r"\b(women|womens|women's|woman|ladies|lady|female|bridal|bride|for her)\b", re.I)),
+)
+
+
+def _named(text: str) -> str | None:
+    return next((who for who, pattern in _FOR if pattern.search(text or "")), None)
+
+
+def guess_audience(title: str, products: list[Product]) -> tuple[str, bool]:
+    """Who a look is for, and whether its title says so outright. The title
+    decides when it names one ("Men's Winter Outfit"); otherwise most of its
+    products do (their shop's gender, else their names); women if nothing tells."""
+    said = _named(title)
+    if said:
+        return said, True
+    votes = Counter()
+    for product in products:
+        gender = getattr(product, "gender", None)
+        who = gender.value if gender in (Gender.MEN, Gender.WOMEN, Gender.KIDS) else _named(product.name)
+        if who:
+            votes[who] += 1
+    return (votes.most_common(1)[0][0] if votes else "women"), False
 _LOAD = selectinload(ReadyLook.items).selectinload(ReadyLookItem.product).selectinload(Product.images)
 _LOAD_RETAILER = selectinload(ReadyLook.items).selectinload(ReadyLookItem.product).selectinload(Product.retailer)
 
@@ -79,7 +108,8 @@ class ReadyLookOut(BaseModel):
 class PublishIn(BaseModel):
     tryon_job_id: str
     title: str = Field(min_length=2, max_length=120)
-    audience: str = Field(default="women", pattern="^(women|men|kids)$")
+    # None: worked out from the title and the products
+    audience: str | None = Field(default=None, pattern="^(women|men|kids)$")
     season: str | None = Field(default="Winter", max_length=24)
     # False: saved as a draft (hidden), published later from the team panel
     publish: bool = True
@@ -324,8 +354,9 @@ async def publish_look(payload: PublishIn, me: TeamUser, db: DbSession):
     }
 
     storage = get_storage()
+    audience = payload.audience or guess_audience(payload.title, [product for product, _slot in pairs])[0]
     look = ReadyLook(
-        title=payload.title.strip(), audience=payload.audience, season=(payload.season or "").strip() or None,
+        title=payload.title.strip(), audience=audience, season=(payload.season or "").strip() or None,
         created_by=me.id, tryon_job_id=job.id, image_key="pending", is_published=payload.publish,
     )
     db.add(look)

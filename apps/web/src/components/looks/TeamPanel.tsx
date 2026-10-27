@@ -164,10 +164,10 @@ function Publish({
   const qc = useQueryClient();
   const looks = useQuery({ queryKey: ["community", "my-looks"], queryFn: community.myLooks });
   const [title, setTitle] = useState("");
-  const [audience, setAudience] = useState("women");
+  const [audience, setAudience] = useState("auto");
   const [season, setSeason] = useState("Winter");
   const publish = useMutation({
-    mutationFn: (now: boolean) => team.publish({ tryon_job_id: jobId!, title: title.trim(), audience, season: season.trim() || null, publish: now }),
+    mutationFn: (now: boolean) => team.publish({ tryon_job_id: jobId!, title: title.trim(), audience: audience === "auto" ? null : audience, season: season.trim() || null, publish: now }),
     onSuccess: () => {
       setJobId(null);
       setTitle("");
@@ -245,6 +245,7 @@ function Publish({
           <label className="grid gap-1 text-[14px] text-ink-soft">
             For
             <select id="look-audience" value={audience} onChange={(e) => setAudience(e.target.value)} className={field}>
+              <option value="auto">Find it by itself</option>
               {AUDIENCES.map(([v, l]) => (
                 <option key={v} value={v}>{l}</option>
               ))}

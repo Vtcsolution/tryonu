@@ -196,3 +196,21 @@ async def test_the_team_panel_history_lists_finished_and_failed_try_ons(client, 
 
     only_failed = (await client.get("/api/v1/team/tryons", params={"show": "failed"})).json()
     assert {r["status"] for r in only_failed["items"]} == {"failed"}
+
+
+def test_who_a_look_is_for_is_worked_out_by_itself():
+    """Live: "Men's Winter Outfit" sat under Women: the form started on Women."""
+    from types import SimpleNamespace
+
+    from app.api.v1.endpoints.ready_looks import guess_audience
+    from app.models.enums import Gender
+
+    def p(name: str, gender: Gender = Gender.UNISEX):  # noqa: ANN202
+        return SimpleNamespace(name=name, gender=gender)
+
+    assert guess_audience("Men's Winter Outfit", [p("Puffer Jacket", Gender.WOMEN)]) == ("men", True)
+    assert guess_audience("Women's party look", []) == ("women", True)  # "women" is never "men"
+    assert guess_audience("Boys' school winter look", [p("Jacket", Gender.MEN)]) == ("kids", True)
+    assert guess_audience("Boyfriend jeans look", [p("Denim", Gender.WOMEN)]) == ("women", False)
+    assert guess_audience("Winter look", [p("Coat", Gender.MEN), p("Mens Chelsea Boots"), p("Scarf")]) == ("men", False)
+    assert guess_audience("Winter look", [p("Scarf"), p("Sunglasses")]) == ("women", False)
