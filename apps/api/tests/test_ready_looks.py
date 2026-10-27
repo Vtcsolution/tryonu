@@ -32,11 +32,17 @@ async def test_a_team_member_publishes_a_look_and_shoppers_try_it(client, db, mo
     look = made.json()
     assert look["title"] == "Pink bridal look" and [i["product_id"] for i in look["items"]] == [product.id]
     assert "/affiliate/go/" in look["items"][0]["buy_url"]
+    assert look["mine"] is True and look["tryon_job_id"] == job_id and look["created_at"]
+
+    # the team panel lists it as theirs
+    panel = (await client.get("/api/v1/team/looks")).json()
+    assert [x["mine"] for x in panel if x["id"] == look["id"]] == [True]
 
     # anyone sees it on the page, with its pictures
     await client.post("/api/v1/auth/logout")
     listed = (await client.get("/api/v1/looks", params={"audience": "women"})).json()
     assert look["id"] in [x["id"] for x in listed]
+    assert all(x["tryon_job_id"] is None and x["mine"] is False for x in listed)
     for url in (look["card_url"], look["card_small_url"], look["image_url"]):
         path = url.split("/api/v1/", 1)[1]
         pic = await client.get(f"/api/v1/{path}")

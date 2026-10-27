@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
@@ -59,6 +60,10 @@ class ReadyLookOut(BaseModel):
     total_cents: int | None
     currency: str | None
     created_by: str | None = None
+    created_at: datetime | None = None
+    # team panel only: made by the signed-in team member, and the try-on it came from
+    mine: bool = False
+    tryon_job_id: str | None = None
 
 
 class PublishIn(BaseModel):
@@ -82,7 +87,7 @@ def _api() -> str:
     return get_settings().PUBLIC_API_BASE_URL.rstrip("/")
 
 
-def _out(look: ReadyLook, creator: str | None = None) -> ReadyLookOut:
+def _out(look: ReadyLook, creator: str | None = None, me: User | None = None) -> ReadyLookOut:
     base = f"{_api()}/api/v1/looks/{look.id}"
     items = []
     for it in look.items:
@@ -115,6 +120,9 @@ def _out(look: ReadyLook, creator: str | None = None) -> ReadyLookOut:
         total_cents=sum(i.price_cents for i in items) if same and items else None,
         currency=items[0].currency if same and items else None,
         created_by=creator,
+        created_at=look.created_at,
+        mine=bool(me and look.created_by == me.id),
+        tryon_job_id=look.tryon_job_id if me else None,
     )
 
 
@@ -254,7 +262,7 @@ async def try_look(look_id: str, user: CurrentUser, db: DbSession):
 
 
 @router.get("/team/looks", response_model=list[ReadyLookOut])
-async def team_looks(_: TeamUser, db: DbSession):
+async def team_looks(me: TeamUser, db: DbSession):
     """Every Ready look, hidden ones included, with who made it."""
     looks = (
         await db.execute(
@@ -264,7 +272,7 @@ async def team_looks(_: TeamUser, db: DbSession):
     emails = dict(
         (await db.execute(select(User.id, User.email).where(User.id.in_([lk.created_by for lk in looks if lk.created_by] or [""])))).all()
     )
-    return [_out(look, emails.get(look.created_by or "")) for look in looks]
+    return [_out(look, emails.get(look.created_by or ""), me) for look in looks]
 
 
 @router.post("/team/looks", response_model=ReadyLookOut, status_code=status.HTTP_201_CREATED)
@@ -308,11 +316,11 @@ async def publish_look(payload: PublishIn, me: TeamUser, db: DbSession):
     await _render(db, look)
     await db.commit()
     logger.info("ready_look_published", look_id=look.id, by=me.id, items=len(look.items))
-    return _out(await _get(db, look.id), me.email)
+    return _out(await _get(db, look.id), me.email, me)
 
 
 @router.patch("/team/looks/{look_id}", response_model=ReadyLookOut)
-async def update_look(look_id: str, payload: LookUpdateIn, _: TeamUser, db: DbSession):
+async def update_look(look_id: str, payload: LookUpdateIn, me: TeamUser, db: DbSession):
     look = await _get(db, look_id)
     changes = payload.model_dump(exclude_unset=True)
     retitled = "title" in changes and changes["title"] and changes["title"].strip() != look.title
@@ -322,20 +330,20 @@ async def update_look(look_id: str, payload: LookUpdateIn, _: TeamUser, db: DbSe
     if retitled:
         await _render(db, look)
     await db.commit()
-    return _out(await _get(db, look_id))
+    return _out(await _get(db, look_id), me=me)
 
 
 @router.post("/team/looks/{look_id}/refresh", response_model=ReadyLookOut)
-async def refresh_look(look_id: str, _: TeamUser, db: DbSession):
+async def refresh_look(look_id: str, me: TeamUser, db: DbSession):
     """Make the outfit-receipt picture again (prices and product photos as they are now)."""
     look = await _get(db, look_id)
     await _render(db, look)
     await db.commit()
-    return _out(await _get(db, look_id))
+    return _out(await _get(db, look_id), me=me)
 
 
 @router.delete("/team/looks/{look_id}/items/{item_id}", response_model=ReadyLookOut)
-async def remove_item(look_id: str, item_id: str, _: TeamUser, db: DbSession):
+async def remove_item(look_id: str, item_id: str, me: TeamUser, db: DbSession):
     look = await _get(db, look_id)
     item = next((it for it in look.items if it.id == item_id), None)
     if item is None:
@@ -346,7 +354,7 @@ async def remove_item(look_id: str, item_id: str, _: TeamUser, db: DbSession):
     await db.flush()
     await _render(db, look)
     await db.commit()
-    return _out(await _get(db, look_id))
+    return _out(await _get(db, look_id), me=me)
 
 
 @router.delete("/team/looks/{look_id}", status_code=status.HTTP_204_NO_CONTENT)

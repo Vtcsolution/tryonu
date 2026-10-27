@@ -1094,6 +1094,10 @@ export type ReadyLook = {
   total_cents: number | null;
   currency: string | null;
   created_by?: string | null;
+  created_at?: string | null;
+  // team panel only
+  mine?: boolean;
+  tryon_job_id?: string | null;
 };
 export const readyLooks = {
   list: (audience?: string) => apiFetch<ReadyLook[]>(`/api/v1/looks${audience ? `?audience=${audience}` : ""}`),
