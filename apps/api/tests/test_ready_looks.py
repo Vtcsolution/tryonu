@@ -44,7 +44,9 @@ async def test_a_team_member_publishes_a_look_and_shoppers_try_it(client, db, mo
     listed = (await client.get("/api/v1/looks", params={"audience": "women"})).json()
     assert look["id"] in [x["id"] for x in listed]
     assert all(x["tryon_job_id"] is None and x["mine"] is False for x in listed)
-    for url in (look["card_url"], look["card_small_url"], look["image_url"]):
+    # the cards' product photos come from tryonu, small: straight from some shops they didn't show
+    assert "/items/" in look["items"][0]["thumb_url"]
+    for url in (look["card_url"], look["card_small_url"], look["image_url"], look["items"][0]["thumb_url"]):
         path = url.split("/api/v1/", 1)[1]
         pic = await client.get(f"/api/v1/{path}")
         assert pic.status_code == 200 and pic.headers["content-type"] == "image/jpeg" and pic.content

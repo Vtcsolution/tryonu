@@ -1079,6 +1079,8 @@ export type ReadyLookItem = {
   price_cents: number;
   currency: string;
   image_url: string | null;
+  /** the product photo, small, served by tryonu (what the outfit picture's cards show) */
+  thumb_url?: string | null;
   buy_url: string;
 };
 export type ReadyLook = {

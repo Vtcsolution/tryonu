@@ -73,6 +73,8 @@ class ReadyLookItemOut(BaseModel):
     price_cents: int
     currency: str
     image_url: str | None
+    # the product photo, small, from tryonu (what the outfit picture's cards show)
+    thumb_url: str | None = None
     buy_url: str
 
 
@@ -141,6 +143,7 @@ def _out(look: ReadyLook, creator: str | None = None, me: User | None = None) ->
                 price_cents=p.price_cents,
                 currency=p.currency,
                 image_url=p.primary_image_url,
+                thumb_url=f"{base}/items/{it.id}.jpg?v={look.version}" if p.primary_image_url else None,
                 buy_url=f"{_api()}/api/v1/affiliate/go/{p.id}?source=ready_look",
             )
         )
@@ -205,6 +208,12 @@ async def _render(db: DbSession, look: ReadyLook) -> None:
     ]
     data, layout = await asyncio.to_thread(render_card, look.title, person, cards)
     look.layout = json.dumps(layout)
+    for it, pic in zip(look.items, photos):
+        if pic:
+            try:
+                await asyncio.to_thread(storage.put, _thumb_key(look.id, it.id), await asyncio.to_thread(_thumb, pic), "image/jpeg")
+            except Exception:  # noqa: BLE001 - made on first view instead
+                pass
 
     def small(jpeg: bytes) -> bytes:
         import io
@@ -253,6 +262,56 @@ async def get_look(look_id: str, db: DbSession, user: OptionalUser):
 def _image_response(data: bytes) -> Response:
     # the URL carries ?v=<version>, so a new picture always gets a new address
     return Response(content=data, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=604800, immutable"})
+
+
+def _thumb_key(look_id: str, item_id: str) -> str:
+    return f"ready-looks/{look_id}/item-{item_id}.jpg"
+
+
+def _thumb(photo: bytes) -> bytes:
+    """A product photo at the size the outfit picture's cards show it: the shops'
+    own photos are often 1600px, six of them per look on a page of looks."""
+    import io
+
+    from PIL import Image
+
+    img = Image.open(io.BytesIO(photo))
+    img.thumbnail((420, 420))
+    if img.mode != "RGB":
+        rgba = img.convert("RGBA")
+        img = Image.new("RGB", rgba.size, "white")
+        img.paste(rgba, mask=rgba.getchannel("A"))
+    out = io.BytesIO()
+    img.save(out, "JPEG", quality=85, optimize=True, progressive=True)
+    return out.getvalue()
+
+
+@router.get("/looks/{look_id}/items/{item_id}.jpg", dependencies=[Depends(rate_limiter("looks_thumb", limit=20000, window_seconds=3600))])
+async def look_item_photo(look_id: str, item_id: str, db: DbSession):
+    """A product's photo for its card on the outfit picture, served from here:
+    straight from some shops it didn't show at all on the page."""
+    from app.services.tryon_direct.inputs import fetch_product_image
+
+    storage = get_storage()
+    key = _thumb_key(look_id, item_id)
+    try:
+        return _image_response(await asyncio.to_thread(storage.read, key))
+    except Exception:  # noqa: BLE001 - not made yet (a look drawn before this)
+        pass
+    item = await db.scalar(
+        select(ReadyLookItem)
+        .where(ReadyLookItem.id == item_id, ReadyLookItem.look_id == look_id)
+        .options(selectinload(ReadyLookItem.product).selectinload(Product.images))
+    )
+    url = item.product.primary_image_url if item and item.product else None
+    if not url:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    try:
+        data = await asyncio.to_thread(_thumb, await fetch_product_image(url))
+    except Exception as exc:  # noqa: BLE001 - the shop's photo is gone
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
+    await asyncio.to_thread(storage.put, key, data, "image/jpeg")
+    return _image_response(data)
 
 
 @router.get("/looks/{look_id}/card.jpg", dependencies=[Depends(rate_limiter("looks_image", limit=3000, window_seconds=3600))])

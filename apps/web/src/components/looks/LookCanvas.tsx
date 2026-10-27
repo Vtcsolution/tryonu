@@ -78,9 +78,16 @@ export function LookCanvas({ look, href, priority = false }: { look: ReadyLook; 
             className="absolute z-[3] flex flex-col overflow-hidden border-2 border-[#e2d6ce] bg-[#fcf9f6] shadow-[0_6px_16px_rgba(0,0,0,.25)] transition-transform hover:scale-[1.03] focus-visible:outline-2 focus-visible:outline-sage"
           >
             <span className="block shrink-0 bg-white" style={{ margin: cqw(8, L.w), height: pct(picH, h), borderRadius: cqw(14, L.w) }}>
-              {it.image_url && (
+              {(it.thumb_url || it.image_url) && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={it.image_url} alt="" loading="lazy" className="h-full w-full object-contain" />
+                <img
+                  src={it.thumb_url || it.image_url || ""}
+                  alt=""
+                  loading={priority ? "eager" : "lazy"}
+                  decoding="async"
+                  referrerPolicy="no-referrer"
+                  className="block h-full w-full object-contain"
+                />
               )}
             </span>
             <span className="flex flex-1 flex-col items-center justify-center text-center leading-tight">
