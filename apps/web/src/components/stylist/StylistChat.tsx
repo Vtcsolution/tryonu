@@ -159,7 +159,7 @@ export function StylistChat() {
             type="text"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Type a look, e.g. Eid outfit or pink bridal look"
+            placeholder="e.g. puffer jacket, sweater, jeans, sneakers, watch, sunglasses"
             className="h-11 flex-1 rounded-full bg-transparent px-3 text-[15px] text-ink outline-none placeholder:text-faint"
           />
           <VoiceInputButton onTranscript={(text) => setPrompt((p) => (p ? `${p} ${text}` : text))} />

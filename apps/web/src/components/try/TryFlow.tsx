@@ -724,7 +724,7 @@ export function TryFlow() {
                 placeholder={
                   baseLook
                     ? "What to add — e.g. gold necklace, gold ring, gold watch and pink khussa"
-                    : "Type a look, e.g. pink bridal look"
+                    : "e.g. puffer jacket, sweater, jeans, sneakers, watch, sunglasses"
                 }
                 className="h-11 flex-1 rounded-full bg-transparent px-2.5 text-[15px] text-ink outline-none placeholder:text-faint"
               />
