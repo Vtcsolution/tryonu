@@ -22,11 +22,27 @@ const errText = (e: unknown) => (e instanceof ApiError ? e.detail : "Something w
 export function TeamPanel() {
   const { user, isLoading } = useSession();
   if (isLoading) return <div className="mx-auto my-24 h-8 w-8 animate-spin rounded-full border-2 border-line-strong border-t-sage" />;
-  if (!user || !(user.is_team || user.is_admin)) {
+  if (!user) {
+    return (
+      <section className="tu-container py-20 text-center">
+        <h1 className="font-display text-[30px] text-ink">Team panel</h1>
+        <p className="mt-2 text-[16px] text-muted">Sign in with your team account to open it.</p>
+        <Link
+          href="/sign-in?next=/team"
+          className="mt-6 inline-flex rounded-full bg-sage px-6 py-3 text-[16px] font-semibold text-white hover:bg-sage-deep"
+        >
+          Sign in
+        </Link>
+      </section>
+    );
+  }
+  if (!(user.is_team || user.is_admin)) {
     return (
       <section className="tu-container py-20 text-center">
         <h1 className="font-display text-[30px] text-ink">This page is for the TryOnU team</h1>
-        <p className="mt-2 text-[16px] text-muted">Ask an admin to add you as a team member.</p>
+        <p className="mt-2 text-[16px] text-muted">
+          You are signed in as {user.email}, which is not a team account. Ask an admin to add you, or sign in with your team account.
+        </p>
       </section>
     );
   }
