@@ -7,6 +7,7 @@ import { formatPrice } from "@/components/try/shop";
 import { ApiError, mediaThumb } from "@/lib/api/client";
 import { community, team, type ReadyLook } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
+import { PeopleSection, ShareToCommunity } from "./TeamCommunity";
 
 const AUDIENCES: [string, string][] = [
   ["women", "Women"],
@@ -87,7 +88,7 @@ function Panel({ name, credits }: { name: string; credits: number }) {
         {[
           ["Make a try-on", "Add the model's photo and the clothes, then press Try it on.", "/try", "Open Try on"],
           ["Publish it", "Pick the finished try-on below, give it a title and press Publish.", "#publish", "Go to step 2"],
-          ["Share it", "Open your look and use its picture on Instagram, Facebook or TikTok.", "#my-looks", "See my looks"],
+          ["Share it", "Press \"Post to community\" on your look, or use its picture on Instagram, Facebook or TikTok.", "#my-looks", "See my looks"],
         ].map(([title, text, href, action], i) => (
           <li key={title} className="flex flex-col rounded-[18px] border border-line bg-surface p-4">
             <span className="grid h-9 w-9 place-items-center rounded-full bg-sage text-[15px] font-semibold text-white">{i + 1}</span>
@@ -105,6 +106,7 @@ function Panel({ name, credits }: { name: string; credits: number }) {
 
       <Publish published={new Set(all.map((l) => l.tryon_job_id).filter(Boolean) as string[])} />
       <Looks all={all} mine={mine} loading={looks.isLoading} />
+      <PeopleSection />
     </section>
   );
 }
@@ -269,7 +271,8 @@ function Looks({ all, mine, loading }: { all: ReadyLook[]; mine: ReadyLook[]; lo
 }
 
 function LookCard({ look }: { look: ReadyLook }) {
-  const [editing, setEditing] = useState(false);
+  const [open, setOpen] = useState<"edit" | "community" | null>(null);
+  const toggle = (what: "edit" | "community") => setOpen((v) => (v === what ? null : what));
   return (
     <article className={`overflow-hidden rounded-[20px] border bg-surface ${look.is_published ? "border-line" : "border-dashed border-line-strong"}`}>
       <Link href={`/looks/${look.id}`} target="_blank" className="relative block bg-paper-2" title="Visit this look">
@@ -291,6 +294,17 @@ function LookCard({ look }: { look: ReadyLook }) {
           {shortDate(look.created_at)}
           {!look.mine && look.created_by ? ` · by ${look.created_by}` : ""}
         </p>
+        {look.community && look.community.length > 0 && (
+          <p className="mt-1 text-[13.5px] text-ink-soft">
+            In community as{" "}
+            {look.community.map((c, i) => (
+              <span key={c.post_id}>
+                {i > 0 && ", "}
+                <Link href={`/community/post/${c.post_id}`} target="_blank" className="font-semibold text-sage-deep hover:underline">@{c.handle}</Link>
+              </span>
+            ))}
+          </p>
+        )}
         <div className="mt-3 flex gap-2">
           <Link
             href={`/looks/${look.id}`}
@@ -301,14 +315,25 @@ function LookCard({ look }: { look: ReadyLook }) {
           </Link>
           <button
             type="button"
-            onClick={() => setEditing((v) => !v)}
-            aria-expanded={editing}
+            onClick={() => toggle("edit")}
+            aria-expanded={open === "edit"}
             className="min-h-[44px] flex-1 rounded-full border border-line-strong px-4 text-[15.5px] font-semibold text-ink hover:border-sage"
           >
-            {editing ? "Close" : "Edit"}
+            {open === "edit" ? "Close" : "Edit"}
           </button>
         </div>
-        {editing && <LookEditor look={look} />}
+        {look.tryon_job_id && (
+          <button
+            type="button"
+            onClick={() => toggle("community")}
+            aria-expanded={open === "community"}
+            className="mt-2 min-h-[44px] w-full rounded-full border border-line-strong px-4 text-[15.5px] font-semibold text-ink hover:border-sage"
+          >
+            {open === "community" ? "Close" : "Post to community"}
+          </button>
+        )}
+        {open === "edit" && <LookEditor look={look} />}
+        {open === "community" && <ShareToCommunity look={look} />}
       </div>
     </article>
   );

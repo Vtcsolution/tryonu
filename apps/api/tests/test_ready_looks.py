@@ -82,3 +82,49 @@ async def test_the_outfit_receipt_picture_is_a_post_sized_jpeg():
     )
     img = Image.open(io.BytesIO(card))
     assert img.size == (1080, 1350) and img.format == "JPEG"
+
+
+async def test_the_team_posts_a_look_to_the_community_as_a_person(client, db, monkeypatch):  # noqa: ANN001
+    async def no_network(url: str) -> bytes:  # noqa: ARG001
+        return small_jpeg_bytes()
+
+    monkeypatch.setattr("app.services.tryon_direct.inputs.fetch_product_image", no_network)
+    job_id, product = await _finished_look(client, db, monkeypatch)
+    me = (await client.get("/api/v1/auth/me")).json()
+    photo = {"photo": ("haseeb.jpg", small_jpeg_bytes(), "image/jpeg")}
+
+    # only the team can add people
+    assert (await client.post("/api/v1/team/people", data={"name": "Haseeb", "handle": "haseeb"}, files=photo)).status_code == 403
+    await _team(db, me["id"])
+
+    made = await client.post("/api/v1/team/people", data={"name": "Haseeb", "handle": "@Haseeb"}, files=photo)
+    assert made.status_code == 201, made.text
+    person = made.json()
+    assert person["handle"] == "haseeb" and person["avatar_url"] and person["posts"] == 0
+    taken = await client.post("/api/v1/team/people", data={"name": "Other", "handle": "haseeb"}, files=photo)
+    assert taken.status_code == 409
+
+    look = (await client.post("/api/v1/team/looks", json={"tryon_job_id": job_id, "title": "Men's white shirt look", "audience": "men"})).json()
+    posted = await client.post(
+        f"/api/v1/team/looks/{look['id']}/community",
+        json={"person_id": person["id"], "caption": "Tried it on before buying it.", "poll": True},
+    )
+    assert posted.status_code == 201, posted.text
+    post_id = posted.json()["post_id"]
+    again = await client.post(f"/api/v1/team/looks/{look['id']}/community", json={"person_id": person["id"]})
+    assert again.status_code == 409
+
+    # on the feed it's Haseeb's post: the try-on picture with the products
+    post = (await client.get(f"/api/v1/community/posts/{post_id}")).json()
+    assert post["author"]["handle"] == "haseeb" and post["author"]["name"] == "Haseeb"
+    assert post["author"]["avatar_url"] == person["avatar_url"] and post["is_mine"] is False and post["poll"] is True
+    assert [p["id"] for p in post["products"]] == [product.id]
+
+    # the team panel shows where the look was posted, and the person's post count
+    panel = (await client.get("/api/v1/team/looks")).json()
+    assert [x["community"] for x in panel if x["id"] == look["id"]] == [[{"post_id": post_id, "handle": "haseeb"}]]
+    assert (await client.get("/api/v1/team/people")).json()[0]["posts"] == 1
+
+    # a team person can't sign in, and gets no emails
+    stored = await db.get(User, person["id"])
+    assert stored.hashed_password is None and stored.notify_email is False and stored.team_person is True

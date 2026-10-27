@@ -1098,6 +1098,16 @@ export type ReadyLook = {
   // team panel only
   mine?: boolean;
   tryon_job_id?: string | null;
+  community?: { post_id: string; handle: string }[];
+};
+/** A community profile the team posts Ready looks as. */
+export type TeamPerson = { id: string; name: string; handle: string; avatar_url: string | null; posts: number };
+const personForm = (input: { name?: string; handle?: string; photo?: File | null }) => {
+  const form = new FormData();
+  if (input.name) form.append("name", input.name);
+  if (input.handle) form.append("handle", input.handle);
+  if (input.photo) form.append("photo", input.photo);
+  return form;
 };
 export const readyLooks = {
   list: (audience?: string) => apiFetch<ReadyLook[]>(`/api/v1/looks${audience ? `?audience=${audience}` : ""}`),
@@ -1114,4 +1124,11 @@ export const team = {
   refresh: (id: string) => apiFetch<ReadyLook>(`/api/v1/team/looks/${id}/refresh`, { method: "POST" }),
   removeItem: (id: string, itemId: string) => apiFetch<ReadyLook>(`/api/v1/team/looks/${id}/items/${itemId}`, { method: "DELETE" }),
   remove: (id: string) => apiFetch<void>(`/api/v1/team/looks/${id}`, { method: "DELETE" }),
+  people: () => apiFetch<TeamPerson[]>("/api/v1/team/people"),
+  addPerson: (input: { name: string; handle: string; photo: File }) =>
+    apiFetch<TeamPerson>("/api/v1/team/people", { method: "POST", body: personForm(input), isFormData: true }),
+  editPerson: (id: string, input: { name?: string; handle?: string; photo?: File | null }) =>
+    apiFetch<TeamPerson>(`/api/v1/team/people/${id}`, { method: "PATCH", body: personForm(input), isFormData: true }),
+  postToCommunity: (lookId: string, input: { person_id: string; caption?: string; poll?: boolean }) =>
+    apiFetch<{ post_id: string; handle: string }>(`/api/v1/team/looks/${lookId}/community`, { method: "POST", body: input }),
 };

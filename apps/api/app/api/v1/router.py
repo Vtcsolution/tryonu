@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
     ready_looks,
+    team_people,
     showcase,
     admin,
     admin_controls,
@@ -92,3 +93,4 @@ api_router.include_router(sizes.router)
 api_router.include_router(extension.router)
 api_router.include_router(showcase.router)
 api_router.include_router(ready_looks.router)
+api_router.include_router(team_people.router)

@@ -21,6 +21,7 @@ from app.core.config import get_settings
 from app.core.deps import CurrentUser, DbSession, OptionalUser, TeamUser
 from app.core.logging import logger
 from app.core.rate_limit import rate_limiter
+from app.models.community import CommunityPost
 from app.models.enums import JobStatus, OutfitSlot
 from app.models.product import Product
 from app.models.ready_look import ReadyLook, ReadyLookItem
@@ -46,6 +47,11 @@ class ReadyLookItemOut(BaseModel):
     buy_url: str
 
 
+class CommunityRefOut(BaseModel):
+    post_id: str
+    handle: str
+
+
 class ReadyLookOut(BaseModel):
     id: str
     title: str
@@ -64,6 +70,7 @@ class ReadyLookOut(BaseModel):
     # team panel only: made by the signed-in team member, and the try-on it came from
     mine: bool = False
     tryon_job_id: str | None = None
+    community: list[CommunityRefOut] = []  # its posts on the community feed (team panel)
 
 
 class PublishIn(BaseModel):
@@ -272,7 +279,22 @@ async def team_looks(me: TeamUser, db: DbSession):
     emails = dict(
         (await db.execute(select(User.id, User.email).where(User.id.in_([lk.created_by for lk in looks if lk.created_by] or [""])))).all()
     )
-    return [_out(look, emails.get(look.created_by or ""), me) for look in looks]
+    job_ids = [lk.tryon_job_id for lk in looks if lk.tryon_job_id]
+    posted: dict[str, list[CommunityRefOut]] = {}
+    for job_id, post_id, handle in (
+        await db.execute(
+            select(CommunityPost.tryon_job_id, CommunityPost.id, User.handle)
+            .join(User, User.id == CommunityPost.user_id)
+            .where(CommunityPost.tryon_job_id.in_(job_ids or [""]), CommunityPost.is_hidden.is_(False))
+        )
+    ).all():
+        posted.setdefault(job_id, []).append(CommunityRefOut(post_id=post_id, handle=handle or "member"))
+    out = []
+    for look in looks:
+        item = _out(look, emails.get(look.created_by or ""), me)
+        item.community = posted.get(look.tryon_job_id or "", [])
+        out.append(item)
+    return out
 
 
 @router.post("/team/looks", response_model=ReadyLookOut, status_code=status.HTTP_201_CREATED)
