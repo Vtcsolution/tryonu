@@ -9,6 +9,33 @@ import { community, team, type ReadyLook, type TeamTryOn } from "@/lib/api/endpo
 import { useSession } from "@/lib/auth/useSession";
 import { PeopleSection, ShareToCommunity } from "./TeamCommunity";
 
+/** A finished try-on goes to one of two places: the Ready looks page (as the
+ * outfit-receipt picture) or the community feed (as a person's post). */
+function WhereTabs({ value, onChange }: { value: "looks" | "community"; onChange: (v: "looks" | "community") => void }) {
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:w-fit" role="tablist" aria-label="Where to share it">
+      {(
+        [
+          ["looks", "Ready looks", "Outfit-receipt picture"],
+          ["community", "Community", "Post as a person"],
+        ] as const
+      ).map(([v, label, hint]) => (
+        <button
+          key={v}
+          type="button"
+          role="tab"
+          aria-selected={value === v}
+          onClick={() => onChange(v)}
+          className={`rounded-[14px] border-2 px-4 py-2 text-left ${value === v ? "border-sage bg-sage-tint/40" : "border-line hover:border-line-strong"}`}
+        >
+          <span className="block text-[15.5px] font-semibold text-ink">{label}</span>
+          <span className="block text-[13px] text-muted">{hint}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 const AUDIENCES: [string, string][] = [
   ["women", "Women"],
   ["men", "Men"],
@@ -57,6 +84,7 @@ export function TeamPanel() {
 function Panel({ name, credits }: { name: string; credits: number }) {
   // the try-on picked to publish (from step 2's pictures or the history)
   const [jobId, setJobId] = useState<string | null>(null);
+  const [where, setWhere] = useState<"looks" | "community">("looks");
   const looks = useQuery({ queryKey: ["team", "looks"], queryFn: team.looks });
   const all = looks.data ?? [];
   const mine = all.filter((l) => l.mine);
@@ -89,8 +117,8 @@ function Panel({ name, credits }: { name: string; credits: number }) {
       <ol className="mt-4 grid gap-3 md:grid-cols-3">
         {[
           ["Make a try-on", "Add the model's photo and the clothes, then press Try it on.", "/try", "Open Try on"],
-          ["Publish it", "Pick the finished try-on below, give it a title and press Publish.", "#publish", "Go to step 2"],
-          ["Share it", "Press \"Post to community\" on your look, or use its picture on Instagram, Facebook or TikTok.", "#my-looks", "See my looks"],
+          ["Share it", "Pick the finished try-on below, then choose Ready looks or Community.", "#publish", "Go to step 2"],
+          ["Use it in ads", "Open your look's post picture and use it on Instagram, Facebook or TikTok.", "#my-looks", "See my looks"],
         ].map(([title, text, href, action], i) => (
           <li key={title} className="flex flex-col rounded-[18px] border border-line bg-surface p-4">
             <span className="grid h-9 w-9 place-items-center rounded-full bg-sage text-[15px] font-semibold text-white">{i + 1}</span>
@@ -106,11 +134,12 @@ function Panel({ name, credits }: { name: string; credits: number }) {
         ))}
       </ol>
 
-      <Publish jobId={jobId} setJobId={setJobId} published={new Set(all.map((l) => l.tryon_job_id).filter(Boolean) as string[])} />
+      <Publish jobId={jobId} setJobId={setJobId} where={where} setWhere={setWhere} published={new Set(all.map((l) => l.tryon_job_id).filter(Boolean) as string[])} />
       <Looks all={all} mine={mine} loading={looks.isLoading} />
       <History
         onPublish={(id) => {
           setJobId(id);
+          setWhere("looks");
           document.getElementById("publish")?.scrollIntoView({ behavior: "smooth" });
         }}
       />
@@ -122,10 +151,14 @@ function Panel({ name, credits }: { name: string; credits: number }) {
 function Publish({
   jobId,
   setJobId,
+  where,
+  setWhere,
   published,
 }: {
   jobId: string | null;
   setJobId: (id: string | null) => void;
+  where: "looks" | "community";
+  setWhere: (v: "looks" | "community") => void;
   published: Set<string>;
 }) {
   const qc = useQueryClient();
@@ -147,8 +180,8 @@ function Publish({
 
   return (
     <div id="publish" className="mt-12 scroll-mt-24">
-      <h2 className="font-display text-[24px] text-ink">Step 2: publish a finished try-on</h2>
-      <p className="mt-1 text-[15px] text-muted">Tap a picture, then fill in the title.</p>
+      <h2 className="font-display text-[24px] text-ink">Step 2: share a finished try-on</h2>
+      <p className="mt-1 text-[15px] text-muted">Tap a picture, then choose Ready looks or Community.</p>
       {publish.isSuccess && (
         <p className="mt-3 rounded-[14px] bg-sage-tint/60 px-4 py-3 text-[15px] text-ink">
           {publish.data.is_published ? (
@@ -185,9 +218,19 @@ function Publish({
         })}
       </div>
       {jobId && !picked && looks.data && (
-        <p className="mt-3 text-[15px] text-ink">The try-on you picked from your history is ready to publish: fill in the title below.</p>
+        <p className="mt-3 text-[15px] text-ink">The try-on you picked from your history is ready: choose where to share it below.</p>
       )}
       {jobId && (
+        <div className="mt-4">
+          <WhereTabs value={where} onChange={setWhere} />
+        </div>
+      )}
+      {jobId && where === "community" && (
+        <div className="rounded-[18px] border border-line bg-surface p-4 pt-0">
+          <ShareToCommunity key={jobId} jobId={jobId} />
+        </div>
+      )}
+      {jobId && where === "looks" && (
         <form
           className="mt-4 flex flex-wrap items-end gap-3 rounded-[18px] border border-line bg-surface p-4"
           onSubmit={(e) => {
@@ -244,6 +287,7 @@ const STATUS: Record<TeamTryOn["status"], [string, string]> = {
 
 /** Every try-on the team member made, finished or failed, newest first. */
 function History({ onPublish }: { onPublish: (jobId: string) => void }) {
+  const [posting, setPosting] = useState<string | null>(null);
   const [show, setShow] = useState<"done" | "failed" | "working" | null>(null);
   const list = useInfiniteQuery({
     queryKey: ["team", "tryons", show],
@@ -310,6 +354,17 @@ function History({ onPublish }: { onPublish: (jobId: string) => void }) {
                   {r.status === "failed" ? (r.refunded ? `${r.credits} credits returned` : `${r.credits} credits`) : `${r.credits} credits`}
                 </p>
                 {r.error && <p className="mt-1 line-clamp-2 text-[13.5px] text-[#a4553f]">{r.error}</p>}
+                {r.community.length > 0 && (
+                  <p className="mt-1 text-[13.5px] text-ink-soft">
+                    In community as{" "}
+                    {r.community.map((c, i) => (
+                      <span key={c.post_id}>
+                        {i > 0 && ", "}
+                        <Link href={`/community/post/${c.post_id}`} target="_blank" className="font-semibold text-sage-deep hover:underline">@{c.handle}</Link>
+                      </span>
+                    ))}
+                  </p>
+                )}
                 <div className="mt-2 flex flex-wrap gap-2 text-[14px]">
                   <Link href={`/try?job=${r.id}`} className="rounded-full border border-line px-3 py-1.5 font-semibold text-ink hover:border-sage">
                     {r.status === "failed" ? "Open and try again" : "Open"}
@@ -321,10 +376,21 @@ function History({ onPublish }: { onPublish: (jobId: string) => void }) {
                       </Link>
                     ) : (
                       <button type="button" onClick={() => onPublish(r.id)} className="rounded-full bg-sage px-3 py-1.5 font-semibold text-white hover:bg-sage-deep">
-                        Publish it
+                        Ready looks
                       </button>
                     ))}
+                  {r.status === "done" && (
+                    <button
+                      type="button"
+                      onClick={() => setPosting((v) => (v === r.id ? null : r.id))}
+                      aria-expanded={posting === r.id}
+                      className="rounded-full bg-sage px-3 py-1.5 font-semibold text-white hover:bg-sage-deep"
+                    >
+                      {posting === r.id ? "Close" : "Community"}
+                    </button>
+                  )}
                 </div>
+                {posting === r.id && <ShareToCommunity jobId={r.id} posted={r.community} />}
               </div>
             </li>
           );

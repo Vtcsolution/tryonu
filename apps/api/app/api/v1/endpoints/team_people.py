@@ -201,6 +201,7 @@ class TeamTryOnOut(BaseModel):
     credits: int
     refunded: bool  # a failed try-on's credits came back
     look_id: str | None  # the Ready look made from it
+    community: list[CommunityPostOut] = []  # its posts on the community feed
     created_at: datetime
 
 
@@ -276,6 +277,15 @@ async def my_tryons(
         ).scalars()
     )
     looks = dict((await db.execute(select(ReadyLook.tryon_job_id, ReadyLook.id).where(ReadyLook.tryon_job_id.in_(ids)))).all())
+    posted: dict[str, list[CommunityPostOut]] = {}
+    for job_id, post_id, handle in (
+        await db.execute(
+            select(CommunityPost.tryon_job_id, CommunityPost.id, User.handle)
+            .join(User, User.id == CommunityPost.user_id)
+            .where(CommunityPost.tryon_job_id.in_(ids), CommunityPost.is_hidden.is_(False))
+        )
+    ).all():
+        posted.setdefault(job_id, []).append(CommunityPostOut(post_id=post_id, handle=handle or "member"))
     storage = get_storage()
     items = []
     for j in jobs:
@@ -302,6 +312,7 @@ async def my_tryons(
                 credits=j.credit_cost,
                 refunded=j.id in refunded,
                 look_id=looks.get(j.id),
+                community=posted.get(j.id, []),
                 created_at=j.created_at,
             )
         )

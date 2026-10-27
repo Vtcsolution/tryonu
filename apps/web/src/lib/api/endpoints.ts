@@ -1112,6 +1112,7 @@ export type TeamTryOn = {
   credits: number;
   refunded: boolean;
   look_id: string | null;
+  community: { post_id: string; handle: string }[];
   created_at: string;
 };
 export type TeamTryOns = { items: TeamTryOn[]; total: number; done: number; failed: number; working: number; next_offset: number | null };

@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { Avatar } from "@/components/community/parts";
 import { ApiError } from "@/lib/api/client";
-import { team, type ReadyLook, type TeamPerson } from "@/lib/api/endpoints";
+import { community, team, type ReadyLook, type TeamPerson } from "@/lib/api/endpoints";
 
 const field =
   "h-11 rounded-xl border border-line-strong bg-surface px-3 text-[15px] text-ink outline-none focus:border-sage focus:ring-2 focus:ring-sage/25";
@@ -213,16 +213,33 @@ export function PostAsPicker({
 /** Inside a look's card: post its try-on to the community as one of the
  * team's people. There it shows as the try-on picture with the products,
  * not the outfit-receipt picture used on Ready looks. */
-export function ShareToCommunity({ look }: { look: ReadyLook }) {
+export function ShareToCommunity({
+  look,
+  jobId,
+  posted,
+}: {
+  look?: ReadyLook;
+  /** a finished try-on (no Ready look needed) */
+  jobId?: string;
+  posted?: { post_id: string; handle: string }[];
+}) {
   const qc = useQueryClient();
   const [personId, setPersonId] = useState<string | null>(null);
   const [caption, setCaption] = useState("Tried it on before buying it. What do you think: buy or skip?");
   const [poll, setPoll] = useState(true);
   const post = useMutation({
-    mutationFn: () => team.postToCommunity(look.id, { person_id: personId!, caption: caption.trim(), poll }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["team", "looks"] }),
+    mutationFn: async () => {
+      if (look) return team.postToCommunity(look.id, { person_id: personId!, caption: caption.trim(), poll });
+      const made = await community.create({ tryon_job_id: jobId!, caption: caption.trim() || undefined, accept_rules: true, person_id: personId!, poll });
+      return { post_id: made.id, handle: made.author.handle };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["team", "looks"] });
+      qc.invalidateQueries({ queryKey: ["team", "tryons"] });
+      qc.invalidateQueries({ queryKey: ["team", "people"] });
+    },
   });
-  const postedAs = new Set((look.community ?? []).map((c) => c.handle));
+  const postedAs = new Set((posted ?? look?.community ?? []).map((c) => c.handle));
 
   if (post.isSuccess) {
     return (

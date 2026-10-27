@@ -175,6 +175,17 @@ async def test_the_team_panel_history_lists_finished_and_failed_try_ons(client, 
     assert rows[job_id]["status"] == "done" and rows[job_id]["image_url"] and rows[job_id]["what"] == product.name
     assert rows[failed.id]["status"] == "failed" and rows[failed.id]["error"] == "The picture couldn't be made."
     assert rows[failed.id]["image_url"]  # the photo it started from
+    assert rows[job_id]["community"] == []
+
+    # posted to the community straight from the history (no Ready look needed)
+    photo = {"photo": ("danish.jpg", small_jpeg_bytes(), "image/jpeg")}
+    person = (await client.post("/api/v1/team/people", data={"name": "Danish", "handle": "danish"}, files=photo)).json()
+    post = await client.post(
+        "/api/v1/community/posts", json={"tryon_job_id": job_id, "accept_rules": True, "person_id": person["id"], "poll": True}
+    )
+    assert post.status_code == 201, post.text
+    again = {r["id"]: r for r in (await client.get("/api/v1/team/tryons")).json()["items"]}
+    assert again[job_id]["community"] == [{"post_id": post.json()["id"], "handle": "danish"}]
 
     only_failed = (await client.get("/api/v1/team/tryons", params={"show": "failed"})).json()
     assert {r["status"] for r in only_failed["items"]} == {"failed"}
