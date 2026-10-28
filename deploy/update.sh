@@ -63,6 +63,16 @@ main() {
   fi
   echo "   Website is up (HTTP 200)."
 
+  echo "== Nightly backups"
+  # the database every night (kept 7 days), photos every Sunday, into /var/backups/tryonu
+  chmod +x "$ROOT/deploy/backup.sh"
+  if ! crontab -l 2>/dev/null | grep -q "deploy/backup.sh"; then
+    (crontab -l 2>/dev/null; echo "30 2 * * * bash $ROOT/deploy/backup.sh >> /var/log/tryonu-backup.log 2>&1") | crontab -
+    echo "   Installed: every night at 02:30 (server time)."
+  else
+    echo "   Already on."
+  fi
+
   echo "== Telling Bing and other search engines"
   cd "$ROOT/apps/api"
   ./.venv/bin/python -m app.scripts.indexnow_ping || echo "   (IndexNow ping failed; the site update itself is fine)"
