@@ -234,11 +234,12 @@ def test_a_look_gets_its_title_audience_and_season_from_its_products():
         (p("Mens Wool Overcoat Black Long", Gender.MEN), OutfitSlot.OUTERWEAR),
         (p("Silver Watch"), OutfitSlot.WATCH),
     ]
-    assert suggest_look(men) == {"title": "Men's Winter Coat Look", "audience": "men", "season": "Winter"}
+    assert suggest_look(men) == {"title": "Men's Winter Look: Black Coat & Brown Boots", "audience": "men", "season": "Winter"}
     bridal = [(p("Pink Bridal Lehenga Choli", Gender.WOMEN), OutfitSlot.DRESS), (p("Gold Jhumka Earrings"), OutfitSlot.ACCESSORY)]
-    assert suggest_look(bridal) == {"title": "Women's Wedding Lehenga Look", "audience": "women", "season": "Wedding"}
+    assert suggest_look(bridal) == {"title": "Women's Wedding Look: Pink Lehenga & Gold Earrings", "audience": "women", "season": "Wedding"}
     kids = [(p("Girls Pink Puffer Jacket", Gender.KIDS), OutfitSlot.OUTERWEAR)]
-    assert suggest_look(kids)["title"] == "Kids' Winter Puffer Jacket Look"
+    assert suggest_look(kids)["title"] == "Kids' Winter Look: Pink Puffer Jacket"
+    assert all(len(suggest_look(x)["title"]) <= 60 for x in (men, bridal, kids))
 
 
 async def test_a_look_posted_to_the_community_is_also_on_ready_looks(client, db, monkeypatch):  # noqa: ANN001
@@ -267,7 +268,7 @@ async def test_a_look_posted_to_the_community_is_also_on_ready_looks(client, db,
     db.expire_all()
     look = await db.scalar(select(ReadyLook).where(ReadyLook.tryon_job_id == job_id))
     assert look is not None and look.is_published and look.created_by == me["id"]
-    assert look.title.endswith("Look") and look.card_key
+    assert "Look" in look.title and look.card_key
     listed = (await client.get("/api/v1/looks")).json()
     assert look.id in [x["id"] for x in listed]
 
@@ -293,3 +294,19 @@ async def test_unticked_the_post_stays_off_ready_looks(client, db, monkeypatch):
     )
     assert posted.status_code in (200, 201), posted.text
     assert started == []
+
+
+async def test_a_look_published_without_a_title_gets_the_best_one(client, db, monkeypatch):  # noqa: ANN001
+    async def no_network(url: str) -> bytes:  # noqa: ARG001 - product photos without the internet
+        return small_jpeg_bytes()
+
+    monkeypatch.setattr("app.services.tryon_direct.inputs.fetch_product_image", no_network)
+    job_id, _product = await _finished_look(client, db, monkeypatch)
+    me = (await client.get("/api/v1/auth/me")).json()
+    await _team(db, me["id"])
+    asked = await client.get("/api/v1/team/looks/suggest", params={"tryon_job_id": job_id})
+    assert asked.status_code == 200, asked.text
+    suggested = asked.json()
+    made = await client.post("/api/v1/team/looks", json={"tryon_job_id": job_id, "title": ""})
+    assert made.status_code == 201, made.text
+    assert made.json()["title"] == suggested["title"] and len(made.json()["title"]) <= 60

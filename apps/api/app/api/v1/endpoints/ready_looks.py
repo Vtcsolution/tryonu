@@ -77,18 +77,50 @@ _MAIN_SLOT = (OutfitSlot.OUTERWEAR, OutfitSlot.DRESS, OutfitSlot.TOP, OutfitSlot
 _WHO = {"men": "Men's", "women": "Women's", "kids": "Kids'"}
 
 
-def suggest_look(products: list[tuple[Product, OutfitSlot | None]]) -> dict:
-    """A title, who it's for and a season tag for a look, from its products
-    ("Men's Winter Coat Look"): the team panel fills its form with these."""
+_COLOURS = (
+    "black", "white", "ivory", "cream", "beige", "camel", "tan", "brown", "grey", "gray", "charcoal", "silver",
+    "gold", "navy", "blue", "green", "olive", "emerald", "teal", "red", "maroon", "burgundy", "pink", "rose",
+    "purple", "lilac", "yellow", "mustard", "orange", "peach", "khaki",
+)
+_COLOUR_RE = re.compile(r"\b(" + "|".join(_COLOURS) + r")\b", re.I)
+# the second piece named in a title, after the main one: what catches the eye next
+_SECOND_SLOT = (
+    OutfitSlot.SHOES, OutfitSlot.BAG, OutfitSlot.DRESS, OutfitSlot.BOTTOM, OutfitSlot.TOP, OutfitSlot.WATCH, OutfitSlot.ACCESSORY,
+)
+TITLE_MAX = 60
+
+
+def _coloured(product: Product) -> str:
+    """ "Black Coat": the piece's short name with its colour, when one is known."""
     from app.services.ready_look_card import short_label
 
+    piece = short_label(product.name)
+    colour = (getattr(product, "color", None) or "").split(",")[0].split("/")[0].strip()
+    if not _COLOUR_RE.fullmatch(colour.lower() or "-"):
+        found = _COLOUR_RE.search(product.name)
+        colour = found.group(1) if found else ""
+    colour = "Grey" if colour.lower() == "gray" else colour.title()
+    return f"{colour} {piece}".strip() if colour and colour.lower() not in piece.lower() else piece
+
+
+def suggest_look(products: list[tuple[Product, OutfitSlot | None]]) -> dict:
+    """A title, who it's for and a season tag for a look, from its products:
+    "Men's Winter Look: Black Coat & Brown Boots" (shorter when that doesn't
+    fit). The team panel fills its form with these, and a look published with
+    no title gets this one."""
     names = " ".join(p.name for p, _ in products)
     audience, _ = guess_audience("", [p for p, _ in products])
     season = next((s for s, pattern in _SEASONS if pattern.search(names)), None)
-    main = next((p for slot in _MAIN_SLOT for p, s in products if s == slot), products[0][0] if products else None)
-    piece = short_label(main.name) if main else "Outfit"
-    words = [_WHO[audience], season, piece if piece != "Outfit" else None, "Look"]
-    return {"title": " ".join(w for w in words if w)[:120], "audience": audience, "season": season}
+    if not products:
+        return {"title": f"{_WHO[audience]} {season + ' ' if season else ''}Look", "audience": audience, "season": season}
+    main = next((p for slot in _MAIN_SLOT for p, s in products if s == slot), products[0][0])
+    second = next((p for slot in _SECOND_SLOT for p, s in products if s == slot and p is not main), None)
+    lead = f"{_WHO[audience]} {season + ' ' if season else ''}Look"
+    first = _coloured(main)
+    options = [f"{lead}: {first} & {_coloured(second)}"] if second is not None else []
+    options += [f"{lead}: {first}", f"{_WHO[audience]} {first} Look", lead]
+    title = next((t for t in options if len(t) <= TITLE_MAX), lead)
+    return {"title": title, "audience": audience, "season": season}
 _LOAD = selectinload(ReadyLook.items).selectinload(ReadyLookItem.product).selectinload(Product.images)
 _LOAD_RETAILER = selectinload(ReadyLook.items).selectinload(ReadyLookItem.product).selectinload(Product.retailer)
 
@@ -137,7 +169,8 @@ class ReadyLookOut(BaseModel):
 
 class PublishIn(BaseModel):
     tryon_job_id: str
-    title: str = Field(min_length=2, max_length=120)
+    # empty: the best title is picked from the products (suggest_look)
+    title: str = Field(default="", max_length=120)
     # None: worked out from the title and the products
     audience: str | None = Field(default=None, pattern="^(women|men|kids)$")
     season: str | None = Field(default="Winter", max_length=24)
@@ -430,7 +463,8 @@ async def suggest_for_tryon(tryon_job_id: str, me: TeamUser, db: DbSession):
     """What to call a finished try-on as a Ready look, from its products."""
     from app.services.look_products import look_products
 
-    job = await db.scalar(select(TryOnJob).where(TryOnJob.id == tryon_job_id))
+    # with its result: look_products reads it (live, without it the form never filled itself in)
+    job = await db.scalar(select(TryOnJob).where(TryOnJob.id == tryon_job_id).options(selectinload(TryOnJob.result)))
     if job is None or (job.user_id != me.id and not me.is_admin):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Try-on not found")
     pairs, _ = await look_products(db, job)

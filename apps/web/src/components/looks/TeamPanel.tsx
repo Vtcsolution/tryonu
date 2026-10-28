@@ -249,15 +249,18 @@ function Publish({
           className="mt-4 flex flex-wrap items-end gap-3 rounded-[18px] border border-line bg-surface p-4"
           onSubmit={(e) => {
             e.preventDefault();
-            if (title.trim().length >= 2) publish.mutate(true);
+            if (title.trim().length !== 1) publish.mutate(true);
           }}
         >
           {filledFor === jobId && (
             <p className="w-full text-[13.5px] text-muted">Filled in from the products in this try-on. Change anything you like.</p>
           )}
+          {filledFor !== jobId && (
+            <p className="w-full text-[13.5px] text-muted">Leave the title empty and the best one is picked from the products.</p>
+          )}
           <label className="grid gap-1 text-[14px] text-ink-soft">
             Title
-            <input id="look-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Men's winter overcoat look" maxLength={120} className={`${field} w-72 max-w-full`} />
+            <input id="look-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={suggestion.data?.title ?? "Picked for you from the products"} maxLength={120} className={`${field} w-96 max-w-full`} />
           </label>
           <label className="grid gap-1 text-[14px] text-ink-soft">
             For
@@ -274,14 +277,14 @@ function Publish({
           </label>
           <button
             type="submit"
-            disabled={publish.isPending || title.trim().length < 2}
+            disabled={publish.isPending || title.trim().length === 1}
             className="tu-press min-h-[44px] rounded-full bg-sage px-5 text-[15.5px] font-semibold text-white disabled:opacity-50"
           >
             {publish.isPending ? "Saving…" : "Publish"}
           </button>
           <button
             type="button"
-            disabled={publish.isPending || title.trim().length < 2}
+            disabled={publish.isPending || title.trim().length === 1}
             onClick={() => publish.mutate(false)}
             className="min-h-[44px] rounded-full border border-line-strong px-5 text-[15.5px] font-semibold text-ink disabled:opacity-50"
           >
