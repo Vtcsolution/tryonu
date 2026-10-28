@@ -307,7 +307,9 @@ async def send_digests(db: AsyncSession, *, max_members: int = 300) -> int:
             + f"Don't want these emails? Turn them off here: {unsubscribe_url(member.id)}\n\nTryOnU"
         )
         try:
-            await get_email_provider().send(to=member.email, subject=subject, text_body=body)
+            await get_email_provider().send(
+                to=member.email, subject=subject, text_body=body, unsubscribe_url=unsubscribe_url(member.id)
+            )
         except Exception as exc:  # noqa: BLE001 — try again next round
             logger.warning("digest_email_failed", user_id=member.id, error=str(exc)[:200])
             continue

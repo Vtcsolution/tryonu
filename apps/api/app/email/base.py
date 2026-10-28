@@ -12,4 +12,16 @@ class EmailProvider(ABC):
     name: str
 
     @abstractmethod
-    async def send(self, *, to: str, subject: str, text_body: str, html_body: str | None = None) -> None: ...
+    async def send(
+        self,
+        *,
+        to: str,
+        subject: str,
+        text_body: str,
+        html_body: str | None = None,
+        reply_to: str | None = None,
+        unsubscribe_url: str | None = None,
+    ) -> None:
+        """reply_to: where a reply goes (default: the support address);
+        unsubscribe_url: a one-click "stop these emails" link for mail
+        programs (List-Unsubscribe), for emails a member can turn off."""

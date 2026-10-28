@@ -4,6 +4,7 @@ import { ContentPage } from "@/components/content/ContentPage";
 import { HelpWhatsApp } from "@/components/whatsapp/WhatsApp";
 import { isDevPortal } from "@/lib/devLinks";
 import { pageMeta } from "@/lib/seo";
+import { EMAIL_LIST } from "@/lib/contactEmails";
 
 export const metadata = pageMeta({
   title: "Contact TryOnU",
@@ -34,6 +35,20 @@ export default function ContactPage() {
         <aside>
           <div className="mb-6 empty:hidden">
             <HelpWhatsApp />
+          </div>
+          <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-faint">Email us</p>
+          <div className="mb-6 mt-3 space-y-2">
+            {EMAIL_LIST.map((e) => (
+              <a
+                key={e.email}
+                href={`mailto:${e.email}`}
+                className="block rounded-[18px] border border-line bg-surface p-4 transition-colors hover:border-line-strong"
+              >
+                <p className="text-[16px] font-semibold text-ink">{e.label}</p>
+                <p className="mt-0.5 text-[14.5px] text-muted">{e.text}</p>
+                <p className="mt-1.5 text-[15px] font-semibold text-sage-deep">{e.email}</p>
+              </a>
+            ))}
           </div>
           <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-faint">Quick answers</p>
           <div className="mt-3 space-y-3">

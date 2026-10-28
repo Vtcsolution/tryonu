@@ -58,9 +58,10 @@ async def test_shoppers_order_from_a_local_store_on_whatsapp(client, db):  # noq
 async def test_the_help_whatsapp_number(client, monkeypatch):  # noqa: ANN001
     s = get_settings()
     monkeypatch.setattr(s, "SUPPORT_WHATSAPP", "")
-    assert (await client.get("/api/v1/contact/info")).json() == {"whatsapp": None}
+    assert (await client.get("/api/v1/contact/info")).json()["whatsapp"] is None
     monkeypatch.setattr(s, "SUPPORT_WHATSAPP", "+92 300 7654321")
-    assert (await client.get("/api/v1/contact/info")).json() == {"whatsapp": "923007654321"}
+    info = (await client.get("/api/v1/contact/info")).json()
+    assert info["whatsapp"] == "923007654321" and info["support"] == s.SUPPORT_EMAIL
 
 
 async def test_admins_send_an_announcement_to_every_member(client, db):  # noqa: ANN001

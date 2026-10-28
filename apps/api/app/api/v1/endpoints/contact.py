@@ -57,12 +57,14 @@ def _out(m: ContactMessage) -> ContactMessageOut:
 
 @router.get("/contact/info")
 async def contact_info():
-    """How to reach TryOnU besides the form: the help WhatsApp number, if set."""
+    """How to reach TryOnU besides the form: the help WhatsApp number, if set,
+    and the email addresses."""
+    s = get_settings()
     try:
-        number = whatsapp.normalize(get_settings().SUPPORT_WHATSAPP, "PK")
+        number = whatsapp.normalize(s.SUPPORT_WHATSAPP, "PK")
     except ValueError:
         number = None
-    return {"whatsapp": number}
+    return {"whatsapp": number, "support": s.SUPPORT_EMAIL, "sales": s.SALES_EMAIL, "billing": s.BILLING_EMAIL}
 
 
 @router.post(
@@ -82,14 +84,17 @@ async def send_message(payload: ContactIn, db: DbSession, user: OptionalUser):
     db.add(msg)
     await db.commit()
 
-    # also by email to the admins; the message is saved either way
+    # also by email to the help inbox and the admins, a reply going straight
+    # to the sender; the message is saved either way
     admins = (await db.execute(select(User.email).where(User.is_admin.is_(True)))).scalars().all()
-    for to in admins:
+    inbox = get_settings().SUPPORT_EMAIL
+    for to in dict.fromkeys([inbox, *admins] if inbox else admins):
         try:
             await get_email_provider().send(
                 to=to,
                 subject=f"TryOnU contact: {TOPICS[topic]} from {msg.name}",
                 text_body=f"From: {msg.name} <{msg.email}>\nTopic: {TOPICS[topic]}\n\n{msg.message}\n\nReply to them at {msg.email}.",
+                reply_to=msg.email,
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("contact_email_failed", error=str(exc)[:200])

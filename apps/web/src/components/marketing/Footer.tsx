@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Logo } from "@/components/ui/Logo";
 import { copyrightLine } from "@/lib/seo";
 import { SocialLinks } from "@/components/marketing/SocialLinks";
+import { EMAILS } from "@/lib/contactEmails";
 import { LANDINGS } from "@/lib/seoContent";
 import { GROUPS, LEGAL } from "@/components/marketing/navLinks";
 
@@ -25,6 +26,9 @@ export function Footer() {
               Try it now →
             </Link>
             <SocialLinks className="mt-6" />
+            <a href={`mailto:${EMAILS.support}`} className="mt-4 inline-block text-[15px] font-semibold text-sage-deep hover:underline">
+              {EMAILS.support}
+            </a>
           </div>
 
           {GROUPS.map((col) => (

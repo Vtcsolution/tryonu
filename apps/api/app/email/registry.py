@@ -18,5 +18,7 @@ def get_email_provider() -> EmailProvider:
             username=settings.SMTP_USERNAME,
             password=settings.SMTP_PASSWORD,
             from_email=settings.SMTP_FROM_EMAIL,
+            from_name=settings.SMTP_FROM_NAME,
+            reply_to=settings.SUPPORT_EMAIL or None,
         )
     return MockEmailProvider()

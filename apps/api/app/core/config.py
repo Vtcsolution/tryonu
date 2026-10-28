@@ -428,7 +428,12 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USERNAME: str | None = None
     SMTP_PASSWORD: str | None = None
-    SMTP_FROM_EMAIL: str = "noreply@tryonu.ai"
+    SMTP_FROM_EMAIL: str = "noreply@tryonu.app"
+    SMTP_FROM_NAME: str = "TryOnU"  # the name people see the email is from
+    # the addresses shown on the website; replies to the site's emails go to support
+    SUPPORT_EMAIL: str = "support@tryonu.app"
+    SALES_EMAIL: str = "sales@tryonu.app"
+    BILLING_EMAIL: str = "billing@tryonu.app"
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30
     EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES: int = 1440
 

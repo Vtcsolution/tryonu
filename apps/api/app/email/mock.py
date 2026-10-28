@@ -17,6 +17,18 @@ class MockEmailProvider(EmailProvider):
     def __init__(self) -> None:
         self.sent: list[dict[str, str]] = []
 
-    async def send(self, *, to: str, subject: str, text_body: str, html_body: str | None = None) -> None:
-        self.sent.append({"to": to, "subject": subject, "body": text_body})
+    async def send(
+        self,
+        *,
+        to: str,
+        subject: str,
+        text_body: str,
+        html_body: str | None = None,
+        reply_to: str | None = None,
+        unsubscribe_url: str | None = None,
+    ) -> None:
+        self.sent.append(
+            {"to": to, "subject": subject, "body": text_body, "html": html_body or "", "reply_to": reply_to or "",
+             "unsubscribe": unsubscribe_url or ""}
+        )
         logger.info("email_sent_mock", to=to, subject=subject, body=text_body)

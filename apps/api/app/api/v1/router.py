@@ -31,6 +31,7 @@ from app.api.v1.endpoints import (
     price_alerts,
     sizes,
     notifications,
+    admin_email,
     contact,
     extension,
     referrals,
@@ -78,6 +79,7 @@ api_router.include_router(shared_looks.router)
 api_router.include_router(referrals.router)
 api_router.include_router(referrals.admin_router)
 api_router.include_router(contact.router)
+api_router.include_router(admin_email.router)
 api_router.include_router(community.router)
 api_router.include_router(community.admin_router)
 api_router.include_router(community_share.router)

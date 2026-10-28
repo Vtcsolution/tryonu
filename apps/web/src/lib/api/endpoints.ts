@@ -825,7 +825,8 @@ export type ContactMessage = {
 };
 export const contact = {
   /** the help WhatsApp number (digits with the country code), when an admin set one */
-  info: () => apiFetch<{ whatsapp: string | null }>("/api/v1/contact/info"),
+  info: () =>
+    apiFetch<{ whatsapp: string | null; support?: string; sales?: string; billing?: string }>("/api/v1/contact/info"),
   send: (input: { name: string; email: string; topic: ContactTopic; message: string }) =>
     apiFetch<{ detail: string }>("/api/v1/contact", { method: "POST", body: input }),
 };
@@ -858,6 +859,27 @@ export const adminMusic = {
   remove: (id: string) => apiFetch<void>(`${AM}/${id}`, { method: "DELETE" }),
 };
 
+export type AdminEmailAudience = "one" | "me" | "members" | "stores" | "team";
+export type AdminEmail = {
+  id: string;
+  audience: AdminEmailAudience;
+  to_address: string | null;
+  subject: string;
+  total: number;
+  sent: number;
+  failed: number;
+  status: "sending" | "done";
+  created_at: string;
+};
+export const adminEmail = {
+  audiences: () =>
+    apiFetch<{ members: number; stores: number; team: number; max_per_send: number; sending_ready: boolean; from_address: string }>(
+      "/api/v1/admin/email/audiences",
+    ),
+  send: (input: { audience: AdminEmailAudience; to?: string; subject: string; message: string }) =>
+    apiFetch<AdminEmail>("/api/v1/admin/email/send", { method: "POST", body: input }),
+  history: () => apiFetch<AdminEmail[]>("/api/v1/admin/email/history"),
+};
 export const adminMessages = {
   list: (show: "open" | "all" = "open") => apiFetch<ContactMessage[]>(`/api/v1/admin/messages?show=${show}`),
   count: () => apiFetch<{ open: number }>("/api/v1/admin/messages/count"),
