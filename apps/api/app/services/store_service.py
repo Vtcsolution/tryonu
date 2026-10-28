@@ -570,12 +570,18 @@ async def notify_owner(db: AsyncSession, store: Store, subject: str, body: str) 
     to = store.contact_email or await db.scalar(select(User.email).where(User.id == store.owner_user_id))
     if not to:
         return
-    site = str(get_settings().FRONTEND_URL).rstrip("/")
+    from app.email.templates import action_email, site_url
+
+    text, page = action_email(
+        subject,
+        [line for line in body.split("\n") if line.strip()],
+        "Open my store",
+        site_url("/business"),
+        footer=f"You get this because you have a store on TryOnU ({store.name}).",
+    )
     try:
         await get_email_provider().send(
-            to=to,
-            subject=subject,
-            text_body=f"{body}\n\nYour store dashboard: {site}/business\n\nTryOnU",
+            to=to, subject=subject, text_body=text, html_body=page, reply_to=get_settings().SALES_EMAIL
         )
     except Exception as exc:  # noqa: BLE001
         logger.warning("store_email_failed", store_id=store.id, error=str(exc)[:200])

@@ -7,6 +7,12 @@
   (at most one every three days)
 - the weekly trending looks email to every member who gets emails (into the
   Send email queue, so it goes out slowly)
+- receipt: right after a credit pack is paid (sent even to members who turned
+  emails off: it's a receipt)
+- unfinished_payment: a few hours after a payment was started and never finished
+- win_back: 30 days without a visit, new looks (at most every 60 days)
+- shop owners: their plan ends in 3 days (unless it renews by itself), and on
+  Mondays last week's numbers for their store
 
 Each goes to each member once (user_email_events), only to members who keep
 emails on, always with the "stop these emails" link, and within the site's
@@ -32,7 +38,7 @@ from app.models.tryon import TryOnJob
 from app.models.user import User
 from app.services import email_budget
 
-RUN_EVERY_SECONDS = 30 * 60
+RUN_EVERY_SECONDS = 10 * 60  # often enough for a receipt to arrive within minutes
 PER_ROUND = 40  # the most automatic emails in one round (the hourly limit is shared)
 PAUSE = 3.0  # seconds between two emails: never a burst
 
@@ -61,8 +67,20 @@ async def _paid(db: AsyncSession, user_id: str) -> bool:
     ) is not None
 
 
-async def _send(db: AsyncSession, user: User, kind: str, subject: str, mail: tuple[str, str], ref: str = "") -> bool:
-    """Marks it sent first (so a crash never sends twice), then sends."""
+async def _send(
+    db: AsyncSession,
+    user: User,
+    kind: str,
+    subject: str,
+    mail: tuple[str, str],
+    ref: str = "",
+    *,
+    to: str | None = None,
+    marketing: bool = True,
+) -> bool:
+    """Marks it sent first (so a crash never sends twice), then sends.
+    to: another address (a store's contact email); marketing: carries the
+    "stop these emails" link (a receipt doesn't)."""
     from app.email.registry import get_email_provider
     from app.services.notification_service import unsubscribe_url
 
@@ -78,7 +96,8 @@ async def _send(db: AsyncSession, user: User, kind: str, subject: str, mail: tup
     text, page = mail
     try:
         await get_email_provider().send(
-            to=user.email, subject=subject, text_body=text, html_body=page, unsubscribe_url=unsubscribe_url(user.id)
+            to=to or user.email, subject=subject, text_body=text, html_body=page,
+            unsubscribe_url=unsubscribe_url(user.id) if marketing else None,
         )
     except Exception as exc:  # noqa: BLE001 - tried again next round
         await db.rollback()
@@ -235,15 +254,258 @@ async def _weekly_looks(db: AsyncSession) -> bool:
     return True
 
 
+def _money(cents: int, currency: str) -> str:
+    from app.services.looks_email import _money as fmt
+
+    return fmt(cents, currency) or f"{cents / 100:.2f} {currency.upper()}"
+
+
+async def _receipts(db: AsyncSession, limit: int) -> int:
+    from app.models.credit import CreditPackage
+
+    now = datetime.now(timezone.utc)
+    rows = (
+        await db.execute(
+            select(Payment, User, CreditPackage)
+            .join(User, User.id == Payment.user_id)
+            .join(CreditPackage, CreditPackage.id == Payment.credit_package_id)
+            .where(
+                Payment.status == PaymentStatus.SUCCEEDED, Payment.updated_at >= now - timedelta(days=2),
+                User.is_active.is_(True), User.team_person.is_(False),
+                ~exists().where(UserEmailEvent.user_id == User.id, UserEmailEvent.kind == "receipt", UserEmailEvent.ref == Payment.id),
+            )
+            .limit(limit)
+        )
+    ).all()
+    sent = 0
+    for payment, user, pack in rows:
+        mail = action_email(
+            "Thank you! Your credits are ready",
+            [
+                f"Hi {_first(user)}, your payment went through. Here is your receipt:",
+                f"{pack.name}: {pack.credits} credits",
+                f"Paid: {_money(payment.amount_cents, payment.currency)} ({payment.provider.title()})",
+                f"Date: {(payment.updated_at or now):%d %B %Y}",
+                f"Your balance now: {user.credits_balance} credits.",
+            ],
+            "Try a look on you",
+            _tracked("/looks", "receipt"),
+            after=[f"Keep this email as your receipt. Questions about a payment? Write to {get_settings().BILLING_EMAIL}."],
+            footer=f"Receipt for your TryOnU account ({user.email}).",
+        )
+        if await _send(db, user, "receipt", f"Your TryOnU receipt: {pack.credits} credits", mail, ref=payment.id, marketing=False):
+            sent += 1
+            await asyncio.sleep(PAUSE)
+    return sent
+
+
+async def _unfinished_payment(db: AsyncSession, limit: int) -> int:
+    from app.models.credit import CreditPackage
+
+    now = datetime.now(timezone.utc)
+    rows = (
+        await db.execute(
+            select(Payment, User, CreditPackage)
+            .join(User, User.id == Payment.user_id)
+            .join(CreditPackage, CreditPackage.id == Payment.credit_package_id)
+            .where(
+                _members(), Payment.status == PaymentStatus.PENDING,
+                Payment.created_at <= now - timedelta(hours=2), Payment.created_at >= now - timedelta(days=2),
+                _not_sent("unfinished_payment"),
+            )
+            .order_by(Payment.created_at.desc())
+            .limit(limit * 3)
+        )
+    ).all()
+    sent, done = 0, set()
+    for payment, user, pack in rows:
+        if user.id in done or sent >= limit:
+            continue
+        done.add(user.id)
+        # paid since (another try that went through): nothing to remind
+        if await db.scalar(
+            select(Payment.id).where(
+                Payment.user_id == user.id, Payment.status == PaymentStatus.SUCCEEDED, Payment.created_at >= payment.created_at
+            ).limit(1)
+        ):
+            continue
+        first = not await _paid(db, user.id)
+        mail = action_email(
+            "You were one step away",
+            [
+                f"Hi {_first(user)}, you started buying {pack.name} ({pack.credits} credits) but the payment didn't finish.",
+                "Nothing was charged. If something went wrong, you can try again in a minute, by card, PayPal, Apple Pay "
+                "or Google Pay.",
+                *(["Your first complete outfit costs just $1: 10 credits, enough for one whole look."] if first else []),
+            ],
+            "Finish my purchase",
+            _tracked("/credits?offer=1" if first else "/credits", "unfinished_payment"),
+            after=[f"Had a problem paying? Reply to this email or write to {get_settings().BILLING_EMAIL}, and we'll help."],
+            footer=_footer(user),
+        )
+        if await _send(db, user, "unfinished_payment", "Your TryOnU purchase didn't finish", mail):
+            sent += 1
+            await asyncio.sleep(PAUSE)
+    return sent
+
+
+async def _win_back(db: AsyncSession, limit: int) -> int:
+    from app.services.looks_email import pick_looks
+
+    now = datetime.now(timezone.utc)
+    quiet_since = now - timedelta(days=30)
+    recent = exists().where(
+        UserEmailEvent.user_id == User.id, UserEmailEvent.kind == "win_back", UserEmailEvent.created_at >= now - timedelta(days=60)
+    )
+    users = (
+        await db.execute(
+            select(User)
+            .where(
+                _members(), User.email_verified.is_(True), User.created_at <= quiet_since,
+                (User.last_login_at.is_(None)) | (User.last_login_at <= quiet_since), ~recent,
+            )
+            .limit(limit)
+        )
+    ).scalars().all()
+    if not users:
+        return 0
+    looks = await pick_looks(db, "", limit=1)
+    sent = 0
+    for user in users:
+        mail = action_email(
+            f"We miss you, {_first(user)}",
+            [
+                "There are new Ready looks on TryOnU: complete outfits from real shops, ready to try on your own photo.",
+                "Pick one, upload one photo, and see the whole look on you in about a minute.",
+            ],
+            "See what's new",
+            _tracked("/looks", "win_back"),
+            picture=looks[0]["picture"] if looks else None,
+            footer=_footer(user),
+        )
+        if await _send(db, user, "win_back", "New looks are waiting for you on TryOnU", mail, ref=f"{now:%Y-%m-%d}"):
+            sent += 1
+            await asyncio.sleep(PAUSE)
+    return sent
+
+
+async def _store_plans_ending(db: AsyncSession, limit: int) -> int:
+    from app.models.store import Store
+
+    now = datetime.now(timezone.utc)
+    rows = (
+        await db.execute(
+            select(Store, User)
+            .join(User, User.id == Store.owner_user_id)
+            .where(
+                Store.status == "approved", Store.plan_free.is_(False), Store.plan_expires_at.is_not(None),
+                Store.plan_expires_at > now, Store.plan_expires_at <= now + timedelta(days=3),
+                (Store.subscription_status.is_(None)) | (Store.subscription_status != "active"),
+            )
+            .limit(limit)
+        )
+    ).all()
+    sent = 0
+    for store, owner in rows:
+        kind = f"plan_end_{store.plan_expires_at:%Y%m%d}"
+        mail = action_email(
+            f"{store.name}: your plan ends on {store.plan_expires_at:%d %B}",
+            [
+                f"Hi {_first(owner)}, the TryOnU plan for {store.name} ends on {store.plan_expires_at:%d %B %Y}.",
+                "After that your products are hidden from shoppers. Renew now to keep them showing, with no gap.",
+            ],
+            "Renew my plan",
+            _tracked("/business", "store_plan_ending"),
+            after=[f"Questions? Write to {get_settings().SALES_EMAIL}."],
+            footer=f"You get this because you have a store on TryOnU ({store.name}).",
+        )
+        if await _send(db, owner, kind, f"Your TryOnU store plan ends on {store.plan_expires_at:%d %B}", mail,
+                       ref=store.id, to=store.contact_email or owner.email, marketing=False):
+            sent += 1
+            await asyncio.sleep(PAUSE)
+    return sent
+
+
+async def _store_weeks(db: AsyncSession, limit: int) -> int:
+    """Mondays: last week's numbers for each approved store."""
+    from sqlalchemy import func
+
+    from app.models.store import Store, StoreProduct, StoreProductView, StoreTryOn
+
+    now = datetime.now(timezone.utc)
+    if now.weekday() != 0 or now.hour < 8:
+        return 0
+    week = now - timedelta(days=7)
+    kind = f"store_week_{now:%G%V}"
+    rows = (
+        await db.execute(
+            select(Store, User)
+            .join(User, User.id == Store.owner_user_id)
+            .where(
+                Store.status == "approved",
+                exists().where(StoreProduct.store_id == Store.id),
+                ~exists().where(UserEmailEvent.user_id == User.id, UserEmailEvent.kind == kind, UserEmailEvent.ref == Store.id),
+            )
+            .limit(limit)
+        )
+    ).all()
+    sent = 0
+    for store, owner in rows:
+        views = int(
+            await db.scalar(
+                select(func.coalesce(func.sum(StoreProductView.views), 0)).where(
+                    StoreProductView.store_id == store.id, StoreProductView.day >= week.date()
+                )
+            )
+            or 0
+        )
+        tries = int(
+            await db.scalar(select(func.count()).select_from(StoreTryOn).where(StoreTryOn.store_id == store.id, StoreTryOn.created_at >= week))
+            or 0
+        )
+        lines = [
+            f"Hi {_first(owner)}, here is last week on TryOnU for {store.name}:",
+            f"Product views: {views}",
+            f"Try-ons of your products: {tries}",
+        ]
+        lines.append(
+            "Tip: add more products and clear photos on a plain background; shoppers try on what they can see clearly."
+            if views < 20
+            else "Shoppers are looking: keep your prices and stock up to date so they can buy right away."
+        )
+        mail = action_email(
+            f"Your week on TryOnU: {store.name}",
+            lines,
+            "Open my store",
+            _tracked("/business", "store_week"),
+            footer=f"You get this because you have a store on TryOnU ({store.name}).",
+        )
+        if await _send(db, owner, kind, f"{store.name} on TryOnU last week: {views} views, {tries} try-ons", mail,
+                       ref=store.id, to=store.contact_email or owner.email, marketing=False):
+            sent += 1
+            await asyncio.sleep(PAUSE)
+    return sent
+
+
 async def run_once(db: AsyncSession) -> dict:
     s = get_settings()
-    out = {"welcome": 0, "first_look": 0, "look_ready": 0, "weekly": False}
+    out = {
+        "receipt": 0, "welcome": 0, "unfinished_payment": 0, "look_ready": 0, "first_look": 0, "win_back": 0,
+        "store_plan": 0, "store_week": 0, "weekly": False,
+    }
     if s.WEEKLY_LOOKS_EMAIL_ON:
         out["weekly"] = await _weekly_looks(db)
+    left = PER_ROUND
+    # a receipt always goes, whatever the automatic-emails switch says
+    out["receipt"] = await _receipts(db, left)
+    left -= out["receipt"]
     if not s.AUTO_EMAILS_ON:
         return out
-    left = PER_ROUND
-    for kind, step in (("welcome", _welcome), ("first_look", _first_look), ("look_ready", _look_ready)):
+    for kind, step in (
+        ("welcome", _welcome), ("unfinished_payment", _unfinished_payment), ("look_ready", _look_ready),
+        ("first_look", _first_look), ("store_plan", _store_plans_ending), ("store_week", _store_weeks),
+        ("win_back", _win_back),
+    ):
         if left <= 0:
             break
         out[kind] = await step(db, left)
