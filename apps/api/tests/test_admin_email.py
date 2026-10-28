@@ -83,3 +83,18 @@ async def test_only_admins_send_email(client):
         "/api/v1/admin/email/send", json={"audience": "me", "subject": "Hi", "message": "Test"}
     )
     assert refused.status_code == 403
+
+
+async def test_a_contact_message_reaches_the_help_inbox_with_reply_to_the_sender(client):
+    from app.core.config import get_settings
+
+    sent = get_email_provider().sent
+    before = len(sent)
+    made = await client.post(
+        "/api/v1/contact",
+        json={"name": "Sana Malik", "email": "sana.inbox@example.com", "topic": "tryon", "message": "My credits didn't arrive after paying."},
+    )
+    assert made.status_code == 201, made.text
+    inbox = [m for m in sent[before:] if m["to"] == get_settings().SUPPORT_EMAIL]
+    assert len(inbox) == 1 and inbox[0]["reply_to"] == "sana.inbox@example.com"
+    assert "My credits didn't arrive" in inbox[0]["body"]

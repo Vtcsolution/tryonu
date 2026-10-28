@@ -59,7 +59,8 @@ export default function PrivacyPage() {
         <ul>
           <li>See and update your account details on the <Link href="/account">account page</Link>.</li>
           <li>Delete photos, looks and wardrobe items yourself, and stop sharing any look at any time.</li>
-          <li>Ask us for a copy of your data, to correct it, or to delete your account, through the <Link href="/contact?topic=privacy">contact form</Link> (topic: Privacy and my data).</li>
+          <li>Ask us for a copy of your data, to correct it, or to delete your account, through the <Link href="/contact?topic=privacy">contact form</Link> (topic: Privacy and my data) or by email to{" "}
+            <a href="mailto:support@tryonu.app">support@tryonu.app</a>.</li>
           <li>Depending on where you live, you may have further rights under local law, such as to object to processing or to complain to a data protection authority.</li>
         </ul>
 
@@ -87,7 +88,8 @@ export default function PrivacyPage() {
 
         <h2>10. Contact</h2>
         <p>
-          Questions about privacy? <Link href="/contact?topic=privacy">Send us a message</Link>.
+          Questions about privacy? <Link href="/contact?topic=privacy">Send us a message</Link> or email{" "}
+          <a href="mailto:support@tryonu.app">support@tryonu.app</a>.
         </p>
       </LegalBody>
     </ContentPage>

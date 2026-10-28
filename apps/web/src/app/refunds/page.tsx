@@ -22,7 +22,7 @@ export default function RefundsPage() {
         <ul>
           <li>
             Send us a message through the <Link href="/contact?topic=tryon">contact form</Link> or email{" "}
-            <a href="mailto:sales@greatodeal.com">sales@greatodeal.com</a>, with the email of your account and the date of the purchase.
+            <a href="mailto:billing@tryonu.app">billing@tryonu.app</a>, with the email of your account and the date of the purchase.
           </li>
           <li>
             If you paid through Paddle, you can also ask Paddle directly at <a href="https://paddle.net">paddle.net</a>.
@@ -49,7 +49,7 @@ export default function RefundsPage() {
         <h2>Contact</h2>
         <p>
           TryOnU is operated by Greatodeal AI Automation Solutions, Pakistan. Questions:{" "}
-          <a href="mailto:sales@greatodeal.com">sales@greatodeal.com</a> or our <Link href="/contact">contact form</Link>.
+          <a href="mailto:billing@tryonu.app">billing@tryonu.app</a> or our <Link href="/contact">contact form</Link>.
         </p>
       </LegalBody>
     </ContentPage>

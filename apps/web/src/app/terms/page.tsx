@@ -120,7 +120,7 @@ export default function TermsPage() {
         <h2>13. Contact</h2>
         <p>
           Questions about these terms? <Link href="/contact">Send us a message</Link> or email{" "}
-          <a href="mailto:sales@greatodeal.com">sales@greatodeal.com</a>.
+          <a href="mailto:support@tryonu.app">support@tryonu.app</a>.
         </p>
       </LegalBody>
     </ContentPage>

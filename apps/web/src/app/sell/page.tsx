@@ -112,6 +112,10 @@ export default async function SellPage() {
         <div>
           <p className="font-display text-[26px] text-ink">Have questions before you start?</p>
           <p className="mt-1 text-[16px] text-ink-soft">Tell us about your store and we&apos;ll help you set it up.</p>
+          <p className="mt-1 text-[15px] text-muted">
+            Or email{" "}
+            <a href="mailto:sales@tryonu.app" className="font-semibold text-sage-deep hover:underline">sales@tryonu.app</a>
+          </p>
         </div>
         <Button href="/contact?topic=store" size="lg" variant="outline">Talk to us</Button>
       </div>

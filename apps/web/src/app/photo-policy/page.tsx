@@ -62,7 +62,8 @@ export default function PhotoPolicyPage() {
         <h2>6. Deleting your photos</h2>
         <p>
           Delete your photos, and remove saved looks, at any time. To delete everything, ask us to delete your
-          account through the <Link href="/contact?topic=privacy">contact form</Link>.
+          account through the <Link href="/contact?topic=privacy">contact form</Link> or by email to{" "}
+          <a href="mailto:support@tryonu.app">support@tryonu.app</a>.
         </p>
 
         <h2>7. Photos of other people</h2>
