@@ -48,7 +48,7 @@ export function Logo({
   );
 
   const content = (
-    <span className={`inline-flex items-center gap-2.5 ${className}`}>
+    <span translate="no" className={`notranslate inline-flex items-center gap-2.5 ${className}`}>
       {mark}
       {!markOnly && (
         <span

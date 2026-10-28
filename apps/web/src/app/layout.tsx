@@ -1,3 +1,4 @@
+import { AutoTranslate } from "@/components/i18n/AutoTranslate";
 import type { Metadata, Viewport } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
@@ -112,6 +113,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: NO_FLASH }} />
         <JsonLd data={ORGANIZATION} />
         <Providers>{children}</Providers>
+        <AutoTranslate />
       </body>
     </html>
   );

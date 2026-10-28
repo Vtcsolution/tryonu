@@ -33,6 +33,7 @@ from app.api.v1.endpoints import (
     notifications,
     admin_email,
     admin_outfits,
+    i18n,
     contact,
     extension,
     referrals,
@@ -82,6 +83,7 @@ api_router.include_router(referrals.admin_router)
 api_router.include_router(contact.router)
 api_router.include_router(admin_email.router)
 api_router.include_router(admin_outfits.router)
+api_router.include_router(i18n.router)
 api_router.include_router(community.router)
 api_router.include_router(community.admin_router)
 api_router.include_router(community_share.router)
