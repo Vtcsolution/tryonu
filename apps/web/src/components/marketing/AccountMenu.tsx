@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { resolveMediaUrl } from "@/lib/api/client";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { auth } from "@/lib/api/endpoints";
 import { useLogout, useSession } from "@/lib/auth/useSession";
 
@@ -14,6 +14,26 @@ export function AccountMenu() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const resend = useMutation({ mutationFn: auth.resendVerification });
+  const box = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+
+  // closes on a click or tap anywhere else, on Escape, and on going to another page.
+  // (A full-page layer behind it didn't work: the header's blur keeps such a
+  // layer inside the header, so clicks on the page never reached it.)
+  useEffect(() => {
+    if (!open) return;
+    const outside = (e: PointerEvent) => {
+      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
+    };
+    const escape = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [open]);
+  useEffect(() => setOpen(false), [pathname]);
 
   if (isLoading) {
     return <div className="h-9 w-[110px] animate-pulse rounded-full bg-ink/[0.06]" />;
@@ -34,9 +54,10 @@ export function AccountMenu() {
   const initial = (user.full_name || user.email)[0]?.toUpperCase();
 
   return (
-    <div className="group relative">
+    <div ref={box} className="group relative">
       <button
         type="button"
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-2.5 rounded-full border border-line py-1 pl-1 pr-3 transition-colors hover:border-line-strong"
       >
@@ -124,15 +145,6 @@ export function AccountMenu() {
         </div>
       </div>
 
-      {open && (
-        <button
-          type="button"
-          aria-hidden="true"
-          tabIndex={-1}
-          className="fixed inset-0 z-40 cursor-default"
-          onClick={() => setOpen(false)}
-        />
-      )}
     </div>
   );
 }
