@@ -178,7 +178,7 @@ def last_verification_token(email: str) -> str:
 
     provider = get_email_provider()
     for msg in reversed(provider.sent):
-        if msg["to"] == email and "Verify your TryOnU email" in msg["subject"]:
+        if msg["to"] == email and "Confirm your TryOnU email" in msg["subject"]:
             match = re.search(r"token=([\w-]+)", msg["body"])
             assert match, f"no token found in verification email body: {msg['body']!r}"
             return match.group(1)

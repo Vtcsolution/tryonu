@@ -75,21 +75,27 @@ async def _send_verification_email(db: AsyncSession, user: User, next_path: str 
             + timedelta(minutes=settings.EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES),
         )
     )
-    verify_url = f"{settings.FRONTEND_URL}/verify-email?token={raw_token}"
+    from app.email.templates import action_email, site_url
+
+    # (FRONTEND_URL can end in "/": live, the link came out as tryonu.app//verify-email)
+    verify_url = site_url(f"/verify-email?token={raw_token}")
     # a look someone shared with them: the email leads back to it (on any phone or computer)
     if next_path and next_path.startswith("/") and not next_path.startswith("//") and "\\" not in next_path:
         verify_url += f"&next={quote(next_path[:300], safe='')}"
-    provider = get_email_provider()
-    await provider.send(
-        to=user.email,
-        subject="Verify your TryOnU email",
-        text_body=(
-            f"Welcome to TryOnU! Please verify your email address "
-            f"(link valid for {settings.EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES // 60} hours):\n"
-            f"{verify_url}\n\n"
-            "If you didn't create this account, you can safely ignore this email."
-        ),
+    text, page = action_email(
+        "Welcome to TryOnU!",
+        [
+            "Please confirm your email address, so we can send you your looks and keep your account safe.",
+            f"The button works for {settings.EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES // 60} hours.",
+        ],
+        "Confirm my email",
+        verify_url,
+        after=["If you didn't create a TryOnU account, you can ignore this email."],
     )
+    try:
+        await get_email_provider().send(to=user.email, subject="Confirm your TryOnU email", text_body=text, html_body=page)
+    except Exception as exc:  # noqa: BLE001 - signing up works even when email is down; they can ask again
+        logger.warning("verification_email_failed", user_id=user.id, error=str(exc)[:200])
 
 
 async def verify_email(db: AsyncSession, *, token: str) -> User:
@@ -261,18 +267,24 @@ async def request_password_reset(db: AsyncSession, *, email: str) -> None:
     )
     await db.commit()
 
-    reset_url = f"{settings.FRONTEND_URL}/reset-password?token={raw_token}"
-    provider = get_email_provider()
-    await provider.send(
-        to=user.email,
-        subject="Reset your TryOnU password",
-        text_body=(
-            f"Someone requested a password reset for your TryOnU account.\n\n"
-            f"Reset it here (valid for {settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES} minutes):\n"
-            f"{reset_url}\n\n"
-            "If you didn't request this, you can safely ignore this email."
-        ),
+    from app.email.templates import action_email, site_url
+
+    reset_url = site_url(f"/reset-password?token={raw_token}")
+    text, page = action_email(
+        "Reset your password",
+        [
+            "Someone asked to reset the password of your TryOnU account. Choose a new one with the button below.",
+            f"The button works for {settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES} minutes.",
+        ],
+        "Choose a new password",
+        reset_url,
+        after=["If you didn't ask for this, ignore this email: your password stays the same."],
     )
+    try:
+        await get_email_provider().send(to=user.email, subject="Reset your TryOnU password", text_body=text, html_body=page)
+    except Exception as exc:  # noqa: BLE001 - the answer to the visitor is the same either way
+        logger.warning("password_reset_email_failed", user_id=user.id, error=str(exc)[:200])
+        return
     logger.info("password_reset_email_sent", user_id=user.id)
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
 
+from app.email.templates import site_url
 from app.core.config import get_settings
 from app.core.cookies import clear_auth_cookies, set_auth_cookies
 from app.core.deps import CurrentUser, DbSession
@@ -212,7 +213,7 @@ async def google_callback(
 ):
     expected, _, next_path = (oauth_state or "").partition("|")
     if not code or not state or not expected or state != expected:
-        failed = RedirectResponse(f"{settings.FRONTEND_URL}/sign-in?error=google")
+        failed = RedirectResponse(site_url("/sign-in?error=google"))
         failed.delete_cookie(_OAUTH_COOKIE, path="/api/v1/auth/google")
         return failed
     profile = await google_oauth.exchange_code_for_profile(code)
@@ -227,7 +228,7 @@ async def google_callback(
     access, refresh = await auth_service.issue_tokens(db, user)
 
     # back to the page they started from; the website asks for their country there if it's missing
-    redirect = RedirectResponse(f"{settings.FRONTEND_URL}{_safe_next(next_path)}")
+    redirect = RedirectResponse(site_url(_safe_next(next_path)))
     redirect.delete_cookie(_OAUTH_COOKIE, path="/api/v1/auth/google")
     set_auth_cookies(redirect, access_token=access, refresh_token=refresh)
     return redirect
