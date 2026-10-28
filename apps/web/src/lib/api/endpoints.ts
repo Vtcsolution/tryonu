@@ -869,12 +869,24 @@ export type AdminEmail = {
   total: number;
   sent: number;
   failed: number;
-  status: "sending" | "done";
+  status: "queued" | "sending" | "paused" | "done";
+  paused_until?: string | null;
+  last_error?: string | null;
   created_at: string;
 };
 export const adminEmail = {
   audiences: () =>
-    apiFetch<{ members: number; stores: number; team: number; max_per_send: number; sending_ready: boolean; from_address: string }>(
+    apiFetch<{
+      members: number;
+      stores: number;
+      team: number;
+      max_per_send: number;
+      per_hour: number;
+      per_day: number;
+      sent_today: number;
+      sending_ready: boolean;
+      from_address: string;
+    }>(
       "/api/v1/admin/email/audiences",
     ),
   send: (input: { audience: AdminEmailAudience; to?: string; subject: string; message: string; template?: "looks" | null }) =>

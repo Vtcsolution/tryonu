@@ -434,6 +434,10 @@ class Settings(BaseSettings):
     SUPPORT_EMAIL: str = "support@tryonu.app"
     SALES_EMAIL: str = "sales@tryonu.app"
     BILLING_EMAIL: str = "billing@tryonu.app"
+    # how fast and how much the site emails, under the mailbox plan's limits
+    # (Hostinger blocks a mailbox that sends too many too fast)
+    EMAIL_PER_HOUR: int = 40
+    EMAIL_PER_DAY: int = 300
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30
     EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES: int = 1440
 

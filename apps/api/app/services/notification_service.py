@@ -254,7 +254,7 @@ def unsubscribe_url(user_id: str) -> str:
     return f"{api}/api/v1/notifications/unsubscribe?u={user_id}&t={unsubscribe_token(user_id)}"
 
 
-async def send_digests(db: AsyncSession, *, max_members: int = 300) -> int:
+async def send_digests(db: AsyncSession, *, max_members: int = 300, pause: float = 0) -> int:
     """One short email to each member with unread news (older than an hour,
     so the bell and phone had their chance), at most once a day."""
     from app.email.registry import get_email_provider
@@ -306,6 +306,10 @@ async def send_digests(db: AsyncSession, *, max_members: int = 300) -> int:
             + f"\n\nSee them all: {site}/notifications\n\n"
             + f"Don't want these emails? Turn them off here: {unsubscribe_url(member.id)}\n\nTryOnU"
         )
+        from app.services import email_budget
+
+        if not await email_budget.take(db):
+            break  # today's email limit: the rest go in a later round
         try:
             await get_email_provider().send(
                 to=member.email, subject=subject, text_body=body, unsubscribe_url=unsubscribe_url(member.id)
@@ -313,6 +317,8 @@ async def send_digests(db: AsyncSession, *, max_members: int = 300) -> int:
         except Exception as exc:  # noqa: BLE001 — try again next round
             logger.warning("digest_email_failed", user_id=member.id, error=str(exc)[:200])
             continue
+        if pause:
+            await asyncio.sleep(pause)  # never a burst: a burst gets the mailbox blocked
         await db.execute(update(Notification).where(Notification.id.in_([n.id for n in notes])).values(emailed_at=now))
         member.notify_digest_at = now
         sent += 1
@@ -330,7 +336,8 @@ async def digest_forever() -> None:
         await asyncio.sleep(DIGEST_EVERY_SECONDS)
         try:
             async with AsyncSessionLocal() as db:
-                sent = await send_digests(db)
+                # at most half an hour's share of the email rate per round, a little apart
+                sent = await send_digests(db, max_members=max(1, get_settings().EMAIL_PER_HOUR // 2), pause=3.0)
             if sent:
                 logger.info("notification_digests_sent", count=sent)
         except Exception as exc:  # noqa: BLE001 — never let the loop die

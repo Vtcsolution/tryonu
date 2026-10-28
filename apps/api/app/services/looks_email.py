@@ -9,6 +9,7 @@ tables, inline styles, pictures with a fixed width that shrink on phones."""
 from __future__ import annotations
 
 import html
+import re
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
@@ -34,8 +35,34 @@ def _money(cents: int | None, currency: str | None) -> str:
     return f"{symbol}{cents / 100:,.2f}"
 
 
-async def trending_looks(db: AsyncSession, limit: int = 10) -> list[dict]:
+# words in a message that say which looks fit it (matched in a look's title or season)
+_TOPICS = (
+    "winter", "summer", "spring", "autumn", "eid", "bridal", "wedding", "mehndi", "party", "casual", "office",
+    "formal", "sherwani", "lehenga", "coat", "jacket", "dress", "sneakers", "boots", "eastern", "western",
+)
+
+
+async def pick_looks(db: AsyncSession, text: str, limit: int = 10) -> list[dict]:
+    """The looks that fit what the admin wrote ("men's winter...": men's
+    looks with "winter" in them), then the trending ones to fill up to `limit`."""
+    from app.api.v1.endpoints.ready_looks import _named
+
+    words = text.lower()
+    who = _named(words)
+    topics = [t for t in _TOPICS if re.search(rf"\b{t}s?\b", words)]
+    picked = await trending_looks(db, limit, audience=who, topics=topics) if (who or topics) else []
+    if len(picked) < limit:
+        seen = {lk["id"] for lk in picked}
+        picked += [lk for lk in await trending_looks(db, limit * 2) if lk["id"] not in seen][: limit - len(picked)]
+    return picked
+
+
+async def trending_looks(
+    db: AsyncSession, limit: int = 10, *, audience: str | None = None, topics: list[str] | None = None
+) -> list[dict]:
     """The looks for the email, as plain data (title, picture, link, price)."""
+    from sqlalchemy import or_
+
     from app.api.v1.endpoints.ready_looks import _LOAD, _LOAD_RETAILER, _out
     from app.models.affiliate import AffiliateClick
     from app.models.ready_look import ReadyLook, ReadyLookItem
@@ -48,12 +75,21 @@ async def trending_looks(db: AsyncSession, limit: int = 10) -> list[dict]:
         .group_by(ReadyLookItem.look_id)
         .subquery()
     )
+    stmt = (
+        select(ReadyLook)
+        .outerjoin(clicks, clicks.c.look_id == ReadyLook.id)
+        .where(ReadyLook.is_published.is_(True), ReadyLook.card_key.is_not(None))
+    )
+    if audience:
+        stmt = stmt.where(ReadyLook.audience == audience)
+    if topics:
+        stmt = stmt.where(
+            or_(*[func.lower(ReadyLook.title).like(f"%{t}%") for t in topics],
+                *[func.lower(ReadyLook.season).like(f"%{t}%") for t in topics])
+        )
     rows = (
         await db.execute(
-            select(ReadyLook)
-            .outerjoin(clicks, clicks.c.look_id == ReadyLook.id)
-            .where(ReadyLook.is_published.is_(True), ReadyLook.card_key.is_not(None))
-            .options(_LOAD, _LOAD_RETAILER)
+            stmt.options(_LOAD, _LOAD_RETAILER)
             .order_by(func.coalesce(clicks.c.n, 0).desc(), ReadyLook.sort_order.desc(), ReadyLook.created_at.desc())
             .limit(limit)
         )

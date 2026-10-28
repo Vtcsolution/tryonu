@@ -9,9 +9,9 @@ const KEY = ["admin", "email"];
 const field =
   "w-full rounded-xl border border-line-strong bg-paper px-3.5 py-2.5 text-[15px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25";
 
-// the trending-looks email: a ready opening, the looks and "How it works" are added below it
-const LOOKS_SUBJECT = "See yourself in this week's top looks";
-const LOOKS_MESSAGE =
+// a ready text for the smart email, one tap away
+const READY_SUBJECT = "See yourself in this week's top looks";
+const READY_MESSAGE =
   "Hi {name},\n\nThese are the looks everyone is trying on TryOnU this week. Pick one, upload one photo, and see the whole outfit on you in about a minute, before you buy a single piece.\n\nEvery piece is a real product from a real shop, so when you love your look, you can buy it right away.";
 
 const WHO: Record<AdminEmailAudience, string> = {
@@ -30,14 +30,15 @@ export function EmailTab() {
   const history = useQuery({
     queryKey: [...KEY, "history"],
     queryFn: adminEmail.history,
-    // a group email is sent one by one: follow it while it goes out
-    refetchInterval: (q) => (q.state.data?.some((e) => e.status === "sending") ? 4000 : false),
+    // a group email goes out slowly from its queue: follow it while it does
+    refetchInterval: (q) => (q.state.data?.some((e) => e.status !== "done") ? 10000 : false),
   });
   const [audience, setAudience] = useState<AdminEmailAudience>("one");
   const [to, setTo] = useState("");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
-  const [template, setTemplate] = useState<"looks" | null>(null);
+  // smart: the admin only writes; matching looks and links are added by the site
+  const [template, setTemplate] = useState<"looks" | null>("looks");
   const preview = useMutation({
     mutationFn: () => adminEmail.preview({ subject: subject.trim(), message: message.trim(), template }),
   });
@@ -46,6 +47,7 @@ export function EmailTab() {
       adminEmail.send({ audience: who, to: who === "one" ? to.trim() : undefined, subject: subject.trim(), message: message.trim(), template }),
     onSuccess: (row) => {
       qc.invalidateQueries({ queryKey: [...KEY, "history"] });
+      qc.invalidateQueries({ queryKey: [...KEY, "audiences"] });
       if (row.audience !== "me") {
         setSubject("");
         setMessage("");
@@ -74,26 +76,18 @@ export function EmailTab() {
       <div className="rounded-[18px] border border-line bg-surface p-5">
         <p className="text-[14px] font-semibold text-ink">Kind of email</p>
         <div className="mt-2 flex flex-wrap gap-2">
+          <SmallButton tone={template === "looks" ? "primary" : undefined} onClick={() => setTemplate("looks")}>
+            Smart email: looks and links added for you
+          </SmallButton>
           <SmallButton tone={template === null ? "primary" : undefined} onClick={() => setTemplate(null)}>
             Plain message
           </SmallButton>
-          <SmallButton
-            tone={template === "looks" ? "primary" : undefined}
-            onClick={() => {
-              setTemplate("looks");
-              if (!subject.trim()) setSubject(LOOKS_SUBJECT);
-              if (!message.trim()) setMessage(LOOKS_MESSAGE);
-            }}
-          >
-            Trending looks (sales email)
-          </SmallButton>
         </div>
-        {template === "looks" && (
-          <p className="mt-2 text-[13.5px] text-muted">
-            Your message is the opening. Below it come the 10 trending Ready looks with their pictures and &quot;Try it on
-            you&quot; buttons, then &quot;How it works&quot; and a big &quot;Try a look on you&quot; button.
-          </p>
-        )}
+        <p className="mt-2 text-[13.5px] text-muted">
+          {template === "looks"
+            ? "Just write your words. The site adds up to 10 Ready looks that match them (write \"men\", \"winter\", \"bridal\"… to choose; otherwise the trending ones) with pictures and \"Try it on you\" buttons, then \"How it works\" and a big button. Words like Ready looks, try on, community or pricing become links by themselves."
+            : "Just your words, with the TryOnU heading. Words like Ready looks, try on, community or pricing become links by themselves."}
+        </p>
 
         <p className="mt-5 text-[14px] font-semibold text-ink">Send to</p>
         <div className="mt-2 flex flex-wrap gap-2">
@@ -109,9 +103,11 @@ export function EmailTab() {
             Only members who keep emails on. Each email has a link to stop them.
           </p>
         )}
-        {group && c && size[audience] > c.max_per_send && (
-          <p className="mt-2 text-[13.5px] text-[#a4553f]">
-            That&apos;s more than {c.max_per_send}, the most one email can go to (your mailbox plan&apos;s daily limit).
+        {group && c && (
+          <p className="mt-2 text-[13.5px] text-muted">
+            It goes out slowly by itself: about {c.per_hour} an hour and at most {c.per_day} a day ({c.sent_today} sent
+            today), so Hostinger never blocks the mailbox. A big list simply continues the next day.
+            {size[audience] > c.max_per_send ? ` One email can go to at most ${c.max_per_send} people.` : ""}
           </p>
         )}
 
@@ -131,10 +127,22 @@ export function EmailTab() {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             rows={8}
-            placeholder={"Hi {name},\n\nWrite your message here. Links like https://tryonu.app/looks become clickable."}
+            placeholder={"Hi {name},\n\nWrite your message here. No links needed: the looks and links are added for you."}
             className={`${field} mt-1`}
           />
         </label>
+        {!message.trim() && (
+          <button
+            type="button"
+            onClick={() => {
+              if (!subject.trim()) setSubject(READY_SUBJECT);
+              setMessage(READY_MESSAGE);
+            }}
+            className="mt-1 text-[13.5px] font-semibold text-sage-deep hover:underline"
+          >
+            Use a ready text
+          </button>
+        )}
         <p className="mt-1 text-[13px] text-muted">
           <b>{"{name}"}</b> becomes each person&apos;s first name. The TryOnU name and a short footer are added for you.
         </p>
@@ -146,7 +154,7 @@ export function EmailTab() {
               ? "Test sent to your own email. Check your inbox (and spam)."
               : send.data.status === "done"
                 ? `Sent to ${send.data.to_address}.`
-                : `Sending to ${send.data.total} people, one by one. Watch it below.`}
+                : `Queued for ${send.data.total} people. It goes out slowly by itself; watch it below.`}
           </p>
         )}
 
@@ -206,8 +214,17 @@ export function EmailTab() {
             <div key={e.id} className="flex flex-wrap items-center gap-2 rounded-[14px] border border-line bg-surface px-4 py-3">
               <p className="min-w-0 flex-1 truncate text-[15px] font-medium text-ink">{e.subject}</p>
               <span className="text-[13.5px] text-muted">{e.to_address ?? WHO[e.audience]}</span>
-              {e.status === "sending" ? (
+              {e.status === "queued" ? (
+                <Badge tone="warn">Waiting to start · {e.total}</Badge>
+              ) : e.status === "sending" ? (
                 <Badge tone="warn">Sending {e.sent + e.failed}/{e.total}</Badge>
+              ) : e.status === "paused" ? (
+                <span title={e.last_error ?? ""}>
+                  <Badge tone="warn">
+                    Paused {e.sent + e.failed}/{e.total}
+                    {e.paused_until ? ` · goes on at ${new Date(e.paused_until).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : ""}
+                  </Badge>
+                </span>
               ) : e.failed ? (
                 <Badge tone="bad">{e.sent} sent · {e.failed} failed</Badge>
               ) : (

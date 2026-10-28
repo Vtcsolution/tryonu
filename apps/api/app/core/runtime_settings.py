@@ -152,6 +152,11 @@ SPECS: tuple[SettingSpec, ...] = (
                 help="Shown on the website; replies to the site's emails and Contact messages go here."),
     SettingSpec("SALES_EMAIL", "Shops and partners email", "email", "text"),
     SettingSpec("BILLING_EMAIL", "Payments email", "email", "text"),
+    SettingSpec("EMAIL_PER_HOUR", "Emails an hour", "email", "int", min_value=1,
+                help="How fast group emails go out. Keep it low (40) so the mailbox host never blocks the mailbox."),
+    SettingSpec("EMAIL_PER_DAY", "Emails a day", "email", "int", min_value=1,
+                help="The most the site sends in a day, group emails and the daily email together. "
+                "Keep it under your mailbox plan's daily limit."),
     # --- credits ---
     SettingSpec("SIGNUP_FREE_CREDITS", "Free credits on signup", "credits", "int", min_value=0),
     SettingSpec("TRYON_CREDIT_COST", "Single-item try-on cost", "credits", "int", min_value=1),
