@@ -145,8 +145,12 @@ def render_looks(intro_html: str, intro_text: str, looks: list[dict], footer: st
     ]
     steps_html = "".join(
         '<td class="col" width="33%" valign="top" style="padding:8px;text-align:center">'
-        f'<div style="width:34px;height:34px;line-height:34px;margin:0 auto;border-radius:999px;background:{SAGE};'
-        f'color:#fff;font:bold 15px Arial,Helvetica,sans-serif">{n}</div>'
+        # the number centred in its circle: a fixed-size table cell, centred both
+        # ways (a "font:" shorthand would reset line-height and lift it to the top)
+        '<table role="presentation" align="center" cellpadding="0" cellspacing="0" style="margin:0 auto"><tr>'
+        f'<td width="34" height="34" align="center" valign="middle" style="width:34px;height:34px;border-radius:999px;'
+        f'background:{SAGE};color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:15px;'
+        f'line-height:34px;text-align:center;mso-line-height-rule:exactly">{n}</td></tr></table>'
         f'<p style="margin:8px 0 2px;font:bold 14px Arial,Helvetica,sans-serif;color:{INK}">{html.escape(t)}</p>'
         f'<p style="margin:0;font:13px Arial,Helvetica,sans-serif;color:{MUTED}">{html.escape(d)}</p></td>'
         for n, t, d in steps
