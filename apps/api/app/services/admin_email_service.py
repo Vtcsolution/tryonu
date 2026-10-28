@@ -51,7 +51,7 @@ def _first(name: str | None) -> str | None:
     return name.split()[0] if name and name.strip() else None
 
 
-async def recipients(db: AsyncSession, audience: str, *, me: User, address: str | None = None) -> list[Recipient]:
+async def recipients(db: AsyncSession, audience: str, *, me: User | None, address: str | None = None) -> list[Recipient]:
     if audience == "one":
         user = await db.scalar(select(User).where(User.email == (address or "").strip().lower()))
         return [Recipient((address or "").strip(), _first(user.full_name) if user else None, None)]

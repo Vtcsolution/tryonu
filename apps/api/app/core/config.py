@@ -438,6 +438,10 @@ class Settings(BaseSettings):
     # (Hostinger blocks a mailbox that sends too many too fast)
     EMAIL_PER_HOUR: int = 40
     EMAIL_PER_DAY: int = 300
+    # emails the site sends by itself (welcome, first look, look ready) and
+    # the Friday trending-looks email (lifecycle_emails)
+    AUTO_EMAILS_ON: bool = True
+    WEEKLY_LOOKS_EMAIL_ON: bool = True
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30
     EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES: int = 1440
 

@@ -162,6 +162,15 @@ def _no_ready_looks_from_posts(monkeypatch):
     monkeypatch.setattr(ready_looks, "look_from_post_later", lambda job_id, author_id: None)
 
 
+@pytest.fixture(autouse=True)
+def _no_daily_email_limit(monkeypatch):
+    """The site's daily email count lives in the (shared) test database, so a
+    whole run would use it up; tests about the limit set their own."""
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "EMAIL_PER_DAY", 10**9)
+
+
 def unique_email(prefix: str = "test") -> str:
     return f"{prefix}-{uuid.uuid4().hex[:10]}@example.com"
 

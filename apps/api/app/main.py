@@ -65,6 +65,10 @@ async def lifespan(app: FastAPI):  # noqa: ANN201
     from app.services.admin_email_service import queue_forever
 
     app.state.email_queue = asyncio.create_task(queue_forever())
+    # welcome, first-look and look-ready emails, and the Friday looks email
+    from app.services.lifecycle_emails import lifecycle_forever
+
+    app.state.lifecycle = asyncio.create_task(lifecycle_forever())
     # style challenges that have ended: choose and pay the winners
     from app.services.challenge_service import finish_forever
 
@@ -88,6 +92,7 @@ async def lifespan(app: FastAPI):  # noqa: ANN201
     app.state.payment_sweeper.cancel()
     app.state.digest_sweeper.cancel()
     app.state.email_queue.cancel()
+    app.state.lifecycle.cancel()
     app.state.challenge_sweeper.cancel()
     app.state.price_sweeper.cancel()
     if app.state.debug_sweeper is not None:

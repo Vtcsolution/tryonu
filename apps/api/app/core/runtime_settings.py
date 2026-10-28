@@ -154,6 +154,11 @@ SPECS: tuple[SettingSpec, ...] = (
     SettingSpec("BILLING_EMAIL", "Payments email", "email", "text"),
     SettingSpec("EMAIL_PER_HOUR", "Emails an hour", "email", "int", min_value=1,
                 help="How fast group emails go out. Keep it low (40) so the mailbox host never blocks the mailbox."),
+    SettingSpec("AUTO_EMAILS_ON", "Automatic emails", "email", "bool",
+                help="Welcome, 'your first outfit is waiting' (2 days later) and 'your look is ready' (an hour after a "
+                "try-on), each once per member who keeps emails on."),
+    SettingSpec("WEEKLY_LOOKS_EMAIL_ON", "Weekly trending looks email", "email", "bool",
+                help="Every Friday morning, the trending Ready looks to every member who keeps emails on."),
     SettingSpec("EMAIL_PER_DAY", "Emails a day", "email", "int", min_value=1,
                 help="The most the site sends in a day, group emails and the daily email together. "
                 "Keep it under your mailbox plan's daily limit."),
