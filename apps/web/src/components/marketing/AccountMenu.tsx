@@ -97,7 +97,7 @@ export function AccountMenu() {
             { href: "/earn", label: "Invite & earn" },
             { href: "/account", label: "Settings" },
             ...(user.is_admin || user.is_team ? [{ href: "/team", label: "Team panel" }] : []),
-            ...(user.is_admin ? [{ href: "/admin", label: "Admin" }] : []),
+            ...(user.is_admin ? [{ href: "/admin/dashboard", label: "Admin" }] : []),
           ].map((item) => (
             <Link
               key={item.href}

@@ -123,7 +123,7 @@ export function AdminDashboard() {
 
   useEffect(() => {
     if (!sessionLoading && !user) {
-      router.replace(`/sign-in?next=${encodeURIComponent(`/admin${window.location.hash}`)}`);
+      router.replace(`/admin/login?next=${encodeURIComponent(`/admin/dashboard${window.location.hash}`)}`);
     }
   }, [sessionLoading, user, router]);
 
@@ -163,7 +163,13 @@ export function AdminDashboard() {
           <p className="mt-2 text-[15px] text-muted">
             You&rsquo;re signed in as {user.email}, which isn&rsquo;t an admin account.
           </p>
-          <Link href="/" className="mt-5 inline-block text-[14px] text-sage-deep hover:underline">
+          <Link
+            href="/admin/login"
+            className="mt-5 inline-flex min-h-[44px] items-center rounded-full bg-sage px-5 text-[15px] font-semibold text-white"
+          >
+            Sign in with the admin account
+          </Link>
+          <Link href="/" className="mt-4 block text-[14px] text-sage-deep hover:underline">
             ← Back to TryOnU
           </Link>
         </div>

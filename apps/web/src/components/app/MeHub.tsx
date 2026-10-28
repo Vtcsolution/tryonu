@@ -143,7 +143,7 @@ export function MeHub() {
               { href: "/business", label: "My store", hint: "If you sell on TryOnU" },
               { href: "/app", label: "Get the app" },
               ...(user.is_admin || user.is_team ? [{ href: "/team", label: "Team panel", hint: "Make ready looks" }] : []),
-              ...(user.is_admin ? [{ href: "/admin", label: "Admin" }] : []),
+              ...(user.is_admin ? [{ href: "/admin/dashboard", label: "Admin" }] : []),
             ]}
           />
         )}
