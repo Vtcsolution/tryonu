@@ -26,6 +26,8 @@ import { StoresTab } from "./StoresTab";
 import { DevelopersTab } from "./DevelopersTab";
 import { MessagesTab } from "./MessagesTab";
 import { EmailTab } from "./EmailTab";
+import { OutfitsTab } from "./OutfitsTab";
+import { ReadyLooksTab } from "./ReadyLooksTab";
 import { ReferralsTab } from "./ReferralsTab";
 import { CommunityTab } from "./CommunityTab";
 import { FashnCreditsTab } from "./FashnCreditsTab";
@@ -54,6 +56,8 @@ type Tab =
   | "developers"
   | "messages"
   | "email"
+  | "outfits"
+  | "ready-looks"
   | "referrals"
   | "community";
 
@@ -80,6 +84,8 @@ const NAV: readonly NavGroup<Tab>[] = [
   {
     group: "Shopping",
     tabs: [
+      { id: "outfits", label: "All outfits", icon: "tryons" },
+      { id: "ready-looks", label: "Ready looks", icon: "tryons" },
       { id: "tryons", label: "Try-ons", icon: "tryons" },
       { id: "products", label: "Products", icon: "products" },
       { id: "retailers", label: "Product sources", icon: "retailers" },
@@ -199,6 +205,8 @@ export function AdminDashboard() {
         {tab === "developers" && <DevelopersTab />}
         {tab === "messages" && <MessagesTab />}
         {tab === "email" && <EmailTab />}
+        {tab === "outfits" && <OutfitsTab />}
+        {tab === "ready-looks" && <ReadyLooksTab />}
         {tab === "referrals" && <ReferralsTab />}
         {tab === "community" && <CommunityTab />}
         {tab === "settings" && <SettingsTab />}

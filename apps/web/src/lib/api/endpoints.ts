@@ -884,6 +884,23 @@ export const adminEmail = {
     apiFetch<{ html: string }>("/api/v1/admin/email/preview", { method: "POST", body: input }),
   history: () => apiFetch<AdminEmail[]>("/api/v1/admin/email/history"),
 };
+export type AdminOutfit = {
+  id: string;
+  image_url: string;
+  user_email: string | null;
+  user_name: string | null;
+  is_team: boolean;
+  what: string;
+  created_at: string;
+  ready_look_id: string | null;
+  community_posts: number;
+};
+export const adminOutfits = {
+  list: (p: { who: "all" | "members" | "team"; q?: string; offset: number; limit: number }) =>
+    apiFetch<{ items: AdminOutfit[]; total: number; members: number; team: number }>(
+      `/api/v1/admin/outfits?who=${p.who}&offset=${p.offset}&limit=${p.limit}${p.q ? `&q=${encodeURIComponent(p.q)}` : ""}`,
+    ),
+};
 export const adminMessages = {
   list: (show: "open" | "all" = "open") => apiFetch<ContactMessage[]>(`/api/v1/admin/messages?show=${show}`),
   count: () => apiFetch<{ open: number }>("/api/v1/admin/messages/count"),

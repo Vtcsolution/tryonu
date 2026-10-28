@@ -482,7 +482,7 @@ function Looks({ all, mine, loading }: { all: ReadyLook[]; mine: ReadyLook[]; lo
   );
 }
 
-function LookCard({ look }: { look: ReadyLook }) {
+export function LookCard({ look }: { look: ReadyLook }) {
   const [open, setOpen] = useState<"edit" | "community" | null>(null);
   const toggle = (what: "edit" | "community") => setOpen((v) => (v === what ? null : what));
   return (
