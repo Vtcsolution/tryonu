@@ -32,11 +32,20 @@ class SendIn(BaseModel):
     to: EmailStr | None = None  # audience "one"
     subject: str = Field(min_length=2, max_length=200)
     message: str = Field(min_length=2, max_length=20000)
+    # None: a plain message; "looks": the trending Ready looks below the message
+    template: str | None = Field(default=None, pattern="^looks$")
+
+
+class PreviewIn(BaseModel):
+    subject: str = Field(default="", max_length=200)
+    message: str = Field(default="", max_length=20000)
+    template: str | None = Field(default=None, pattern="^looks$")
 
 
 class AdminEmailOut(BaseModel):
     id: str
     audience: str
+    template: str | None = None
     to_address: str | None
     subject: str
     total: int
@@ -48,7 +57,7 @@ class AdminEmailOut(BaseModel):
 
 def _out(row: AdminEmail) -> AdminEmailOut:
     return AdminEmailOut(
-        id=row.id, audience=row.audience, to_address=row.to_address, subject=row.subject, total=row.total,
+        id=row.id, audience=row.audience, template=row.template, to_address=row.to_address, subject=row.subject, total=row.total,
         sent=row.sent, failed=row.failed, status=row.status, created_at=row.created_at,
     )
 
@@ -86,16 +95,24 @@ async def send(payload: SendIn, me: AdminUser, db: DbSession):
             detail=f"That's {len(people)} people. One email can go to at most {svc.MAX_PER_SEND} at a time "
             "(your mailbox plan's daily limit).",
         )
+    looks = None
+    if payload.template == "looks":
+        from app.services.looks_email import trending_looks
+
+        looks = await trending_looks(db)
+        if not looks:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="There are no published Ready looks to show yet.")
     row = AdminEmail(
         audience=payload.audience, to_address=people[0].email if payload.audience in ("one", "me") else None,
-        subject=payload.subject.strip(), message=payload.message.strip(), total=len(people), created_by_id=me.id,
+        subject=payload.subject.strip(), message=payload.message.strip(), template=payload.template,
+        total=len(people), created_by_id=me.id,
     )
     db.add(row)
     await db.commit()
     await db.refresh(row)
     if payload.audience in ("one", "me"):
         try:
-            await svc.send_one(people[0], row.subject, row.message, row.audience)
+            await svc.send_one(people[0], row.subject, row.message, row.audience, looks)
             row.sent, row.status = 1, "done"
         except Exception as exc:  # noqa: BLE001 - said plainly to the admin
             row.failed, row.status = 1, "done"
@@ -106,8 +123,23 @@ async def send(payload: SendIn, me: AdminUser, db: DbSession):
             ) from exc
         await db.commit()
         return _out(row)
-    svc.send_later(row.id, people)
+    svc.send_later(row.id, people, looks)
     return _out(row)
+
+
+@router.post("/preview")
+async def preview(payload: PreviewIn, me: AdminUser, db: DbSession):
+    """The email as a member would see it (with your first name), nothing sent."""
+    looks = None
+    if payload.template == "looks":
+        from app.services.looks_email import trending_looks
+
+        looks = await trending_looks(db)
+    _, page = svc.render(
+        payload.subject or "Preview", payload.message or " ", svc._first(me.full_name),
+        unsubscribe_url="https://api.tryonu.app/api/v1/notifications/unsubscribe", audience="members", looks=looks,
+    )
+    return {"html": page}
 
 
 @router.get("/history", response_model=list[AdminEmailOut])

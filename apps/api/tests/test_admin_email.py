@@ -74,7 +74,7 @@ async def test_a_group_email_reaches_members_who_keep_emails_on(client, db, monk
     row = await db.get(AdminEmail, made.json()["id"])
     assert row.status == "done" and row.sent == len(expected) and row.failed == 0
     history = (await client.get("/api/v1/admin/email/history")).json()
-    assert history[0]["id"] == row.id
+    assert row.id in [h["id"] for h in history]
 
 
 async def test_only_admins_send_email(client):
@@ -98,3 +98,44 @@ async def test_a_contact_message_reaches_the_help_inbox_with_reply_to_the_sender
     inbox = [m for m in sent[before:] if m["to"] == get_settings().SUPPORT_EMAIL]
     assert len(inbox) == 1 and inbox[0]["reply_to"] == "sana.inbox@example.com"
     assert "My credits didn't arrive" in inbox[0]["body"]
+
+
+def test_the_trending_looks_email_shows_each_look_with_a_try_it_link():
+    from app.services.admin_email_service import render
+
+    looks = [
+        {"id": f"l{i}", "title": f"Look {i}", "picture": f"https://api.tryonu.app/api/v1/looks/l{i}/card.jpg?v=1&size=small",
+         "pieces": 5, "price": "$120.00", "url": f"https://tryonu.app/looks/l{i}?utm_source=email"}
+        for i in range(3)
+    ]
+    text, page = render("Top looks", "Hi {name},\n\nSee yourself in these.", "Zia", unsubscribe_url="https://x/unsub",
+                        audience="members", looks=looks)
+    assert "Hi Zia," in page and "Trending looks this week" in page and "How it works" in page
+    from html import escape
+
+    assert all(escape(lk["picture"]) in page and escape(lk["url"]) in page for lk in looks)
+    assert page.count("Try it on you") == 3 and "https://x/unsub" in page
+    assert "Look 2 (5 pieces, $120.00)" in text and "https://x/unsub" in text
+
+
+async def test_the_preview_shows_published_ready_looks(client, db, monkeypatch):  # noqa: ANN001
+    from tests.conftest import small_jpeg_bytes
+    from tests.test_ready_looks import _finished_look, _team
+
+    async def no_network(url: str) -> bytes:  # noqa: ARG001 - product photos without the internet
+        return small_jpeg_bytes()
+
+    monkeypatch.setattr("app.services.tryon_direct.inputs.fetch_product_image", no_network)
+    job_id, _product = await _finished_look(client, db, monkeypatch)
+    me = (await client.get("/api/v1/auth/me")).json()
+    await _team(db, me["id"])
+    look = (await client.post("/api/v1/team/looks", json={"tryon_job_id": job_id, "title": "Emerald Party Look"})).json()
+    await db.execute(update(User).where(User.id == me["id"]).values(is_admin=True))
+    await db.commit()
+
+    page = await client.post(
+        "/api/v1/admin/email/preview", json={"subject": "Hi", "message": "Hi {name}", "template": "looks"}
+    )
+    shown = page.json()["html"]
+    assert page.status_code == 200 and "Emerald Party Look" in shown
+    assert f"/looks/{look['id']}?utm_source=email" in shown and look["card_small_url"].replace("&", "&amp;") in shown

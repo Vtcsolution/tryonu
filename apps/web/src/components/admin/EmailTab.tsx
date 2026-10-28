@@ -9,6 +9,11 @@ const KEY = ["admin", "email"];
 const field =
   "w-full rounded-xl border border-line-strong bg-paper px-3.5 py-2.5 text-[15px] text-ink outline-none placeholder:text-faint focus:border-sage focus:ring-2 focus:ring-sage/25";
 
+// the trending-looks email: a ready opening, the looks and "How it works" are added below it
+const LOOKS_SUBJECT = "See yourself in this week's top looks";
+const LOOKS_MESSAGE =
+  "Hi {name},\n\nThese are the looks everyone is trying on TryOnU this week. Pick one, upload one photo, and see the whole outfit on you in about a minute, before you buy a single piece.\n\nEvery piece is a real product from a real shop, so when you love your look, you can buy it right away.";
+
 const WHO: Record<AdminEmailAudience, string> = {
   one: "One person",
   me: "Test to me",
@@ -32,9 +37,13 @@ export function EmailTab() {
   const [to, setTo] = useState("");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
+  const [template, setTemplate] = useState<"looks" | null>(null);
+  const preview = useMutation({
+    mutationFn: () => adminEmail.preview({ subject: subject.trim(), message: message.trim(), template }),
+  });
   const send = useMutation({
     mutationFn: (who: AdminEmailAudience) =>
-      adminEmail.send({ audience: who, to: who === "one" ? to.trim() : undefined, subject: subject.trim(), message: message.trim() }),
+      adminEmail.send({ audience: who, to: who === "one" ? to.trim() : undefined, subject: subject.trim(), message: message.trim(), template }),
     onSuccess: (row) => {
       qc.invalidateQueries({ queryKey: [...KEY, "history"] });
       if (row.audience !== "me") {
@@ -63,7 +72,30 @@ export function EmailTab() {
       )}
 
       <div className="rounded-[18px] border border-line bg-surface p-5">
-        <p className="text-[14px] font-semibold text-ink">Send to</p>
+        <p className="text-[14px] font-semibold text-ink">Kind of email</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <SmallButton tone={template === null ? "primary" : undefined} onClick={() => setTemplate(null)}>
+            Plain message
+          </SmallButton>
+          <SmallButton
+            tone={template === "looks" ? "primary" : undefined}
+            onClick={() => {
+              setTemplate("looks");
+              if (!subject.trim()) setSubject(LOOKS_SUBJECT);
+              if (!message.trim()) setMessage(LOOKS_MESSAGE);
+            }}
+          >
+            Trending looks (sales email)
+          </SmallButton>
+        </div>
+        {template === "looks" && (
+          <p className="mt-2 text-[13.5px] text-muted">
+            Your message is the opening. Below it come the 10 trending Ready looks with their pictures and &quot;Try it on
+            you&quot; buttons, then &quot;How it works&quot; and a big &quot;Try a look on you&quot; button.
+          </p>
+        )}
+
+        <p className="mt-5 text-[14px] font-semibold text-ink">Send to</p>
         <div className="mt-2 flex flex-wrap gap-2">
           {(["one", "members", "stores", "team"] as AdminEmailAudience[]).map((a) => (
             <SmallButton key={a} tone={audience === a ? "primary" : undefined} onClick={() => setAudience(a)}>
@@ -132,6 +164,14 @@ export function EmailTab() {
           </button>
           <button
             type="button"
+            disabled={preview.isPending}
+            onClick={() => preview.mutate()}
+            className="min-h-[42px] rounded-full border border-line-strong px-5 text-[15px] font-semibold text-ink disabled:opacity-50"
+          >
+            {preview.isPending ? "Making preview…" : "Preview"}
+          </button>
+          <button
+            type="button"
             disabled={subject.trim().length < 2 || message.trim().length < 2 || send.isPending}
             onClick={() => send.mutate("me")}
             className="min-h-[42px] rounded-full border border-line-strong px-5 text-[15px] font-semibold text-ink disabled:opacity-50"
@@ -140,6 +180,22 @@ export function EmailTab() {
           </button>
         </div>
       </div>
+
+      {preview.isError && <ErrorNote>{errorText(preview.error)}</ErrorNote>}
+      {preview.data && (
+        <div className="rounded-[18px] border border-line bg-surface p-3">
+          <div className="flex items-center justify-between px-2 pb-2">
+            <p className="text-[14px] font-semibold text-ink">Preview: what people will see</p>
+            <SmallButton onClick={() => preview.reset()}>Close</SmallButton>
+          </div>
+          <iframe
+            title="Email preview"
+            srcDoc={preview.data.html}
+            sandbox=""
+            className="h-[720px] w-full rounded-xl border border-line bg-white"
+          />
+        </div>
+      )}
 
       <div>
         <p className="text-[14px] font-semibold text-ink">Sent emails</p>

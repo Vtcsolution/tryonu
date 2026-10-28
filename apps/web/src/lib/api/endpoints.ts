@@ -863,6 +863,7 @@ export type AdminEmailAudience = "one" | "me" | "members" | "stores" | "team";
 export type AdminEmail = {
   id: string;
   audience: AdminEmailAudience;
+  template?: "looks" | null;
   to_address: string | null;
   subject: string;
   total: number;
@@ -876,8 +877,11 @@ export const adminEmail = {
     apiFetch<{ members: number; stores: number; team: number; max_per_send: number; sending_ready: boolean; from_address: string }>(
       "/api/v1/admin/email/audiences",
     ),
-  send: (input: { audience: AdminEmailAudience; to?: string; subject: string; message: string }) =>
+  send: (input: { audience: AdminEmailAudience; to?: string; subject: string; message: string; template?: "looks" | null }) =>
     apiFetch<AdminEmail>("/api/v1/admin/email/send", { method: "POST", body: input }),
+  /** the email as a member would see it; nothing is sent */
+  preview: (input: { subject: string; message: string; template?: "looks" | null }) =>
+    apiFetch<{ html: string }>("/api/v1/admin/email/preview", { method: "POST", body: input }),
   history: () => apiFetch<AdminEmail[]>("/api/v1/admin/email/history"),
 };
 export const adminMessages = {

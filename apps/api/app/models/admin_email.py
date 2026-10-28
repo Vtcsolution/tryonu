@@ -18,6 +18,8 @@ class AdminEmail(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     to_address: Mapped[str | None] = mapped_column(String(255), nullable=True)  # audience "one"
     subject: Mapped[str] = mapped_column(String(200), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
+    # None: a plain message; "looks": the trending-looks email
+    template: Mapped[str | None] = mapped_column(String(24), nullable=True)
     total: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     sent: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
