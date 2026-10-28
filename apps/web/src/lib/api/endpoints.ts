@@ -70,8 +70,12 @@ export const auth = {
   register: (input: { email: string; password: string; full_name?: string; country?: string; next?: string }) =>
     apiFetch<AuthResponse>("/api/v1/auth/register", { method: "POST", body: input }),
 
-  login: (input: { email: string; password: string }) =>
+  /** code: the authenticator app's 6 digits, for accounts with two-step sign-in */
+  login: (input: { email: string; password: string; code?: string }) =>
     apiFetch<AuthResponse>("/api/v1/auth/login", { method: "POST", body: input }),
+  twoStepSetup: () => apiFetch<{ secret: string; link: string; qr: string }>("/api/v1/auth/two-step/setup", { method: "POST" }),
+  twoStepEnable: (code: string) => apiFetch<User>("/api/v1/auth/two-step/enable", { method: "POST", body: { code } }),
+  twoStepDisable: (code: string) => apiFetch<User>("/api/v1/auth/two-step/disable", { method: "POST", body: { code } }),
 
   logout: () => apiFetch<{ detail: string }>("/api/v1/auth/logout", { method: "POST" }),
 

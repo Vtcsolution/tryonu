@@ -27,6 +27,8 @@ export function AdminLogin() {
   const logout = useLogout();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [needCode, setNeedCode] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -37,7 +39,7 @@ export function AdminLogin() {
     e.preventDefault();
     setError(null);
     try {
-      const res = await login.mutateAsync({ email, password });
+      const res = await login.mutateAsync({ email, password, code: needCode ? code : undefined });
       if (!res.user.is_admin) {
         await logout.mutateAsync();
         setError("That account isn't an admin account. Use the admin email and password.");
@@ -45,6 +47,10 @@ export function AdminLogin() {
       }
       router.replace(next);
     } catch (err) {
+      if (err instanceof ApiError && err.detail === "TWO_STEP_CODE_NEEDED") {
+        setNeedCode(true);
+        return;
+      }
       setError(err instanceof ApiError ? err.detail : "Couldn't sign in. Please try again.");
     }
   };
@@ -88,6 +94,23 @@ export function AdminLogin() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
+            {needCode && (
+          <div>
+            <label htmlFor="two-step-code" className="block text-[14.5px] font-medium text-ink">
+              6-digit code from your authenticator app
+            </label>
+            <input
+              id="two-step-code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              autoFocus
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="123456"
+              className="mt-1.5 h-12 w-full rounded-xl border border-line-strong bg-paper px-3.5 text-center text-[20px] tracking-[0.3em] text-ink outline-none focus:border-sage focus:ring-2 focus:ring-sage/25"
+            />
+          </div>
+        )}
             {error && (
               <p role="alert" className="text-[14px] text-[#a4553f]">
                 {error}

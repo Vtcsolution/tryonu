@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, true
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, false, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -30,6 +30,9 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # notifications: the daily "what happened" email (members can turn it off), and when the last one went
     notify_email: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true(), nullable=False)
     notify_digest_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # two-step sign-in: the authenticator app's shared secret (encrypted), and whether it's on
+    totp_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
 
     auth_provider: Mapped[AuthProvider] = mapped_column(
         Enum(AuthProvider, native_enum=False, length=32),

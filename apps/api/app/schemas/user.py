@@ -20,6 +20,8 @@ class UserOut(ORMModel):
     credits_balance: int
     created_at: datetime
     has_password: bool = False
+    # two-step sign-in is on (a code from an authenticator app is asked at sign-in)
+    totp_enabled: bool = False
 
 
 class RegisterRequest(BaseModel):
@@ -35,6 +37,8 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+    # the authenticator app's 6-digit code, for accounts with two-step sign-in
+    code: str | None = Field(default=None, max_length=12)
 
 
 class ForgotPasswordRequest(BaseModel):

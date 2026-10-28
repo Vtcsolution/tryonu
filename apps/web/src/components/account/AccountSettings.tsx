@@ -10,6 +10,7 @@ import { ApiError, resolveMediaUrl } from "@/lib/api/client";
 import { auth, community, extension, preferences } from "@/lib/api/endpoints";
 import type { User } from "@/lib/api/types";
 import { SESSION_QUERY_KEY } from "@/lib/auth/useSession";
+import { TwoStepCard } from "./TwoStepCard";
 
 const card = "rounded-[24px] border border-line bg-surface p-4 sm:p-7";
 
@@ -20,6 +21,7 @@ export function AccountSettings({ user }: { user: User }) {
     <div className="grid gap-5 lg:grid-cols-2">
       <ProfileCard user={user} />
       <PasswordCard user={user} />
+      <TwoStepCard user={user} />
       <ConnectedBrowsers />
     </div>
   );

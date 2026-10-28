@@ -29,6 +29,8 @@ export type User = {
   created_at: string;
   /** false for an account made with Google that has no password yet */
   has_password?: boolean;
+  /** two-step sign-in is on */
+  totp_enabled?: boolean;
 };
 
 export type AuthResponse = {

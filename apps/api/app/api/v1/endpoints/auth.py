@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel, Field
 
 from app.email.templates import site_url
 from app.core.config import get_settings
@@ -63,6 +64,8 @@ async def country_hint(request: Request) -> dict[str, str | None]:
 )
 async def login(payload: LoginRequest, request: Request, response: Response, db: DbSession):
     user = await auth_service.authenticate_local(db, email=payload.email.lower(), password=payload.password)
+    if user.totp_enabled:
+        _check_two_step(user, payload.code)
     access, refresh = await auth_service.issue_tokens(db, user, user_agent=request.headers.get("user-agent"))
     set_auth_cookies(response, access_token=access, refresh_token=refresh)
     return TokenResponse(access_token=access, user=UserOut.model_validate(user))
@@ -225,6 +228,11 @@ async def google_callback(
         full_name=profile.name,
         avatar_url=profile.picture,
     )
+    if user.totp_enabled:
+        # Google can't ask for the code: these accounts sign in with password and code
+        refused = RedirectResponse(site_url("/sign-in?error=two_step"))
+        refused.delete_cookie(_OAUTH_COOKIE, path="/api/v1/auth/google")
+        return refused
     access, refresh = await auth_service.issue_tokens(db, user)
 
     # back to the page they started from; the website asks for their country there if it's missing
@@ -232,3 +240,90 @@ async def google_callback(
     redirect.delete_cookie(_OAUTH_COOKIE, path="/api/v1/auth/google")
     set_auth_cookies(redirect, access_token=access, refresh_token=refresh)
     return redirect
+
+
+
+# ------------------------------------------------------------------ two-step sign-in
+
+
+def _secret_of(user: User) -> str | None:
+    from app.core.runtime_settings import decrypt
+
+    return decrypt(user.totp_secret) if user.totp_secret else None
+
+
+def _check_two_step(user: User, code: str | None) -> None:
+    from app.services import two_step
+
+    if not code:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=two_step.CODE_NEEDED)
+    secret = _secret_of(user)
+    if not secret or not two_step.verify(secret, code):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="That code isn't right. Type the newest 6-digit code from your authenticator app.",
+        )
+
+
+class TwoStepSetupOut(BaseModel):
+    secret: str  # to type into the app by hand
+    link: str  # otpauth://, what the QR code holds
+    qr: str  # the QR code as a data: picture
+
+
+class TwoStepCodeIn(BaseModel):
+    code: str = Field(min_length=6, max_length=12)
+
+
+@router.post(
+    "/two-step/setup",
+    response_model=TwoStepSetupOut,
+    dependencies=[Depends(rate_limiter("auth_two_step", limit=30, window_seconds=3600))],
+)
+async def two_step_setup(me: CurrentUser, db: DbSession):
+    """A new secret for the authenticator app; on only after a code from it is confirmed."""
+    from app.core.runtime_settings import encrypt
+    from app.services import two_step
+
+    if me.totp_enabled:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Two-step sign-in is already on.")
+    secret = two_step.new_secret()
+    me.totp_secret = encrypt(secret)
+    await db.commit()
+    link = two_step.setup_link(me.email, secret)
+    return TwoStepSetupOut(secret=secret, link=link, qr=two_step.qr_data_uri(link))
+
+
+@router.post(
+    "/two-step/enable",
+    response_model=UserOut,
+    dependencies=[Depends(rate_limiter("auth_two_step", limit=30, window_seconds=3600))],
+)
+async def two_step_enable(payload: TwoStepCodeIn, me: CurrentUser, db: DbSession):
+    from app.services import two_step
+
+    secret = _secret_of(me)
+    if not secret or not two_step.verify(secret, payload.code):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="That code isn't right. Try the newest one in the app.")
+    me.totp_enabled = True
+    await db.commit()
+    await db.refresh(me)
+    return UserOut.model_validate(me)
+
+
+@router.post(
+    "/two-step/disable",
+    response_model=UserOut,
+    dependencies=[Depends(rate_limiter("auth_two_step", limit=30, window_seconds=3600))],
+)
+async def two_step_disable(payload: TwoStepCodeIn, me: CurrentUser, db: DbSession):
+    from app.services import two_step
+
+    secret = _secret_of(me)
+    if me.totp_enabled and (not secret or not two_step.verify(secret, payload.code)):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="That code isn't right. Try the newest one in the app.")
+    me.totp_enabled = False
+    me.totp_secret = None
+    await db.commit()
+    await db.refresh(me)
+    return UserOut.model_validate(me)
