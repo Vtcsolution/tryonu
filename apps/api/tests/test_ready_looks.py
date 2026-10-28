@@ -239,3 +239,57 @@ def test_a_look_gets_its_title_audience_and_season_from_its_products():
     assert suggest_look(bridal) == {"title": "Women's Wedding Lehenga Look", "audience": "women", "season": "Wedding"}
     kids = [(p("Girls Pink Puffer Jacket", Gender.KIDS), OutfitSlot.OUTERWEAR)]
     assert suggest_look(kids)["title"] == "Kids' Winter Puffer Jacket Look"
+
+
+async def test_a_look_posted_to_the_community_is_also_on_ready_looks(client, db, monkeypatch):  # noqa: ANN001
+    """Posting a try-on to the community also puts it on Ready looks (unless
+    the shopper unticks it), and deleting the post takes the look away."""
+    from sqlalchemy import select
+
+    from app.api.v1.endpoints import ready_looks
+    from app.models.ready_look import ReadyLook
+
+    async def no_network(url: str) -> bytes:  # noqa: ARG001 - product photos without the internet
+        return small_jpeg_bytes()
+
+    monkeypatch.setattr("app.services.tryon_direct.inputs.fetch_product_image", no_network)
+    started: list[str] = []
+    real = ready_looks._look_from_post
+    monkeypatch.setattr(ready_looks, "look_from_post_later", lambda job_id, author_id: started.append(job_id))
+    job_id, product = await _finished_look(client, db, monkeypatch)
+
+    posted = await client.post("/api/v1/community/posts", json={"tryon_job_id": job_id, "accept_rules": True})
+    assert posted.status_code in (200, 201), posted.text
+    assert started == [job_id]
+    me = (await client.get("/api/v1/auth/me")).json()
+    await real(job_id, me["id"])
+
+    db.expire_all()
+    look = await db.scalar(select(ReadyLook).where(ReadyLook.tryon_job_id == job_id))
+    assert look is not None and look.is_published and look.created_by == me["id"]
+    assert look.title.endswith("Look") and look.card_key
+    listed = (await client.get("/api/v1/looks")).json()
+    assert look.id in [x["id"] for x in listed]
+
+    # posting it again elsewhere makes no second look
+    await real(job_id, me["id"])
+    db.expire_all()
+    assert len((await db.execute(select(ReadyLook).where(ReadyLook.tryon_job_id == job_id))).scalars().all()) == 1
+
+    # the post goes, and the look with it
+    assert (await client.delete(f"/api/v1/community/posts/{posted.json()['id']}")).status_code == 204
+    db.expire_all()
+    assert await db.scalar(select(ReadyLook).where(ReadyLook.tryon_job_id == job_id)) is None
+
+
+async def test_unticked_the_post_stays_off_ready_looks(client, db, monkeypatch):  # noqa: ANN001
+    from app.api.v1.endpoints import ready_looks
+
+    started: list[str] = []
+    monkeypatch.setattr(ready_looks, "look_from_post_later", lambda job_id, author_id: started.append(job_id))
+    job_id, _product = await _finished_look(client, db, monkeypatch)
+    posted = await client.post(
+        "/api/v1/community/posts", json={"tryon_job_id": job_id, "accept_rules": True, "ready_look": False}
+    )
+    assert posted.status_code in (200, 201), posted.text
+    assert started == []

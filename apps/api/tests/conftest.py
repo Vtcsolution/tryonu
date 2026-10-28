@@ -152,6 +152,16 @@ def _reset_tryon_providers():
     get_full_look_provider.cache_clear()
 
 
+@pytest.fixture(autouse=True)
+def _no_ready_looks_from_posts(monkeypatch):
+    """A community post also makes a Ready look in the background, fetching
+    every product's photo from its shop. Tests post a lot; only the ones about
+    that turn it back on (see test_ready_looks)."""
+    from app.api.v1.endpoints import ready_looks
+
+    monkeypatch.setattr(ready_looks, "look_from_post_later", lambda job_id, author_id: None)
+
+
 def unique_email(prefix: str = "test") -> str:
     return f"{prefix}-{uuid.uuid4().hex[:10]}@example.com"
 

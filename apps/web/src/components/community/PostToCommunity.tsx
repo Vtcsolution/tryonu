@@ -24,6 +24,8 @@ export function PostToCommunity({ jobId, imageUrl }: { jobId: string; imageUrl?:
   const [caption, setCaption] = useState("");
   const [agree, setAgree] = useState(false);
   const [extras, setExtras] = useState<PostExtras>({});
+  // also on Ready looks, the public page shoppers try looks from
+  const [readyLook, setReadyLook] = useState(true);
   const { user } = useSession();
   const isTeam = !!(user && (user.is_team || user.is_admin));
   // team only: one of the team's people posts it (null = the member themself)
@@ -32,7 +34,7 @@ export function PostToCommunity({ jobId, imageUrl }: { jobId: string; imageUrl?:
   const existing = useQuery({ queryKey: ["community", "by-job", jobId], queryFn: () => community.postForJob(jobId) });
   const post = useMutation({
     mutationFn: () =>
-      community.create({ tryon_job_id: jobId, caption: caption.trim() || undefined, accept_rules: agree, person_id: personId ?? undefined, ...extras }),
+      community.create({ tryon_job_id: jobId, caption: caption.trim() || undefined, accept_rules: agree, person_id: personId ?? undefined, ready_look: readyLook, ...extras }),
     onSuccess: () => existing.refetch(),
   });
 
@@ -83,12 +85,21 @@ export function PostToCommunity({ jobId, imageUrl }: { jobId: string; imageUrl?:
               {post.isSuccess ? (
                 <div className="py-4 text-center">
                   <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-sage text-[26px] text-white"><CheckIcon size={28} /></div>
-                  <p className="mt-4 text-[19px] font-semibold text-ink">Posted to the community</p>
-                  <p className="mt-1 text-[15px] text-muted">Members can now like it, comment and try your look.</p>
+                  <p className="mt-4 text-[19px] font-semibold text-ink">{readyLook ? "Posted to the community and Ready looks" : "Posted to the community"}</p>
+                  <p className="mt-1 text-[15px] text-muted">
+                    {readyLook
+                      ? "Members can like it and comment, and shoppers can try your look and buy its pieces. It shows on Ready looks in a minute."
+                      : "Members can now like it, comment and try your look."}
+                  </p>
                   <div className="mt-5 flex flex-wrap justify-center gap-3">
                     <Link href={`/community/post/${post.data.id}`} className="inline-flex min-h-[44px] items-center rounded-full bg-sage px-5 text-[15px] font-semibold text-white">
                       View the post
                     </Link>
+                    {readyLook && (
+                      <Link href="/looks" className="inline-flex min-h-[44px] items-center rounded-full border border-line-strong px-5 text-[15px] font-semibold text-ink">
+                        Ready looks
+                      </Link>
+                    )}
                     <button type="button" onClick={() => setOpen(false)} className="min-h-[44px] rounded-full border border-line-strong px-5 text-[15px] font-semibold text-ink">
                       Close
                     </button>
@@ -125,6 +136,13 @@ export function PostToCommunity({ jobId, imageUrl }: { jobId: string; imageUrl?:
                     />
                   </div>
                   <PostOptions value={extras} onChange={setExtras} />
+                  <label className="mt-3 flex items-start gap-2.5 rounded-xl border border-sage/40 bg-sage-tint/40 p-3 text-[14.5px] text-ink">
+                    <input type="checkbox" checked={readyLook} onChange={(e) => setReadyLook(e.target.checked)} className="mt-1 h-4 w-4 accent-[#5f7a5b]" />
+                    <span>
+                      <b>Also show it on Ready looks</b>
+                      <span className="block text-[13.5px] text-muted">The public page anyone can see, where shoppers try looks on and buy the pieces. It goes when you delete the post.</span>
+                    </span>
+                  </label>
                   <div className="mt-4 rounded-xl bg-paper-2 p-3">
                     <p className="text-[13.5px] font-semibold text-ink">Community rules</p>
                     <ul className="mt-1 list-disc space-y-0.5 pl-5 text-[13.5px] text-ink-soft">

@@ -437,32 +437,38 @@ async def suggest_for_tryon(tryon_job_id: str, me: TeamUser, db: DbSession):
     return suggest_look(pairs)
 
 
-@router.post("/team/looks", response_model=ReadyLookOut, status_code=status.HTTP_201_CREATED)
-async def publish_look(payload: PublishIn, me: TeamUser, db: DbSession):
-    """A finished try-on of the team member's becomes a Ready look: its picture
-    is copied, its products listed, and the outfit-receipt picture made."""
-    from app.services.look_products import look_products
+async def create_look(
+    db: DbSession,
+    job: TryOnJob,
+    pairs: list,
+    *,
+    created_by: str,
+    title: str | None = None,
+    audience: str | None = None,
+    season: str | None = "",
+    publish: bool = True,
+) -> ReadyLook:
+    """A finished try-on becomes a Ready look: its picture copied, its products
+    listed (up to 10) and the outfit-receipt picture made. What isn't given
+    (title, who it's for, season) is worked out from the products."""
     from app.services.storage_service import new_key
 
-    job = await db.scalar(select(TryOnJob).where(TryOnJob.id == payload.tryon_job_id).options(selectinload(TryOnJob.result)))
-    if job is None or (job.user_id != me.id and not me.is_admin):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Try-on not found")
-    if job.status != JobStatus.COMPLETED or job.result is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="That try-on isn't finished yet.")
-    pairs, _ = await look_products(db, job)
-    if not pairs:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="That try-on has no shop products to list.")
     boxes = {
         pl.get("product_id"): pl.get("box")
         for pl in (job.result.placements or [])
         if isinstance(pl, dict) and pl.get("drawn") and pl.get("box")
     }
+    suggested = suggest_look(pairs)
+    title = (title or "").strip() or suggested["title"]
+    if not audience:
+        audience = guess_audience(title, [product for product, _slot in pairs])[0]
+    if season == "":
+        season = suggested["season"]
 
     storage = get_storage()
-    audience = payload.audience or guess_audience(payload.title, [product for product, _slot in pairs])[0]
     look = ReadyLook(
-        title=payload.title.strip(), audience=audience, season=(payload.season or "").strip() or None,
-        created_by=me.id, tryon_job_id=job.id, image_key="pending", is_published=payload.publish,
+        title=title, audience=audience, season=(season or "").strip() or None,
+        created_by=created_by, tryon_job_id=job.id, image_key="pending", is_published=publish,
     )
     db.add(look)
     await db.flush()
@@ -478,7 +484,81 @@ async def publish_look(payload: PublishIn, me: TeamUser, db: DbSession):
     look = await _get(db, look.id)
     await _render(db, look)
     await db.commit()
-    logger.info("ready_look_published", look_id=look.id, by=me.id, items=len(look.items))
+    logger.info("ready_look_published", look_id=look.id, by=created_by, items=len(look.items))
+    return look
+
+
+# made after a community post is answered: drawing the picture takes seconds
+_from_posts: set[asyncio.Task] = set()
+
+
+def look_from_post_later(job_id: str, author_id: str) -> None:
+    """A look posted to the community also goes on Ready looks, made in the
+    background so posting stays quick. Skipped when the try-on is already a
+    Ready look or has no shop products."""
+    task = asyncio.create_task(_look_from_post(job_id, author_id))
+    _from_posts.add(task)
+    task.add_done_callback(_from_posts.discard)
+
+
+async def _look_from_post(job_id: str, author_id: str) -> None:
+    from app.db.session import AsyncSessionLocal
+    from app.services.look_products import look_products
+
+    try:
+        async with AsyncSessionLocal() as db:
+            if await db.scalar(select(ReadyLook.id).where(ReadyLook.tryon_job_id == job_id)) is not None:
+                return
+            job = await db.scalar(select(TryOnJob).where(TryOnJob.id == job_id).options(selectinload(TryOnJob.result)))
+            if job is None or job.result is None:
+                return
+            pairs, _ = await look_products(db, job)
+            if pairs:
+                await create_look(db, job, pairs, created_by=author_id)
+    except Exception as exc:  # noqa: BLE001 - the community post stands either way
+        logger.warning("ready_look_from_post_failed", job_id=job_id, error=str(exc)[:200])
+
+
+async def wait_for_looks_from_posts() -> None:
+    """Tests: until every look started from a post is made."""
+    if _from_posts:
+        await asyncio.gather(*list(_from_posts), return_exceptions=True)
+
+
+async def follow_post(db: DbSession, job_id: str | None, author_id: str, *, visible: bool | None) -> None:
+    """The Ready look made from a community post follows it: hidden with it
+    (visible=False), shown again with it (True), or deleted with it (None).
+    A look the team made from the same try-on is never touched."""
+    if not job_id:
+        return
+    looks = (
+        await db.execute(select(ReadyLook).where(ReadyLook.tryon_job_id == job_id, ReadyLook.created_by == author_id))
+    ).scalars().all()
+    for look in looks:
+        if visible is None:
+            await db.delete(look)
+        else:
+            look.is_published = visible
+
+
+@router.post("/team/looks", response_model=ReadyLookOut, status_code=status.HTTP_201_CREATED)
+async def publish_look(payload: PublishIn, me: TeamUser, db: DbSession):
+    """A finished try-on of the team member's becomes a Ready look: its picture
+    is copied, its products listed, and the outfit-receipt picture made."""
+    from app.services.look_products import look_products
+
+    job = await db.scalar(select(TryOnJob).where(TryOnJob.id == payload.tryon_job_id).options(selectinload(TryOnJob.result)))
+    if job is None or (job.user_id != me.id and not me.is_admin):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Try-on not found")
+    if job.status != JobStatus.COMPLETED or job.result is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="That try-on isn't finished yet.")
+    pairs, _ = await look_products(db, job)
+    if not pairs:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="That try-on has no shop products to list.")
+    look = await create_look(
+        db, job, pairs, created_by=me.id, title=payload.title, audience=payload.audience,
+        season=payload.season or None, publish=payload.publish,
+    )
     return _out(await _get(db, look.id), me.email, me)
 
 

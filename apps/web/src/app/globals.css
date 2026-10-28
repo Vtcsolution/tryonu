@@ -648,3 +648,27 @@ summary,
 .tu-screen-h {
   height: calc(100dvh / var(--page-zoom, 1));
 }
+
+/* a link we most want people to find (Ready looks, For shops): a soft
+   sage pill with a slow glow, never a hard blink */
+@keyframes tu-glow-link {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(108, 122, 107, 0.5);
+  }
+  60% {
+    box-shadow: 0 0 0 7px rgba(108, 122, 107, 0);
+  }
+}
+.tu-glow-link {
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--color-sage, #6c7a6b) 14%, transparent);
+  padding: 0.3rem 0.8rem;
+  font-weight: 600;
+  animation: tu-glow-link 2.4s ease-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tu-glow-link {
+    animation: none;
+  }
+}

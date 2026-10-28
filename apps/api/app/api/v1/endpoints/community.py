@@ -337,6 +337,8 @@ class NewPostIn(BaseModel):
     music_track_id: str | None = None  # a song from the music library
     # team only: post as one of the team's people (their photo, name and @username)
     person_id: str | None = None
+    # also show it on Ready looks, the public page shoppers try looks from
+    ready_look: bool = True
 
 
 async def _challenge_entry(db: DbSession, challenge_id: str | None, me: User) -> str | None:
@@ -399,6 +401,10 @@ async def create_post(payload: NewPostIn, me: CurrentUser, db: DbSession):
     await _notify_mentions(db, author, caption, post_id=post.id)
     await db.commit()
     await db.refresh(post)
+    if payload.ready_look:
+        from app.api.v1.endpoints.ready_looks import look_from_post_later
+
+        look_from_post_later(job.id, author.id)
     out = (await _posts_out(db, [post], me))[0]
     out.links_removed = removed
     return out
@@ -539,6 +545,9 @@ async def delete_post(post_id: str, me: CurrentUser, db: DbSession):
     if post is None or (post.user_id != me.id and not me.is_admin):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
     media = (post.media_key, post.poster_key)
+    from app.api.v1.endpoints.ready_looks import follow_post
+
+    await follow_post(db, post.tryon_job_id, post.user_id, visible=None)
     await db.delete(post)
     await db.commit()
     from app.services.community_media import delete_files
@@ -1317,8 +1326,11 @@ async def admin_resolve(report_id: str, payload: ResolveIn, _: AdminUser, db: Db
     if payload.action in ("hide", "ban"):
         author_id = None
         if r.post_id and (post := await db.get(CommunityPost, r.post_id)):
+            from app.api.v1.endpoints.ready_looks import follow_post
+
             post.is_hidden = True
             author_id = post.user_id
+            await follow_post(db, post.tryon_job_id, post.user_id, visible=False)
         if r.comment_id and (comment := await db.get(PostComment, r.comment_id)):
             comment.is_hidden = True
             author_id = comment.user_id
@@ -1655,6 +1667,9 @@ async def admin_hide_post(post_id: str, payload: HiddenIn, _: AdminUser, db: DbS
     if post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
     post.is_hidden = payload.hidden
+    from app.api.v1.endpoints.ready_looks import follow_post
+
+    await follow_post(db, post.tryon_job_id, post.user_id, visible=not payload.hidden)
     await db.commit()
     return {"hidden": post.is_hidden}
 

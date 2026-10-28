@@ -89,7 +89,11 @@ export function MobileNav() {
                           <Link
                             href={l.href}
                             prefetch={false}
-                            className="block rounded-lg py-2.5 text-[16.5px] text-ink hover:text-sage-deep"
+                            className={
+                              l.highlight
+                                ? "my-1 inline-block py-2 text-[16.5px] text-sage-deep tu-glow-link"
+                                : "block rounded-lg py-2.5 text-[16.5px] text-ink hover:text-sage-deep"
+                            }
                             {...(isDevPortal(l.href) ? { target: "_blank", rel: "noopener" } : {})}
                           >
                             {l.label}

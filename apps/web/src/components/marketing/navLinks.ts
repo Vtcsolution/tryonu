@@ -1,18 +1,19 @@
 /** The site's navigation, shared by the header, the phone menu and the footer.
  * Few links, plain words: someone aged 10 or 90 should know at once where each goes. */
 
-export type NavItem = { label: string; href: string };
+/** highlight: a softly glowing link, for the places we most want people to find */
+export type NavItem = { label: string; href: string; highlight?: boolean };
 export type NavGroup = { label: string; items: NavItem[] };
 
 /** The header's links on computers. */
 export const MAIN: NavItem[] = [
   { label: "Try on", href: "/try" },
-  { label: "Ready looks", href: "/looks" },
+  { label: "Ready looks", href: "/looks", highlight: true },
   { label: "Find by photo", href: "/find-look" },
   { label: "AI Stylist", href: "/stylist" },
   { label: "Community", href: "/community" },
   { label: "Pricing", href: "/pricing" },
-  { label: "For shops", href: "/sell" },
+  { label: "For shops", href: "/sell", highlight: true },
 ];
 
 /** The footer's columns (and the phone menu). */
@@ -21,7 +22,7 @@ export const GROUPS: NavGroup[] = [
     label: "TryOnU",
     items: [
       { label: "Try on", href: "/try" },
-      { label: "Ready looks", href: "/looks" },
+      { label: "Ready looks", href: "/looks", highlight: true },
       { label: "Find by photo", href: "/find-look" },
       { label: "AI Stylist", href: "/stylist" },
       { label: "Build an outfit", href: "/outfits" },
@@ -40,7 +41,7 @@ export const GROUPS: NavGroup[] = [
   {
     label: "For shops",
     items: [
-      { label: "Sell on TryOnU", href: "/sell" },
+      { label: "Sell on TryOnU", href: "/sell", highlight: true },
       { label: "My store", href: "/business" },
       { label: "For developers", href: "/developers" },
       { label: "Browser extension", href: "/extension" },

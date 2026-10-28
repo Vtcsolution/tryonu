@@ -23,7 +23,7 @@ export function Navbar() {
 
         <nav aria-label="Main" className="hidden items-center gap-6 whitespace-nowrap xl:flex 2xl:gap-8">
           {MAIN.map((l) => (
-            <NavLink key={l.href} href={l.href}>
+            <NavLink key={l.href} href={l.href} highlight={l.highlight}>
               {l.label}
             </NavLink>
           ))}
@@ -57,12 +57,12 @@ export function Navbar() {
   );
 }
 
-function NavLink({ href, children }: { href: string; children: ReactNode }) {
+function NavLink({ href, children, highlight }: { href: string; children: ReactNode; highlight?: boolean }) {
   return (
     <Link
       href={href}
       prefetch={false}
-      className="group/nl relative text-[15.5px] font-medium text-ink transition-colors duration-200 hover:text-sage-deep"
+      className={`group/nl relative text-[15.5px] font-medium transition-colors duration-200 hover:text-sage-deep ${highlight ? "tu-glow-link text-sage-deep" : "text-ink"}`}
     >
       {children}
       <span className="absolute -bottom-1.5 left-0 h-px w-full origin-left scale-x-0 bg-sage transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/nl:scale-x-100" />
