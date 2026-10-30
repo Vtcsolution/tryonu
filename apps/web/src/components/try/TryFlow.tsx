@@ -26,6 +26,8 @@ import {
   credits as creditsApi,
   liveSearch as liveSearchApi,
   outfits as outfitsApi,
+  photos as photosApi,
+  type ShoppingFor,
   preferences as preferencesApi,
   products as productsApi,
   savedLooks as savedLooksApi,
@@ -34,6 +36,8 @@ import {
   wardrobe as wardrobeApi,
 } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
+import { ReportResult, TryAnotherLook } from "@/components/try/ResultActions";
+import type { PickItem } from "@/components/try/StyledPicks";
 import type {
   DistractorOption,
   LiveProduct,
@@ -92,6 +96,13 @@ const PHOTO_KIND_LABEL: Record<PhotoKind, string> = {
   extra: "Extra angle",
 };
 
+type LookItem = { product: Product; slot: OutfitSlot };
+const SHOPPING_FOR: [ShoppingFor, string][] = [
+  ["men", "Men"],
+  ["women", "Women"],
+  ["unisex", "Unisex"],
+];
+
 export function TryFlow() {
   const router = useRouter();
   const params = useSearchParams();
@@ -107,6 +118,11 @@ export function TryFlow() {
   const [outfit, setOutfit] = useState<Outfit | null>(null);
   const [customItem, setCustomItem] = useState<WardrobeItem | null>(null);
   const [prompt, setPrompt] = useState("");
+  // who they're shopping for: their saved choice, else a guess from the photo
+  // they can correct. Words in the prompt ("for my wife") still win on the server.
+  const [audience, setAudience] = useState<ShoppingFor | null>(null);
+  const [audienceGuessed, setAudienceGuessed] = useState(false);
+  const [removed, setRemoved] = useState<PickItem[]>([]);
   const prefQuery = useQuery({ queryKey: ["preferences"], queryFn: preferencesApi.get, enabled: !!user });
   const gender = prefQuery.data?.gender;
   const suggestionsQuery = useQuery({
@@ -270,6 +286,54 @@ export function TryFlow() {
     },
   });
 
+  // The products the try-on will use, as the shopper shaped them: taking one
+  // out or adding one makes a new outfit (try-ons draw a saved outfit), or the
+  // single product when one is left.
+  const lookItems = (): LookItem[] =>
+    outfit
+      ? outfit.items.map((it) => ({ product: it.product, slot: it.slot as OutfitSlot }))
+      : product
+        ? [{ product, slot: "other" as OutfitSlot }]
+        : [];
+  const reshapeLook = useMutation({
+    mutationFn: async (items: LookItem[]) => {
+      if (items.length === 1) return { items, newOutfit: null };
+      const newOutfit = await outfitsApi.create({
+        name: outfit?.name ?? undefined,
+        occasion: outfit?.occasion ?? undefined,
+        items: items.map((it) => ({ product_id: it.product.id, slot: it.slot })),
+      });
+      return { items, newOutfit };
+    },
+    onSuccess: ({ items, newOutfit }) => {
+      setBeforeSwap({ product, outfit, reply: lastStylistReply });
+      setOutfit(newOutfit);
+      setProduct(newOutfit ? null : items[0].product);
+      setLastStylistReply((prev) => (prev ? { ...prev, products: items.map((it) => it.product) } : prev));
+    },
+  });
+  const removeFromLook = (item: PickItem) => {
+    setRemoved((list) => [...list.filter((r) => r.product.id !== item.product.id), { ...item, highlight: false, rendered: true }]);
+    reshapeLook.mutate(lookItems().filter((it) => it.product.id !== item.product.id));
+  };
+  const addBackToLook = (item: PickItem) => {
+    setRemoved((list) => list.filter((r) => r.product.id !== item.product.id));
+    reshapeLook.mutate([...lookItems(), { product: item.product, slot: (item.slot ?? "other") as OutfitSlot }]);
+  };
+  const addNewToLook = useMutation({
+    mutationFn: (alt: LiveProduct) => saveLive(alt),
+    onSuccess: (picked) => {
+      if (lookItems().some((it) => it.product.id === picked.id)) return;
+      setSwappedInId(picked.id);
+      reshapeLook.mutate([...lookItems(), { product: picked, slot: "other" as OutfitSlot }]);
+    },
+  });
+
+  // nothing selected any more (start over, another product): nothing to offer back
+  useEffect(() => {
+    if (!outfit && !product) setRemoved([]);
+  }, [outfit, product]);
+
   const undoSwap = () => {
     if (!beforeSwap) return;
     setProduct(beforeSwap.product);
@@ -311,11 +375,39 @@ export function TryFlow() {
   // The server lowers max_items to the most products one look applies
   // (Admin → "Most products in one look", TRYON_DIRECT_MAX_PRODUCTS); only
   // that many things named are searched and the reply says which were left out.
+  const savedPrefs = useQuery({ queryKey: ["preferences"], queryFn: preferencesApi.get, enabled: !!user, retry: false });
+  const savedGender = savedPrefs.data?.gender ?? null;
+  const hasChoice = savedGender === "men" || savedGender === "women" || savedGender === "unisex";
+  // no saved choice: a first guess from the photo, which they can correct
+  const photoCheck = useQuery({
+    queryKey: ["photo-analysis", primaryPhoto?.id],
+    queryFn: () => photosApi.analysis(primaryPhoto!.id),
+    enabled: !!primaryPhoto && step === 1 && savedPrefs.isFetched && !hasChoice,
+    staleTime: Infinity,
+    retry: false,
+  });
+  useEffect(() => {
+    if (audience) return;
+    if (hasChoice) setAudience(savedGender as ShoppingFor);
+    else if (photoCheck.data?.audience) {
+      setAudience(photoCheck.data.audience);
+      setAudienceGuessed(true);
+    }
+  }, [audience, hasChoice, savedGender, photoCheck.data]);
+  const chooseAudience = (value: ShoppingFor) => {
+    setAudience(value);
+    setAudienceGuessed(false);
+    preferencesApi.update({ gender: value }).catch(() => undefined);
+    // the products on show were for the old choice: ask again
+    if (prompt.trim() && lastStylistReply && !askStylist.isPending) askStylist.mutate(prompt);
+  };
+
   const askStylist = useMutation({
-    mutationFn: (text: string) => stylistApi.ask({ prompt: text.trim(), max_items: 10 }),
+    mutationFn: (text: string) => stylistApi.ask({ prompt: text.trim(), max_items: 10, audience: audience ?? undefined }),
     onSuccess: (res) => {
       setLastStylistReply(res);
       setCustomItem(null);
+      setRemoved([]);
       if (res.outfit) {
         setOutfit(res.outfit);
         setProduct(null);
@@ -455,6 +547,13 @@ export function TryFlow() {
       setStep(2);
     }
   }, [user, resumeJobId, preselectedProductId, preselectedOutfitId]);
+  // "Try another look": a new job with the same products is under way
+  const startedAgain = (jobs: TryOnJob[]) => {
+    setJobIds(jobs.map((j) => j.id));
+    remember(jobs.map((j) => j.id));
+    setElapsedSec(0);
+    setStep(2);
+  };
   const remember = (ids: string[]) => {
     try {
       localStorage.setItem(RUNNING_KEY, JSON.stringify({ ids, at: Date.now(), user: user?.id }));
@@ -625,7 +724,27 @@ export function TryFlow() {
             upload something you already own to try it on, or browse the catalog below.
           </p>
 
-          <div className="mt-6 flex flex-col gap-2 rounded-[26px] border border-line bg-surface p-2 sm:flex-row sm:items-center">
+          <div className="mt-6 flex flex-wrap items-center gap-2" role="group" aria-label="Shopping for">
+            <span className="text-[14.5px] font-semibold text-ink">Shopping for</span>
+            {SHOPPING_FOR.map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={audience === value}
+                onClick={() => chooseAudience(value)}
+                className={`min-h-[38px] rounded-full border px-4 text-[14.5px] font-semibold transition-colors ${
+                  audience === value ? "border-sage bg-sage text-white" : "border-line-strong text-ink hover:border-sage"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+            {audienceGuessed && <span className="text-[13.5px] text-muted">Picked from your photo. Tap to change it.</span>}
+          </div>
+          {photoCheck.data?.framing === "upper_body" && (
+            <p className="mt-2 text-[14px] text-muted">Tip: a full-body photo gives the best result for shoes and trousers.</p>
+          )}
+          <div className="mt-3 flex flex-col gap-2 rounded-[26px] border border-line bg-surface p-2 sm:flex-row sm:items-center">
             <div className="relative shrink-0">
               <button
                 type="button"
@@ -824,7 +943,7 @@ export function TryFlow() {
             </div>
           )}
 
-          {(outfit || (product && lastStylistReply?.products.length === 1 && lastStylistReply.products[0].id === product.id)) && (
+          {(outfit || (product && (removed.length > 0 || (lastStylistReply?.products.length === 1 && lastStylistReply.products[0].id === product.id)))) && (
             <div ref={pickRef} className="scroll-mt-24">
               <StyledPicks
                 items={
@@ -842,8 +961,15 @@ export function TryFlow() {
                 summary={lastStylistReply?.summary}
                 onUse={(alt, replaceId) => applyAlternative.mutate({ alt, replaceId })}
                 onBuy={buyAlternative}
+                removed={removed}
+                onRemove={removeFromLook}
+                onAddBack={addBackToLook}
+                onAddNew={(alt) => addNewToLook.mutate(alt)}
+                audience={audience}
                 busyId={
-                  applyAlternative.isPending
+                  addNewToLook.isPending
+                    ? addNewToLook.variables?.retailer_product_id
+                    : applyAlternative.isPending
                     ? applyAlternative.variables?.alt.retailer_product_id
                     : shopAlternative.isPending
                       ? shopAlternative.variables?.retailer_product_id
@@ -853,6 +979,7 @@ export function TryFlow() {
                 onClear={() => {
                   setOutfit(null);
                   setProduct(null);
+                  setRemoved([]);
                   setLastStylistReply(null);
                   setBeforeSwap(null);
                   setSwappedInId(null);
@@ -1131,7 +1258,7 @@ export function TryFlow() {
             )}
             {tryOnCost !== null && !sponsorName && (product || outfit || customItem) && (
               <span className={`text-[13.5px] ${shortOfCredits ? "text-[#a4553f]" : "text-muted"}`}>
-                Uses {tryOnCost} credits · you have {balance}
+                {outfit ? `${outfit.items.length} products · ` : ""}Uses {tryOnCost} credits · you have {balance}
               </span>
             )}
             <button
@@ -1251,6 +1378,7 @@ export function TryFlow() {
             jobs={completedJobs}
             outfit={completedJobs[0].outfit}
             onAddMore={addMoreTo}
+            onAgain={startedAgain}
             onTryAnother={() => {
               setProduct(null);
               setOutfit(null);
@@ -1299,6 +1427,7 @@ export function TryFlow() {
               jobs={completedJobs}
               product={product || completedJobs[0].product!}
               onAddMore={addMoreTo}
+              onAgain={startedAgain}
               onTryAnother={() => {
                 setProduct(null);
                 setOutfit(null);
@@ -1356,12 +1485,14 @@ function ResultStep({
   jobs,
   product,
   onAddMore,
+  onAgain,
   onTryAnother,
   onStartOver,
 }: {
   jobs: TryOnJob[];
   product: Product;
   onAddMore: (job: TryOnJob) => void;
+  onAgain: (jobs: TryOnJob[]) => void;
   onTryAnother: () => void;
   onStartOver: () => void;
 }) {
@@ -1431,9 +1562,11 @@ function ResultStep({
             <ShareLook jobId={job.id} variant="wide" />
             <PostToCommunity jobId={job.id} imageUrl={job.result?.image_url} />
             <AddMoreButton jobs={jobs} job={job} onAddMore={onAddMore} />
+            <TryAnotherLook job={job} onStarted={onAgain} />
             <Button variant="outline" size="md" className="w-full" onClick={onTryAnother}>
               Try another product
             </Button>
+            <ReportResult jobId={job.id} />
             <button
               type="button"
               onClick={onStartOver}
@@ -1494,12 +1627,14 @@ function OutfitResultStep({
   jobs,
   outfit,
   onAddMore,
+  onAgain,
   onTryAnother,
   onStartOver,
 }: {
   jobs: TryOnJob[];
   outfit: Outfit;
   onAddMore: (job: TryOnJob) => void;
+  onAgain: (jobs: TryOnJob[]) => void;
   onTryAnother: () => void;
   onStartOver: () => void;
 }) {
@@ -1601,9 +1736,11 @@ function OutfitResultStep({
             <ShareLook jobId={job.id} variant="wide" />
             <PostToCommunity jobId={job.id} imageUrl={job.result?.image_url} />
             <AddMoreButton jobs={jobs} job={job} onAddMore={onAddMore} />
+            <TryAnotherLook job={job} onStarted={onAgain} />
             <Button variant="outline" size="md" className="w-full" onClick={onTryAnother}>
-              Try another look
+              Choose other products
             </Button>
+            <ReportResult jobId={job.id} />
             <button
               type="button"
               onClick={onStartOver}

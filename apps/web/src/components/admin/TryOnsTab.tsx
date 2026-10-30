@@ -5,6 +5,7 @@ import { useState } from "react";
 import { resolveMediaUrl } from "@/lib/api/client";
 import { admin as adminApi } from "@/lib/api/endpoints";
 import type { AdminTryOnJob, JobStatus } from "@/lib/api/types";
+import { TryOnReports } from "./TryOnReports";
 import { Badge, ErrorNote, PAGE_SIZE, Pager, SectionHeader, SmallButton, Table, TableSkeleton, errorText, when } from "./ui";
 
 const STATUSES: (JobStatus | "")[] = ["", "queued", "processing", "completed", "failed", "cancelled"];
@@ -44,6 +45,7 @@ export function TryOnsTab() {
 
   return (
     <div>
+      <TryOnReports />
       <SectionHeader title="Try-on jobs" hint="Every render across all users. Stuck jobs can be cancelled with a refund.">
         <div className="flex flex-wrap gap-1.5">
           {STATUSES.map((s) => (

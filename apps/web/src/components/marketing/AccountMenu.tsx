@@ -109,7 +109,8 @@ export function AccountMenu() {
             </button>
           )}
           {[
-            { href: "/saved", label: "My looks" },
+            { href: "/gallery", label: "My looks" },
+            { href: "/saved", label: "Saved looks" },
             { href: "/notifications", label: "Notifications" },
             { href: "/alerts", label: "Price alerts" },
             { href: "/community/me", label: "My profile" },

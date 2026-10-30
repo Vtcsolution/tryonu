@@ -262,6 +262,8 @@ export type DistractorOption = {
 };
 
 export type StylistAskInput = {
+  /** who they're shopping for, chosen on the page */
+  audience?: "men" | "women" | "unisex";
   prompt: string;
   occasion?: string;
   budget_min_cents?: number;

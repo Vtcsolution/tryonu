@@ -113,6 +113,13 @@ export const auth = {
 export const photos = {
   list: () => apiFetch<UserPhoto[]>("/api/v1/photos"),
 
+  /** a first guess of the clothing section, and how the photo is framed; the shopper can always change it */
+  analysis: (photoId: string) =>
+    apiFetch<{ audience: ShoppingFor | null; framing: "full_body" | "upper_body" | "other" | null; facing_camera: boolean | null }>(
+      `/api/v1/photos/${photoId}/analysis`,
+      { method: "POST" },
+    ),
+
   status: () => apiFetch<FittingProfileStatus>("/api/v1/photos/status"),
 
   upload: (file: File, kind: string) => {
@@ -156,11 +163,13 @@ export const products = {
 
 /* ------------------------------ live search ------------------------------- */
 
+export type ShoppingFor = "men" | "women" | "unisex";
 export const liveSearch = {
   // Fetched fresh from retailer APIs on every call — never reads from or
   // writes to our product catalog. See products.selectLive to persist one.
-  search: (q: string, limit = 24) =>
-    apiFetch<LiveProduct[]>(`/api/v1/search/live?q=${encodeURIComponent(q)}&limit=${limit}`),
+  /** audience: only men's, women's or unisex listings (the shopper's choice on the page) */
+  search: (q: string, limit = 24, audience?: ShoppingFor | null) =>
+    apiFetch<LiveProduct[]>(`/api/v1/search/live?q=${encodeURIComponent(q)}&limit=${limit}${audience ? `&audience=${audience}` : ""}`),
 };
 
 /* --------------------------------- credits --------------------------------- */
@@ -933,7 +942,33 @@ export const shared = {
     ),
 };
 
+export type GalleryItem = { job_id: string; image_url: string; width: number | null; height: number | null; what: string; created_at: string };
+export type TryOnReportReason = "wrong_product" | "merged" | "extra_item" | "not_me" | "bad_quality" | "other";
+export const adminTryonReports = {
+  list: () =>
+    apiFetch<
+      {
+        id: string;
+        job_id: string;
+        user_email: string | null;
+        reason: string;
+        note: string | null;
+        status: string;
+        credit_cost: number;
+        image_url: string | null;
+        what: string;
+        created_at: string;
+      }[]
+    >("/api/v1/admin/tryon-reports"),
+  refund: (id: string) => apiFetch<unknown>(`/api/v1/admin/tryon-reports/${id}/refund`, { method: "POST" }),
+  dismiss: (id: string) => apiFetch<unknown>(`/api/v1/admin/tryon-reports/${id}/dismiss`, { method: "POST" }),
+};
 export const tryon = {
+  /** every finished try-on of mine, newest first, a page at a time */
+  gallery: (offset = 0) =>
+    apiFetch<{ items: GalleryItem[]; total: number; next_offset: number | null }>(`/api/v1/tryon/gallery?offset=${offset}&limit=24`),
+  report: (jobId: string, input: { reason: TryOnReportReason; note?: string }) =>
+    apiFetch<{ status: string }>(`/api/v1/tryon/${jobId}/report`, { method: "POST", body: input }),
   create: (input: {
     user_photo_id: string;
     product_id?: string;

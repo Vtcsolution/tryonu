@@ -39,6 +39,7 @@ export function ProductCard({
   primary,
   secondary,
   compact = false,
+  onRemove,
 }: {
   image?: string | null;
   name: string;
@@ -57,6 +58,8 @@ export function ProductCard({
   secondary?: CardAction;
   /** a narrower card for side-scrolling rows */
   compact?: boolean;
+  /** a Remove button on the photo: takes it out of the look */
+  onRemove?: () => void;
 }) {
   // through TryOnU's server first; straight from the retailer if that fails
   const [direct, setDirect] = useState<string | null>(null);
@@ -92,6 +95,16 @@ export function ProductCard({
           <span className="absolute right-2.5 top-2.5 rounded-full bg-sage px-2.5 py-1 text-[13px] font-semibold text-white">
             {badge}
           </span>
+        )}
+        {onRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label={`Remove ${name} from the look`}
+            className="absolute bottom-2.5 right-2.5 inline-flex min-h-[36px] items-center rounded-full border border-line-strong bg-surface px-3 text-[14px] font-semibold text-ink shadow-sm hover:border-[#c0503a] hover:text-[#a4553f]"
+          >
+            Remove
+          </button>
         )}
         {busy && (
           <span className="absolute inset-0 grid place-items-center bg-surface/60" aria-label="Working">

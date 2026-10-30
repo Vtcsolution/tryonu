@@ -34,6 +34,7 @@ from app.api.v1.endpoints import (
     admin_email,
     admin_outfits,
     i18n,
+    tryon_gallery,
     contact,
     extension,
     referrals,
@@ -58,6 +59,8 @@ api_router.include_router(products.router)
 api_router.include_router(feed.catalog_router)
 api_router.include_router(feed.feed_router)
 api_router.include_router(search.router)
+api_router.include_router(tryon_gallery.router)  # before tryon: /tryon/gallery isn't a job id
+api_router.include_router(tryon_gallery.admin_router)
 api_router.include_router(tryon.router)
 api_router.include_router(outfits.router)
 api_router.include_router(stylist.router)

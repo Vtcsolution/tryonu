@@ -55,6 +55,9 @@ class BoardItem:
     image_url: str
     name: str
     garment: bool
+    # what it says under the product on the board, when the look says better
+    # than the title ("Jacket", "Top"), so separate garments stay separate
+    label: str | None = None
 
 
 def label_for(name: str, garment: bool) -> str:
@@ -198,7 +201,7 @@ def build_look_board(items: list[BoardItem]) -> tuple[bytes, list[str]]:
     canvas = Image.new("RGB", (w, h), (255, 255, 255))
     draw = ImageDraw.Draw(canvas)
     font = ImageFont.load_default(size=34)
-    labels = [label_for(i.name, i.garment) for i in items]
+    labels = [i.label or label_for(i.name, i.garment) for i in items]
 
     garments = [k for k, i in enumerate(items) if i.garment]
     others = [k for k, i in enumerate(items) if not i.garment]

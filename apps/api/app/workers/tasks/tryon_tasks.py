@@ -1131,12 +1131,20 @@ def _bgr(data: bytes) -> np.ndarray:
     return cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
 
 
+# Separate garments named for what they are on the look board. Live, every
+# garment was labelled "Outfit", and a leather jacket and a parachute jacket
+# came back blended into one.
+_BOARD_GARMENT = {OutfitSlot.TOP: "Top", OutfitSlot.BOTTOM: "Bottom", OutfitSlot.OUTERWEAR: "Jacket or coat"}
+
+
 async def _draw_look_board(session, job: TryOnJob, fashn: VirtualTryOnProvider, person: bytes, products: list[ProductInput], layers: list[_Layer], steps: list[dict], *, adding: bool = False, clock: _Clock | None = None):  # noqa: ANN001, ANN202
     """Every product composed into one labelled look image, sent as the product
     image of ONE FASHN Try-On Max call. Returns FASHN's output, or None once the
     job has been failed (refunded) or held (FASHN accepted and billed it)."""
     items = [
-        BoardItem(p.image, p.image_url, p.name, (layer.slot or OutfitSlot.OTHER) in _HYBRID_GARMENTS)
+        BoardItem(
+            p.image, p.image_url, p.name, (layer.slot or OutfitSlot.OTHER) in _HYBRID_GARMENTS, _BOARD_GARMENT.get(layer.slot)
+        )
         for p, layer in zip(products, layers)
     ]
     # Small jewellery in words as well: live, a plain thin nose hoop shown as a
@@ -1146,7 +1154,7 @@ async def _draw_look_board(session, job: TryOnJob, fashn: VirtualTryOnProvider, 
     # out, not after it.
     small = [
         (p, label)
-        for p, label in zip(products, (label_for(i.name, i.garment) for i in items))
+        for p, label in zip(products, (i.label or label_for(i.name, i.garment) for i in items))
         if label in _DESCRIBED_ON_BOARD
     ] if settings.OPENAI_API_KEY else []
     making = asyncio.create_task(asyncio.to_thread(build_look_board, items))
@@ -1199,6 +1207,9 @@ async def _draw_look_board(session, job: TryOnJob, fashn: VirtualTryOnProvider, 
         + (" Exactly what the small pieces are: " + " ".join(details) if details else "")
         + " Copy each product's exact shape, colour and pattern, including a watch's face shape and strap, "
         "and add nothing a product does not have: no chain on a plain nose ring, no extra pieces. "
+        "Each labelled item is one separate product: never merge two items into one garment, and never draw "
+        "two jackets or coats as one. Layer them the way people dress: a shirt or top under a jacket or coat, "
+        "trousers below, and keep each garment's own material, colour, length and stitching. "
         "Every item is shown enlarged to the same size in the product image; on the person draw each at its "
         "real-life size, worn or held naturally: a clutch fits in one hand, earrings, a nose ring and a ring "
         "are small. "

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ProductCard } from "@/components/product/ProductCard";
 import { affiliateGoUrl, resolveMediaUrl, thumbnailUrl } from "@/lib/api/client";
-import { liveSearch } from "@/lib/api/endpoints";
+import { liveSearch, type ShoppingFor } from "@/lib/api/endpoints";
 import type { LiveProduct, Product } from "@/lib/api/types";
 import { FEATURED, RECOMMENDED, formatPrice, fromTryOnUStore, shopName } from "./shop";
 
@@ -45,6 +45,48 @@ const SLOT_LABELS: Record<string, string> = {
   accessory: "Accessory",
 };
 const GARMENT_SLOTS = new Set(["dress", "top", "bottom", "outerwear"]);
+const BLEND_SLOTS = new Set(["dress", "outerwear", "bottom", "shoes"]);
+
+// what a listing's title says, for the filters over a list of options
+const COLOURS = ["Black", "White", "Grey", "Navy", "Blue", "Brown", "Beige", "Cream", "Green", "Red", "Pink", "Gold", "Silver"];
+const MATERIALS = ["Leather", "Suede", "Denim", "Wool", "Cotton", "Linen", "Silk", "Satin", "Velvet", "Knit"];
+const named = (text: string, word: string) => new RegExp(`\\b${word}\\b`, "i").test(text);
+
+/** Colour and material chips for the options on show: only what's really among them. */
+function useOptionFilters(options: LiveProduct[]) {
+  const [colour, setColour] = useState<string | null>(null);
+  const [material, setMaterial] = useState<string | null>(null);
+  const colours = COLOURS.filter((c) => options.some((o) => named(o.name, c)));
+  const materials = MATERIALS.filter((m) => options.some((o) => named(o.name, m)));
+  const filtered = options.filter((o) => (!colour || named(o.name, colour)) && (!material || named(o.name, material)));
+  const chips = (title: string, list: string[], value: string | null, set: (v: string | null) => void) =>
+    list.length > 1 && (
+      <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={title}>
+        <span className="text-[13.5px] font-semibold text-ink-soft">{title}</span>
+        {list.map((v) => (
+          <button
+            key={v}
+            type="button"
+            aria-pressed={value === v}
+            onClick={() => set(value === v ? null : v)}
+            className={`min-h-[34px] rounded-full border px-3 text-[13.5px] font-medium ${
+              value === v ? "border-sage bg-sage text-white" : "border-line-strong bg-surface text-ink hover:border-sage"
+            }`}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
+    );
+  const bar =
+    colours.length > 1 || materials.length > 1 ? (
+      <div className="mt-3 space-y-2">
+        {chips("Colour", colours, colour, setColour)}
+        {chips("Material", materials, material, setMaterial)}
+      </div>
+    ) : null;
+  return { filtered, bar };
+}
 
 /** What the piece is, for the label on its card. */
 export function pieceLabel(name: string, slot?: string | null): string {
@@ -75,6 +117,11 @@ export function StyledPicks({
   onUndo,
   onClear,
   defaultOpenKey = null,
+  removed = [],
+  onRemove,
+  onAddBack,
+  onAddNew,
+  audience,
 }: {
   items: PickItem[];
   alternatives: Record<string, LiveProduct[]>;
@@ -85,6 +132,12 @@ export function StyledPicks({
   onUndo?: () => void;
   onClear: () => void;
   defaultOpenKey?: string | null;
+  /** products taken out of the look, offered back under Recommended */
+  removed?: PickItem[];
+  onRemove?: (item: PickItem) => void;
+  onAddBack?: (item: PickItem) => void;
+  onAddNew?: (alt: LiveProduct) => void;
+  audience?: ShoppingFor | null;
 }) {
   const [openKey, setOpenKey] = useState<string | null>(defaultOpenKey);
   const [sort, setSort] = useState<Sort>("best");
@@ -94,20 +147,30 @@ export function StyledPicks({
   const open = items.find((i) => i.key === openKey) ?? null;
   const openOptions = open ? alternatives[open.product.id] ?? [] : [];
   const anyOptions = items.some((i) => (alternatives[i.product.id] ?? []).length > 0);
+  // two of a kind worn the same way: these blend together when drawn
+  const slotCounts = new Map<string, number>();
+  for (const i of items) if (i.slot && BLEND_SLOTS.has(i.slot)) slotCounts.set(i.slot, (slotCounts.get(i.slot) ?? 0) + 1);
+  const doubled = [...slotCounts].filter(([, n]) => n > 1).map(([slot]) => SLOT_LABELS[slot]);
 
   return (
     <section className="mt-5 animate-[tu-in-scale_0.35s_ease] overflow-hidden rounded-[28px] border border-line bg-surface shadow-[0_2px_10px_rgba(20,20,16,0.06)]">
       <header className="flex flex-wrap items-start justify-between gap-4 border-b border-line px-5 py-5 sm:px-6">
         <div className="min-w-0">
-          <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-sage-deep">Your look</p>
+          <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-sage-deep">Selected products</p>
           <h3 className="mt-1 font-display text-[26px] leading-tight text-ink">
-            {items.length === 1 ? "1 item" : `${items.length} items`}
+            {items.length === 1 ? "1 selected" : `${items.length} selected`}
             {total !== null && <span className="text-ink-soft"> · {formatPrice(total, items[0].product.currency)}</span>}
           </h3>
           {summary && <p className="mt-2 max-w-3xl text-[15.5px] leading-relaxed text-ink-soft">{summary}</p>}
           {anyOptions && (
             <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-sage-tint/60 px-3 py-1.5 text-[14.5px] text-ink">
-              Not happy with an item? Tap <b>Change</b> to see other options.
+              Not happy with an item? Tap <b>Change</b> to see other options, or <b>Remove</b> it.
+            </p>
+          )}
+          {doubled.length > 0 && (
+            <p className="mt-2 rounded-[12px] border border-[#c9a13b]/50 bg-[#c9a13b]/[0.08] px-3 py-2 text-[14.5px] text-ink">
+              You have more than one {doubled.join(" and ").toLowerCase()} selected. Two of the same kind can blend together in
+              the picture, so we suggest keeping one.
             </p>
           )}
         </div>
@@ -147,6 +210,7 @@ export function StyledPicks({
               badge={item.highlight ? "New pick" : fromTryOnUStore(item.product.retailer?.slug) ? RECOMMENDED : null}
               note={item.rendered ? null : "Shown next to your photo"}
               selected={active}
+              onRemove={onRemove && items.length > 1 ? () => onRemove(item) : undefined}
               primary={{
                 label: count === 0 ? "No other options" : active ? "Close options" : `Change (${count})`,
                 onClick: () => setOpenKey(active ? null : item.key),
@@ -175,8 +239,11 @@ export function StyledPicks({
           onUse={(alt) => onUse(alt, open.product.id)}
           onBuy={onBuy}
           busyId={busyId}
+          audience={audience}
         />
       )}
+
+      {onAddNew && <Recommended removed={removed} onAddBack={onAddBack} onAddNew={onAddNew} busyId={busyId} audience={audience} />}
     </section>
   );
 }
@@ -190,6 +257,7 @@ function ChangePanel({
   onUse,
   onBuy,
   busyId,
+  audience,
 }: {
   label: string;
   options: LiveProduct[];
@@ -199,17 +267,19 @@ function ChangePanel({
   onUse: (alt: LiveProduct) => void;
   onBuy: (alt: LiveProduct) => void;
   busyId?: string;
+  audience?: ShoppingFor | null;
 }) {
   // the shopper's own search for this piece: any product or brand
   const [text, setText] = useState("");
   const [searched, setSearched] = useState("");
   const found = useQuery({
-    queryKey: ["search", "live", searched, 24],
-    queryFn: () => liveSearch.search(searched, 24),
+    queryKey: ["search", "live", searched, 24, audience],
+    queryFn: () => liveSearch.search(searched, 24, audience),
     enabled: searched.length > 1,
   });
   const searching = searched.length > 1;
-  const shown = searching ? found.data ?? [] : options;
+  const listed = searching ? found.data ?? [] : options;
+  const { filtered: shown, bar: filterBar } = useOptionFilters(listed);
   const sorted = useMemo(() => {
     if (sort === "best") return shown;
     return [...shown].sort((a, b) => (sort === "low" ? a.price_cents - b.price_cents : b.price_cents - a.price_cents));
@@ -307,6 +377,8 @@ function ChangePanel({
         </button>
       </form>
 
+      {filterBar}
+
       {searching && !found.isFetching && shown.length === 0 && (
         <p className="mt-4 rounded-[16px] border border-dashed border-line p-5 text-center text-[15px] text-muted">
           Nothing found. Try other words, or a brand name.
@@ -335,6 +407,95 @@ function ChangePanel({
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** Products to add: ones taken out of the look, and anything searched for. */
+function Recommended({
+  removed,
+  onAddBack,
+  onAddNew,
+  busyId,
+  audience,
+}: {
+  removed: PickItem[];
+  onAddBack?: (item: PickItem) => void;
+  onAddNew: (alt: LiveProduct) => void;
+  busyId?: string;
+  audience?: ShoppingFor | null;
+}) {
+  const [text, setText] = useState("");
+  const [searched, setSearched] = useState("");
+  const found = useQuery({
+    queryKey: ["search", "live", searched, 12, audience],
+    queryFn: () => liveSearch.search(searched, 12, audience),
+    enabled: searched.length > 1,
+  });
+  const { filtered, bar } = useOptionFilters(found.data ?? []);
+  return (
+    <div className="border-t border-line px-5 py-5 sm:px-6">
+      <p className="font-display text-[20px] text-ink">Recommended products</p>
+      <p className="text-[14.5px] text-muted">Add a product to your look, without starting over. Only selected products are used.</p>
+      {removed.length > 0 && (
+        <div className="mt-3 flex snap-x gap-4 overflow-x-auto pb-3">
+          {removed.map((item) => (
+            <div key={item.key} className="w-[210px] shrink-0 snap-start">
+              <ProductCard
+                compact
+                image={resolveMediaUrl(item.product.images[0]?.url)}
+                name={item.product.name}
+                priceCents={item.product.price_cents}
+                currency={item.product.currency}
+                shop={shopName(item.product.merchant_name, item.product.retailer?.name)}
+                label={pieceLabel(item.product.name, item.slot)}
+                primary={{ label: "Add to look", onClick: () => onAddBack?.(item) }}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+      <form
+        className="mt-3 flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setSearched(text.trim());
+        }}
+      >
+        <input
+          type="search"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Add something else, e.g. black sunglasses"
+          aria-label="Search a product to add"
+          className="h-12 min-w-0 flex-1 rounded-full border border-line-strong bg-surface px-4 text-[15.5px] text-ink outline-none placeholder:text-muted focus:border-sage focus:ring-2 focus:ring-sage/25"
+        />
+        <button type="submit" className="tu-press h-12 shrink-0 rounded-full border border-line-strong px-6 text-[15.5px] font-semibold text-ink hover:border-sage">
+          Search
+        </button>
+      </form>
+      {bar}
+      {searched.length > 1 && !found.isFetching && filtered.length === 0 && (
+        <p className="mt-3 text-[15px] text-muted">Nothing found. Try other words.</p>
+      )}
+      {filtered.length > 0 && (
+        <div className="mt-3 flex snap-x gap-4 overflow-x-auto pb-3">
+          {filtered.map((alt) => (
+            <div key={`${alt.retailer_slug}:${alt.retailer_product_id}`} className="w-[210px] shrink-0 snap-start">
+              <ProductCard
+                compact
+                image={thumbnailUrl(alt.images[0])}
+                name={alt.name}
+                priceCents={alt.price_cents}
+                currency={alt.currency}
+                shop={shopName(alt.merchant_name, alt.retailer_name)}
+                busy={busyId === alt.retailer_product_id}
+                primary={{ label: "Add to look", onClick: () => onAddNew(alt), disabled: busyId !== undefined }}
+              />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -10,6 +10,7 @@ const PRIVATE = [
   "/account",
   "/credits/paypal",
   "/saved",
+  "/gallery",
   "/preferences",
   "/wardrobe",
   "/for-you",

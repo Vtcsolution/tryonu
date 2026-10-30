@@ -107,3 +107,44 @@ async def delete_photo(photo_id: str, user: CurrentUser, db: DbSession):
     photo.is_deleted = True
     await db.commit()
     return Message(detail="Photo deleted")
+
+
+_ANALYSIS_PROMPT = (
+    "A shopper uploaded this photo to try clothes on, on a fashion website. Look at the whole person: build, clothes and "
+    "how they're dressed, not only the face. Answer with JSON: {\"section\": \"men\", \"women\" or \"unsure\" (which clothing "
+    "section most likely suits this person; say unsure unless it's clear), \"framing\": \"full_body\", \"upper_body\" or "
+    "\"other\", \"facing_camera\": true or false}."
+)
+
+
+@router.post("/{photo_id}/analysis", dependencies=[Depends(rate_limiter("photo_analysis", limit=60, window_seconds=3600))])
+async def analyse_photo(photo_id: str, user: CurrentUser, db: DbSession):
+    """A first guess of the clothing section for a shopper who hasn't chosen one
+    (the page always lets them change it), and how the photo is framed. Null
+    answers when it can't be told."""
+    import asyncio
+
+    import cv2
+    import numpy as np
+
+    from app.services.tryon_quality.vision import VisionError, ask_json, image_part
+
+    photo = await db.scalar(select(UserPhoto).where(UserPhoto.id == photo_id, UserPhoto.user_id == user.id, UserPhoto.is_deleted.is_(False)))
+    if photo is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Photo not found")
+    empty = {"audience": None, "framing": None, "facing_camera": None}
+    try:
+        data = await asyncio.to_thread(get_storage().read, photo.storage_key)
+        image = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+        if image is None:
+            return empty
+        answer = await ask_json(_ANALYSIS_PROMPT, [image_part(image, 768, "low")], timeout=25.0)
+    except (VisionError, OSError, ValueError):
+        return empty
+    section = answer.get("section")
+    framing = answer.get("framing")
+    return {
+        "audience": section if section in ("men", "women") else None,
+        "framing": framing if framing in ("full_body", "upper_body", "other") else None,
+        "facing_camera": answer.get("facing_camera") if isinstance(answer.get("facing_camera"), bool) else None,
+    }

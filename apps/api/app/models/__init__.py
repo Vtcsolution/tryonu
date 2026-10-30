@@ -38,6 +38,7 @@ from app.models.price_watch import PriceWatch  # noqa: F401
 from app.models.contact import ContactMessage  # noqa: F401
 from app.models.admin_email import AdminEmail, EmailSendDay  # noqa: F401
 from app.models.translation import Translation  # noqa: F401
+from app.models.tryon_report import TryOnReport  # noqa: F401
 from app.models.email_event import UserEmailEvent  # noqa: F401
 from app.models.extension import ExtensionToken  # noqa: F401
 from app.models.ready_look import ReadyLook, ReadyLookItem  # noqa: F401
