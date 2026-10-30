@@ -25,7 +25,7 @@ _SLOT_WORDS: list[tuple[OutfitSlot, tuple[str, ...]]] = [
         "beanies", "mufflers",
         "hijab", "niqab", "tie", "necktie", "bow tie", "gloves", "mittens", "socks", "stockings", "wallet",
     )),
-    (OutfitSlot.WATCH, ("watch", "watches", "smartwatch")),
+    (OutfitSlot.WATCH, ("watch", "watches", "smartwatch", "wristwatch", "wristwatches")),
     (OutfitSlot.BAG, ("bag", "bags", "handbag", "handbags", "clutch", "purse", "tote", "backpack", "duffle")),
     (OutfitSlot.SHOES, (
         "shoe", "shoes", "khussa", "khussas", "jutti", "juttis", "mojari", "chappal", "chappals", "kolhapuri",

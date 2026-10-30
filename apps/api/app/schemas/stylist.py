@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -16,6 +17,9 @@ class StylistAskRequest(BaseModel):
     budget_max_cents: int | None = None
     style: str | None = None
     max_items: int = 5  # the most products one try-on look applies
+    # the shopper's own choice on the page: who they're shopping for. Words in
+    # the prompt ("for my wife") still win; this wins over the saved preference.
+    audience: Literal["men", "women", "unisex"] | None = None
     # "Build an outfit around my black trousers" — a wardrobe item the
     # stylist should treat as a fixed anchor when picking real catalog
     # products to complement it. Never recommended itself (it's not a

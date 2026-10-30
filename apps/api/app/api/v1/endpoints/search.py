@@ -21,7 +21,11 @@ router = APIRouter(prefix="/search", tags=["search"])
 
 @router.get("/live", response_model=list[LiveProductOut])
 async def search_live(
-    user: OptionalUser, db: DbSession, q: str = Query(..., min_length=1), limit: int = Query(default=24, le=48)
+    user: OptionalUser,
+    db: DbSession,
+    q: str = Query(..., min_length=1),
+    limit: int = Query(default=24, le=48),
+    audience: str | None = Query(default=None, pattern="^(men|women|unisex)$"),
 ):
     """Fetched fresh from retailer APIs (eBay today) on every call — never
     reads from or writes to our product catalog. See
@@ -33,6 +37,11 @@ async def search_live(
 
     await use_profile_country(db, user.id if user else None)  # local stores first
     results = await live_search(q.strip(), limit=limit)
+    if audience:
+        # the shopper's choice on the page: only men's, women's or unisex listings
+        from app.services.gender_filter import fits_audience
+
+        results = [r for r in results if fits_audience(r.raw.name, audience, r.raw.gender)]
     from app.services.store_service import record_views
 
     await record_views(db, [r.raw.retailer_product_id for r in results if r.provider.slug == "stores"])

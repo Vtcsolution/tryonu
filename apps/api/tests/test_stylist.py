@@ -66,7 +66,7 @@ async def test_stylist_recommends_only_real_persisted_products(client, db, monke
 
     resp = await client.post(
         "/api/v1/stylist/ask",
-        json={"prompt": "black formal outfit for a wedding under $300", "max_items": 5},
+        json={"prompt": "black blazer and black trousers under $300", "max_items": 5},
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -224,7 +224,7 @@ async def test_stylist_returns_real_alternatives_at_different_prices(client, mon
     monkeypatch.setattr("app.services.stylist_service.get_stylist_provider", lambda: PicksFirstProvider())
     await register_and_login(client)
 
-    resp = await client.post("/api/v1/stylist/ask", json={"prompt": "a leather jacket", "max_items": 1})
+    resp = await client.post("/api/v1/stylist/ask", json={"prompt": "a jacket", "max_items": 1})
     assert resp.status_code == 200
     body = resp.json()
     chosen = body["products"][0]
@@ -238,7 +238,7 @@ async def test_stylist_returns_real_alternatives_at_different_prices(client, mon
     assert prices == sorted(prices)  # low to high
     # carries the search term back, so a client can persist one via
     # POST /products/select-live without needing to know what was searched
-    assert all(a["search_term"] == "leather jacket" for a in alts)
+    assert all(a["search_term"] == "jacket" for a in alts)
 
 
 async def test_an_alternative_from_a_non_ebay_retailer_is_labelled_correctly(client, monkeypatch):
@@ -264,7 +264,7 @@ async def test_an_alternative_from_a_non_ebay_retailer_is_labelled_correctly(cli
     monkeypatch.setattr("app.services.stylist_service.get_stylist_provider", lambda: PicksFirstProvider())
     await register_and_login(client)
 
-    resp = await client.post("/api/v1/stylist/ask", json={"prompt": "a leather jacket", "max_items": 1})
+    resp = await client.post("/api/v1/stylist/ask", json={"prompt": "a jacket", "max_items": 1})
     assert resp.status_code == 200
     body = resp.json()
     chosen = body["products"][0]
@@ -292,7 +292,7 @@ async def test_stylist_alternatives_span_the_price_range_not_just_cheapest(clien
     monkeypatch.setattr("app.services.stylist_service.get_stylist_provider", lambda: PicksLastProvider())
     await register_and_login(client)
 
-    resp = await client.post("/api/v1/stylist/ask", json={"prompt": "a denim jacket", "max_items": 1})
+    resp = await client.post("/api/v1/stylist/ask", json={"prompt": "a jacket", "max_items": 1})
     body = resp.json()
     chosen = body["products"][0]
     alts = body["alternatives"][chosen["id"]]
@@ -509,7 +509,7 @@ async def test_chat_recommend_outfit_routes_all_use_the_same_real_products_engin
         _patch_live_search(monkeypatch, _live_results(f"{route.title()} Route Shirt"))
         resp = await client.post(
             f"/api/v1/stylist/{route}",
-            json={"prompt": "something casual", "max_items": 3},
+            json={"prompt": "a shirt", "max_items": 3},
         )
         assert resp.status_code == 200, route
         body = resp.json()
@@ -521,9 +521,9 @@ async def test_chat_recommend_outfit_routes_all_use_the_same_real_products_engin
 
 
 async def test_stylist_alternatives_never_offer_another_item_already_in_the_outfit(client, monkeypatch):
-    """Two picks from the same search must not list each other as
-    alternatives — swapping one in would put the same product in the outfit
-    twice."""
+    """One thing named gets one product, whatever the model picks (live, several
+    jackets were blended into one picture), and the others stay as alternatives,
+    never listing the chosen one."""
     options = [
         _raw("Budget Jacket", price_cents=3000),
         _raw("Mid Jacket", price_cents=6000),
@@ -541,15 +541,15 @@ async def test_stylist_alternatives_never_offer_another_item_already_in_the_outf
     monkeypatch.setattr("app.services.stylist_service.get_stylist_provider", lambda: PicksTwoProvider())
     await register_and_login(client)
 
-    resp = await client.post("/api/v1/stylist/ask", json={"prompt": "a leather jacket", "max_items": 2})
+    resp = await client.post("/api/v1/stylist/ask", json={"prompt": "a jacket", "max_items": 2})
     assert resp.status_code == 200
     body = resp.json()
     chosen_names = {p["name"] for p in body["products"]}
-    assert chosen_names == {"Budget Jacket", "Mid Jacket"}
+    assert chosen_names == {"Budget Jacket"}
     for p in body["products"]:
         alt_names = {a["name"] for a in body["alternatives"].get(p["id"], [])}
         assert alt_names.isdisjoint(chosen_names)
-        assert alt_names == {"Premium Jacket"}
+        assert alt_names == {"Mid Jacket", "Premium Jacket"}
 
 
 async def test_multi_item_ask_gets_one_of_each_item_even_if_the_model_overpicks_one(client, monkeypatch):
@@ -1009,3 +1009,45 @@ def test_winter_pieces_go_where_they_are_worn():
     assert slot_for("Mens Wool Overcoat Black Long") == OutfitSlot.OUTERWEAR
     assert slot_for("Men's Turtleneck Pullover") == OutfitSlot.TOP
     assert slot_for("Grey Knit Scarf Winter") == OutfitSlot.ACCESSORY
+
+
+async def test_the_doc_example_gets_exactly_the_three_items_asked_for(client, monkeypatch):
+    """"black leather jacket, black high-neck shirt, black trousers" from a man:
+    no parachute jacket, no cream coat, no women's items, no fourth product."""
+    results = {
+        "leather": ["Mens Black Parachute Jacket", "Women Black Leather Jacket", "Men Cream Leather Jacket", "Men Black Leather Biker Jacket"],
+        "neck": ["Women Black Turtleneck", "Mens Black Turtleneck Top", "Cream Long Coat"],
+        "trousers": ["Womens Black Trousers", "Men Black Formal Trousers", "Men Blue Trousers"],
+    }
+
+    async def fake_live_search(query: str, *, limit: int = 24):
+        for word, names in results.items():
+            if word in query:
+                return _live_results(*names)
+        return []
+
+    monkeypatch.setattr("app.services.stylist_service.live_search", fake_live_search)
+    await register_and_login(client)
+    resp = await client.post(
+        "/api/v1/stylist/ask",
+        json={"prompt": "Give me a black leather jacket, black high-neck shirt, and black trousers", "max_items": 10, "audience": "men"},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert {p["name"] for p in body["products"]} == {"Men Black Leather Biker Jacket", "Mens Black Turtleneck Top", "Men Black Formal Trousers"}
+    every_option = {a["name"] for options in body["alternatives"].values() for a in options}
+    assert not every_option & {"Mens Black Parachute Jacket", "Women Black Leather Jacket", "Men Cream Leather Jacket", "Cream Long Coat"}
+
+
+async def test_an_item_with_no_real_match_is_reported_not_replaced(client, monkeypatch):
+    async def fake_live_search(query: str, *, limit: int = 24):
+        return _live_results("Men Blue Denim Jacket") if "jacket" in query else _live_results("Men Black Formal Trousers")
+
+    monkeypatch.setattr("app.services.stylist_service.live_search", fake_live_search)
+    await register_and_login(client)
+    resp = await client.post(
+        "/api/v1/stylist/ask", json={"prompt": "black leather jacket and black trousers", "max_items": 10, "audience": "men"}
+    )
+    body = resp.json()
+    assert [p["name"] for p in body["products"]] == ["Men Black Formal Trousers"]
+    assert "couldn't find a good match for: black leather jacket" in body["summary"]

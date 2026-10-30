@@ -32,7 +32,7 @@ from app.models.stylist import StylistRequest
 from app.models.wardrobe import WardrobeItem
 from app.retailers.base import RawProduct
 from app.schemas.stylist import StylistAskRequest
-from app.services.gender_filter import keep_for_gender
+from app.services.gender_filter import fits_audience
 from app.services.live_search_service import LiveSearchResult, live_search, match_score, store_rank
 from app.services.outfit_compatibility import score_outfit
 from app.services.outfit_slots import slot_for
@@ -149,11 +149,11 @@ _TERM_STOPWORDS = {
 _NEGATIONS = {"no", "not", "without", "except", "excluding", "skip", "avoid", "don't", "dont", "never"}
 # who the ask is for — said outright, or through who it's being bought for
 _WOMEN_WORDS = {
-    "women", "women's", "womens", "woman", "woman's", "ladies", "lady", "girls", "girl's", "female",
+    "women", "women's", "womens", "woman", "woman's", "ladies", "lady", "girl", "girls", "girl's", "female",
     "wife", "wife's", "girlfriend", "mum", "mom", "mother", "sister", "daughter", "bride",
 }
 _MEN_WORDS = {
-    "men", "men's", "mens", "man", "man's", "gents", "boys", "boy's", "male",
+    "men", "men's", "mens", "man", "man's", "gents", "boy", "boys", "boy's", "guy", "guys", "male",
     "husband", "husband's", "boyfriend", "dad", "father", "brother", "son", "groom",
 }
 
@@ -162,7 +162,31 @@ _COLOUR_WORDS = {
     "white", "black", "red", "blue", "green", "pink", "yellow", "maroon", "grey", "gray", "gold",
     "silver", "brown", "navy", "purple", "orange", "beige", "cream", "ivory", "teal", "mint",
     "multicolor", "multicolour", "multicolored", "multicoloured", "rainbow", "aurora",
+    "charcoal", "camel", "tan", "khaki", "olive", "burgundy", "mustard", "rust",
 }
+# a material asked for must be what the listing is made of, and these words
+# mean it isn't. Live: "black leather jacket" came back with a parachute jacket.
+_MATERIALS: dict[str, tuple[set[str], set[str]]] = {
+    "leather": ({"leather", "pu", "faux", "vegan", "nappa", "lambskin", "sheepskin", "cowhide"}, {"parachute", "nylon", "puffer", "windbreaker", "fleece", "denim", "wool"}),
+    "suede": ({"suede"}, {"parachute", "nylon", "puffer", "denim"}),
+    "denim": ({"denim", "jean", "jeans"}, {"leather", "parachute"}),
+    "wool": ({"wool", "woolen", "woollen", "cashmere", "merino", "tweed"}, {"parachute", "nylon", "leather", "puffer"}),
+    "woolen": ({"wool", "woolen", "woollen", "cashmere", "merino", "tweed"}, {"parachute", "nylon", "leather", "puffer"}),
+    "cashmere": ({"cashmere"}, {"parachute", "nylon"}),
+    "silk": ({"silk", "silky"}, set()),
+    "satin": ({"satin"}, set()),
+    "velvet": ({"velvet"}, set()),
+    "linen": ({"linen"}, set()),
+    "cotton": ({"cotton"}, set()),
+    "chiffon": ({"chiffon"}, set()),
+    "corduroy": ({"corduroy"}, set()),
+    "tweed": ({"tweed"}, set()),
+    "fleece": ({"fleece"}, set()),
+    "parachute": ({"parachute"}, {"leather"}),
+    "puffer": ({"puffer", "padded", "quilted", "down"}, {"leather"}),
+}
+_HIGH_NECK = {"turtleneck", "turtlenecks", "rollneck", "polo", "highneck"}
+_NO_ACCESSORIES = re.compile(r"\b(no|without|skip)\s+(any\s+)?(accessor\w*|jewell?ery|extras?)\b", re.I)
 # words that mean one listing is a whole set, and the pieces such a set includes
 _SET_LISTING = re.compile(r"(\d+\s*(piece|pc|pcs)\b|\bsuit\b|\bco-?ord\b|\boutfit\b)")
 _SET_COMPONENTS = {
@@ -218,6 +242,11 @@ _ITEM_FOLD = {
     "clutch": "bag", "clutches": "bag", "purse": "bag", "handbag": "bag", "handbags": "bag", "bags": "bag",
     "choker": "necklace", "necklaces": "necklace", "haar": "necklace",
     "bracelet": "bangle", "bracelets": "bangle", "bangles": "bangle", "kada": "bangle",
+    # what shops also call the same garment
+    "trousers": "trouser", "pant": "trouser", "pants": "trouser", "slacks": "trouser", "chinos": "trouser",
+    "jumper": "sweater", "jumpers": "sweater", "pullover": "sweater", "pullovers": "sweater",
+    "overcoat": "coat", "overcoats": "coat", "peacoat": "coat", "peacoats": "coat", "trench": "coat",
+    "trainers": "sneaker", "trainer": "sneaker", "dresses": "dress", "scarves": "scarf",
 }
 # a word in the request that narrows the item: a "nose ring" is not any ring
 _QUALIFIERS = {"nose": {"nose", "nath", "nathni", "septum"}}
@@ -255,22 +284,40 @@ _MULTI_PACK = re.compile(
 )
 _ONE_PIECE_ITEMS = {
     "watch", "bag", "khussa", "earring", "necklace", "bangle", "ring", "rings", "tikka", "pendant", "anklet",
-    "anklets", "payal", "shoe", "shoes", "heels", "sandals", "flats", "chappal", "chappals", "sunglasses",
+    "anklets", "payal", "shoe", "shoes", "heels", "heel", "sandals", "sandal", "flats", "flat", "chappal", "chappals",
+    "sunglasses", "anklet",
 }
 
 
 def _fold(word: str) -> str:
+    word = _ITEM_FOLD.get(word, word)
+    if len(word) > 3 and word.endswith("s") and not word.endswith("ss"):
+        word = word[:-1]  # jackets, boots, jeans: one word for one and many
     return _ITEM_FOLD.get(word, word)
 
 
 def _is_the_item(term: str, name: str) -> bool:
     """The listing names the item the shopper asked for (any of its item
     words, folded so a "jutti" counts as a "khussa"), and any qualifier."""
-    asked = {_fold(w) for w in _words(term) & _ITEM_CATEGORY_WORDS}
-    have = {_fold(w) for w in _words(name)}
-    if asked and not asked & have:
+    term_words, name_words = _words(term), _words(name)
+    asked = {_fold(w) for w in term_words & _ITEM_CATEGORY_WORDS}
+    have = {_fold(w) for w in name_words}
+    # "high-neck shirt": shops sell these as turtlenecks, of any upper garment
+    if {"high", "neck"} <= term_words:
+        if not (name_words & _HIGH_NECK or {"high", "neck"} <= name_words or {"mock", "neck"} <= name_words or {"roll", "neck"} <= name_words):
+            return False
+    elif asked and not asked & have:
         return False
-    return all(_words(name) & alts for q, alts in _QUALIFIERS.items() if q in _words(term))
+    if not _right_material(term_words, name_words):
+        return False
+    return all(name_words & alts for q, alts in _QUALIFIERS.items() if q in term_words)
+
+
+def _right_material(term_words: set[str], name_words: set[str]) -> bool:
+    for material, (accepted, wrong) in _MATERIALS.items():
+        if material in term_words and (not name_words & accepted or name_words & wrong - term_words):
+            return False
+    return True
 
 
 def _unsuitable(term: str, name: str, prompt: str) -> bool:
@@ -430,8 +477,11 @@ def _extract_search_terms(prompt: str, gender: str | None = None, *, ready: bool
       otherwise mixes in the other gender's listings.
     - a short ask naming an occasion ("pink bridal look") becomes that
       occasion's whole look (_ready_look)"""
+    asked_prompt = prompt
+    expanded = False
     if ready and (whole_look := _ready_look(prompt, gender)):
         prompt = whole_look
+        expanded = True
     tokens = [(m.group(), m.start(), m.end()) for m in re.finditer(r"[a-z']+(?:-[a-z']+)*", prompt.lower())]
     words = [t[0] for t in tokens]
     gender = _gender_in_prompt(prompt) or (gender if gender in ("men", "women") else "")
@@ -495,7 +545,57 @@ def _extract_search_terms(prompt: str, gender: str | None = None, *, ready: bool
             seen.add(term)
             terms.append(term)
         i = j + 1
+    if expanded and _NO_ACCESSORIES.search(asked_prompt):
+        # "party look, no accessories": the ready-made look's clothes only
+        terms = [t for t in terms if slot_for(t) not in (OutfitSlot.ACCESSORY, OutfitSlot.WATCH, OutfitSlot.BAG)]
     return terms
+
+
+def _colour_scope(term: str, prompt: str) -> str:
+    """Whose colour applies to this item: its own ("cream sweater"), or the
+    only colour in the ask ("all black: jacket, jeans"). With several colours
+    in the ask, an item without one of its own isn't held to any."""
+    if _words(term) & _COLOUR_WORDS:
+        return term
+    return prompt if len(_words(prompt) & _COLOUR_WORDS) == 1 else ""
+
+
+def _core_term(term: str) -> str | None:
+    """`term` with only who it's for, colour, material and the item left, for a
+    second search: "men charcoal slim trousers" -> "men charcoal trousers"."""
+    keep = [
+        w for w in term.split()
+        if w in _ITEM_CATEGORY_WORDS or w in _COLOUR_WORDS or w in _MATERIALS or w in _WOMEN_WORDS or w in _MEN_WORDS
+    ]
+    core = " ".join(keep)
+    return core if core and core != term else None
+
+
+def _good_results(term: str, results: list, prompt: str, gender: str | None) -> list:
+    """Only listings that really are what was asked: the item, its material and
+    colour, for the right person. Nothing else stands in: an item with no
+    match is reported to the shopper, not silently replaced."""
+    scope = _colour_scope(term, prompt)
+    return [
+        r
+        for r in results
+        if not _unsuitable(term, r.raw.name, prompt)
+        and _is_the_item(term, r.raw.name)
+        and fits_audience(r.raw.name, gender, getattr(r.raw, "gender", None))
+        and not _colour_conflicts(scope, f"{r.raw.name} {r.raw.color or ''}")
+        and not _whole_outfit_for_a_piece(term, r.raw.name)
+    ]
+
+
+def _not_found_note(missing: list[str]) -> str:
+    """Says plainly what couldn't be found, without the search's "men"/"women"."""
+    if not missing:
+        return ""
+    plain = [" ".join(w for w in t.split() if w not in _WOMEN_WORDS and w not in _MEN_WORDS) for t in missing]
+    return (
+        f" We couldn't find a good match for: {', '.join(plain)}, so nothing else was put in its place. "
+        "Try other words, or a different colour."
+    )
 
 
 async def _recent_context(db: AsyncSession, user_id: str) -> str | None:
@@ -617,33 +717,30 @@ async def _fetch_pool(
         # dropping that item from the outfit: a shopper who asked for
         # five things and got four with no explanation has no way to
         # know one was ever considered.
-        retries = {i: n for i, t in enumerate(terms) if not term_results[i] and (n := _narrow_term(t))}
+        # The same when nothing it found is really the item. The second search
+        # is wider; the listings still have to pass for the item as asked.
+        retries = {
+            i: n
+            for i, t in enumerate(terms)
+            if not _good_results(t, term_results[i], req.prompt, gender) and (n := _core_term(t) or _narrow_term(t))
+        }
         if retries:
             retried = await asyncio.gather(*(live_search(n, limit=per_term_limit) for n in retries.values()))
             for i, results in zip(retries.keys(), retried):
-                term_results[i] = results
+                term_results[i] = list(term_results[i]) + list(results)
 
         pool: list[_Candidate] = []
         seen_ids: set[tuple[str, str]] = set()
         for n, (term, results) in enumerate(zip(terms, term_results)):
-            results = [r for r in results if not _unsuitable(term, r.raw.name, req.prompt)]
-            # only listings that are the item asked for, while any are
-            exact = [r for r in results if _is_the_item(term, r.raw.name)]
+            # only listings that really are the item, for the right person
+            exact = _good_results(term, results, req.prompt, gender)
             # equally good listings: a TryOnU store's first (recommended to shoppers)
-            results = sorted(exact or results, key=lambda r: (-_fit(term, r.raw.name), store_rank(r)))
+            results = sorted(exact, key=lambda r: (-_fit(term, r.raw.name), store_rank(r)))
             # then the shops take turns, a different one first for each item
             results = _mix_shops(results, term, n)
             # among store products: the best match for the words asked, then the bigger plan
             results = _stores_by_match(results, term)
-            # Retailers match words, not shoppers: "men leather ankle boots"
-            # still returns women's heels, and those became the alternatives
-            # offered under a man's boots. Filter each term separately, so
-            # one badly-matched item can't leave the shopper without boots.
-            for r in keep_for_gender(results, gender, lambda r: r.raw.name):
-                if _colour_conflicts(req.prompt, r.raw.name):
-                    continue
-                if _whole_outfit_for_a_piece(term, r.raw.name):
-                    continue
+            for r in results:
                 key = (r.provider.slug, r.raw.retailer_product_id)
                 if key in seen_ids:
                     continue
@@ -653,7 +750,11 @@ async def _fetch_pool(
         # No recognized item word (e.g. a bare brand/style ask) — fall
         # back to the prompt as a single query, same as before.
         loose = await live_search(req.prompt, limit=_LIVE_FETCH_POOL_SIZE)
-        pool = [_Candidate(result=r, term=req.prompt) for r in keep_for_gender(loose, gender, lambda r: r.raw.name)]
+        pool = [
+            _Candidate(result=r, term=req.prompt)
+            for r in loose
+            if fits_audience(r.raw.name, gender, getattr(r.raw, "gender", None))
+        ]
 
     if req.budget_min_cents is not None:
         pool = [c for c in pool if c.result.raw.price_cents >= req.budget_min_cents]
@@ -835,13 +936,16 @@ def _slot_for(raw: RawProduct) -> OutfitSlot:
     return slot_for(raw.name, raw.category_slug)
 
 
-async def _shopper_gender(db: AsyncSession, user_id: str, prompt: str) -> str | None:
-    """Who the look is for: what the prompt says ("a kurti for my wife"),
-    else their saved gender, else the audience they picked most of in
-    onboarding — nothing forces them to state a gender."""
+async def _shopper_gender(db: AsyncSession, user_id: str, prompt: str, chosen: str | None = None) -> str | None:
+    """Who the look is for: what the prompt says ("a kurti for my wife"), else
+    what they chose on the page (men, women, unisex), else their saved gender,
+    else the audience they picked most of in onboarding. Nothing forces them
+    to state a gender."""
     said = _gender_in_prompt(prompt)
     if said:
         return said
+    if chosen:
+        return chosen
     pref = await db.scalar(select(UserPreference).where(UserPreference.user_id == user_id))
     if pref is None:
         return None
@@ -874,9 +978,10 @@ async def ask_stylist(
     # An explicit "build around this" anchor takes priority over general
     # taste — the user asked for something specific, not just a good match.
     profile = _wardrobe_anchor_profile(wardrobe_item) if wardrobe_item else await build_taste_profile(db, user_id)
-    gender = await _shopper_gender(db, user_id, req.prompt)
+    gender = await _shopper_gender(db, user_id, req.prompt, req.audience)
     pool = await _fetch_pool(req, profile, gender)
-    left_out = _extract_search_terms(req.prompt, gender)[req.max_items :]
+    named_terms = _extract_search_terms(req.prompt, gender)
+    left_out = named_terms[req.max_items :]
     candidates = _trim_pool(pool)
     llm_candidates = [
         StylistCandidate(
@@ -969,6 +1074,11 @@ async def ask_stylist(
     chosen = _one_of_each_item(
         [candidates[i] for i in recommendation.chosen_indexes if 0 <= i < len(candidates)], candidates, req.max_items
     )
+    # One product for each thing named, never two of the same kind in one
+    # picture: live, "black leather jacket" gave several jackets, and the image
+    # blended them into one. The others stay as options under Change.
+    if named_terms and len({c.term for c in pool}) == 1:
+        chosen = chosen[:1] or pool[:1]
     chosen = _drop_redundant_candidates(chosen)
     # TryOnU stores first: a store product the stylist passed over for an
     # equally good one elsewhere takes that place in the look
@@ -1016,7 +1126,9 @@ async def ask_stylist(
         budget_min_cents=req.budget_min_cents,
         budget_max_cents=req.budget_max_cents,
         style=req.style,
-        response_summary=summary + _left_out_note(left_out, req.max_items, gender),
+        response_summary=summary
+        + _not_found_note([t for t in named_terms[: req.max_items] if t not in {c.term for c in pool}])
+        + _left_out_note(left_out, req.max_items, gender),
         recommended_product_ids=[p.id for p in chosen_products],
         recommended_outfit_id=outfit.id if outfit else None,
     )

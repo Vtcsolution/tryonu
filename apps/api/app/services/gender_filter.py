@@ -38,6 +38,22 @@ def gender_of(title: str) -> str | None:
     return "men" if men else None
 
 
+def fits_audience(title: str, audience: str | None, listed: str | None = None) -> bool:
+    """Strict: may this listing be shown to someone shopping for `audience`?
+    Its title decides when it names a gender; otherwise the shop's own gender
+    field. A listing saying nothing counts as unisex. Unisex shoppers get only
+    listings that don't name one gender."""
+    named = gender_of(title)
+    listed = (listed or "").lower()
+    if named is None and not _UNISEX.search(title) and listed in ("men", "women", "kids"):
+        named = listed
+    if audience == "unisex":
+        return named is None
+    if audience in ("men", "women"):
+        return named is None or named == audience
+    return True
+
+
 def is_other_gender(title: str, gender: str | None) -> bool:
     if gender not in ("men", "women"):
         return False
