@@ -1562,6 +1562,9 @@ function ResultStep({
             <ShareLook jobId={job.id} variant="wide" />
             <PostToCommunity jobId={job.id} imageUrl={job.result?.image_url} />
             <AddMoreButton jobs={jobs} job={job} onAddMore={onAddMore} />
+            {job.error_message && (
+              <p className="rounded-[14px] border border-[#c9a13b]/50 bg-[#c9a13b]/[0.08] px-3 py-2.5 text-[14.5px] text-ink">{job.error_message}</p>
+            )}
             <TryAnotherLook job={job} onStarted={onAgain} />
             <Button variant="outline" size="md" className="w-full" onClick={onTryAnother}>
               Try another product
@@ -1736,6 +1739,9 @@ function OutfitResultStep({
             <ShareLook jobId={job.id} variant="wide" />
             <PostToCommunity jobId={job.id} imageUrl={job.result?.image_url} />
             <AddMoreButton jobs={jobs} job={job} onAddMore={onAddMore} />
+            {job.error_message && (
+              <p className="rounded-[14px] border border-[#c9a13b]/50 bg-[#c9a13b]/[0.08] px-3 py-2.5 text-[14.5px] text-ink">{job.error_message}</p>
+            )}
             <TryAnotherLook job={job} onStarted={onAgain} />
             <Button variant="outline" size="md" className="w-full" onClick={onTryAnother}>
               Choose other products

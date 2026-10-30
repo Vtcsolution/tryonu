@@ -35,7 +35,8 @@ _VLM_INSTRUCTIONS = (
     "You are checking a virtual try-on. You get the customer's ORIGINAL photo, the FINAL try-on image, and "
     "numbered reference photos of the exact retail products that were supposed to be put on the customer. "
     "Judge each numbered product against the FINAL image only. Reply with JSON only: "
-    '{"same_person": true|false, "identity_note": "short", "products": [{"index": <number>, '
+    '{"same_person": true|false, "identity_note": "short", "merged_garments": true|false, "extra_clothing": true|false, '
+    '"products": [{"index": <number>, '
     '"present": true|false, "color_correct": true|false, "details_preserved": true|false, '
     '"placement_correct": true|false, "note": "short, concrete"}]}. '
     "present = this exact product is visibly worn or carried, not a similar one. If you cannot see it clearly, "
@@ -43,8 +44,28 @@ _VLM_INSTRUCTIONS = (
     "scale and perspective, behind or under what should cover it; a product that looks pasted on like a flat "
     "sticker, floats, or sits in front of a floor-length outfit instead of on the feet is false; so is a product held by an extra hand "
     "or arm that is not the customer's own, or one given parts it does not have (a chain added to a plain nose "
-    "ring)."
+    "ring). merged_garments = two of the numbered products were blended into one garment (a leather jacket mixed with "
+    "a parachute jacket). extra_clothing = the person wears a new garment or accessory that is neither a numbered product "
+    "nor in the ORIGINAL photo."
 )
+
+
+def bad_result_reason(vlm: dict) -> str | None:
+    """In plain words, what's clearly wrong with a finished look, or None. Only
+    what a shopper would call a failure; small differences in a product's
+    details don't count, and a check that couldn't run never counts."""
+    if not vlm.get("enabled") or vlm.get("error"):
+        return None
+    if vlm.get("merged_garments") is True:
+        return "two products were merged into one"
+    if vlm.get("extra_clothing") is True:
+        return "something you didn't choose was added"
+    rows = [r for r in vlm.get("products") or [] if isinstance(r, dict)]
+    if any(r.get("present") is False for r in rows):
+        return "a product you chose is missing from the picture"
+    if any(r.get("color_correct") is False for r in rows):
+        return "a product came out in the wrong colour"
+    return None
 
 
 def _decode(data: bytes) -> np.ndarray:

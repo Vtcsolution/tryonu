@@ -75,6 +75,9 @@ SPECS: tuple[SettingSpec, ...] = (
     SettingSpec("FASHN_API_KEY", "FASHN API key", "ai_tryon", "secret"),
     SettingSpec("FASHN_MODEL", "FASHN model", "ai_tryon", "choice", ("tryon-max", "tryon-v1.6"),
                 help="tryon-max: clothes, shoes, bags and jewellery, and keeps the face. tryon-v1.6: clothes only."),
+    SettingSpec("TRYON_AUTO_REFUND_BAD", "Refund clearly bad results", "ai_tryon", "bool",
+                help="Each finished look is checked by AI. A product missing or the wrong colour, two products merged or "
+                "clothes added: the shopper still sees the picture and their credits come back by themselves."),
     SettingSpec("TRYON_DIRECT_MAX_PRODUCTS", "Most products in one look", "ai_tryon", "int", min_value=1,
                 help="How many items one try-on can put on, e.g. a 10-piece bridal look. With the look board (one "
                 "FASHN call per look) more items cost no more credits. Up to 10 is recommended."),

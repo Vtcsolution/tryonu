@@ -50,7 +50,7 @@ from app.services.outfit_slots import (
 )
 from app.services.storage_service import get_storage, new_key
 from app.ai.providers.openai_image import MAX_PIECES as GEMINI_MAX_PIECES
-from app.services.tryon_direct.final_check import final_check, vlm_final_check
+from app.services.tryon_direct.final_check import bad_result_reason, final_check, vlm_final_check
 from app.services.tryon_direct.look_board import KNOWN_LABELS, BoardItem, build_look_board, label_for
 from app.services.tryon_quality.product_prep import describe_product
 from app.services.tryon_direct.qc import run_qc
@@ -994,7 +994,7 @@ async def _run_direct_job(session, job: TryOnJob, provider: VirtualTryOnProvider
                 [(step.get("qc") or {}).get("changed_bbox") for step in sequence.steps],
                 [p.image for p in products],
                 [p.name for p in products],
-                with_vlm=settings.TRYON_DIRECT_VLM_QC and bool(settings.OPENAI_API_KEY),
+                with_vlm=_vision_check_on(),
             )
             for step, row in zip(sequence.steps, final["products"]):
                 step["final_status"] = row["status"]
@@ -1065,7 +1065,11 @@ _HYBRID_GARMENTS = {OutfitSlot.DRESS, OutfitSlot.TOP, OutfitSlot.BOTTOM, OutfitS
 
 _GARMENT_SLOTS = {OutfitSlot.DRESS, OutfitSlot.TOP, OutfitSlot.BOTTOM}
 # board labels whose product is also described in words in the FASHN prompt
-_DESCRIBED_ON_BOARD = {"Nose ring", "Earrings", "Ring", "Maang tikka", "Necklace"}
+_DESCRIBED_ON_BOARD = {
+    "Nose ring", "Earrings", "Ring", "Maang tikka", "Necklace",
+    # garments too: their material and cut in words keep them from drifting or blending
+    "Top", "Bottom", "Jacket or coat", "Outfit",
+}
 
 
 def _replaces(new: _Layer, old: _Layer) -> bool:
@@ -1095,7 +1099,7 @@ async def _carry_forward(session, job: TryOnJob, layers: list[_Layer]):  # noqa:
     if base is None or base.result is None or base.status != JobStatus.COMPLETED:
         await _fail_job(session, job, "The look to add to is no longer available. Nothing was sent.", refund=True)
         return None
-    with_vlm = settings.TRYON_DIRECT_VLM_QC and bool(settings.OPENAI_API_KEY)
+    with_vlm = _vision_check_on()
     try:
         base_image = await asyncio.to_thread(get_storage().read, base.result.storage_key)
         prior_products: list[ProductInput] = []
@@ -1204,7 +1208,8 @@ async def _draw_look_board(session, job: TryOnJob, fashn: VirtualTryOnProvider, 
         + ", ".join(dict.fromkeys(labels))
         + "."
         + replacing
-        + (" Exactly what the small pieces are: " + " ".join(details) if details else "")
+        + f" There are exactly {len(products)} products: draw all of them and nothing else."
+        + (" Exactly what the pieces are: " + " ".join(details) if details else "")
         + " Copy each product's exact shape, colour and pattern, including a watch's face shape and strap, "
         "and add nothing a product does not have: no chain on a plain nose ring, no extra pieces. "
         "Each labelled item is one separate product: never merge two items into one garment, and never draw "
@@ -1355,7 +1360,7 @@ async def _run_one_call_look(  # noqa: ANN001
     await _progress_writer(session, job)("Checking every product in the final image")
     report = await run_qc(person, products[0].image, output.image_bytes)
     face_flags = [f for f in report.get("flags", []) if f in ("face_changed", "face_check_inconclusive")]
-    with_vlm = settings.TRYON_DIRECT_VLM_QC and bool(settings.OPENAI_API_KEY)
+    with_vlm = _vision_check_on()
     vlm: dict = {"enabled": False}
     if with_vlm:
         vlm = await vlm_final_check(person, output.image_bytes, [p.image for p in products], [p.name for p in products])
@@ -1396,6 +1401,31 @@ async def _run_one_call_look(  # noqa: ANN001
         await _complete_sequence(session, job, label, sequence, layers, 0, final)
     else:
         await _hold_final(session, job, label, sequence, 0, final)
+
+
+def _vision_check_on() -> bool:
+    return (settings.TRYON_DIRECT_VLM_QC or settings.TRYON_AUTO_REFUND_BAD) and bool(settings.OPENAI_API_KEY)
+
+
+async def _refund_if_bad(session, job: TryOnJob, final: dict) -> None:  # noqa: ANN001
+    """A clearly wrong picture costs the shopper nothing: they still see it, told
+    why, with their credits back. A check that couldn't run refunds nothing."""
+    if not settings.TRYON_AUTO_REFUND_BAD or job.credit_cost <= 0:
+        return
+    reason = bad_result_reason(final.get("vlm") or {})
+    if reason is None:
+        return
+    await credit_service.refund(
+        session,
+        user_id=job.user_id,
+        amount=job.credit_cost,
+        reference_type="tryon_job",
+        reference_id=job.id,
+        note=f"Automatic refund: {reason}",
+    )
+    job.error_message = f"This picture didn't come out right: {reason}. Your {job.credit_cost} credits are back."
+    await session.commit()
+    logger.warning("tryon_auto_refund", job_id=job.id, reason=reason)
 
 
 async def _complete_sequence(session, job: TryOnJob, provider: VirtualTryOnProvider, sequence, layers: list[_Layer], cost: int, final: dict) -> None:  # noqa: ANN001
@@ -1475,6 +1505,7 @@ async def _complete_sequence(session, job: TryOnJob, provider: VirtualTryOnProvi
     )
     await session.commit()
     logger.info("tryon_job_completed", job_id=job.id, products=len(sequence.steps))
+    await _refund_if_bad(session, job, final)
 
 
 async def _hold_final(session, job: TryOnJob, provider: VirtualTryOnProvider, sequence, cost: int, final: dict) -> None:  # noqa: ANN001

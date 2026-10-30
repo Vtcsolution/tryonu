@@ -1051,3 +1051,41 @@ async def test_an_item_with_no_real_match_is_reported_not_replaced(client, monke
     body = resp.json()
     assert [p["name"] for p in body["products"]] == ["Men Black Formal Trousers"]
     assert "couldn't find a good match for: black leather jacket" in body["summary"]
+
+
+async def test_anything_a_shopper_types_is_read_by_the_ai(client, monkeypatch):
+    """Spelling mistakes and other languages: the AI turns them into the searches."""
+    from app.services import prompt_reader
+
+    asked: list[str] = []
+
+    async def reader(prompt):  # noqa: ANN001, ANN202
+        return {"fashion": True, "for": "men", "items": ["black leather jacket", "Blue Jeans"]}
+
+    async def fake_live_search(query: str, *, limit: int = 24):
+        asked.append(query)
+        return _live_results("Men Black Leather Jacket") if "jacket" in query else _live_results("Men Blue Jeans")
+
+    monkeypatch.setattr(prompt_reader, "_ask_ai", reader)
+    monkeypatch.setattr("app.services.stylist_service.live_search", fake_live_search)
+    await register_and_login(client)
+    resp = await client.post("/api/v1/stylist/ask", json={"prompt": "kali lether jaket aur neeli jeanz", "max_items": 10})
+    assert resp.status_code == 200, resp.text
+    assert "men black leather jacket" in asked and "men blue jeans" in asked
+    assert {p["name"] for p in resp.json()["products"]} == {"Men Black Leather Jacket", "Men Blue Jeans"}
+
+
+async def test_something_that_isnt_about_fashion_gets_a_helpful_answer(client, monkeypatch):
+    from app.services import prompt_reader
+
+    async def reader(prompt):  # noqa: ANN001, ANN202
+        return {"fashion": False, "for": None, "items": []}
+
+    async def never(query: str, *, limit: int = 24):
+        raise AssertionError("nothing to search for")
+
+    monkeypatch.setattr(prompt_reader, "_ask_ai", reader)
+    monkeypatch.setattr("app.services.stylist_service.live_search", never)
+    await register_and_login(client)
+    body = (await client.post("/api/v1/stylist/ask", json={"prompt": "what is the weather", "max_items": 10})).json()
+    assert body["products"] == [] and "what you'd like to wear" in body["summary"]

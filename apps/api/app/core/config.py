@@ -166,6 +166,10 @@ class Settings(BaseSettings):
     # Also score the result with the existing OpenAI vision inspector. That
     # is a PAID OpenAI call per try-on, so it is opt-in.
     TRYON_DIRECT_VLM_QC: bool = False
+    # Check every finished look with the vision inspector, and give the credits
+    # back when it's clearly wrong (a product missing or the wrong colour, two
+    # products merged, clothes added). One small OpenAI call per look.
+    TRYON_AUTO_REFUND_BAD: bool = True
     # several products: one FASHN call each, in order. Caps are checked before the
     # first call, so a look over the limit is refused without spending anything
     # more products than this in one look and quality drops (skin tone, held items); 2026-10-06

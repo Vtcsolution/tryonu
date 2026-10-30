@@ -72,3 +72,38 @@ async def test_a_photo_gets_a_first_guess_of_the_clothing_section(client, monkey
 
     monkeypatch.setattr("app.services.tryon_quality.vision.ask_json", unsure)
     assert (await client.post(f"/api/v1/photos/{photo_id}/analysis")).json()["audience"] is None
+
+
+def test_only_clearly_wrong_results_count_as_bad():
+    from app.services.tryon_direct.final_check import bad_result_reason as bad
+
+    good = {"enabled": True, "products": [{"index": 0, "present": True, "color_correct": True, "details_preserved": False}]}
+    assert bad(good) is None  # small differences in details don't count
+    assert bad({"enabled": False}) is None
+    assert bad({"enabled": True, "error": "timeout", "products": []}) is None  # a check that couldn't run never counts
+    assert "merged" in bad({**good, "merged_garments": True})
+    assert "added" in bad({**good, "extra_clothing": True})
+    assert "missing" in bad({"enabled": True, "products": [{"index": 0, "present": False}]})
+    assert "colour" in bad({"enabled": True, "products": [{"index": 0, "present": True, "color_correct": False}]})
+
+
+async def test_a_bad_result_gives_the_credits_back_by_itself_and_says_why(client, db, monkeypatch):  # noqa: ANN001
+    from sqlalchemy import select
+
+    from app.core.config import get_settings
+    from app.models.tryon import TryOnJob
+    from app.workers.tasks.tryon_tasks import _refund_if_bad
+
+    monkeypatch.setattr(get_settings(), "TRYON_AUTO_REFUND_BAD", True)
+    job_id, _product = await _finished_look(client, db, monkeypatch)
+    me = (await client.get("/api/v1/auth/me")).json()
+    job = await db.scalar(select(TryOnJob).where(TryOnJob.id == job_id))
+    cost = job.credit_cost
+    before = await credit_balance(db, me["id"])
+    vlm = {"enabled": True, "merged_garments": True, "products": []}
+    await _refund_if_bad(db, job, {"vlm": vlm})
+    await _refund_if_bad(db, job, {"vlm": vlm})  # never twice
+    db.expire_all()
+    assert await credit_balance(db, me["id"]) == before + cost
+    body = (await client.get(f"/api/v1/tryon/{job_id}")).json()
+    assert body["status"] == "completed" and "merged" in body["error_message"] and body["result"]

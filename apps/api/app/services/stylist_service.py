@@ -37,6 +37,7 @@ from app.services.live_search_service import LiveSearchResult, live_search, matc
 from app.services.outfit_compatibility import score_outfit
 from app.services.outfit_slots import slot_for
 from app.services.personalization_service import TasteProfile, affinity_score, build_taste_profile
+from app.services.prompt_reader import read_prompt
 from app.services.product_ingestion_service import persist_single_product
 from app.services.shopper_context import current_country
 
@@ -308,6 +309,12 @@ def _is_the_item(term: str, name: str) -> bool:
             return False
     elif asked and not asked & have:
         return False
+    elif not asked:
+        # a product type we have no word for ("shacket"): the listing must name
+        # something of what was asked, beyond who it's for and its colour
+        wanted = {_fold(w) for w in term_words - _COLOUR_WORDS - _WOMEN_WORDS - _MEN_WORDS - _TERM_STOPWORDS}
+        if wanted and not wanted & have:
+            return False
     if not _right_material(term_words, name_words):
         return False
     return all(name_words & alts for q, alts in _QUALIFIERS.items() if q in term_words)
@@ -690,8 +697,25 @@ async def _fetch_candidates(
     return _trim_pool(await _fetch_pool(req, profile, gender))
 
 
+async def _read_the_ask(prompt: str, gender: str | None) -> tuple[list[str], str | None, bool]:
+    """(the searches, who for, is it about fashion) from whatever the shopper
+    typed. The ready-made occasion looks keep their tried lists; otherwise the
+    AI reads it (any language, spelling mistakes); word matching if it can't."""
+    if not _ready_look(prompt, gender):
+        read = await read_prompt(prompt)
+        if read is not None:
+            if not read["fashion"] and not read["items"]:
+                return [], gender, False
+            if read["items"]:
+                if not _gender_in_prompt(prompt) and read["for"]:
+                    gender = read["for"]
+                who = gender if gender in ("men", "women") else ""
+                return [f"{who} {item}".strip() for item in read["items"]], gender, True
+    return _extract_search_terms(prompt, gender), gender, True
+
+
 async def _fetch_pool(
-    req: StylistAskRequest, profile: TasteProfile | None, gender: str | None = None
+    req: StylistAskRequest, profile: TasteProfile | None, gender: str | None = None, named: list[str] | None = None
 ) -> list[_Candidate]:
     """Every candidate is fetched fresh from retailer APIs for this exact
     prompt — nothing here is a pre-synced local row. Budget filtering and
@@ -702,7 +726,7 @@ async def _fetch_pool(
     whichever ones the LLM ends up choosing."""
     # only the first max_items things named are searched: a look applies at
     # most that many products, and ask_stylist tells the shopper which were left out
-    terms = _extract_search_terms(req.prompt, gender)[: req.max_items]
+    terms = (named if named is not None else _extract_search_terms(req.prompt, gender))[: req.max_items]
     if terms:
         # One short search per distinct item mentioned (see
         # _extract_search_terms) — a multi-item outfit prompt otherwise
@@ -979,8 +1003,23 @@ async def ask_stylist(
     # taste — the user asked for something specific, not just a good match.
     profile = _wardrobe_anchor_profile(wardrobe_item) if wardrobe_item else await build_taste_profile(db, user_id)
     gender = await _shopper_gender(db, user_id, req.prompt, req.audience)
-    pool = await _fetch_pool(req, profile, gender)
-    named_terms = _extract_search_terms(req.prompt, gender)
+    named_terms, gender, about_fashion = await _read_the_ask(req.prompt, gender)
+    if not about_fashion:
+        stylist_request = StylistRequest(
+            user_id=user_id,
+            prompt=req.prompt,
+            occasion=req.occasion,
+            budget_min_cents=req.budget_min_cents,
+            budget_max_cents=req.budget_max_cents,
+            style=req.style,
+            response_summary="Tell us what you'd like to wear, for example: black leather jacket, white shirt and jeans.",
+            recommended_product_ids=[],
+        )
+        db.add(stylist_request)
+        await db.commit()
+        await db.refresh(stylist_request)
+        return stylist_request, {}
+    pool = await _fetch_pool(req, profile, gender, named_terms)
     left_out = named_terms[req.max_items :]
     candidates = _trim_pool(pool)
     llm_candidates = [
@@ -1000,7 +1039,7 @@ async def ask_stylist(
     ]
 
     provider = get_stylist_provider()
-    searched = _extract_search_terms(req.prompt, gender)[: req.max_items]
+    searched = named_terms[: req.max_items]
     query = StylistQuery(
         # items past the limit weren't searched: without this the model told
         # shoppers "no suitable bangles or clutch are available"

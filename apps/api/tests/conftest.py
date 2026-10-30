@@ -163,6 +163,22 @@ def _no_ready_looks_from_posts(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_paid_ai_by_default(monkeypatch):
+    """Tests never call the real AI: the prompt reader answers "can't tell" (so the
+    word matching runs) and finished looks aren't vision-checked. Tests about
+    those turn them back on with their own fake answers."""
+    from app.core.config import get_settings
+    from app.services import prompt_reader
+
+    async def nothing(prompt):  # noqa: ANN001, ANN202
+        return None
+
+    monkeypatch.setattr(prompt_reader, "_ask_ai", nothing)
+    prompt_reader._cache.clear()
+    monkeypatch.setattr(get_settings(), "TRYON_AUTO_REFUND_BAD", False)
+
+
+@pytest.fixture(autouse=True)
 def _no_daily_email_limit(monkeypatch):
     """The site's daily email count lives in the (shared) test database, so a
     whole run would use it up; tests about the limit set their own."""

@@ -368,4 +368,5 @@ async def test_small_jewellery_on_a_board_is_also_described_in_words(client, db,
 
     prompt = fashn.payloads[0].prompt
     assert "Nose ring: thin plain gold hoop nose ring, no chain." in prompt
-    assert "Pink Bridal Lehenga" not in prompt  # clothing is not described, only the small pieces
+    # clothing in words too: its material and cut keep it from drifting or blending
+    assert "Outfit: details of Pink Bridal Lehenga." in prompt and "exactly 2 products" in prompt
