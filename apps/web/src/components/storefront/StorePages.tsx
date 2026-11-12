@@ -14,13 +14,9 @@ import type { PublicStore, StoreProduct } from "@/lib/api/types";
 import { useCart } from "./useCart";
 import { waLink } from "./StoreShell";
 
-/** "Try it on": the product on the shopper's own photo, on TryOnU. */
+/** "Try it on": picks the product to try on with the others picked (the bar at the bottom opens them on TryOnU). */
 function useTryOn(slug: string) {
-  const router = useRouter();
-  return useMutation({
-    mutationFn: (p: StoreProduct) => storesApi.selectProduct(slug, p.id),
-    onSuccess: ({ product_id }) => router.push(`/try?product=${product_id}`),
-  });
+  return useCart(slug, "try");
 }
 
 function Grid({ store, products }: { store: PublicStore; products: StoreProduct[] }) {
@@ -29,7 +25,6 @@ function Grid({ store, products }: { store: PublicStore; products: StoreProduct[
   const [added, setAdded] = useState<string | null>(null);
   return (
     <>
-      {tryOn.isError && <p role="alert" className="mb-3 text-[14px] text-[#a4553f]">That product can&apos;t be tried on right now.</p>}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         {products.map((p) => (
           <div key={p.id} className="flex flex-col">
@@ -46,8 +41,8 @@ function Grid({ store, products }: { store: PublicStore; products: StoreProduct[
               >
                 {added === p.id ? "Added to cart" : "Add to cart"}
               </Button>
-              <Button size="sm" variant="outline" disabled={tryOn.isPending} onClick={() => tryOn.mutate(p)}>
-                Try it on
+              <Button size="sm" variant={tryOn.has(p.id) ? "primary" : "outline"} onClick={() => tryOn.toggle(p.id)}>
+                {tryOn.has(p.id) ? "Picked to try on" : "Try it on"}
               </Button>
             </div>
           </div>
@@ -214,8 +209,8 @@ export function StoreProductPage({ store, productId }: { store: PublicStore; pro
           >
             Buy now
           </Button>
-          <Button size="md" variant="outline" disabled={tryOn.isPending} onClick={() => tryOn.mutate(p)}>
-            Try it on your photo
+          <Button size="md" variant={tryOn.has(p.id) ? "primary" : "outline"} onClick={() => tryOn.toggle(p.id)}>
+            {tryOn.has(p.id) ? "Picked to try on" : "Try it on your photo"}
           </Button>
           {store.whatsapp && (
             <a

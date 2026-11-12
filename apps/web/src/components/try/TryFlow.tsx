@@ -108,6 +108,8 @@ export function TryFlow() {
   const params = useSearchParams();
   const preselectedProductId = params.get("product");
   const preselectedOutfitId = params.get("outfit");
+  // several products picked on a store's page, tried on together
+  const preselectedProductIds = (params.get("products") ?? "").split(",").filter(Boolean).slice(0, 10);
   const { user, isLoading: sessionLoading } = useSession();
   const qc = useQueryClient();
 
@@ -349,16 +351,35 @@ export function TryFlow() {
   const preselectedProductQuery = useQuery({
     queryKey: ["products", "preselected", preselectedProductId],
     queryFn: () => productsApi.get(preselectedProductId!),
-    enabled: !!preselectedProductId && step === 1 && !product,
+    enabled: !!preselectedProductId && !product,
   });
   useEffect(() => {
     if (preselectedProductQuery.data && !product) setProduct(preselectedProductQuery.data);
   }, [preselectedProductQuery.data, product]);
 
+  // ?products=a,b,c: one look of them all, made once
+  const pickedLook = useQuery({
+    queryKey: ["products", "preselected-many", preselectedProductIds.join(",")],
+    queryFn: async () => {
+      const picked = await Promise.all(preselectedProductIds.map((id) => productsApi.get(id)));
+      if (picked.length === 1) return { product: picked[0], outfit: null };
+      const look = await outfitsApi.create({ items: picked.map((p) => ({ product_id: p.id, slot: "other" as OutfitSlot })) });
+      return { product: null, outfit: look };
+    },
+    enabled: preselectedProductIds.length > 0 && !!user,
+    staleTime: Infinity,
+    retry: false,
+  });
+  useEffect(() => {
+    if (!pickedLook.data || product || outfit) return;
+    if (pickedLook.data.outfit) setOutfit(pickedLook.data.outfit);
+    else setProduct(pickedLook.data.product);
+  }, [pickedLook.data, product, outfit]);
+
   const preselectedOutfitQuery = useQuery({
     queryKey: ["outfits", "preselected", preselectedOutfitId],
     queryFn: () => outfitsApi.get(preselectedOutfitId!),
-    enabled: !!preselectedOutfitId && step === 1 && !outfit,
+    enabled: !!preselectedOutfitId && !outfit,
   });
   useEffect(() => {
     if (preselectedOutfitQuery.data && !outfit) {
@@ -534,7 +555,7 @@ export function TryFlow() {
     resumed.current = true;
     let ids = resumeJobId ? [resumeJobId] : [];
     // a product or look opened on purpose comes first
-    if (ids.length === 0 && !preselectedProductId && !preselectedOutfitId) {
+    if (ids.length === 0 && !preselectedProductId && !preselectedOutfitId && preselectedProductIds.length === 0) {
       try {
         const saved = JSON.parse(localStorage.getItem(RUNNING_KEY) || "null") as { ids: string[]; at: number; user: string } | null;
         if (saved && saved.user === user.id && Date.now() - saved.at < RESUME_HOURS * 3_600_000) ids = saved.ids;
@@ -666,6 +687,27 @@ export function TryFlow() {
               try-on. Nothing is shared with retailers.
             </span>
           </p>
+
+          {(outfit || product) && (
+            <div className="mt-4 rounded-[20px] border border-sage/40 bg-sage-tint/40 p-4">
+              <p className="text-[15.5px] font-semibold text-ink">
+                You&apos;re trying on {outfit ? `these ${outfit.items.length} products` : "this product"}
+              </p>
+              <div className="mt-2 flex gap-2 overflow-x-auto">
+                {(outfit ? outfit.items.map((it) => it.product) : [product!]).map((p) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={p.id}
+                    src={resolveMediaUrl(p.images[0]?.url)}
+                    alt={p.name}
+                    title={p.name}
+                    className="h-20 w-16 shrink-0 rounded-xl border border-line bg-white object-contain"
+                  />
+                ))}
+              </div>
+              <p className="mt-2 text-[14px] text-muted">Add your photo, then press Continue to see them on you.</p>
+            </div>
+          )}
 
           <div className="mt-5 lg:mt-8 lg:rounded-[26px] lg:border lg:border-line lg:bg-surface lg:p-8">
             <PhotoUploader
