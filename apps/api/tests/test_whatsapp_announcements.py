@@ -45,7 +45,7 @@ async def test_shoppers_order_from_a_local_store_on_whatsapp(client, db):  # noq
     link = urlparse(go.headers["location"])
     assert link.netloc == "wa.me" and link.path == "/923001234567"
     message = parse_qs(link.query)["text"][0]
-    assert "Lahore Couture" in message and "Pink Bridal Lehenga" in message and f"/stores/{store['slug']}" in message
+    assert "Lahore Couture" in message and "Pink Bridal Lehenga" in message and f"/{store['slug']})" in message
     assert (await client.get("/api/v1/stores/me/stats")).json()["clicks"] == 1  # counted like a shop click
 
     # no WhatsApp: no button, and the link falls back to the store's own page

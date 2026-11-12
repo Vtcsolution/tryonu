@@ -224,7 +224,7 @@ export function ChallengeBanner({ challenge, onJoin }: { challenge: Challenge; o
           {challenge.sponsor && (
             <p className="mt-1.5 text-[13.5px] text-muted">
               Sponsored by{" "}
-              <Link href={`/stores/${challenge.sponsor.slug}`} className="font-semibold text-ink hover:underline">
+              <Link href={`/${challenge.sponsor.slug}`} className="font-semibold text-ink hover:underline">
                 {challenge.sponsor.name}
               </Link>
             </p>

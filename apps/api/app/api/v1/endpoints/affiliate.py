@@ -147,7 +147,7 @@ async def order_on_whatsapp(
         f"Hi {store.name}, I'd like to order: {product.name} "
         f"({price_text(product.price_cents, product.currency)}).\n"
         f"{product.product_url}\n"
-        f"(I found it on TryOnU: {site}/stores/{store.slug})"
+        f"(I found it on TryOnU: {site}/{store.slug})"
     )
     return RedirectResponse(whatsapp.chat_link(store.whatsapp or "", message), status_code=status.HTTP_302_FOUND)
 

@@ -63,7 +63,7 @@ export function ChallengePage({ id }: { id: string }) {
             {ch.sponsor && (
               <>
                 {" "}· Sponsored by{" "}
-                <Link href={`/stores/${ch.sponsor.slug}`} className="font-semibold text-ink hover:underline">
+                <Link href={`/${ch.sponsor.slug}`} className="font-semibold text-ink hover:underline">
                   {ch.sponsor.name}
                 </Link>
               </>

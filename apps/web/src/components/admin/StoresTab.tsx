@@ -327,7 +327,7 @@ function StoreDetail({ id, onClose }: { id: string; onClose: () => void }) {
         </div>
         <div className="flex gap-1.5">
           {d.live && (
-            <a href={`/stores/${d.slug}`} target="_blank" rel="noopener" className="text-[13.5px] font-medium text-sage-deep hover:underline">
+            <a href={`/${d.slug}`} target="_blank" rel="noopener" className="text-[13.5px] font-medium text-sage-deep hover:underline">
               Public page ↗
             </a>
           )}

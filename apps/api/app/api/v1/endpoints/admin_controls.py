@@ -201,10 +201,10 @@ async def _user_extras(db: DbSession, user_id: str) -> dict:
 
 
 def _plan_line(store, plan_by_code: dict[str, str]) -> str:  # noqa: ANN001
-    """tryonu.app/stores/x · Standard plan until 25 Nov 2026 (or: no active plan)."""
+    """tryonu.app/x · Standard plan until 25 Nov 2026 (or: no active plan)."""
     from app.services.store_service import plan_active
 
-    where = f"tryonu.app/stores/{store.slug}"
+    where = f"tryonu.app/{store.slug}"
     if store.plan_code and store.plan_expires_at and plan_active(store):
         name = plan_by_code.get(store.plan_code, store.plan_code)
         free = ", given free" if store.plan_free else ""

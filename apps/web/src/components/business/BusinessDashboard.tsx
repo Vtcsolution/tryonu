@@ -11,6 +11,7 @@ import { AdminShell, Icon, type NavGroup, type ShellArea } from "@/components/ad
 import { Badge, ErrorNote, SmallButton, errorText, inputClass } from "@/components/admin/ui";
 import { SiteChrome } from "@/components/layout/SiteChrome";
 import { ShopperTryOns } from "@/components/business/ShopperTryOns";
+import { OrdersSection, StoreLink } from "@/components/business/StoreOrders";
 import { CountryPicker } from "@/components/ui/CountryPicker";
 import { Button } from "@/components/ui/Button";
 import { formatPrice } from "@/components/try/shop";
@@ -207,13 +208,14 @@ function OpenStore() {
 
 // ------------------------------------------------------------------ store panel
 
-type Tab = "overview" | "info" | "tryons" | "products" | "import" | "profile" | "plan" | "payments" | "account";
+type Tab = "overview" | "orders" | "info" | "tryons" | "products" | "import" | "profile" | "plan" | "payments" | "account";
 
 const NAV: readonly NavGroup<Tab>[] = [
   {
     group: "My store",
     tabs: [
       { id: "overview", label: "Overview", icon: "overview" },
+      { id: "orders", label: "Orders", icon: "payments" },
       { id: "products", label: "Products", icon: "products" },
       { id: "import", label: "Add from a file", icon: "upload" },
       { id: "tryons", label: "Customer try-ons", icon: "tryons" },
@@ -286,7 +288,7 @@ function StorePanel({ store, user }: { store: Store; user: User }) {
       headerExtra={
         store.live ? (
           <a
-            href={`/stores/${store.slug}`}
+            href={`/${store.slug}`}
             target="_blank"
             rel="noopener"
             className="tu-press hidden h-9 items-center gap-1.5 rounded-full border border-sage/50 px-3.5 text-[13.5px] font-medium text-sage-deep hover:bg-sage-tint/50 sm:inline-flex"
@@ -301,10 +303,12 @@ function StorePanel({ store, user }: { store: Store; user: User }) {
         {tab === "overview" && (
           <>
             <StoreHeader store={store} />
+            <StoreLink store={store} />
             <NextSteps store={store} go={go} />
             <StatsSection />
           </>
         )}
+        {tab === "orders" && <OrdersSection />}
         {tab === "info" && <StoreInfo store={store} email={user.email} go={go} />}
         {tab === "tryons" && <ShopperTryOns store={store} onBuyMore={() => go("plan")} />}
         {tab === "products" && (store.plan_active ? <ProductsSection store={store} /> : <NeedsPlan go={go} what="add products" />)}
@@ -365,7 +369,7 @@ function StoreInfo({ store, email, go }: { store: Store; email: string; go: (tab
     {
       label: "Your store page",
       value: store.live ? (
-        <a href={`/stores/${store.slug}`} target="_blank" rel="noopener" className="font-medium text-sage-deep hover:underline">
+        <a href={`/${store.slug}`} target="_blank" rel="noopener" className="font-medium text-sage-deep hover:underline">
           tryonu.app/stores/{store.slug} ↗
         </a>
       ) : (
@@ -642,7 +646,7 @@ function StoreHeader({ store }: { store: Store }) {
         {status.text}
         {store.status_note ? ` ${store.status_note}` : ""}
         {store.live && (
-          <a href={`/stores/${store.slug}`} target="_blank" rel="noopener" className="ml-2 font-medium text-sage-deep hover:underline">
+          <a href={`/${store.slug}`} target="_blank" rel="noopener" className="ml-2 font-medium text-sage-deep hover:underline">
             View your public store page ↗
           </a>
         )}

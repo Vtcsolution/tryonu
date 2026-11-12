@@ -165,7 +165,7 @@ async def _preview(db: AsyncSession, url: str) -> LinkPreviewOut | None:
         if store is None or not store_service.is_live(store):
             return None
         return LinkPreviewOut(
-            url=f"/stores/{store.slug}",
+            url=f"/{store.slug}",
             kind="store",
             title=store.name,
             subtitle=(store.description or "A store on TryOnU")[:120],

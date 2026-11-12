@@ -49,7 +49,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.7,
     })),
     ...stores.map((s) => ({
-      url: `${SITE}/stores/${encodeURIComponent(s.slug)}`,
+      url: `${SITE}/${encodeURIComponent(s.slug)}`,
       lastModified: s.updated_at ? new Date(s.updated_at) : now,
       changeFrequency: "weekly" as const,
       priority: 0.6,

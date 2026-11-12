@@ -1024,7 +1024,34 @@ export type { Product, TryOnJob, User };
 
 type PlanPurchase = { payment_id: string; status: string; checkout_url: string | null };
 
+export type StoreOrder = {
+  id: string;
+  number: string;
+  customer_name: string;
+  phone: string;
+  email: string | null;
+  address: string;
+  city: string | null;
+  note: string | null;
+  items: { product_id: string; name: string; price_cents: number; qty: number; image: string | null }[];
+  total_cents: number;
+  currency: string;
+  status: "new" | "confirmed" | "shipped" | "delivered" | "cancelled";
+  created_at: string;
+};
 export const stores = {
+  /** a customer's order on a store's own page; the store gets it by email */
+  placeOrder: (
+    slug: string,
+    input: { items: { product_id: string; qty: number }[]; name: string; phone: string; email?: string; address: string; city?: string; note?: string },
+  ) =>
+    apiFetch<{ number: string; total_cents: number; currency: string; whatsapp_url: string | null }>(
+      `/api/v1/stores/public/${encodeURIComponent(slug)}/orders`,
+      { method: "POST", body: input },
+    ),
+  myOrders: (show = "all") => apiFetch<{ items: StoreOrder[]; new: number }>(`/api/v1/stores/me/orders?show=${show}`),
+  updateOrder: (id: string, status: StoreOrder["status"]) =>
+    apiFetch<StoreOrder>(`/api/v1/stores/me/orders/${id}`, { method: "PATCH", body: { status } }),
   plans: () => apiFetch<StorePlan[]>("/api/v1/stores/plans"),
   mine: () => apiFetch<Store>("/api/v1/stores/me"),
   create: (input: { name: string; country: string; description?: string; website_url?: string; contact_email?: string; whatsapp?: string }) =>

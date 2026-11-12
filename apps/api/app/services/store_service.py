@@ -50,8 +50,24 @@ def image_url(entry: str) -> str:
     return entry
 
 
+# The website's own pages: a store's page lives at tryonu.app/<slug>, so a
+# slug may never be one of these (a store called "Try" gets "try-store").
+RESERVED_SLUGS = frozenset(
+    "about account admin affiliate-disclosure ai-clothes-changer ai-outfit-try-on ai-personal-stylist alerts api app "
+    "bridal-dress-virtual-try-on business community contact credits developers earn eastern-wear-virtual-try-on "
+    "eid-outfit-try-on extension faq find-look for-you forgot-password gallery groom-sherwani-virtual-try-on "
+    "how-it-works llms-full-txt llms-txt look looks manifest me media notifications outfits pay photo-policy "
+    "preferences pricing privacy refunds reset-password robots-txt saved sell sign-in sign-up sitemap-xml stores "
+    "stylist team terms try try-on-glasses-watches-jewellery u verify-email version virtual-fitting-room "
+    "virtual-try-on virtual-try-on-api virtual-try-on-app virtual-try-on-for-shopify virtual-try-on-for-woocommerce "
+    "virtual-try-on-pakistan wardrobe opengraph-image twitter-image icon-svg favicon-ico".split()
+)
+
+
 async def unique_slug(db: AsyncSession, name: str) -> str:
     base = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:120] or "store"
+    if base in RESERVED_SLUGS:
+        base = f"{base}-store"
     slug, n = base, 1
     while await db.scalar(select(Store.id).where(Store.slug == slug)):
         n += 1
