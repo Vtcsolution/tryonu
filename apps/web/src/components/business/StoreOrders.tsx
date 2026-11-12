@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Badge, ErrorNote, SmallButton, errorText } from "@/components/admin/ui";
 import { formatPrice } from "@/components/try/shop";
 import { WHATSAPP_GREEN, WhatsAppIcon } from "@/components/whatsapp/WhatsApp";
+import { resolveMediaUrl } from "@/lib/api/client";
 import { stores as storesApi, type StoreOrder } from "@/lib/api/endpoints";
 import type { Store } from "@/lib/api/types";
 
@@ -120,10 +121,23 @@ export function OrdersSection() {
               <Badge tone={TONE[o.status]}>{STEPS.find(([v]) => v === o.status)?.[1]}</Badge>
               <span className="ml-auto text-[13.5px] text-faint">{new Date(o.created_at).toLocaleString()}</span>
             </div>
-            <ul className="mt-2 space-y-0.5 text-[14.5px] text-ink">
+            <ul className="mt-2 space-y-2 text-[14.5px] text-ink">
               {o.items.map((it) => (
-                <li key={it.product_id}>
-                  {it.qty} × {it.name} · {formatPrice(it.price_cents * it.qty, o.currency)}
+                <li key={it.product_id} className="flex items-center gap-3">
+                  {it.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={resolveMediaUrl(it.image)}
+                      alt=""
+                      loading="lazy"
+                      className="h-14 w-14 shrink-0 rounded-lg border border-line bg-white object-contain"
+                    />
+                  ) : (
+                    <span className="h-14 w-14 shrink-0 rounded-lg border border-line bg-paper-2" aria-hidden="true" />
+                  )}
+                  <span className="min-w-0">
+                    {it.qty} × {it.name} · {formatPrice(it.price_cents * it.qty, o.currency)}
+                  </span>
                 </li>
               ))}
             </ul>
