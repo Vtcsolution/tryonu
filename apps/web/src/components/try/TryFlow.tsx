@@ -110,6 +110,8 @@ export function TryFlow() {
   const preselectedOutfitId = params.get("outfit");
   // several products picked on a store's page, tried on together
   const preselectedProductIds = (params.get("products") ?? "").split(",").filter(Boolean).slice(0, 10);
+  // came with products already picked (a store's page, a shared link): always show them
+  const fromLink = !!preselectedProductId || preselectedProductIds.length > 0;
   const { user, isLoading: sessionLoading } = useSession();
   const qc = useQueryClient();
 
@@ -985,7 +987,7 @@ export function TryFlow() {
             </div>
           )}
 
-          {(outfit || (product && (removed.length > 0 || (lastStylistReply?.products.length === 1 && lastStylistReply.products[0].id === product.id)))) && (
+          {(outfit || (product && (fromLink || removed.length > 0 || (lastStylistReply?.products.length === 1 && lastStylistReply.products[0].id === product.id)))) && (
             <div ref={pickRef} className="scroll-mt-24">
               <StyledPicks
                 items={
