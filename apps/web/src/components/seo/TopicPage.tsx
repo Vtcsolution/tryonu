@@ -10,6 +10,8 @@ import { SITE, pageMeta } from "@/lib/seo";
 import { LANDINGS_BY_SLUG } from "@/lib/seoContent";
 import { LookCards } from "@/components/looks/LookCollectionPage";
 import { publishedLooks } from "@/lib/looks";
+import { LiveProducts } from "@/components/seo/LiveProducts";
+import { GUIDES } from "@/lib/guides";
 
 export function topicMetadata(slug: string): Metadata {
   const l = LANDINGS_BY_SLUG[slug];
@@ -101,6 +103,13 @@ export async function TopicPage({ slug }: { slug: string }) {
         </div>
       ))}
 
+      {l.products && (
+        <div className="mt-14">
+          <SectionTitle>{l.products.title}</SectionTitle>
+          <LiveProducts query={l.products.query} limit={l.products.limit} />
+        </div>
+      )}
+
       {looks.length > 0 && (
         <div className="mt-14">
           <SectionTitle>Looks to try on now</SectionTitle>
@@ -132,6 +141,19 @@ export async function TopicPage({ slug }: { slug: string }) {
           More answers in the <Link href="/faq" className="text-sage-deep underline">TryOnU FAQ</Link>.
         </p>
       </div>
+
+      {GUIDES.some((g) => g.landing.slug === l.slug) && (
+        <div className="mt-14">
+          <SectionTitle>Guides</SectionTitle>
+          <div className="flex flex-wrap gap-3">
+            {GUIDES.filter((g) => g.landing.slug === l.slug).map((g) => (
+              <Link key={g.slug} href={`/guides/${g.slug}`} className="rounded-full border border-line-strong px-4 py-2 text-[15px] font-medium text-ink hover:border-ink/40">
+                {g.h1} →
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {related.length > 0 && (
         <div className="mt-14">

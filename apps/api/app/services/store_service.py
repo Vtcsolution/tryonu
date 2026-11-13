@@ -60,7 +60,7 @@ RESERVED_SLUGS = frozenset(
     "preferences pricing privacy refunds reset-password robots-txt saved sell sign-in sign-up sitemap-xml stores "
     "stylist team terms try try-on-glasses-watches-jewellery u verify-email version virtual-fitting-room "
     "virtual-try-on virtual-try-on-api virtual-try-on-app virtual-try-on-for-shopify virtual-try-on-for-woocommerce "
-    "virtual-try-on-pakistan wardrobe try-on-clothes-before-buying wedding-guest-outfit-try-on winter-outfit-try-on virtual-try-on-for-fashion-brands opengraph-image twitter-image icon-svg favicon-ico".split()
+    "virtual-try-on-pakistan wardrobe try-on-clothes-before-buying wedding-guest-outfit-try-on winter-outfit-try-on virtual-try-on-for-fashion-brands christmas-party-outfit-try-on modest-fashion-virtual-try-on guides opengraph-image twitter-image icon-svg favicon-ico".split()
 )
 
 
