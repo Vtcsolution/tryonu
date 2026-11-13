@@ -181,6 +181,16 @@ def create_app() -> FastAPI:
         return response
 
     @app.middleware("http")
+    async def not_for_search(request: Request, call_next):  # noqa: ANN202
+        """api.tryonu.app is not a website: its shop links (affiliate/go
+        redirects) and JSON were showing up in Google as pages. Pictures stay
+        findable (Google Images, product images in the sitemap)."""
+        response = await call_next(request)
+        if not response.headers.get("content-type", "").startswith("image/"):
+            response.headers["X-Robots-Tag"] = "noindex, nofollow"
+        return response
+
+    @app.middleware("http")
     async def sync_runtime_settings(request: Request, call_next):  # noqa: ANN202
         # throttled to one DB check per REFRESH_SECONDS per process, so a
         # key saved from the admin panel reaches every worker without a restart
