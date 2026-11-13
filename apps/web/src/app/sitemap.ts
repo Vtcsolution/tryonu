@@ -3,6 +3,8 @@ import { serverFetch } from "@/lib/api/server";
 import { resolveMediaUrl } from "@/lib/api/client";
 import { SITE } from "@/lib/seo";
 import { LANDINGS } from "@/lib/seoContent";
+import { LOOK_COLLECTIONS, MIN_COLLECTION, collectionLooks, lookPath } from "@/lib/looks";
+import type { ReadyLook } from "@/lib/api/endpoints";
 import { loadStore } from "@/lib/storefront";
 
 export const revalidate = 3600;
@@ -20,11 +22,8 @@ const PAGES: { path: string; priority: number; changeFrequency: MetadataRoute.Si
   { path: "/app", priority: 0.6, changeFrequency: "yearly" },
   { path: "/about", priority: 0.6, changeFrequency: "monthly" },
   { path: "/contact", priority: 0.5, changeFrequency: "yearly" },
-  { path: "/sign-up", priority: 0.5, changeFrequency: "yearly" },
-  { path: "/business/sign-up", priority: 0.5, changeFrequency: "yearly" },
   { path: "/developers", priority: 0.8, changeFrequency: "monthly" },
   { path: "/developers/docs", priority: 0.7, changeFrequency: "monthly" },
-  { path: "/developers/sign-up", priority: 0.5, changeFrequency: "yearly" },
   { path: "/privacy", priority: 0.3, changeFrequency: "yearly" },
   { path: "/terms", priority: 0.3, changeFrequency: "yearly" },
   { path: "/refunds", priority: 0.3, changeFrequency: "yearly" },
@@ -33,35 +32,38 @@ const PAGES: { path: string; priority: number; changeFrequency: MetadataRoute.Si
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const now = new Date();
   const stores = (await serverFetch<{ slug: string; updated_at: string | null }[]>("/api/v1/stores/public", { revalidateSeconds: 3600 })) ?? [];
-  const looks = (await serverFetch<{ id: string }[]>("/api/v1/looks", { revalidateSeconds: 3600 })) ?? [];
+  const looks = (await serverFetch<ReadyLook[]>("/api/v1/looks?limit=96", { revalidateSeconds: 3600 })) ?? [];
   const storePages = (await Promise.all(stores.slice(0, 200).map((s) => loadStore(s.slug)))).filter((s) => s !== null);
   return [
-    ...PAGES.map((p) => ({ url: `${SITE}${p.path === "/" ? "" : p.path}`, lastModified: now, changeFrequency: p.changeFrequency, priority: p.priority })),
+    ...PAGES.map((p) => ({ url: `${SITE}${p.path === "/" ? "" : p.path}`, changeFrequency: p.changeFrequency, priority: p.priority })),
     ...LANDINGS.map((l) => ({
       url: `${SITE}/${l.slug}`,
-      lastModified: now,
       changeFrequency: "monthly" as const,
       priority: l.audience === "shopper" ? 0.9 : 0.7,
     })),
+    ...LOOK_COLLECTIONS.filter((c) => collectionLooks(c, looks).length >= MIN_COLLECTION).map((c) => ({
+      url: `${SITE}/looks/${c.slug}`,
+      changeFrequency: "weekly" as const,
+      priority: 0.8,
+    })),
     ...looks.map((l) => ({
-      url: `${SITE}/looks/${l.id}`,
-      lastModified: now,
+      url: `${SITE}${lookPath(l)}`,
+      ...(l.created_at ? { lastModified: new Date(l.created_at) } : {}),
       changeFrequency: "weekly" as const,
       priority: 0.7,
+      images: [l.card_url],
     })),
     ...stores.map((s) => ({
       url: `${SITE}/${encodeURIComponent(s.slug)}`,
-      lastModified: s.updated_at ? new Date(s.updated_at) : now,
+      ...(s.updated_at ? { lastModified: new Date(s.updated_at) } : {}),
       changeFrequency: "weekly" as const,
       priority: 0.6,
     })),
     ...storePages.flatMap((s) => [
-      { url: `${SITE}/${s.slug}/products`, lastModified: now, changeFrequency: "weekly" as const, priority: 0.5 },
+      { url: `${SITE}/${s.slug}/products`, changeFrequency: "weekly" as const, priority: 0.5 },
       ...s.products.map((p) => ({
         url: `${SITE}/${s.slug}/products/${p.id}`,
-        lastModified: now,
         changeFrequency: "weekly" as const,
         priority: 0.5,
         images: p.images.slice(0, 1).map((i) => resolveMediaUrl(i)),

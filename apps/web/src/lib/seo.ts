@@ -53,12 +53,15 @@ export function pageMeta({
   path,
   keywords = [],
   image,
+  noindex = false,
 }: {
   title: string;
   description: string;
   path: string;
   keywords?: string[];
   image?: string;
+  /** a form page: links followed, the page itself kept out of search results */
+  noindex?: boolean;
 }): Metadata {
   const url = `${SITE}${path === "/" ? "" : path}`;
   // a page's own openGraph replaces the site's, so the site card is named here
@@ -70,6 +73,7 @@ export function pageMeta({
     description,
     keywords: [...keywords, ...CORE_KEYWORDS].slice(0, 20),
     alternates: { canonical: path },
+    ...(noindex ? { robots: { index: false, follow: true } } : {}),
     openGraph: { type: "website", url, title: full, description, siteName: SITE_NAME, images },
     twitter: { card: "summary_large_image", title: full, description, images: [images[0].url] },
   };

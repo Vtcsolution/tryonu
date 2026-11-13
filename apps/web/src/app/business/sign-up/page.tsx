@@ -7,6 +7,7 @@ export const metadata = pageMeta({
   description:
     "Create your store on TryOnU in minutes: add your products, choose a plan and let shoppers near you try your products on before they buy.",
   path: "/business/sign-up",
+  noindex: true,
   keywords: ["open online clothing store", "sell on TryOnU"],
 });
 
