@@ -173,5 +173,6 @@ async def test_the_shop_can_ask_what_a_try_on_costs_without_an_account(client, m
 
     monkeypatch.setattr(get_settings(), "TRYON_CREDIT_COST", 10)
     monkeypatch.setattr(get_settings(), "OUTFIT_TRYON_CREDIT_COST", 10)
+    monkeypatch.setattr(get_settings(), "SIGNUP_FREE_CREDITS", 10)
     resp = await client.get("/api/v1/credits/pricing")
-    assert resp.status_code == 200 and resp.json() == {"tryon_cost": 10, "outfit_tryon_cost": 10}
+    assert resp.status_code == 200 and resp.json() == {"tryon_cost": 10, "outfit_tryon_cost": 10, "signup_free_credits": 10}

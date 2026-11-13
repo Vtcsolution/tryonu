@@ -22,7 +22,8 @@ from app.schemas.user import (
     UserOut,
     VerifyEmailRequest,
 )
-from app.services import auth_service, google_oauth
+from app.services import auth_service, google_oauth, welcome_credits
+from app.services.analytics_service import client_ip
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 settings = get_settings()
@@ -36,7 +37,13 @@ settings = get_settings()
 )
 async def register(payload: RegisterRequest, request: Request, response: Response, db: DbSession):
     user = await auth_service.register_user(
-        db, email=payload.email.lower(), password=payload.password, full_name=payload.full_name, next_path=payload.next
+        db,
+        email=payload.email.lower(),
+        password=payload.password,
+        full_name=payload.full_name,
+        next_path=payload.next,
+        ip=client_ip(request),
+        device=request.headers.get("x-tryonu-device"),
     )
     if payload.country:
         from app.models.preference import UserPreference
@@ -155,8 +162,12 @@ async def change_password(
     response_model=Message,
     dependencies=[Depends(rate_limiter("auth_verify_email", limit=10, window_seconds=3600))],
 )
-async def verify_email(payload: VerifyEmailRequest, db: DbSession):
-    await auth_service.verify_email(db, token=payload.token)
+async def verify_email(payload: VerifyEmailRequest, request: Request, db: DbSession):
+    _, given = await auth_service.verify_email(
+        db, token=payload.token, ip=client_ip(request), device=request.headers.get("x-tryonu-device")
+    )
+    if given:
+        return Message(detail=f"Email verified. {given} free credits are in your account: your first outfit is on us!")
     return Message(detail="Email verified. Thank you!")
 
 
@@ -187,7 +198,7 @@ async def google_enabled() -> dict[str, bool]:
 
 
 @router.get("/google/login")
-async def google_login(next: str | None = None):  # noqa: A002 - the query parameter's name
+async def google_login(next: str | None = None, device: str | None = None):  # noqa: A002 - the query parameter's name
     import secrets
 
     state = secrets.token_urlsafe(24)
@@ -197,7 +208,8 @@ async def google_login(next: str | None = None):  # noqa: A002 - the query param
     # someone else started can't be completed in this browser (login CSRF)
     redirect.set_cookie(
         _OAUTH_COOKIE,
-        f"{state}|{_safe_next(next)}",
+        # the browser's device id rides along for the welcome credits (welcome_credits.py)
+        f"{state}|{_safe_next(next)}|{welcome_credits.clean_device(device) or ''}",
         max_age=600,
         httponly=True,
         secure=settings.COOKIE_SECURE,
@@ -209,12 +221,14 @@ async def google_login(next: str | None = None):  # noqa: A002 - the query param
 
 @router.get("/google/callback")
 async def google_callback(
+    request: Request,
     db: DbSession,
     code: str | None = None,
     state: str | None = None,
     oauth_state: str | None = Cookie(default=None),
 ):
-    expected, _, next_path = (oauth_state or "").partition("|")
+    expected, _, rest = (oauth_state or "").partition("|")
+    next_path, _, device = rest.partition("|")
     if not code or not state or not expected or state != expected:
         failed = RedirectResponse(site_url("/sign-in?error=google"))
         failed.delete_cookie(_OAUTH_COOKIE, path="/api/v1/auth/google")
@@ -227,6 +241,8 @@ async def google_callback(
         email=profile.email.lower(),
         full_name=profile.name,
         avatar_url=profile.picture,
+        ip=client_ip(request),
+        device=device or None,
     )
     if user.totp_enabled:
         # Google can't ask for the code: these accounts sign in with password and code

@@ -166,7 +166,11 @@ SPECS: tuple[SettingSpec, ...] = (
                 help="The most the site sends in a day, group emails and the daily email together. "
                 "Keep it under your mailbox plan's daily limit."),
     # --- credits ---
-    SettingSpec("SIGNUP_FREE_CREDITS", "Free credits on signup", "credits", "int", min_value=0),
+    SettingSpec("SIGNUP_FREE_CREDITS", "Free credits on signup", "credits", "int", min_value=0,
+                help="Given once per person when they confirm their email (Google accounts at once). "
+                "Not again for the same Gmail with dots or +tags, the same browser, or a throwaway mailbox. 0 turns it off."),
+    SettingSpec("WELCOME_MAX_PER_IP", "Free sign-up credits per internet address", "credits", "int", min_value=1,
+                help="How many new accounts on one internet address (a home, an office) get the free credits in 30 days."),
     SettingSpec("TRYON_CREDIT_COST", "Single-item try-on cost", "credits", "int", min_value=1),
     SettingSpec("OUTFIT_TRYON_CREDIT_COST", "Outfit try-on cost", "credits", "int", min_value=1),
     SettingSpec("STORE_FASHN_CREDITS_PER_TRYON", "FASHN credits per try-on", "credits", "int",

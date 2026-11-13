@@ -8,6 +8,22 @@
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://localhost:8000";
 
+/** A random id this browser keeps, so free welcome credits go to a person
+ * once, not to every new email they make (the API's welcome_credits.py). */
+export function deviceId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    let id = localStorage.getItem("tu-device");
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem("tu-device", id);
+    }
+    return id;
+  } catch {
+    return null;
+  }
+}
+
 export class ApiError extends Error {
   status: number;
   detail: string;
@@ -59,6 +75,8 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
 
   const headers: Record<string, string> = {};
   if (!isFormData && body !== undefined) headers["Content-Type"] = "application/json";
+  const device = deviceId();
+  if (device) headers["X-TryOnU-Device"] = device;
 
   const requestBody = body === undefined ? undefined : isFormData ? (body as FormData) : JSON.stringify(body);
   const doFetch = () =>

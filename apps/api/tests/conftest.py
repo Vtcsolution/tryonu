@@ -25,8 +25,11 @@ os.environ["VIRTUAL_TRYON_PROVIDER"] = "mock"
 os.environ["LLM_PROVIDER"] = "mock"
 os.environ["PAYMENT_PROVIDER"] = "mock"
 # the suite was written with a funded signup and these prices; production
-# defaults are no free credits and 10 per try-on (app/core/config.py)
+# gives 10 once the email is confirmed and charges 10 per try-on (app/core/config.py)
 os.environ["SIGNUP_FREE_CREDITS"] = "100"
+os.environ["WELCOME_REQUIRE_VERIFIED"] = "false"
+# every test signs up from the same test address
+os.environ["WELCOME_MAX_PER_IP"] = "1000000"
 # the guard tests check manual approvals; the automatic daily allowance has its own tests
 os.environ["SHOP_DAILY_FASHN_CREDITS"] = "0"
 os.environ["TRYON_CREDIT_COST"] = "5"

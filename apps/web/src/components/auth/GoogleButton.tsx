@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { API_BASE_URL } from "@/lib/api/client";
+import { API_BASE_URL, deviceId } from "@/lib/api/client";
 import { auth } from "@/lib/api/endpoints";
 
 /** "Continue with Google", back to `next` afterwards. Hidden while Google isn't set up on the server. */
@@ -20,6 +20,13 @@ export function GoogleButton({ next, divider = false }: { next?: string; divider
     )}
     <a
       href={href}
+      onClick={(e) => {
+        // the browser's id goes along, for the one-per-person welcome credits
+        const device = deviceId();
+        if (!device) return;
+        e.preventDefault();
+        window.location.href = `${href}${href.includes("?") ? "&" : "?"}device=${encodeURIComponent(device)}`;
+      }}
       className="group inline-flex h-11 w-full transform-gpu items-center justify-center gap-2.5 rounded-full border border-line-strong bg-surface text-[15px] font-medium text-ink transition-[transform,border-color] duration-200 hover:-translate-y-0.5 hover:border-ink/30"
     >
       <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">

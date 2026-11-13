@@ -94,8 +94,13 @@ class Settings(BaseSettings):
     ]
 
     # --- credits ---
-    # no free credits: new accounts start at 0 and buy a credit plan (admins can change it)
-    SIGNUP_FREE_CREDITS: int = 0
+    # one free outfit for a new account, once per person (app/services/welcome_credits.py)
+    SIGNUP_FREE_CREDITS: int = 10
+    # given when the email is confirmed (Google accounts at once), not at sign-up
+    WELCOME_REQUIRE_VERIFIED: bool = True
+    # free credits for at most this many new accounts per internet address in the window
+    WELCOME_MAX_PER_IP: int = 2
+    WELCOME_IP_WINDOW_DAYS: int = 30
     TRYON_CREDIT_COST: int = 10
     OUTFIT_TRYON_CREDIT_COST: int = 10
     # what one try-on costs us, for pricing store plans with a margin:
