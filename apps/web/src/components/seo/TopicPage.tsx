@@ -8,6 +8,10 @@ import { JsonLd, breadcrumbJsonLd, faqJsonLd } from "@/components/seo/JsonLd";
 import { Button } from "@/components/ui/Button";
 import { SITE, pageMeta } from "@/lib/seo";
 import { LANDINGS_BY_SLUG } from "@/lib/seoContent";
+import { LookCards } from "@/components/looks/LookCollectionPage";
+import { publishedLooks } from "@/lib/looks";
+import { LiveProducts } from "@/components/seo/LiveProducts";
+import { GUIDES } from "@/lib/guides";
 
 export function topicMetadata(slug: string): Metadata {
   const l = LANDINGS_BY_SLUG[slug];
@@ -28,10 +32,15 @@ const SHOWCASE: Record<string, LookId> = {
   "virtual-try-on-pakistan": "men",
 };
 
-export function TopicPage({ slug }: { slug: string }) {
+export async function TopicPage({ slug }: { slug: string }) {
   const l = LANDINGS_BY_SLUG[slug];
   if (!l) notFound();
   const related = l.related.map((s) => LANDINGS_BY_SLUG[s]).filter(Boolean);
+  const looks = l.looks
+    ? (await publishedLooks())
+        .filter((x) => (!l.looks!.season || x.season === l.looks!.season) && (!l.looks!.audience || x.audience === l.looks!.audience))
+        .slice(0, l.looks.limit)
+    : [];
   const structured: Record<string, unknown>[] = [
     faqJsonLd(l.faqs),
     breadcrumbJsonLd([
@@ -85,6 +94,37 @@ export function TopicPage({ slug }: { slug: string }) {
         <Steps steps={l.steps} />
       </div>
 
+      {l.sections?.map((s) => (
+        <div key={s.h2} className="mt-14 max-w-3xl">
+          <SectionTitle>{s.h2}</SectionTitle>
+          {s.paragraphs.map((p) => (
+            <p key={p} className="mt-3 text-[17px] leading-relaxed text-ink-soft">{p}</p>
+          ))}
+        </div>
+      ))}
+
+      {l.products && (
+        <div className="mt-14">
+          <SectionTitle>{l.products.title}</SectionTitle>
+          <LiveProducts query={l.products.query} limit={l.products.limit} />
+        </div>
+      )}
+
+      {looks.length > 0 && (
+        <div className="mt-14">
+          <SectionTitle>Looks to try on now</SectionTitle>
+          <LookCards looks={looks} />
+        </div>
+      )}
+
+      {l.audience === "shopper" && (
+        <p className="mt-10 max-w-3xl text-[15px] text-muted">
+          Your photo is used only to make your own try-ons and you can delete it at any time. Read the{" "}
+          <Link href="/photo-policy" className="text-sage-deep underline">photo policy</Link> and the{" "}
+          <Link href="/privacy" className="text-sage-deep underline">privacy policy</Link>.
+        </p>
+      )}
+
       <div className="mt-14 max-w-3xl">
         <SectionTitle>Questions</SectionTitle>
         <div className="divide-y divide-line rounded-[22px] border border-line bg-surface">
@@ -101,6 +141,19 @@ export function TopicPage({ slug }: { slug: string }) {
           More answers in the <Link href="/faq" className="text-sage-deep underline">TryOnU FAQ</Link>.
         </p>
       </div>
+
+      {GUIDES.some((g) => g.landing.slug === l.slug) && (
+        <div className="mt-14">
+          <SectionTitle>Guides</SectionTitle>
+          <div className="flex flex-wrap gap-3">
+            {GUIDES.filter((g) => g.landing.slug === l.slug).map((g) => (
+              <Link key={g.slug} href={`/guides/${g.slug}`} className="rounded-full border border-line-strong px-4 py-2 text-[15px] font-medium text-ink hover:border-ink/40">
+                {g.h1} →
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {related.length > 0 && (
         <div className="mt-14">

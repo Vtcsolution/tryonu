@@ -8,6 +8,7 @@ export const metadata = pageMeta({
     "Create a free TryOnU account to try real clothes, shoes and accessories on your own photo with AI, save looks and shop the original stores.",
   path: "/sign-up",
   keywords: [],
+  noindex: true,
 });
 
 export default function SignUpPage() {

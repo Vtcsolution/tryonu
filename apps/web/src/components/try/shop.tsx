@@ -31,7 +31,8 @@ export function retailerFromImage(url?: string | null): string | null {
 /** "$54.99", "€389.00": the currency's own symbol where the browser knows it. */
 export function formatPrice(cents: number, currency: string): string {
   try {
-    return new Intl.NumberFormat("en-US", { style: "currency", currency: currency.toUpperCase() }).format(cents / 100);
+    // en-GB writes US dollars as "US$", so a UK, Canadian or Gulf shopper isn't left guessing
+    return new Intl.NumberFormat("en-GB", { style: "currency", currency: currency.toUpperCase() }).format(cents / 100);
   } catch {
     return `${(cents / 100).toFixed(2)} ${currency.toUpperCase()}`;
   }

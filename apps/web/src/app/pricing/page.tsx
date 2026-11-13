@@ -3,24 +3,27 @@ import { ShowcaseSection } from "@/components/marketing/ShowcaseLooks";
 import { FirstOutfitOffer } from "@/components/credits/FirstOutfitOffer";
 import { ContentPage, InfoCard, SectionTitle, cardGrid } from "@/components/content/ContentPage";
 import { formatPrice } from "@/components/try/shop";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { appJsonLd } from "@/components/seo/appJsonLd";
 import { Button } from "@/components/ui/Button";
 import { serverFetch } from "@/lib/api/server";
 import type { CreditPackage, StorePlan } from "@/lib/api/types";
 import { pageMeta } from "@/lib/seo";
 
 export const metadata = pageMeta({
-  title: "TryOnU Pricing: Credit Packs, Store Plans & API",
+  title: "TryOnU Pricing: First Outfit Free, Packs From $1",
   description:
-    "Simple pay-as-you-go pricing: one-time credit packs for try-ons (no subscription), plans for shops, prepaid credits for the try-on API. Failed try-ons are free.",
+    "Your first outfit free, then one-time credit packs from $1 (no subscription), store plans and prepaid API credits. Failed try-ons are free.",
   path: "/pricing",
   keywords: ["virtual try on price", "TryOnU price", "try on credits"],
 });
 
 export default async function PricingPage() {
-  const [packs, cost, plans] = await Promise.all([
+  const [packs, cost, plans, app] = await Promise.all([
     serverFetch<CreditPackage[]>("/api/v1/credits/packages", { revalidateSeconds: 300 }),
     serverFetch<{ tryon_cost: number; outfit_tryon_cost: number }>("/api/v1/credits/pricing", { revalidateSeconds: 300 }),
     serverFetch<StorePlan[]>("/api/v1/stores/plans", { revalidateSeconds: 300 }),
+    appJsonLd(),
   ]);
   const sortedPacks = [...(packs ?? [])].sort((a, b) => a.price_cents - b.price_cents);
   const perLook = cost?.outfit_tryon_cost ?? null;
@@ -28,9 +31,10 @@ export default async function PricingPage() {
   return (
     <ContentPage
       kicker="Pricing"
-      title="Simple, pay-as-you-go pricing"
+      title="TryOnU pricing: simple and pay-as-you-go"
       intro="No subscription. Buy credits when you need them and use them for try-ons. If a try-on fails, its credits come back automatically."
     >
+      <JsonLd data={app} />
       <SectionTitle
         sub={
           cost

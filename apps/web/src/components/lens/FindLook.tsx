@@ -146,7 +146,7 @@ function Intro({ signedIn }: { signedIn: boolean }) {
     <div className="mx-auto max-w-2xl text-center">
       <p className="text-[13px] font-semibold uppercase tracking-[0.16em] text-sage-deep max-lg:hidden">Find the look</p>
       <h1 className="font-display text-[26px] leading-[1.1] text-ink lg:mt-2 lg:text-[clamp(32px,5vw,52px)]">
-        Saw an outfit you love? <em>Find it.</em>
+        Find an outfit from a picture. <em>Try it on.</em>
       </h1>
       <p className="mt-2 text-[15px] leading-relaxed text-ink-soft lg:mt-4 lg:text-[17.5px]">
         Upload a photo or a screenshot. TryOnU finds every item in it (clothes, shoes, bags, jewellery) and shows you the same products, or

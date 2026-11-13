@@ -171,7 +171,7 @@ export function TryFlow() {
   // The browse-grid is a live search against real retailer APIs, not our
   // own catalog — nothing here is a locally stored product until a user
   // actually picks one (see selectLive below).
-  const [browseQuery, setBrowseQuery] = useState("");
+  const [browseQuery, setBrowseQuery] = useState(() => params.get("q")?.slice(0, 100) ?? "");
   // searched once the shopper stops typing, not on every letter
   const [searchedQuery, setSearchedQuery] = useState("");
   useEffect(() => {

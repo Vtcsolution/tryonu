@@ -1,6 +1,7 @@
 import { serverFetch } from "@/lib/api/server";
 import { NOT_A_SHOP, PLAIN_STEPS, PRODUCT_SOURCES } from "@/lib/howItWorks";
 import { SITE, SITE_DEFINITION, SOCIAL_LINKS } from "@/lib/seo";
+import { GUIDES } from "@/lib/guides";
 import { ALL_FAQ, FAQ_GROUPS, LANDINGS } from "@/lib/seoContent";
 
 type Pack = { name: string; credits: number; price_cents: number; currency: string };
@@ -63,6 +64,10 @@ export async function llmsText(full: boolean): Promise<string> {
     "## Topics",
     "",
     ...LANDINGS.map((l) => `- [${l.title}](${SITE}/${l.slug}): ${l.description}`),
+    "",
+    "## Guides",
+    "",
+    ...GUIDES.map((g) => `- [${g.h1}](${SITE}/guides/${g.slug}): ${g.description}`),
     "",
     "## Prices (live)",
     "",

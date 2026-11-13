@@ -19,7 +19,7 @@ export const FAQ_GROUPS: { title: string; items: QA[] }[] = [
       },
       {
         q: "What is TryOnU?",
-        a: "TryOnU (tryonu.app) is an AI virtual try-on and fashion shopping website. You upload a photo of yourself once, try real clothes, shoes and accessories from real online stores on your own photo, and then buy each piece from the original store.",
+        a: "TryOnU (tryonu.app) is an AI virtual try-on and fashion shopping website (people also write it Try On U or TryOn U). You upload a photo of yourself once, try real clothes, shoes and accessories from real online stores on your own photo, and then buy each piece from the original store.",
       },
       {
         q: "How can I see clothes on myself before buying online?",
@@ -116,6 +116,7 @@ export const ALL_FAQ: QA[] = FAQ_GROUPS.flatMap((g) => g.items);
 
 /** The few questions shown on the home page. */
 export const HOME_FAQ: QA[] = [
+  ALL_FAQ.find((x) => x.q.startsWith("What is TryOnU"))!,
   ALL_FAQ.find((x) => x.q.startsWith("How does TryOnU work"))!,
   ALL_FAQ.find((x) => x.q.startsWith("Where do the products"))!,
   ALL_FAQ.find((x) => x.q.startsWith("Where can I buy"))!,
@@ -144,6 +145,12 @@ export type Landing = {
   cta: { label: string; href: string };
   keywords: string[];
   related: string[];
+  /** longer sections after the steps, each with its own H2 */
+  sections?: { h2: string; paragraphs: string[] }[];
+  /** real ready looks shown on the page */
+  looks?: { season?: string; audience?: "women" | "men" | "kids"; limit: number };
+  /** real products from the live search, shown on the page */
+  products?: { query: string; limit: number; title: string };
 };
 
 const SHOPPER_STEPS = [
@@ -161,11 +168,11 @@ export const LANDINGS: Landing[] = [
   {
     slug: "virtual-try-on",
     audience: "shopper",
-    title: "Virtual Try-On for Clothes Online: See It on You",
+    title: "Free Virtual Try-On for Clothes, Shoes and Bags",
     description:
       "Try real clothes, shoes and accessories on your own photo with AI before you buy. One photo, pick a product, see it on you, then shop the store.",
     kicker: "Virtual try-on",
-    h1: "Virtual try-on for clothes: see any outfit on your own photo",
+    h1: "Virtual try-on for clothes, shoes and bags on your own photo",
     answer:
       "TryOnU is a virtual try-on website: upload one photo of yourself, choose real clothes, shoes or accessories from online stores, and AI shows you wearing them in under a minute. Then buy each piece from the original store.",
     benefits: [
@@ -178,15 +185,31 @@ export const LANDINGS: Landing[] = [
     cta: { label: "Try it on now", href: "/try" },
     keywords: ["virtual try on clothes", "try on clothes online", "virtual try-on website", "AI try on clothes"],
     related: ["ai-outfit-try-on", "virtual-fitting-room", "ai-personal-stylist"],
+    sections: [
+  {
+    "h2": "Is virtual try-on free on TryOnU?",
+    "paragraphs": [
+      "Joining TryOnU is free, and so are searching for products and asking the AI Stylist. Your first complete outfit is free too: confirm your email and the credits for one outfit are in your account, one free outfit per person. After that a try-on uses credits, because every picture is made by an AI model that costs money to run; credit packs start at $4.99, and if a try-on fails its credits come back automatically.",
+      "Some products from shops selling on TryOnU can be tried on for free, paid for by the shop, and you can earn free credits by inviting friends."
+    ]
+  },
+  {
+    "h2": "Clothes, shoes and bags from real shops",
+    "paragraphs": [
+      "Everything you try on is a real product you can buy: coats, dresses, knitwear, jeans and trousers, trainers and boots, handbags, sunglasses, watches and jewellery, from eBay, AliExpress, brand stores and shops that sell on TryOnU. Each item shows its shop and price, and the Shop button opens the store's own page.",
+      "You can also try a product from any other website: in the studio press + and Upload your own item, then add a clear photo of the product."
+    ]
+  }
+],
   },
   {
     slug: "ai-outfit-try-on",
     audience: "shopper",
-    title: "AI Outfit Try-On: Put a Whole Outfit on Your Photo",
+    title: "AI Outfit Try-On: See a Whole Look on You",
     description:
       "Try a complete outfit on yourself with AI: trousers, shirt, shoes, glasses and a watch together in one picture. Real products, each with a link to buy.",
     kicker: "AI outfit try-on",
-    h1: "AI outfit try-on: a complete look on you in one picture",
+    h1: "AI outfit try-on: see a whole look on your own photo",
     answer:
       "With TryOnU you can put a whole outfit on your own photo at once: real products such as trousers, a shirt, shoes, sunglasses and a watch. You see the complete look in one picture, and every piece links to the store that sells it.",
     benefits: [
@@ -199,15 +222,31 @@ export const LANDINGS: Landing[] = [
     cta: { label: "Build an outfit", href: "/try" },
     keywords: ["AI outfit generator from photo", "outfit try on", "try outfit on my photo", "AI outfit maker"],
     related: ["virtual-try-on", "ai-personal-stylist", "try-on-glasses-watches-jewellery"],
+    sections: [
+  {
+    "h2": "Try on outfits on your photo, not just single items",
+    "paragraphs": [
+      "Most try-on tools do one product at a time. TryOnU puts up to five pieces on your photo in one picture, so you see whether the coat goes with the trousers, whether the shoes balance the look, and whether the colours work with your skin tone.",
+      "Start from a ready look, build your own from search results, or let the AI Stylist put an outfit together from a short request. Each piece is a real product with its shop and price."
+    ]
+  },
+  {
+    "h2": "An AI outfit generator from a photo",
+    "paragraphs": [
+      "Seen an outfit you love on Instagram or in a shop window? Upload a photo or screenshot to Find the look and TryOnU finds each piece, or the closest match, in real shops, ready to try on your own photo."
+    ]
+  }
+],
+    looks: { limit: 6 },
   },
   {
     slug: "virtual-fitting-room",
     audience: "shopper",
-    title: "Online Virtual Fitting Room: Try Before You Buy",
+    title: "Online Virtual Fitting Room, From Your Phone",
     description:
       "A virtual fitting room you can use from your phone: try clothes from real online stores on your own photo, compare looks, and buy the one you like.",
     kicker: "Virtual fitting room",
-    h1: "A virtual fitting room on your phone",
+    h1: "An online virtual fitting room on your phone",
     answer:
       "TryOnU works like a fitting room for online shopping: instead of guessing from a model photo, you see the product on your own photo, compare several options side by side, and buy only what you like, from the original store.",
     benefits: [
@@ -224,11 +263,11 @@ export const LANDINGS: Landing[] = [
   {
     slug: "ai-personal-stylist",
     audience: "shopper",
-    title: "AI Personal Stylist That Finds Real Products",
+    title: "Free AI Personal Stylist That Finds Real Clothes",
     description:
       "Tell the AI stylist what you need, for an occasion, a budget or a style, and get real products you can try on your own photo and buy from the original store.",
     kicker: "AI stylist",
-    h1: "An AI personal stylist that picks real products for you",
+    h1: "A free AI personal stylist that finds real clothes",
     answer:
       "TryOnU's AI Stylist turns a simple request, such as \"an outfit for a summer wedding\", into real products from real stores, then puts them on your photo so you can see the look before you buy.",
     benefits: [
@@ -241,6 +280,21 @@ export const LANDINGS: Landing[] = [
     cta: { label: "Ask the AI Stylist", href: "/stylist" },
     keywords: ["AI stylist", "AI personal stylist", "AI fashion assistant", "what should I wear AI"],
     related: ["ai-outfit-try-on", "virtual-try-on", "eastern-wear-virtual-try-on"],
+    sections: [
+  {
+    "h2": "What is free, and what uses credits",
+    "paragraphs": [
+      "Asking the AI Stylist is free: describe what you need in your own words ('smart outfit for a winter wedding in London, budget £200') and it finds real products that match. Putting the outfit on your own photo is a try-on, which uses credits; a new member's first complete outfit is free."
+    ]
+  },
+  {
+    "h2": "An AI stylist app for the UK",
+    "paragraphs": [
+      "The Stylist understands British wording, from jumpers and trainers to waterproofs and smart casual, and you can ask for UK weather, a dress code or a budget. It works in the browser on any phone, and you can add TryOnU to your home screen to use it like an app."
+    ]
+  }
+],
+    looks: { limit: 3 },
   },
   {
     slug: "bridal-dress-virtual-try-on",
@@ -287,11 +341,11 @@ export const LANDINGS: Landing[] = [
   {
     slug: "try-on-glasses-watches-jewellery",
     audience: "shopper",
-    title: "Try On Sunglasses, Watches & Jewellery Online",
+    title: "Try On Glasses, Watches and Jewellery Online",
     description:
       "See sunglasses, glasses, watches, bags and jewellery on your own photo with AI, alone or with a full outfit, then buy from the original store.",
     kicker: "Accessories",
-    h1: "Try on sunglasses, watches and jewellery on your own photo",
+    h1: "Try on glasses, watches and jewellery online, on your photo",
     answer:
       "TryOnU puts accessories on your photo too: sunglasses and glasses, watches, bags and jewellery, on their own or together with clothes and shoes in one look. Each piece links to the store that sells it.",
     benefits: [
@@ -308,15 +362,15 @@ export const LANDINGS: Landing[] = [
   {
     slug: "virtual-try-on-for-shopify",
     audience: "business",
-    title: "Virtual Try-On for Shopify Stores",
+    title: "Virtual Try-On for Shopify Stores (Widget and API)",
     description:
       "Add a \"Try it on\" button to your Shopify product pages in minutes, no app code. Shoppers see your product on their own photo. Pay per try-on.",
     kicker: "For Shopify",
-    h1: "Add virtual try-on to your Shopify store",
+    h1: "Virtual try-on for Shopify stores, with a widget or the API",
     answer:
-      "TryOnU adds a \"Try it on\" button to Shopify product pages with a Custom Liquid block: paste two lines in the theme editor, and shoppers can see your product on their own photo. You pay only for the try-ons used, with prepaid credits.",
+      "TryOnU adds a Try it on button to Shopify product pages with a Custom Liquid block or through the API. There is no TryOnU app in the Shopify App Store yet: you paste two lines in the theme editor, and shoppers can see your product on their own photo. You pay only for the try-ons used, with prepaid credits.",
     benefits: [
-      { title: "No app to build", text: "Online Store → Themes → Customize → Add block → Custom Liquid → paste. Done." },
+      { title: "No Shopify app needed", text: "Online Store → Themes → Customize → Add block → Custom Liquid → paste. Done." },
       { title: "Uses your product photos", text: "Each product's own main image is used automatically." },
       { title: "Safe by design", text: "Your website key only works on your own domain; a failed try-on is free." },
     ],
@@ -327,6 +381,7 @@ export const LANDINGS: Landing[] = [
     ],
     faqs: [
       ALL_FAQ.find((x) => x.q.startsWith("Can I add virtual try-on"))!,
+      { q: "Is there a TryOnU app in the Shopify App Store?", a: "Not yet. Today you add TryOnU to Shopify with the website widget in a Custom Liquid block, or through the try-on API. Both work on any Online Store 2.0 theme." },
       { q: "Does it work with any Shopify theme?", a: "Yes. The button is added with a Custom Liquid block, which every Online Store 2.0 theme supports, and it uses each product's own main photo." },
       { q: "How is it priced?", a: "With prepaid credits: one credit is one try-on, credits never expire, and a failed try-on gives the credit back. See tryonu.app/developers for the packs." },
     ],
@@ -337,11 +392,11 @@ export const LANDINGS: Landing[] = [
   {
     slug: "virtual-try-on-for-woocommerce",
     audience: "business",
-    title: "Virtual Try-On Plugin for WordPress & WooCommerce",
+    title: "Virtual Try-On Plugin for WooCommerce",
     description:
       "Install the TryOnU plugin, paste your website key, and every WooCommerce product gets a \"Try it on\" button. Shoppers see it on their own photo.",
     kicker: "For WooCommerce",
-    h1: "Virtual try-on plugin for WordPress and WooCommerce",
+    h1: "Virtual try-on plugin for WooCommerce and WordPress",
     answer:
       "The TryOnU plugin adds a \"Try it on\" button under Add to cart on every WooCommerce product: install it, paste your website key in Settings, and shoppers can see your product on their own photo before buying. You pay per try-on with prepaid credits.",
     benefits: [
@@ -366,11 +421,11 @@ export const LANDINGS: Landing[] = [
   {
     slug: "virtual-try-on-api",
     audience: "business",
-    title: "Virtual Try-On API for Fashion Apps & Stores",
+    title: "Virtual Try-On API: Packs From $35",
     description:
-      "A simple REST API for AI virtual try-on: send a person photo and a product photo, get back a picture of the person wearing it. Prepaid credits, failed try-ons free.",
+      "A REST API for AI virtual try-on: send a person photo and a product photo, get back the person wearing it. Packs from $35, failed try-ons free.",
     kicker: "Try-on API",
-    h1: "Virtual try-on API: add AI try-on to your app or website",
+    h1: "Virtual try-on API, with credit packs from $35",
     answer:
       "The TryOnU API takes a photo of a person and a photo of a product and returns a picture of that person wearing it, usually in 20 to 60 seconds. It is a simple REST API with code for cURL, JavaScript, Python, PHP and WordPress, paid with prepaid credits.",
     benefits: [
@@ -395,11 +450,11 @@ export const LANDINGS: Landing[] = [
   {
     slug: "ai-clothes-changer",
     audience: "shopper",
-    title: "AI Clothes Changer: Change Clothes on Your Photo",
+    title: "AI Clothes Changer With Real Shop Products",
     description:
       "Change the clothes in your own photo with AI, using real products from real shops. See the new outfit on you, then buy each piece from the shop.",
     kicker: "AI clothes changer",
-    h1: "Change the clothes on your photo with AI, using real products",
+    h1: "An AI clothes changer that uses real shop products",
     answer:
       "TryOnU is an AI clothes changer that uses real products: add one photo of yourself, pick clothes, shoes or jewellery from real shops (or type a look like \"Eid outfit\"), and in about a minute you see yourself wearing them. Unlike photo filters, every piece is a real product you can buy.",
     benefits: [
@@ -416,11 +471,11 @@ export const LANDINGS: Landing[] = [
   {
     slug: "virtual-try-on-app",
     audience: "shopper",
-    title: "Virtual Try-On App for Clothes on Your Phone",
+    title: "TryOnU App: Virtual Try-On on Your Phone",
     description:
       "Try clothes on your own photo from your phone. TryOnU works in any phone browser and can be added to your home screen like an app, no download needed.",
     kicker: "Try-on app",
-    h1: "A virtual try-on app that works on any phone",
+    h1: "The TryOnU app: virtual try-on on your phone",
     answer:
       "TryOnU works on any phone, Android or iPhone, straight from the browser at tryonu.app, and you can add it to your home screen so it opens like an app. Add one photo of yourself, pick real products from real shops, and see them on you in about a minute.",
     benefits: [
@@ -437,11 +492,11 @@ export const LANDINGS: Landing[] = [
   {
     slug: "eid-outfit-try-on",
     audience: "shopper",
-    title: "Eid Outfit Try-On: See Your Eid Dress on You",
+    title: "Eid Outfit Ideas 2027: Try Them On First",
     description:
       "See your Eid dress, shalwar kameez, kurta and jewellery on your own photo before you buy. Type \"Eid outfit\" and TryOnU finds every piece in real shops.",
     kicker: "Eid outfits",
-    h1: "See your Eid outfit on you before you buy",
+    h1: "Eid outfit ideas for 2027: try them on before you buy",
     answer:
       "Type \"Eid outfit\" on TryOnU and it finds a complete look in real shops (shalwar kameez, dupatta, jewellery and shoes for women, or shalwar kameez, waistcoat and chappals for men) and shows it on your own photo in about a minute. Then buy each piece from the shop.",
     benefits: [
@@ -454,6 +509,15 @@ export const LANDINGS: Landing[] = [
     cta: { label: "Try an Eid outfit", href: "/try" },
     keywords: ["Eid outfit", "Eid dress", "Eid outfit ideas", "Eid shalwar kameez", "Eid kurta for men", "Eid dress try on"],
     related: ["eastern-wear-virtual-try-on", "bridal-dress-virtual-try-on", "groom-sherwani-virtual-try-on"],
+    sections: [
+  {
+    "h2": "Eid 2027: plan your outfit early",
+    "paragraphs": [
+      "Ramadan 2027 is expected to begin in early February, and Eid al-Fitr in early March 2027; the exact dates depend on the moon sighting. Shops are busiest in the last week of Ramadan, so trying outfits on your photo early leaves time for delivery and alterations.",
+      "In the UK and the UAE, Eid looks range from embroidered shalwar kameez and anarkalis to abayas, kaftans and modest co-ord sets, with juttis or khussas and simple gold jewellery. Men's looks include kurta and shalwar, or a kurta with a waistcoat."
+    ]
+  }
+],
   },
   {
     slug: "groom-sherwani-virtual-try-on",
@@ -500,11 +564,11 @@ export const LANDINGS: Landing[] = [
   {
     slug: "try-on-clothes-before-buying",
     audience: "shopper",
-    title: "Try On Clothes Before Buying Online: See Them on You",
+    title: "Try On Clothes Before Buying Online, on Your Photo",
     description:
       "See how clothes look on you before you buy online. Upload one photo, pick real products from real stores, and AI shows you wearing them in about a minute.",
     kicker: "Before you buy",
-    h1: "How to see clothes on yourself before buying online",
+    h1: "Try on clothes before buying online, on your own photo",
     answer:
       "To see clothes on yourself before buying online, use a virtual try-on site such as TryOnU: upload one clear photo of you standing, pick a product from a real store, and AI shows you wearing it in about a minute. If you like it, buy it from the store itself.",
     benefits: [
@@ -517,15 +581,31 @@ export const LANDINGS: Landing[] = [
     cta: { label: "Try something on", href: "/try" },
     keywords: ["try on clothes before buying online", "see clothes on me before buying", "how will this look on me", "try clothes on virtually", "virtual try on clothes free"],
     related: ["virtual-try-on", "ai-outfit-try-on", "virtual-fitting-room"],
+    sections: [
+  {
+    "h2": "A try clothes on before you buy app, in your browser",
+    "paragraphs": [
+      "TryOnU works like an app on your phone without a download: open tryonu.app, add it to your home screen, and every try-on, saved look and photo is there next time. On a computer it works the same way.",
+      "People often search for a 'try on me' tool: that is exactly what this is. You add one photo of yourself, and every product you pick is shown on you, not on a model."
+    ]
+  },
+  {
+    "h2": "Now that Amazon's Try Before You Buy has ended",
+    "paragraphs": [
+      "Amazon ended Prime Try Before You Buy on 31 January 2025, so ordering several sizes to try at home and paying only for what you keep is no longer an option there. Seeing the product on your own photo first, then ordering one size from a shop with clear returns, is the closest replacement. Amazon products are not in TryOnU's search yet; that is coming soon."
+    ]
+  }
+],
+    looks: { season: "Winter", limit: 6 },
   },
   {
     slug: "wedding-guest-outfit-try-on",
     audience: "shopper",
-    title: "Wedding Guest Outfit Try-On: See the Look on You",
+    title: "Winter Wedding Guest Outfits to Try On You",
     description:
       "Not sure what to wear to a wedding? Try wedding guest dresses, suits, shoes and accessories on your own photo with AI, then buy from the store.",
     kicker: "Wedding guest",
-    h1: "Wedding guest outfits: try the whole look on you first",
+    h1: "Winter wedding guest outfits to try on before you buy",
     answer:
       "TryOnU lets you try a wedding guest outfit on your own photo before you buy: a dress or suit, shoes, a bag and jewellery together in one picture. Type something like \"summer wedding guest dress, sage green\" or \"navy suit for a wedding\" and the AI Stylist finds real products to try.",
     benefits: [
@@ -538,15 +618,30 @@ export const LANDINGS: Landing[] = [
     cta: { label: "Try a wedding guest look", href: "/try" },
     keywords: ["wedding guest outfit", "wedding guest dresses", "what to wear to a wedding", "wedding guest outfit men", "wedding guest outfit ideas"],
     related: ["ai-outfit-try-on", "ai-personal-stylist", "try-on-glasses-watches-jewellery"],
+    sections: [
+  {
+    "h2": "Winter wedding guest outfits in the UK",
+    "paragraphs": [
+      "A winter wedding means a cold church or a draughty country house, then a warm reception. Women: a midi or maxi dress in velvet, satin or a heavier crepe, with a tailored coat or a faux-fur wrap for the photos, and block heels or boots that cope with wet ground. Men: a wool suit in navy, grey or a deep green, a knitted tie or a roll neck for a less formal day, and leather shoes with a proper sole.",
+      "Rich colours suit winter weddings: burgundy, emerald, navy and chocolate brown. Avoid white and anything close to it, and check the invitation for a dress code before you choose."
+    ]
+  },
+  {
+    "h2": "Try the whole look before the big day",
+    "paragraphs": [
+      "Put the dress or suit, the coat and the shoes on your photo together to see the full outfit as the photographer will. Then order early: winter weddings fall in the busiest shopping weeks, and you want time to exchange a size."
+    ]
+  }
+],
   },
   {
     slug: "winter-outfit-try-on",
     audience: "shopper",
-    title: "Winter Outfit Ideas to Try On Your Own Photo",
+    title: "Winter Outfit Ideas UK 2026: Try Them On You",
     description:
       "Complete winter outfits for women, men and kids from real stores: coats, jackets, knitwear and boots. See each look on your own photo before you buy.",
     kicker: "Winter outfits",
-    h1: "Winter outfit ideas you can try on yourself",
+    h1: "Winter outfit ideas for the UK, 2026",
     answer:
       "TryOnU has ready winter looks for women, men and kids, each put together from real products: coats, puffer jackets, sweaters, jeans and boots. Pick a look and see it on your own photo in about a minute, or describe your own winter outfit to the AI Stylist.",
     benefits: [
@@ -556,18 +651,48 @@ export const LANDINGS: Landing[] = [
     ],
     steps: SHOPPER_STEPS,
     faqs: [ALL_FAQ.find((x) => x.q.startsWith("Can I try on a whole outfit"))!, ALL_FAQ.find((x) => x.q.startsWith("Can an AI pick"))!, WHERE_TO_BUY, PRICE],
-    cta: { label: "See the winter looks", href: "/looks" },
+    cta: { label: "See the winter looks", href: "/looks/winter" },
     keywords: ["winter outfit ideas", "winter outfits for women", "winter outfits for men", "kids winter outfits", "winter coat outfit", "what to wear in winter"],
     related: ["ai-outfit-try-on", "virtual-try-on", "ai-personal-stylist"],
+    looks: { season: "Winter", limit: 9 },
+    sections: [
+      {
+        h2: "Winter outfits for UK weather: rain, wind and the office",
+        paragraphs: [
+          "A British winter is more wet than freezing, usually somewhere between 2 and 10°C, so the outfit has to handle rain and wind as well as cold. Start with a coat that covers your hips: a wool overcoat for the office, or a water-resistant parka or quilted jacket for the school run and weekends.",
+          "Underneath, a fine-knit jumper or a roll neck keeps you warm on the train without overheating once you are inside. Dark jeans or wool trousers, and leather Chelsea boots or chunky trainers with a good grip, finish the look. Add a scarf in a colour from the coat and the whole outfit holds together.",
+        ],
+      },
+      {
+        h2: "Winter outfits for snow and real cold in the US and Canada",
+        paragraphs: [
+          "Where winter means snow and temperatures below -10°C, warmth comes first. A long puffer or a down parka with a hood, a thermal base layer, a thick sweater and insulated, waterproof boots with a deep tread do most of the work. Gloves and a beanie are not optional.",
+          "For the office or an evening out, a wool coat over a turtleneck with straight-leg trousers looks sharp, and you can keep snow boots in your bag for the walk. Try the coat and boots together on your photo: a long puffer changes your proportions, and seeing it on you first saves a return.",
+        ],
+      },
+      {
+        h2: "Travelling from the UAE to a cold country this winter",
+        paragraphs: [
+          "Flying from Dubai or Abu Dhabi to London, Paris, Toronto or New York in December or January means packing a wardrobe you rarely need at home. Pack light: one versatile coat in camel, navy or black, two or three knitted layers, one pair of warm, comfortable boots and a scarf that works with everything.",
+          "For modest winter dressing, long wool coats, knitted maxi dresses and wide-leg trousers layer well and stay warm. Try the full outfit on your photo before you travel, so you only buy the pieces you will actually wear on the trip.",
+        ],
+      },
+      {
+        h2: "How to check a winter outfit before you buy",
+        paragraphs: [
+          "Winter clothes are expensive and bulky to send back, so check three things first: the coat length against your height, the colour of the coat next to your face, and whether the boots suit the trousers. A virtual try-on shows all three on your own photo in about a minute. Then check the shop's size chart, delivery time to your country and returns policy, and buy from the shop itself.",
+        ],
+      },
+    ],
   },
   {
     slug: "virtual-try-on-for-fashion-brands",
     audience: "business",
-    title: "Virtual Try-On for Fashion Brands and Retailers",
+    title: "AI Virtual Try-On for Fashion Brands",
     description:
       "Let shoppers see your clothes on their own photo before they buy. Add a Try it on button to your site, use the API, or sell from your own TryOnU store.",
     kicker: "For brands",
-    h1: "Virtual try-on for fashion brands and online retailers",
+    h1: "AI virtual try-on for fashion brands and retailers",
     answer:
       "TryOnU gives fashion brands and retailers AI virtual try-on: shoppers see your product on their own photo before they buy. Add a Try it on button to your website (Shopify, WooCommerce or any site), call the try-on API, or sell from your own store website on TryOnU. You pay per try-on with prepaid credits, and a failed try-on is free.",
     benefits: [
@@ -588,6 +713,52 @@ export const LANDINGS: Landing[] = [
     cta: { label: "Get started", href: "/developers" },
     keywords: ["virtual try on for fashion brands", "virtual try on for retailers", "virtual fitting room software", "AI try on for ecommerce", "virtual try on solution"],
     related: ["virtual-try-on-for-shopify", "virtual-try-on-for-woocommerce", "virtual-try-on-api"],
+  },
+  {
+    slug: "christmas-party-outfit-try-on",
+    audience: "shopper",
+    title: "Christmas Party Outfit Ideas UK: Try Them On",
+    description:
+      "Christmas party outfit ideas for the office, dinner or a night out: sequins, velvet, smart-casual and men's looks from real shops, tried on your own photo.",
+    kicker: "Christmas party",
+    h1: "Christmas party outfit ideas to try on before you buy",
+    answer:
+      "TryOnU lets you try a Christmas party outfit on your own photo before you buy: a sequin or velvet dress, a smart jacket, shoes and accessories from real shops, together in one picture. Describe the party to the AI Stylist ('office Christmas party, smart casual, black and gold') and it finds real products to try.",
+    benefits: [
+      { title: "See it on you", text: "Your own face, skin tone and shape, not a model's." },
+      { title: "Real products, real shops", text: "Every piece has a real price and links to the shop that sells it." },
+      { title: "The whole outfit", text: "Put the dress or suit, shoes and accessories on together in one picture." },
+    ],
+    steps: SHOPPER_STEPS,
+    faqs: [ALL_FAQ.find((x) => x.q.startsWith("Can I try on a whole outfit"))!, ALL_FAQ.find((x) => x.q.startsWith("Can an AI pick"))!, PHOTO_SAFE, PRICE],
+    cta: { label: "Try an outfit on", href: "/try" },
+    keywords: ["christmas party outfit ideas uk", "office christmas party outfit", "christmas party outfits women", "christmas party outfit men"],
+    related: ["winter-outfit-try-on", "wedding-guest-outfit-try-on", "ai-outfit-try-on"],
+    sections: [{"h2": "Office Christmas party outfits", "paragraphs": ["Most office parties in the UK are smart casual, often straight from work. Women: a satin skirt with a fine knit, a velvet blazer over a camisole, or a simple black dress with one sparkly piece such as sequin trousers or statement earrings. Men: dark chinos or wool trousers, a crisp shirt or a fine roll neck, and a blazer in velvet or a deep colour instead of a business suit.", "Keep it comfortable: you will stand for hours, so choose shoes you can wear all evening and a coat that works with the outfit for the walk home."]}, {"h2": "Dinner, drinks and a night out", "paragraphs": ["For a Christmas dinner or a night out, go one step up: a sequin or metallic dress, a velvet suit, a satin shirt, or a jumpsuit with heels. Rich colours such as emerald, burgundy and midnight blue look festive without a single bauble in sight."]}, {"h2": "Check it before you order", "paragraphs": ["Party pieces are where online orders go wrong: sequins can look cheap on screen and metallics can wash you out. Try the dress or the jacket on your own photo first to judge the colour and shine on you, then check the shop's last order date for Christmas delivery and its returns policy, because December parcels are slow."]}],
+    products: {"query": "sequin party dress", "limit": 8, "title": "Party pieces to try on now"},
+  },
+  {
+    slug: "modest-fashion-virtual-try-on",
+    audience: "shopper",
+    title: "Modest Fashion and Abaya Virtual Try-On",
+    description:
+      "Try abayas, kaftans, maxi dresses and modest outfits on your own photo before you buy. Your photo stays private and can be deleted at any time.",
+    kicker: "Modest fashion",
+    h1: "Modest fashion and abaya try-on on your own photo",
+    answer:
+      "TryOnU lets you try abayas, kaftans, long dresses and modest co-ord sets on your own photo before you buy, from real shops. Your photo is private: it is used only for your own try-ons, never shown to anyone unless you share a look, and you can delete it at any time.",
+    benefits: [
+      { title: "See it on you", text: "Your own face, skin tone and shape, not a model's." },
+      { title: "Real products, real shops", text: "Every piece has a real price and links to the shop that sells it." },
+      { title: "The whole outfit", text: "Put the dress or suit, shoes and accessories on together in one picture." },
+    ],
+    steps: SHOPPER_STEPS,
+    faqs: [ALL_FAQ.find((x) => x.q.startsWith("Can I try on a whole outfit"))!, ALL_FAQ.find((x) => x.q.startsWith("Can an AI pick"))!, PHOTO_SAFE, PRICE],
+    cta: { label: "Try an outfit on", href: "/try" },
+    keywords: ["modest fashion outfits dubai", "abaya try on", "modest fashion uk", "modest outfits"],
+    related: ["eid-outfit-try-on", "eastern-wear-virtual-try-on", "ai-personal-stylist"],
+    sections: [{"h2": "Modest outfits in Dubai and across the UAE", "paragraphs": ["In the UAE, modest dressing ranges from classic black abayas to open abayas in sand, olive and pastel shades worn over a dress or wide-leg trousers, kaftans for warm evenings and tailored co-ord sets for the office. Light, breathable fabrics such as crepe, linen and chiffon work best in the heat, with a warmer layer for air-conditioned malls and offices.", "Try the abaya over the outfit you will wear underneath: on your photo you can see the length, the sleeve shape and how the colour works with your skin tone before you order."]}, {"h2": "Modest fashion in the UK", "paragraphs": ["In a British winter, modest outfits are built on layers: a long wool coat or a quilted longline jacket over a maxi knit dress, wide-leg trousers with a long tunic, and boots that handle the rain. Scarves in wool or jersey add warmth and colour."]}, {"h2": "Your photo stays private", "paragraphs": ["Many people who dress modestly are careful about their photos, and that is right. On TryOnU your photo is used only to make your own try-ons. It is not public, not used to train our AI, and not shared unless you choose to share a finished look. You can delete it whenever you like."]}],
+    products: {"query": "abaya", "limit": 8, "title": "Abayas to try on now"},
   },
 ];
 

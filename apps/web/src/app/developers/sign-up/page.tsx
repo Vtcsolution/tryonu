@@ -9,6 +9,7 @@ export const metadata = pageMeta({
   description:
     "Create a TryOnU developer account to add AI virtual try-on to your app or store. Prepaid credits, one credit per try-on, failed try-ons free.",
   path: "/developers/sign-up",
+  noindex: true,
   keywords: ["virtual try on API sign up"],
 });
 
