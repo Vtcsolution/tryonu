@@ -144,6 +144,10 @@ export type Landing = {
   cta: { label: string; href: string };
   keywords: string[];
   related: string[];
+  /** longer sections after the steps, each with its own H2 */
+  sections?: { h2: string; paragraphs: string[] }[];
+  /** real ready looks shown on the page */
+  looks?: { season?: string; audience?: "women" | "men" | "kids"; limit: number };
 };
 
 const SHOPPER_STEPS = [
@@ -556,9 +560,39 @@ export const LANDINGS: Landing[] = [
     ],
     steps: SHOPPER_STEPS,
     faqs: [ALL_FAQ.find((x) => x.q.startsWith("Can I try on a whole outfit"))!, ALL_FAQ.find((x) => x.q.startsWith("Can an AI pick"))!, WHERE_TO_BUY, PRICE],
-    cta: { label: "See the winter looks", href: "/looks" },
+    cta: { label: "See the winter looks", href: "/looks/winter" },
     keywords: ["winter outfit ideas", "winter outfits for women", "winter outfits for men", "kids winter outfits", "winter coat outfit", "what to wear in winter"],
     related: ["ai-outfit-try-on", "virtual-try-on", "ai-personal-stylist"],
+    looks: { season: "Winter", limit: 9 },
+    sections: [
+      {
+        h2: "Winter outfits for UK weather: rain, wind and the office",
+        paragraphs: [
+          "A British winter is more wet than freezing, usually somewhere between 2 and 10°C, so the outfit has to handle rain and wind as well as cold. Start with a coat that covers your hips: a wool overcoat for the office, or a water-resistant parka or quilted jacket for the school run and weekends.",
+          "Underneath, a fine-knit jumper or a roll neck keeps you warm on the train without overheating once you are inside. Dark jeans or wool trousers, and leather Chelsea boots or chunky trainers with a good grip, finish the look. Add a scarf in a colour from the coat and the whole outfit holds together.",
+        ],
+      },
+      {
+        h2: "Winter outfits for snow and real cold in the US and Canada",
+        paragraphs: [
+          "Where winter means snow and temperatures below -10°C, warmth comes first. A long puffer or a down parka with a hood, a thermal base layer, a thick sweater and insulated, waterproof boots with a deep tread do most of the work. Gloves and a beanie are not optional.",
+          "For the office or an evening out, a wool coat over a turtleneck with straight-leg trousers looks sharp, and you can keep snow boots in your bag for the walk. Try the coat and boots together on your photo: a long puffer changes your proportions, and seeing it on you first saves a return.",
+        ],
+      },
+      {
+        h2: "Travelling from the UAE to a cold country this winter",
+        paragraphs: [
+          "Flying from Dubai or Abu Dhabi to London, Paris, Toronto or New York in December or January means packing a wardrobe you rarely need at home. Pack light: one versatile coat in camel, navy or black, two or three knitted layers, one pair of warm, comfortable boots and a scarf that works with everything.",
+          "For modest winter dressing, long wool coats, knitted maxi dresses and wide-leg trousers layer well and stay warm. Try the full outfit on your photo before you travel, so you only buy the pieces you will actually wear on the trip.",
+        ],
+      },
+      {
+        h2: "How to check a winter outfit before you buy",
+        paragraphs: [
+          "Winter clothes are expensive and bulky to send back, so check three things first: the coat length against your height, the colour of the coat next to your face, and whether the boots suit the trousers. A virtual try-on shows all three on your own photo in about a minute. Then check the shop's size chart, delivery time to your country and returns policy, and buy from the shop itself.",
+        ],
+      },
+    ],
   },
   {
     slug: "virtual-try-on-for-fashion-brands",
