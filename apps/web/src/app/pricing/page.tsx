@@ -3,6 +3,8 @@ import { ShowcaseSection } from "@/components/marketing/ShowcaseLooks";
 import { FirstOutfitOffer } from "@/components/credits/FirstOutfitOffer";
 import { ContentPage, InfoCard, SectionTitle, cardGrid } from "@/components/content/ContentPage";
 import { formatPrice } from "@/components/try/shop";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { appJsonLd } from "@/components/seo/appJsonLd";
 import { Button } from "@/components/ui/Button";
 import { serverFetch } from "@/lib/api/server";
 import type { CreditPackage, StorePlan } from "@/lib/api/types";
@@ -17,10 +19,11 @@ export const metadata = pageMeta({
 });
 
 export default async function PricingPage() {
-  const [packs, cost, plans] = await Promise.all([
+  const [packs, cost, plans, app] = await Promise.all([
     serverFetch<CreditPackage[]>("/api/v1/credits/packages", { revalidateSeconds: 300 }),
     serverFetch<{ tryon_cost: number; outfit_tryon_cost: number }>("/api/v1/credits/pricing", { revalidateSeconds: 300 }),
     serverFetch<StorePlan[]>("/api/v1/stores/plans", { revalidateSeconds: 300 }),
+    appJsonLd(),
   ]);
   const sortedPacks = [...(packs ?? [])].sort((a, b) => a.price_cents - b.price_cents);
   const perLook = cost?.outfit_tryon_cost ?? null;
@@ -31,6 +34,7 @@ export default async function PricingPage() {
       title="Simple, pay-as-you-go pricing"
       intro="No subscription. Buy credits when you need them and use them for try-ons. If a try-on fails, its credits come back automatically."
     >
+      <JsonLd data={app} />
       <SectionTitle
         sub={
           cost

@@ -13,8 +13,9 @@ import { FindLookPromo } from "@/components/marketing/FindLookPromo";
 import { PhoneHome } from "@/components/app/PhoneHome";
 import { HomeFaq } from "@/components/marketing/HomeFaq";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { appJsonLd } from "@/components/seo/appJsonLd";
 import { serverFetch } from "@/lib/api/server";
-import { SITE, SITE_DEFINITION, pageMeta } from "@/lib/seo";
+import { pageMeta } from "@/lib/seo";
 
 export const metadata = pageMeta({
   title: "TryOnU: AI Virtual Try-On. See Clothes on You Before You Buy",
@@ -22,8 +23,6 @@ export const metadata = pageMeta({
     "Try real clothes, shoes and accessories on your own photo with AI, then buy from the original store. Whole outfits, an AI stylist, local shops first.",
   path: "/",
 });
-
-type Pack = { price_cents: number; currency: string };
 
 // `value` isn't part of React's <meta> typing (the standard attribute is
 // `content`), so the props are spread from here.
@@ -33,42 +32,8 @@ const IMPACT_SITE_VERIFICATION = {
 };
 
 export default async function HomePage() {
-  const packs = (await serverFetch<Pack[]>("/api/v1/credits/packages", { revalidateSeconds: 3600 })) ?? [];
   const readyLooks = (await serverFetch<ReadyLook[]>("/api/v1/looks", { revalidateSeconds: 300 })) ?? [];
-  const prices = packs.map((p) => p.price_cents / 100);
-  const app = {
-    "@context": "https://schema.org",
-    "@type": "WebApplication",
-    name: "TryOnU",
-    url: SITE,
-    description: SITE_DEFINITION,
-    applicationCategory: "LifestyleApplication",
-    applicationSubCategory: "Virtual try-on and fashion shopping",
-    operatingSystem: "Any (web browser)",
-    browserRequirements: "Requires a modern web browser",
-    featureList: [
-      "Virtual try-on of clothes, shoes and accessories on your own photo",
-      "Whole outfits of up to five pieces in one picture",
-      "AI Stylist that finds real products from a plain-language request",
-      "Shop now links to the original store for every product",
-      "Local shops that deliver to you shown first",
-      "Share a look; friends can try it on themselves",
-      "Find the look: search the shops with a photo or screenshot of an outfit",
-    ],
-    publisher: { "@id": `${SITE}/#organization` },
-    ...(prices.length
-      ? {
-          offers: {
-            "@type": "AggregateOffer",
-            priceCurrency: (packs[0]?.currency ?? "usd").toUpperCase(),
-            lowPrice: Math.min(...prices).toFixed(2),
-            highPrice: Math.max(...prices).toFixed(2),
-            offerCount: prices.length,
-            url: `${SITE}/pricing`,
-          },
-        }
-      : {}),
-  };
+  const app = await appJsonLd();
   return (
     <SiteChrome>
       <JsonLd data={app} />
