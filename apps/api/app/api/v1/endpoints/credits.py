@@ -50,7 +50,9 @@ async def history(user: CurrentUser, db: DbSession, limit: int = 50, offset: int
 async def pricing():
     """Credits per try-on, for the shop and try-on pages (public: no account needed)."""
     s = get_settings()
-    return CreditPricingOut(tryon_cost=s.TRYON_CREDIT_COST, outfit_tryon_cost=s.OUTFIT_TRYON_CREDIT_COST)
+    return CreditPricingOut(
+        tryon_cost=s.TRYON_CREDIT_COST, outfit_tryon_cost=s.OUTFIT_TRYON_CREDIT_COST, signup_free_credits=s.SIGNUP_FREE_CREDITS
+    )
 
 
 async def has_bought_credits(db: DbSession, user_id: str) -> bool:

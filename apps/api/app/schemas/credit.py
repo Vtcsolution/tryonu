@@ -37,6 +37,8 @@ class CreditPricingOut(BaseModel):
 
     tryon_cost: int
     outfit_tryon_cost: int
+    # given once per person on a confirmed email (0: none)
+    signup_free_credits: int = 0
 
 
 class PurchaseCreditsRequest(BaseModel):

@@ -20,7 +20,7 @@ function money(cents: number, currency: string) {
 export async function llmsText(full: boolean): Promise<string> {
   const [packs, cost, plans] = await Promise.all([
     serverFetch<Pack[]>("/api/v1/credits/packages", { revalidateSeconds: 3600 }),
-    serverFetch<{ tryon_cost: number; outfit_tryon_cost: number }>("/api/v1/credits/pricing", { revalidateSeconds: 3600 }),
+    serverFetch<{ tryon_cost: number; outfit_tryon_cost: number; signup_free_credits?: number }>("/api/v1/credits/pricing", { revalidateSeconds: 3600 }),
     serverFetch<Plan[]>("/api/v1/stores/plans", { revalidateSeconds: 3600 }),
   ]);
   const lines: string[] = [
@@ -74,6 +74,9 @@ export async function llmsText(full: boolean): Promise<string> {
   ];
   if (cost) {
     lines.push(`- One product try-on: ${cost.tryon_cost} credits. A complete outfit look: ${cost.outfit_tryon_cost} credits.`);
+    if ((cost.signup_free_credits ?? 0) >= cost.outfit_tryon_cost) {
+      lines.push(`- New accounts get ${cost.signup_free_credits} free credits (one complete outfit) after confirming their email, once per person.`);
+    }
   }
   for (const p of [...(packs ?? [])].sort((a, b) => a.price_cents - b.price_cents)) {
     lines.push(`- ${p.name}: ${p.credits} credits for ${money(p.price_cents, p.currency)} (one-time, PayPal or card).`);

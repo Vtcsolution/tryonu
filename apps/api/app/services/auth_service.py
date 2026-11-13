@@ -23,9 +23,9 @@ from app.core.security import (
 )
 from app.core.time import as_aware, utcnow
 from app.email.registry import get_email_provider
-from app.models.enums import AuthProvider, CreditReason
+from app.models.enums import AuthProvider
 from app.models.user import EmailVerificationToken, PasswordResetToken, RefreshToken, User
-from app.services import credit_service
+from app.services import welcome_credits
 
 settings = get_settings()
 
@@ -35,7 +35,14 @@ def _hash_token(token: str) -> str:
 
 
 async def register_user(
-    db: AsyncSession, *, email: str, password: str, full_name: str | None, next_path: str | None = None
+    db: AsyncSession,
+    *,
+    email: str,
+    password: str,
+    full_name: str | None,
+    next_path: str | None = None,
+    ip: str | None = None,
+    device: str | None = None,
 ) -> User:
     existing = await db.execute(select(User).where(User.email == email))
     if existing.scalar_one_or_none() is not None:
@@ -49,16 +56,8 @@ async def register_user(
     )
     db.add(user)
     await db.flush()
-    if settings.SIGNUP_FREE_CREDITS > 0:  # 0: new users start at 0 and buy a plan
-        await credit_service.grant(
-            db,
-            user_id=user.id,
-            amount=settings.SIGNUP_FREE_CREDITS,
-            reason=CreditReason.SIGNUP_BONUS,
-            reference_type="user",
-            reference_id=user.id,
-            note="Welcome bonus",
-        )
+    if not settings.WELCOME_REQUIRE_VERIFIED:
+        await welcome_credits.try_grant(db, user, ip=ip, device=device)
     await _send_verification_email(db, user, next_path)
     await db.commit()
     await db.refresh(user)
@@ -98,7 +97,8 @@ async def _send_verification_email(db: AsyncSession, user: User, next_path: str 
         logger.warning("verification_email_failed", user_id=user.id, error=str(exc)[:200])
 
 
-async def verify_email(db: AsyncSession, *, token: str) -> User:
+async def verify_email(db: AsyncSession, *, token: str, ip: str | None = None, device: str | None = None) -> tuple[User, int]:
+    """Confirms the email; returns the user and the welcome credits given now (0 if none)."""
     token_hash = _hash_token(token)
     result = await db.execute(select(EmailVerificationToken).where(EmailVerificationToken.token_hash == token_hash))
     stored = result.scalar_one_or_none()
@@ -112,10 +112,11 @@ async def verify_email(db: AsyncSession, *, token: str) -> User:
 
     stored.used_at = datetime.now(timezone.utc)
     user.email_verified = True
+    given = await welcome_credits.try_grant(db, user, ip=ip, device=device) if settings.WELCOME_REQUIRE_VERIFIED else 0
     await db.commit()
     await db.refresh(user)
     logger.info("email_verified", user_id=user.id)
-    return user
+    return user, given
 
 
 async def resend_verification_email(db: AsyncSession, *, user: User) -> None:
@@ -141,7 +142,14 @@ async def authenticate_local(db: AsyncSession, *, email: str, password: str) -> 
 
 
 async def find_or_create_google_user(
-    db: AsyncSession, *, google_sub: str, email: str, full_name: str | None, avatar_url: str | None
+    db: AsyncSession,
+    *,
+    google_sub: str,
+    email: str,
+    full_name: str | None,
+    avatar_url: str | None,
+    ip: str | None = None,
+    device: str | None = None,
 ) -> User:
     result = await db.execute(select(User).where(User.google_sub == google_sub))
     user = result.scalar_one_or_none()
@@ -155,10 +163,14 @@ async def find_or_create_google_user(
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
     if user is not None:
+        confirmed_now = not user.email_verified
         user.google_sub = google_sub
         user.auth_provider = AuthProvider.GOOGLE
         user.avatar_url = user.avatar_url or avatar_url
         user.email_verified = True
+        if confirmed_now and settings.WELCOME_REQUIRE_VERIFIED:
+            # Google just confirmed the email they signed up with
+            await welcome_credits.try_grant(db, user, ip=ip, device=device)
         user.last_login_at = datetime.now(timezone.utc)
         await db.commit()
         await db.refresh(user)
@@ -174,16 +186,8 @@ async def find_or_create_google_user(
     )
     db.add(user)
     await db.flush()
-    if settings.SIGNUP_FREE_CREDITS > 0:  # 0: new users start at 0 and buy a plan
-        await credit_service.grant(
-            db,
-            user_id=user.id,
-            amount=settings.SIGNUP_FREE_CREDITS,
-            reason=CreditReason.SIGNUP_BONUS,
-            reference_type="user",
-            reference_id=user.id,
-            note="Welcome bonus",
-        )
+    # Google has confirmed the email already
+    await welcome_credits.try_grant(db, user, ip=ip, device=device)
     await db.commit()
     await db.refresh(user)
     return user

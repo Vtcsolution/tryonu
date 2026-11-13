@@ -52,7 +52,7 @@ export function VerifyEmailPanel() {
             Email <em>verified</em>
           </>
         }
-        subtitle="Your account is fully set up."
+        subtitle={verify.data?.detail?.includes("free credits") ? verify.data.detail.replace("Email verified. ", "") : "Your account is fully set up."}
       >
         <Button href={`/preferences?next=${encodeURIComponent(next)}`} size="md" className="w-full">
           {next.startsWith("/look/") ? "Try on the look shared with you" : "Start your first try-on"} <span aria-hidden="true">→</span>

@@ -153,11 +153,11 @@ async def test_country_hint_comes_from_the_visitors_location(client):
     assert resp.status_code == 200 and resp.json() == {"country": "AE"}
 
 
-def test_new_accounts_get_no_free_credits_and_a_try_on_costs_10_by_default():
+def test_new_accounts_get_one_free_outfit_and_a_try_on_costs_10_by_default():
     from app.core.config import Settings
 
     fields = Settings.model_fields
-    assert fields["SIGNUP_FREE_CREDITS"].default == 0
+    assert fields["SIGNUP_FREE_CREDITS"].default == 10 and fields["WELCOME_REQUIRE_VERIFIED"].default is True
     assert fields["TRYON_CREDIT_COST"].default == 10 and fields["OUTFIT_TRYON_CREDIT_COST"].default == 10
 
 
