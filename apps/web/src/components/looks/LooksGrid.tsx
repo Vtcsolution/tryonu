@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { formatPrice } from "@/components/try/shop";
 import { readyLooks, type ReadyLook } from "@/lib/api/endpoints";
+import { lookPath } from "@/lib/lookSlug";
 import { LookCanvas } from "./LookCanvas";
 import { TryLookButton } from "./TryLookButton";
 
@@ -63,9 +64,9 @@ export function LooksGrid({ initial, limit }: { initial: ReadyLook[]; limit?: nu
           {shown.map((look, i) => (
             <article key={look.id} className="flex flex-col overflow-hidden rounded-[24px] border border-line bg-surface">
               <div className="relative">
-                <LookCanvas look={look} href={`/looks/${look.id}`} priority={i < 3} />
+                <LookCanvas look={look} href={lookPath(look)} priority={i < 3} />
               </div>
-              <Link href={`/looks/${look.id}`} className="group block">
+              <Link href={lookPath(look)} className="group block">
                 <div className="px-4 pt-4">
                   <h2 className="text-[18px] font-semibold leading-snug text-ink group-hover:text-sage-deep">
                     {look.title}

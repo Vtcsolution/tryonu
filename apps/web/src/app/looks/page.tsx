@@ -4,16 +4,18 @@ import { LooksGrid } from "@/components/looks/LooksGrid";
 import { JsonLd } from "@/components/seo/JsonLd";
 import type { ReadyLook } from "@/lib/api/endpoints";
 import { serverFetch } from "@/lib/api/server";
+import { LOOK_COLLECTIONS, MIN_COLLECTION, collectionLooks, lookPath } from "@/lib/looks";
 import { SITE, pageMeta } from "@/lib/seo";
+import Link from "next/link";
 
 export const revalidate = 300;
 
 export const metadata = pageMeta({
-  title: "Ready Looks: Winter Outfits to Try On You",
+  title: "Shop the Look: Complete Outfits to Try On",
   description:
-    "Complete winter outfits for women, men and kids, put together from real shops. See each look on your own photo before you buy, then shop every piece.",
+    "Complete outfits for women and men, put together from real shops. See each look on your own photo before you buy, then shop every piece.",
   path: "/looks",
-  keywords: ["winter outfits", "winter outfit ideas", "outfit ideas for women", "outfit ideas for men", "kids winter outfits", "shop the look"],
+  keywords: ["shop the look", "complete outfits", "outfit ideas for women", "outfit ideas for men", "try on outfits"],
 });
 
 /** tryonu.app/looks: complete outfits the TryOnU team tried on a model, every
@@ -30,7 +32,7 @@ export default async function LooksPage() {
           itemListElement: looks.slice(0, 60).map((l, i) => ({
             "@type": "ListItem",
             position: i + 1,
-            url: `${SITE}/looks/${l.id}`,
+            url: `${SITE}${lookPath(l)}`,
             name: l.title,
             image: l.card_url ?? undefined,
           })),
@@ -44,6 +46,13 @@ export default async function LooksPage() {
         <p className="mt-3 max-w-2xl text-[17px] leading-relaxed text-ink-soft">
           Complete outfits put together from real shops. Pick a look, see it on your own photo, then buy each piece from its shop.
         </p>
+        <nav aria-label="Look collections" className="mt-5 flex flex-wrap gap-2">
+          {LOOK_COLLECTIONS.filter((c) => collectionLooks(c, looks).length >= MIN_COLLECTION).map((c) => (
+            <Link key={c.slug} href={`/looks/${c.slug}`} className="rounded-full border border-line-strong px-4 py-2 text-[15px] font-medium text-ink hover:border-ink/40">
+              {c.h1} →
+            </Link>
+          ))}
+        </nav>
         <FirstOutfitOffer variant="banner" className="mt-6 max-w-3xl" />
         <div className="mt-8">
           <LooksGrid initial={looks} />
