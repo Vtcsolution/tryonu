@@ -88,9 +88,48 @@ Crawled from the live site (https://tryonu.app, commit 48152a4) by fetching ever
 | /tryonu-fashion/products | All products: Tryonu fashion / TryOnU (37) | 84 | self | All products | site only | 262 |
 | /zee-store/products | All products: Zee Store / TryOnU (32) | 79 | self | All products | site only | 432 |
 | /zee-store/products/{id}, /tryonu-fashion/products/{id} | 29 product pages | | self | product name | Product (since 48152a4) | ~250 |
+## Keyword map applied (second round)
+
+| Page | Primary keyword | Title now | Main-content words |
+|---|---|---|---|
+| / | tryonu, AI virtual try-on | TryOnU: Try Clothes On Your Photo Before You Buy | 1,513 |
+| /try-on-clothes-before-buying | try on clothes before buying online | Try On Clothes Before Buying Online, on Your Photo | 684 |
+| /virtual-try-on | virtual try on clothes | Virtual Try-On for Clothes, Shoes and Bags | 703 |
+| /ai-outfit-try-on | ai outfit try on | AI Outfit Try-On: See a Whole Look on You | 715 |
+| /ai-clothes-changer | ai clothes changer | AI Clothes Changer With Real Shop Products | 539 |
+| /virtual-fitting-room | virtual fitting room online | Online Virtual Fitting Room, From Your Phone | 468 |
+| /ai-personal-stylist | ai personal stylist | Free AI Personal Stylist That Finds Real Clothes | 647 |
+| /find-look | find outfit from picture | Find an Outfit From a Picture and Try It On | about 230 (tool runs in the browser) |
+| /looks | ready outfit looks to try on | Ready Outfit Looks to Try On You | 1,235 |
+| /looks/men | winter outfits for men uk | Men's Winter Outfits UK: Looks to Try On | 374 |
+| /looks/women | winter coat outfits women | Women's Winter Coat Outfits to Try On | 321 |
+| /looks/{slug} | the look's name + season | e.g. White Coat & White Heels: Women's Winter Look | 150 to 200 about the look |
+| /winter-outfit-try-on | winter outfit ideas uk | Winter Outfit Ideas UK 2026: Try Them On You | 976 |
+| /wedding-guest-outfit-try-on | wedding guest outfit winter | Winter Wedding Guest Outfits to Try On You | 614 |
+| /eid-outfit-try-on | eid outfit ideas | Eid Outfit Ideas 2027: Try Them On First | 554 |
+| /try-on-glasses-watches-jewellery | try on jewellery online | Try On Glasses, Watches and Jewellery Online | 382 |
+| /virtual-try-on-app | tryonu app, virtual try on app | TryOnU App: Virtual Try-On on Your Phone | 517 |
+| /pricing | tryonu pricing | TryOnU Pricing: First Outfit for $1 | 316 |
+| /sell | online store with virtual try on | Your Own Store With Virtual Try-On, From $15 | 332 |
+| /virtual-try-on-for-fashion-brands | ai virtual try on for brands | AI Virtual Try-On for Fashion Brands | 369 |
+| /virtual-try-on-api | virtual try on api | Virtual Try-On API: Packs From $35 | 271 |
+| /virtual-try-on-for-shopify | virtual try on for shopify | Virtual Try-On for Shopify Stores (Widget and API) | 342 |
+| /virtual-try-on-for-woocommerce | virtual try on woocommerce | Virtual Try-On Plugin for WooCommerce | 273 |
+| /christmas-party-outfit-try-on (new) | christmas party outfit ideas uk | Christmas Party Outfit Ideas UK: Try Them On | 762, live products |
+| /modest-fashion-virtual-try-on (new) | abaya try on, modest fashion | Modest Fashion and Abaya Virtual Try-On | 738, live products |
+| /guides (new) and six guides | see the plan | e.g. Amazon Try Before You Buy Alternative | 525 to 751 each |
+
+Where the plan was changed, and why:
+- **/virtual-try-on: "Free" left out of the title.** New members get 0 free credits (SIGNUP_FREE_CREDITS = 0); a try-on costs credits. The page now says what is free (joining, search, the Stylist, shop-paid try-ons, invite credits) in its own section.
+- **/looks: "Ready Outfit Looks to Try On You", not "Winter Outfit Looks…".** "Winter" in the /looks title would compete with /winter-outfit-try-on and /looks/winter.
+- **"ai outfit generator from photo" is on /ai-outfit-try-on, not /outfits.** /outfits is the signed-in outfit builder and is noindex.
+- **Amazon:** no page claims Amazon products can be tried on. The guide and /try-on-clothes-before-buying say Amazon is coming soon, and explain Upload your own item, which works today with a product photo from any shop.
+- **Brand spellings** (Try On U, TryOn U) appear once, in the "What is TryOnU?" answer, which is shown on / and /faq.
+- **Business pages under 400 words** (/virtual-try-on-api, /woocommerce, /shopify, /fashion-brands, /sell, /pricing): improved titles only in this round; they need more copy next.
+
 ## Next (not in this branch)
 
-1. The keyword plan: one primary keyword per page, the new pages and the six /guides articles. The plan tables were not included in the brief.
+1. More copy for the business pages under 400 words, and an H1 on the home page that carries "AI virtual try-on" (the hero is a design piece; change it with the designer).
 2. GBP / CAD / AED price conversions by visitor country (needs a daily exchange-rate source; AED is pegged at 3.6725 per US dollar).
 3. Test stores: noindex or remove (zee-store, tryonu-fashion).
 4. Image optimisation for look pictures (WebP/AVIF, srcset).
