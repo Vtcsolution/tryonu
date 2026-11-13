@@ -6,7 +6,7 @@ import type { StorePlan } from "@/lib/api/types";
 import { pageMeta } from "@/lib/seo";
 
 export const metadata = pageMeta({
-  title: "Sell on TryOnU: Get Local Shoppers to Try Your Products",
+  title: "Your Own Store With Virtual Try-On, From $15",
   description:
     "Open a store on TryOnU: your products are recommended first to shoppers where you deliver, and shoppers can try them on their own photo before they buy.",
   path: "/sell",
@@ -47,7 +47,7 @@ export default async function SellPage() {
       kicker="For stores"
       title={
         <>
-          Sell on <em>TryOnU</em>
+          Your own store with <em>virtual try-on</em>
         </>
       }
       intro="Put your clothes, shoes and accessories in front of shoppers who are ready to buy, and let them see your products on themselves first."

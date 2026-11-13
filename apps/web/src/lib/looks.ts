@@ -32,10 +32,10 @@ export const LOOK_COLLECTIONS: LookCollection[] = [
   {
     slug: "women",
     audience: "women",
-    title: "Women's Outfits to Try On Before You Buy",
+    title: "Women's Winter Coat Outfits to Try On",
     description:
       "Complete women's outfits from real shops: coats, knitwear, dresses, boots and bags. See each look on your own photo with AI, then shop every piece.",
-    h1: "Women's outfits you can try on yourself",
+    h1: "Women's winter coat outfits you can try on",
     intro: [
       "Every look here is a complete women's outfit put together from products you can buy today: a coat or jacket, knitwear or a dress, trousers or jeans, shoes, and often a bag or jewellery. Each piece comes from a real shop with a real price.",
       "Press a look to see every piece and its shop. Press Try this look on you, add one photo, and in about a minute you see the whole outfit on yourself, so you can judge the colours and the shape on you, not on a model.",
@@ -44,10 +44,10 @@ export const LOOK_COLLECTIONS: LookCollection[] = [
   {
     slug: "men",
     audience: "men",
-    title: "Men's Outfits to Try On Before You Buy",
+    title: "Men's Winter Outfits UK: Looks to Try On",
     description:
       "Complete men's outfits from real shops: overcoats, jackets, knitwear, trousers, trainers and boots. See each look on your own photo, then shop each piece.",
-    h1: "Men's outfits you can try on yourself",
+    h1: "Men's winter outfits to try on (UK)",
     intro: [
       "Each look is a complete men's outfit made from products in real shops: an overcoat, puffer or jacket, a jumper or shirt, trousers or jeans, and trainers or boots. Every piece links to the shop that sells it.",
       "Not sure a camel coat or a chunky knit suits you? Press Try this look on you, add one photo, and see the whole outfit on yourself in about a minute before you spend anything on clothes.",
@@ -124,8 +124,10 @@ export function lookTotal(look: ReadyLook): string | null {
 
 /** <title> under 60 characters where the look's own title allows it. */
 export function lookTitle(look: ReadyLook): string {
-  const full = `${look.title} | TryOnU`;
-  return full.length <= 60 ? full : look.title;
+  const m = /^(.+?\bLook):\s*(.+)$/.exec(look.title);
+  const name = m ? `${m[2]}: ${m[1]}` : look.title;
+  const full = `${name} | TryOnU`;
+  return full.length <= 60 ? full : name;
 }
 
 export function lookDescription(look: ReadyLook): string {

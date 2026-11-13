@@ -1,9 +1,10 @@
 import { ContentPage, InfoCard, SectionTitle, Steps } from "@/components/content/ContentPage";
 import { Button } from "@/components/ui/Button";
-import { SITE_DEFINITION, pageMeta } from "@/lib/seo";
+import { OWNER, SITE_DEFINITION, pageMeta } from "@/lib/seo";
+import Link from "next/link";
 
 export const metadata = pageMeta({
-  title: "About TryOnU: AI Virtual Try-On for Everyone",
+  title: "About TryOnU: Who We Are and Is It Legit?",
   description:
     "TryOnU lets anyone see real products on their own photo before they buy, helps local shops reach shoppers, and gives developers a try-on API.",
   path: "/about",
@@ -66,6 +67,23 @@ export default function AboutPage() {
             store&apos;s size chart.
           </InfoCard>
         </div>
+      </div>
+
+      <div className="mt-16 max-w-3xl">
+        <SectionTitle>Is TryOnU legit?</SectionTitle>
+        <p className="mt-3 text-[17px] leading-relaxed text-ink-soft">
+          Yes. TryOnU is a real service run by {OWNER}, and you can check how it works before you pay anything: joining is free,
+          and a new member&apos;s first outfit costs $1. Payments go through PayPal, so TryOnU never sees your card details. If a
+          try-on fails, its credits come back automatically, and our <Link href="/refunds" className="text-sage-deep underline">refund policy</Link>{" "}
+          explains the rest.
+        </p>
+        <p className="mt-3 text-[17px] leading-relaxed text-ink-soft">
+          TryOnU never sells you clothes itself. Every product links to the shop that sells it, and you buy there at the shop&apos;s
+          normal price; some shops pay us a small commission, explained in our{" "}
+          <Link href="/affiliate-disclosure" className="text-sage-deep underline">affiliate disclosure</Link>. Your photos are used only for
+          your own try-ons, and you can delete them at any time. Questions? <Link href="/contact" className="text-sage-deep underline">Contact us</Link>{" "}
+          and we reply.
+        </p>
       </div>
 
       <div className="mt-16 flex flex-wrap items-center justify-between gap-4 rounded-[24px] border border-line bg-surface p-6 md:p-8">

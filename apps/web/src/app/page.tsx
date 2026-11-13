@@ -18,7 +18,7 @@ import { serverFetch } from "@/lib/api/server";
 import { pageMeta } from "@/lib/seo";
 
 export const metadata = pageMeta({
-  title: "TryOnU: AI Virtual Try-On. See Clothes on You Before You Buy",
+  title: "TryOnU: Try Clothes On Your Photo Before You Buy",
   description:
     "Try real clothes, shoes and accessories on your own photo with AI, then buy from the original store. Whole outfits, an AI stylist, local shops first.",
   path: "/",

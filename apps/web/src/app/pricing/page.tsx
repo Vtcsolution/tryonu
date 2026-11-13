@@ -11,9 +11,9 @@ import type { CreditPackage, StorePlan } from "@/lib/api/types";
 import { pageMeta } from "@/lib/seo";
 
 export const metadata = pageMeta({
-  title: "TryOnU Pricing: Credit Packs, Store Plans & API",
+  title: "TryOnU Pricing: First Outfit for $1",
   description:
-    "Simple pay-as-you-go pricing: one-time credit packs for try-ons (no subscription), plans for shops, prepaid credits for the try-on API. Failed try-ons are free.",
+    "Your first outfit for $1, then one-time credit packs (no subscription), plans for shops and prepaid credits for the try-on API. Failed try-ons are free.",
   path: "/pricing",
   keywords: ["virtual try on price", "TryOnU price", "try on credits"],
 });
@@ -31,7 +31,7 @@ export default async function PricingPage() {
   return (
     <ContentPage
       kicker="Pricing"
-      title="Simple, pay-as-you-go pricing"
+      title="TryOnU pricing: simple and pay-as-you-go"
       intro="No subscription. Buy credits when you need them and use them for try-ons. If a try-on fails, its credits come back automatically."
     >
       <JsonLd data={app} />
