@@ -3,6 +3,7 @@ import { serverFetch } from "@/lib/api/server";
 import { resolveMediaUrl } from "@/lib/api/client";
 import { SITE } from "@/lib/seo";
 import { LANDINGS } from "@/lib/seoContent";
+import { GUIDES } from "@/lib/guides";
 import { LOOK_COLLECTIONS, MIN_COLLECTION, collectionLooks, lookPath } from "@/lib/looks";
 import type { ReadyLook } from "@/lib/api/endpoints";
 import { loadStore } from "@/lib/storefront";
@@ -42,6 +43,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly" as const,
       priority: l.audience === "shopper" ? 0.9 : 0.7,
     })),
+    { url: `${SITE}/guides`, changeFrequency: "weekly" as const, priority: 0.6 },
+    ...GUIDES.map((g) => ({ url: `${SITE}/guides/${g.slug}`, lastModified: new Date(g.updated), changeFrequency: "monthly" as const, priority: 0.6 })),
     ...LOOK_COLLECTIONS.filter((c) => collectionLooks(c, looks).length >= MIN_COLLECTION).map((c) => ({
       url: `${SITE}/looks/${c.slug}`,
       changeFrequency: "weekly" as const,
