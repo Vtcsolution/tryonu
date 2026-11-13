@@ -18,14 +18,6 @@ export const FAQ_GROUPS: { title: string; items: QA[] }[] = [
         a: HOW_IT_WORKS_ANSWER,
       },
       {
-        q: "How does TryOnU work?",
-        a: HOW_IT_WORKS_ANSWER,
-      },
-      {
-        q: "How does TryOnU work?",
-        a: HOW_IT_WORKS_ANSWER,
-      },
-      {
         q: "What is TryOnU?",
         a: "TryOnU (tryonu.app) is an AI virtual try-on and fashion shopping website. You upload a photo of yourself once, try real clothes, shoes and accessories from real online stores on your own photo, and then buy each piece from the original store.",
       },
@@ -71,6 +63,14 @@ export const FAQ_GROUPS: { title: string; items: QA[] }[] = [
         a: "Yes. Install the free TryOnU browser extension: on any product page, on eBay, AliExpress or any shop, click the TryOnU button (or right-click the product picture) and the product goes onto your own photo, using your TryOnU credits.",
       },
       {
+        q: "Can I try on several products from one shop together?",
+        a: "Yes. On a shop's own TryOnU website, press Try it on on each product you like, then press Try on at the bottom. TryOnU opens with all of them already chosen: add your photo and see them on you together in one picture, then order from the shop.",
+      },
+      {
+        q: "Does TryOnU work in the USA, UK, Canada, Australia and Japan?",
+        a: "Yes. TryOnU works in any country, in the browser on a phone or computer, with nothing to install. Products come from stores that ship internationally, such as eBay, AliExpress and brand stores, and each product shows its store, price and delivery. The website also shows itself in the visitor's language by country, for example Japanese in Japan.",
+      },
+      {
         q: "Can I share my try-on look with friends?",
         a: "Yes. Press Share on a finished look to send a link on WhatsApp, Facebook, LinkedIn, X or email. Your friends see the picture and the products, and can try the same look on themselves.",
       },
@@ -99,6 +99,10 @@ export const FAQ_GROUPS: { title: string; items: QA[] }[] = [
       {
         q: "How can my clothing shop sell on TryOnU?",
         a: "Open a store at tryonu.app/sell, choose a plan and add your products (one by one or with a CSV file). Your products are recommended first to shoppers in the areas you deliver to, and shoppers can try them on before they buy.",
+      },
+      {
+        q: "Can my shop get its own website on TryOnU?",
+        a: "Yes. Every store on TryOnU gets its own website at tryonu.app/your-store-name with its logo, products, product pages, a cart and checkout. Shoppers try products on their own photo before ordering, orders are sent to the shop by email, and the shop's WhatsApp button is on every page. Plans are on tryonu.app/sell.",
       },
       {
         q: "Can I add virtual try-on to my own online store?",
@@ -492,6 +496,98 @@ export const LANDINGS: Landing[] = [
     cta: { label: "Start trying on", href: "/try" },
     keywords: ["virtual try on Pakistan", "try clothes online Pakistan", "online shopping Pakistan", "Pakistani dresses online", "AI try on Pakistan"],
     related: ["eastern-wear-virtual-try-on", "bridal-dress-virtual-try-on", "eid-outfit-try-on"],
+  },
+  {
+    slug: "try-on-clothes-before-buying",
+    audience: "shopper",
+    title: "Try On Clothes Before Buying Online: See Them on You",
+    description:
+      "See how clothes look on you before you buy online. Upload one photo, pick real products from real stores, and AI shows you wearing them in about a minute.",
+    kicker: "Before you buy",
+    h1: "How to see clothes on yourself before buying online",
+    answer:
+      "To see clothes on yourself before buying online, use a virtual try-on site such as TryOnU: upload one clear photo of you standing, pick a product from a real store, and AI shows you wearing it in about a minute. If you like it, buy it from the store itself.",
+    benefits: [
+      { title: "Fewer wrong buys", text: "See the colour and style on your own photo first, not only on a model." },
+      { title: "Any store", text: "Products from eBay, AliExpress and brand stores, plus any shop page with the free browser extension." },
+      { title: "Whole outfits too", text: "Put a top, trousers, shoes and a bag on you together and see if they go." },
+    ],
+    steps: SHOPPER_STEPS,
+    faqs: [ALL_FAQ.find((x) => x.q.startsWith("How can I see clothes"))!, ACCURACY, ALL_FAQ.find((x) => x.q.startsWith("What photo should"))!, PRICE],
+    cta: { label: "Try something on", href: "/try" },
+    keywords: ["try on clothes before buying online", "see clothes on me before buying", "how will this look on me", "try clothes on virtually", "virtual try on clothes free"],
+    related: ["virtual-try-on", "ai-outfit-try-on", "virtual-fitting-room"],
+  },
+  {
+    slug: "wedding-guest-outfit-try-on",
+    audience: "shopper",
+    title: "Wedding Guest Outfit Try-On: See the Look on You",
+    description:
+      "Not sure what to wear to a wedding? Try wedding guest dresses, suits, shoes and accessories on your own photo with AI, then buy from the store.",
+    kicker: "Wedding guest",
+    h1: "Wedding guest outfits: try the whole look on you first",
+    answer:
+      "TryOnU lets you try a wedding guest outfit on your own photo before you buy: a dress or suit, shoes, a bag and jewellery together in one picture. Type something like \"summer wedding guest dress, sage green\" or \"navy suit for a wedding\" and the AI Stylist finds real products to try.",
+    benefits: [
+      { title: "The full look at once", text: "Dress or suit, shoes, bag and jewellery together, so you know they match." },
+      { title: "Describe the wedding", text: "Garden, beach, evening or black tie: say it in your words and get real products." },
+      { title: "Buy from the store", text: "Every piece links to the store that sells it, at its normal price." },
+    ],
+    steps: SHOPPER_STEPS,
+    faqs: [ALL_FAQ.find((x) => x.q.startsWith("Can I try on a whole outfit"))!, ALL_FAQ.find((x) => x.q.startsWith("Can an AI pick"))!, WHERE_TO_BUY, ACCURACY],
+    cta: { label: "Try a wedding guest look", href: "/try" },
+    keywords: ["wedding guest outfit", "wedding guest dresses", "what to wear to a wedding", "wedding guest outfit men", "wedding guest outfit ideas"],
+    related: ["ai-outfit-try-on", "ai-personal-stylist", "try-on-glasses-watches-jewellery"],
+  },
+  {
+    slug: "winter-outfit-try-on",
+    audience: "shopper",
+    title: "Winter Outfit Ideas to Try On Your Own Photo",
+    description:
+      "Complete winter outfits for women, men and kids from real stores: coats, jackets, knitwear and boots. See each look on your own photo before you buy.",
+    kicker: "Winter outfits",
+    h1: "Winter outfit ideas you can try on yourself",
+    answer:
+      "TryOnU has ready winter looks for women, men and kids, each put together from real products: coats, puffer jackets, sweaters, jeans and boots. Pick a look and see it on your own photo in about a minute, or describe your own winter outfit to the AI Stylist.",
+    benefits: [
+      { title: "Ready looks", text: "Complete winter outfits for women, men and kids, ready to try on." },
+      { title: "Layers that work", text: "See a coat over a sweater with jeans and boots together, not one piece at a time." },
+      { title: "Shop every piece", text: "Each item links to its store, with its real price." },
+    ],
+    steps: SHOPPER_STEPS,
+    faqs: [ALL_FAQ.find((x) => x.q.startsWith("Can I try on a whole outfit"))!, ALL_FAQ.find((x) => x.q.startsWith("Can an AI pick"))!, WHERE_TO_BUY, PRICE],
+    cta: { label: "See the winter looks", href: "/looks" },
+    keywords: ["winter outfit ideas", "winter outfits for women", "winter outfits for men", "kids winter outfits", "winter coat outfit", "what to wear in winter"],
+    related: ["ai-outfit-try-on", "virtual-try-on", "ai-personal-stylist"],
+  },
+  {
+    slug: "virtual-try-on-for-fashion-brands",
+    audience: "business",
+    title: "Virtual Try-On for Fashion Brands and Retailers",
+    description:
+      "Let shoppers see your clothes on their own photo before they buy. Add a Try it on button to your site, use the API, or sell from your own TryOnU store.",
+    kicker: "For brands",
+    h1: "Virtual try-on for fashion brands and online retailers",
+    answer:
+      "TryOnU gives fashion brands and retailers AI virtual try-on: shoppers see your product on their own photo before they buy. Add a Try it on button to your website (Shopify, WooCommerce or any site), call the try-on API, or sell from your own store website on TryOnU. You pay per try-on with prepaid credits, and a failed try-on is free.",
+    benefits: [
+      { title: "On your own site", text: "A one-line widget, a Shopify block or the WordPress/WooCommerce plugin adds Try it on to your product pages." },
+      { title: "Or your own TryOnU store", text: "A store website at tryonu.app/your-brand with try-on, cart, orders by email and a WhatsApp button." },
+      { title: "See what shoppers try", text: "Your store dashboard shows the try-on pictures customers made with your products." },
+    ],
+    steps: [
+      { title: "Pick how to start", text: "A website key for your own site, or a store on TryOnU." },
+      { title: "Add your products", text: "Your product photos are used as they are; for a TryOnU store, add products or upload a CSV file." },
+      { title: "Shoppers try, then buy", text: "They see your product on their own photo and buy from you." },
+    ],
+    faqs: [
+      ALL_FAQ.find((x) => x.q.startsWith("Can I add virtual try-on"))!,
+      ALL_FAQ.find((x) => x.q.startsWith("Can my shop get its own website"))!,
+      { q: "How is it priced?", a: "Website and API try-ons use prepaid credit packs (one credit is one try-on, a failed try-on gives it back); see tryonu.app/developers. A store on TryOnU has a monthly plan; see tryonu.app/sell." },
+    ],
+    cta: { label: "Get started", href: "/developers" },
+    keywords: ["virtual try on for fashion brands", "virtual try on for retailers", "virtual fitting room software", "AI try on for ecommerce", "virtual try on solution"],
+    related: ["virtual-try-on-for-shopify", "virtual-try-on-for-woocommerce", "virtual-try-on-api"],
   },
 ];
 

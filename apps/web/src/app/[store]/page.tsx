@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { JsonLd, breadcrumbJsonLd } from "@/components/seo/JsonLd";
 import { StoreHome } from "@/components/storefront/StorePages";
 import { resolveMediaUrl } from "@/lib/api/client";
 import { pageMeta } from "@/lib/seo";
-import { loadStore } from "@/lib/storefront";
+import { loadStore, storeJsonLd } from "@/lib/storefront";
 
 type Props = { params: Promise<{ store: string }> };
 
@@ -22,5 +23,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function Page({ params }: Props) {
   const store = await loadStore((await params).store);
   if (!store) notFound();
-  return <StoreHome store={store} />;
+  return (
+    <>
+      <JsonLd data={[storeJsonLd(store), breadcrumbJsonLd([{ name: "TryOnU", path: "/" }, { name: store.name, path: `/${store.slug}` }])]} />
+      <StoreHome store={store} />
+    </>
+  );
 }

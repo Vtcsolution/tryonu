@@ -1,7 +1,9 @@
 import type { MetadataRoute } from "next";
 import { serverFetch } from "@/lib/api/server";
+import { resolveMediaUrl } from "@/lib/api/client";
 import { SITE } from "@/lib/seo";
 import { LANDINGS } from "@/lib/seoContent";
+import { loadStore } from "@/lib/storefront";
 
 export const revalidate = 3600;
 
@@ -34,6 +36,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
   const stores = (await serverFetch<{ slug: string; updated_at: string | null }[]>("/api/v1/stores/public", { revalidateSeconds: 3600 })) ?? [];
   const looks = (await serverFetch<{ id: string }[]>("/api/v1/looks", { revalidateSeconds: 3600 })) ?? [];
+  const storePages = (await Promise.all(stores.slice(0, 200).map((s) => loadStore(s.slug)))).filter((s) => s !== null);
   return [
     ...PAGES.map((p) => ({ url: `${SITE}${p.path === "/" ? "" : p.path}`, lastModified: now, changeFrequency: p.changeFrequency, priority: p.priority })),
     ...LANDINGS.map((l) => ({
@@ -54,5 +57,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "weekly" as const,
       priority: 0.6,
     })),
+    ...storePages.flatMap((s) => [
+      { url: `${SITE}/${s.slug}/products`, lastModified: now, changeFrequency: "weekly" as const, priority: 0.5 },
+      ...s.products.map((p) => ({
+        url: `${SITE}/${s.slug}/products/${p.id}`,
+        lastModified: now,
+        changeFrequency: "weekly" as const,
+        priority: 0.5,
+        images: p.images.slice(0, 1).map((i) => resolveMediaUrl(i)),
+      })),
+    ]),
   ];
 }

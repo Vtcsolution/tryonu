@@ -1,9 +1,10 @@
 import { FirstOutfitOffer } from "@/components/credits/FirstOutfitOffer";
 import { SiteChrome } from "@/components/layout/SiteChrome";
 import { LooksGrid } from "@/components/looks/LooksGrid";
+import { JsonLd } from "@/components/seo/JsonLd";
 import type { ReadyLook } from "@/lib/api/endpoints";
 import { serverFetch } from "@/lib/api/server";
-import { pageMeta } from "@/lib/seo";
+import { SITE, pageMeta } from "@/lib/seo";
 
 export const revalidate = 300;
 
@@ -21,6 +22,20 @@ export default async function LooksPage() {
   const looks = (await serverFetch<ReadyLook[]>("/api/v1/looks", { revalidateSeconds: 300 })) ?? [];
   return (
     <SiteChrome>
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "ItemList",
+          name: "TryOnU ready looks",
+          itemListElement: looks.slice(0, 60).map((l, i) => ({
+            "@type": "ListItem",
+            position: i + 1,
+            url: `${SITE}/looks/${l.id}`,
+            name: l.title,
+            image: l.card_url ?? undefined,
+          })),
+        }}
+      />
       <section className="tu-container py-10 md:py-14">
         <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-sage-deep">Winter collection</p>
         <h1 className="mt-1 max-w-3xl font-display text-[clamp(32px,4.8vw,54px)] leading-[1.05] text-ink">

@@ -48,6 +48,8 @@ export async function llmsText(full: boolean): Promise<string> {
     "- Buy each piece from the original store with the Shop now button (eBay, AliExpress, brand stores through affiliate networks, and local shops on TryOnU). TryOnU does not sell products itself.",
     "- Save looks and share them; friends can try the same look on themselves.",
     "- Shops can sell on TryOnU; developers can add try-on to their own sites (API, widget, Shopify, WordPress/WooCommerce).",
+    "- Every store on TryOnU gets its own website at tryonu.app/<store-name>: logo, products, a cart and checkout, orders sent to the shop by email and a WhatsApp button. Shoppers can pick several of the store's products and try them on together in one picture.",
+    "- Works in any country in the browser (USA, UK, Canada, Australia, Japan, Pakistan and more); the site shows itself in the visitor's language by country.",
     "",
     "## Start here",
     "",
