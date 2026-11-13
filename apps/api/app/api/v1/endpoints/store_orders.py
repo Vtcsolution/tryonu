@@ -155,6 +155,9 @@ async def place_order(slug: str, payload: OrderIn, db: DbSession, user: Optional
     text = _order_text(store, order)
     await _tell_store(db, store, order, text)
     await _tell_customer(store, order)
+    from app.services.team_alerts import tell_team
+
+    tell_team("sales", f"order {order.number} at {store.name}", text.splitlines())
     return OrderPlacedOut(
         number=order.number,
         total_cents=order.total_cents,

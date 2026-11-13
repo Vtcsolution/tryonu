@@ -121,6 +121,15 @@ async def open_account(payload: DeveloperAccountIn, user: CurrentUser, db: DbSes
     db.add(account)
     await db.commit()
     await db.refresh(account)
+    from app.services.team_alerts import tell_team
+
+    tell_team(
+        "sales",
+        f"new developer account: {account.company_name}",
+        [f"Company: {account.company_name}", f"Website: {account.website or '-'}", f"Email: {user.email}"],
+        admin_path="/admin/dashboard",
+        reply_to=user.email,
+    )
     return await _account_out(db, account)
 
 

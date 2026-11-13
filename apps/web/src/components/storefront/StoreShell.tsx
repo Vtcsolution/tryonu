@@ -106,21 +106,7 @@ export function StoreShell({
       <main className="flex-1">{children}</main>
       <TryBar store={store} />
 
-      {store.whatsapp && (
-        <a
-          href={waLink(
-            store.whatsapp,
-            `Hi ${store.name}, I'm on your TryOnU store.`,
-          )}
-          target="_blank"
-          rel="noopener"
-          aria-label={`Chat with ${store.name} on WhatsApp`}
-          style={{ backgroundColor: WHATSAPP_GREEN }}
-          className="fixed bottom-24 right-5 z-40 grid h-14 w-14 place-items-center rounded-full text-white shadow-lift"
-        >
-          <WhatsAppIcon size={28} />
-        </a>
-      )}
+      {store.whatsapp && <FloatingWhatsApp store={store} number={store.whatsapp} />}
 
       <footer className="border-t border-line bg-surface">
         <div className="mx-auto flex tu-container flex-wrap items-center justify-between gap-3 py-6 text-[14px] text-muted">
@@ -197,5 +183,28 @@ function TryBar({ store }: { store: PublicStore }) {
         </div>
       </div>
     </>
+  );
+}
+
+/** The store's WhatsApp, always in the corner: a soft pulse so shoppers notice it,
+ * moved up only while the try-on bar is open. */
+function FloatingWhatsApp({ store, number }: { store: PublicStore; number: string }) {
+  const picked = useCart(store.slug, "try");
+  return (
+    <a
+      href={waLink(number, `Hi ${store.name}, I'm on your TryOnU store.`)}
+      target="_blank"
+      rel="noopener"
+      aria-label={`Chat with ${store.name} on WhatsApp`}
+      style={{ backgroundColor: WHATSAPP_GREEN }}
+      className={`tu-wa-float fixed right-4 z-40 grid h-14 w-14 place-items-center rounded-full text-white shadow-lift transition-[bottom] duration-300 sm:right-6 ${
+        picked.count > 0 ? "bottom-28" : "bottom-4 sm:bottom-6"
+      }`}
+    >
+      <span aria-hidden="true" style={{ backgroundColor: WHATSAPP_GREEN }} className="tu-wa-ring absolute inset-0 rounded-full" />
+      <span className="relative">
+        <WhatsAppIcon size={28} />
+      </span>
+    </a>
   );
 }

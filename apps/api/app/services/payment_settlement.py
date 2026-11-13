@@ -33,6 +33,13 @@ SWEEP_EVERY_SECONDS = 180
 SWEEP_WINDOW = timedelta(hours=6)
 
 
+def _tell_paid(payment: Payment, what: str) -> None:
+    from app.services.team_alerts import tell_team
+
+    amount = f"{payment.amount_cents / 100:.2f} {payment.currency.upper()}"
+    tell_team("billing", f"payment {amount}: {what}", [f"{amount} for {what}", f"Paid with {payment.provider}", f"Payment id: {payment.id}"])
+
+
 async def settle(db: AsyncSession, payment: Payment) -> PurchaseCreditsResponse:
     """The caller has locked the payment row (SELECT ... FOR UPDATE)."""
     if payment.status == PaymentStatus.SUCCEEDED:
@@ -82,6 +89,7 @@ async def settle(db: AsyncSession, payment: Payment) -> PurchaseCreditsResponse:
         else:
             logger.error("payment_developer_pack_missing", payment_id=payment.id)
         await db.commit()
+        _tell_paid(payment, f"developer pack {pack.name if pack else '?'}")
         return PurchaseCreditsResponse(
             payment_id=payment.id, status="succeeded", developer_tryons=pack.tryons if pack else None
         )
@@ -104,6 +112,7 @@ async def settle(db: AsyncSession, payment: Payment) -> PurchaseCreditsResponse:
         else:
             logger.error("payment_store_plan_missing", payment_id=payment.id)
         await db.commit()
+        _tell_paid(payment, f"store plan {plan.name if plan else '?'}{f' for {store.name}' if store else ''}")
         return PurchaseCreditsResponse(
             payment_id=payment.id,
             status="succeeded",
@@ -133,6 +142,7 @@ async def settle(db: AsyncSession, payment: Payment) -> PurchaseCreditsResponse:
 
     await notify(db, user_id=payment.user_id, kind="credits_added", credits=package.credits, text=package.name)
     await db.commit()
+    _tell_paid(payment, f"credit pack {package.name} ({package.credits} credits)")
     return PurchaseCreditsResponse(
         payment_id=payment.id, status="succeeded", credits_granted=package.credits, new_balance=entry.balance_after
     )

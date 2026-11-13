@@ -672,3 +672,20 @@ summary,
     animation: none;
   }
 }
+
+/* the store page's WhatsApp button: a ring that spreads out, and a small nudge every few seconds */
+@keyframes tu-wa-ring {
+  0% { transform: scale(1); opacity: 0.55; }
+  80%, 100% { transform: scale(1.75); opacity: 0; }
+}
+@keyframes tu-wa-nudge {
+  0%, 86%, 100% { transform: translateY(0) rotate(0); }
+  89% { transform: translateY(-4px) rotate(-8deg); }
+  92% { transform: translateY(-4px) rotate(8deg); }
+  95% { transform: translateY(0) rotate(0); }
+}
+.tu-wa-ring { animation: tu-wa-ring 2s cubic-bezier(0, 0, 0.2, 1) infinite; }
+.tu-wa-float { animation: tu-wa-nudge 5s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .tu-wa-ring, .tu-wa-float { animation: none; }
+}

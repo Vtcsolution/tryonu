@@ -194,6 +194,16 @@ async def create_store(payload: StoreCreate, user: CurrentUser, db: DbSession):
     db.add(store)
     await db.commit()
     await db.refresh(store)
+    from app.services.team_alerts import tell_team
+
+    tell_team(
+        "sales",
+        f"new store: {store.name}",
+        [f"Store: {store.name} ({store.country})", f"Owner: {user.email}", f"Contact: {store.contact_email}",
+         f"WhatsApp: {store.whatsapp or '-'}", f"Website: {store.website_url or '-'}", "It waits for a plan and approval."],
+        admin_path="/admin/dashboard",
+        reply_to=store.contact_email,
+    )
     return await _out(db, store)
 
 
