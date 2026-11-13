@@ -73,7 +73,7 @@ export const GUIDES: Guide[] = [
       },
       {
         q: "Is there a free alternative to Try Before You Buy?",
-        a: "Joining TryOnU is free and so is the AI Stylist; a try-on uses credits, and a new member's first outfit costs $1. Some products from shops selling on TryOnU can be tried on for free, paid by the shop.",
+        a: "Yes. A new TryOnU member's first complete outfit is free: the credits arrive once you confirm your email, one free outfit per person. Joining and the AI Stylist are free too, and some products from shops selling on TryOnU can be tried on for free, paid by the shop.",
       },
       {
         q: "Can I try on a product from any website?",

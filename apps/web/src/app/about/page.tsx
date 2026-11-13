@@ -73,7 +73,7 @@ export default function AboutPage() {
         <SectionTitle>Is TryOnU legit?</SectionTitle>
         <p className="mt-3 text-[17px] leading-relaxed text-ink-soft">
           Yes. TryOnU is a real service run by {OWNER}, and you can check how it works before you pay anything: joining is free,
-          and a new member&apos;s first outfit costs $1. Payments go through PayPal, so TryOnU never sees your card details. If a
+          and a new member&apos;s first complete outfit is free once they confirm their email. Payments go through PayPal, so TryOnU never sees your card details. If a
           try-on fails, its credits come back automatically, and our <Link href="/refunds" className="text-sage-deep underline">refund policy</Link>{" "}
           explains the rest.
         </p>

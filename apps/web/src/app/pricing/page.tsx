@@ -11,9 +11,9 @@ import type { CreditPackage, StorePlan } from "@/lib/api/types";
 import { pageMeta } from "@/lib/seo";
 
 export const metadata = pageMeta({
-  title: "TryOnU Pricing: First Outfit for $1",
+  title: "TryOnU Pricing: First Outfit Free, Packs From $1",
   description:
-    "Your first outfit for $1, then one-time credit packs (no subscription), plans for shops and prepaid credits for the try-on API. Failed try-ons are free.",
+    "Your first outfit free, then one-time credit packs from $1 (no subscription), store plans and prepaid API credits. Failed try-ons are free.",
   path: "/pricing",
   keywords: ["virtual try on price", "TryOnU price", "try on credits"],
 });

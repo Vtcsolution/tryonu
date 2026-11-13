@@ -120,7 +120,7 @@ Crawled from the live site (https://tryonu.app, commit 48152a4) by fetching ever
 | /guides (new) and six guides | see the plan | e.g. Amazon Try Before You Buy Alternative | 525 to 751 each |
 
 Where the plan was changed, and why:
-- **/virtual-try-on: "Free" left out of the title.** New members get 0 free credits (SIGNUP_FREE_CREDITS = 0); a try-on costs credits. The page now says what is free (joining, search, the Stylist, shop-paid try-ons, invite credits) in its own section.
+- **/virtual-try-on: "Free" is in the title** since new members get one free outfit (10 credits once their email is confirmed, once per person, commit 7a322e8). If the admin sets "Free credits on signup" back to 0, take "Free" out of this title and the copy that mentions the free outfit. /pricing is "First Outfit Free, Packs From $1".
 - **/looks: "Ready Outfit Looks to Try On You", not "Winter Outfit Looks…".** "Winter" in the /looks title would compete with /winter-outfit-try-on and /looks/winter.
 - **"ai outfit generator from photo" is on /ai-outfit-try-on, not /outfits.** /outfits is the signed-in outfit builder and is noindex.
 - **Amazon:** no page claims Amazon products can be tried on. The guide and /try-on-clothes-before-buying say Amazon is coming soon, and explain Upload your own item, which works today with a product photo from any shop.

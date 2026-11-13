@@ -168,7 +168,7 @@ export const LANDINGS: Landing[] = [
   {
     slug: "virtual-try-on",
     audience: "shopper",
-    title: "Virtual Try-On for Clothes, Shoes and Bags",
+    title: "Free Virtual Try-On for Clothes, Shoes and Bags",
     description:
       "Try real clothes, shoes and accessories on your own photo with AI before you buy. One photo, pick a product, see it on you, then shop the store.",
     kicker: "Virtual try-on",
@@ -189,7 +189,7 @@ export const LANDINGS: Landing[] = [
   {
     "h2": "Is virtual try-on free on TryOnU?",
     "paragraphs": [
-      "Joining TryOnU is free, and so are searching for products and asking the AI Stylist. A try-on itself uses credits, because every picture is made by an AI model that costs money to run. A new member's first outfit costs $1, credit packs start at $4.99, and if a try-on fails its credits come back automatically.",
+      "Joining TryOnU is free, and so are searching for products and asking the AI Stylist. Your first complete outfit is free too: confirm your email and the credits for one outfit are in your account, one free outfit per person. After that a try-on uses credits, because every picture is made by an AI model that costs money to run; credit packs start at $4.99, and if a try-on fails its credits come back automatically.",
       "Some products from shops selling on TryOnU can be tried on for free, paid for by the shop, and you can earn free credits by inviting friends."
     ]
   },
@@ -284,7 +284,7 @@ export const LANDINGS: Landing[] = [
   {
     "h2": "What is free, and what uses credits",
     "paragraphs": [
-      "Asking the AI Stylist is free: describe what you need in your own words ('smart outfit for a winter wedding in London, budget £200') and it finds real products that match. Putting the outfit on your own photo is a try-on, which uses credits; a new member's first outfit costs $1."
+      "Asking the AI Stylist is free: describe what you need in your own words ('smart outfit for a winter wedding in London, budget £200') and it finds real products that match. Putting the outfit on your own photo is a try-on, which uses credits; a new member's first complete outfit is free."
     ]
   },
   {
