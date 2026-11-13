@@ -52,6 +52,8 @@ export const metadata: Metadata = {
     other: {
       // Mitgo (Admitad) affiliate ad-space ownership check; a public token, not a secret
       "mitgo-verification": "794de6ff-f7d7-4405-8164-728c91d75317",
+      // Pinterest website claim (public token): pins from tryonu.app show the TryOnU name
+      "p:domain_verify": "71f9251696d44356ec17c21185f9dad0",
       ...(process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION ? { "msvalidate.01": process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION } : {}),
     },
   },
