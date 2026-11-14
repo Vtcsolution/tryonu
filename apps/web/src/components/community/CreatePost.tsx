@@ -129,12 +129,16 @@ function videoDuration(file: File): Promise<number> {
   });
 }
 
+const MAX_PHOTOS = 10;
+
 /** Upload my own photo or video: preview, caption, rules, and a progress bar. */
 function MediaComposer({ onClose, extras: startExtras }: { onClose: () => void; extras: PostExtras }) {
   const qc = useQueryClient();
   const [extras, setExtras] = useState<PostExtras>(startExtras);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  // the 2nd to 10th photo of a photo post
+  const [more, setMore] = useState<{ file: File; url: string }[]>([]);
   const [caption, setCaption] = useState("");
   const [agree, setAgree] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
@@ -145,6 +149,28 @@ function MediaComposer({ onClose, extras: startExtras }: { onClose: () => void; 
   useEffect(() => () => {
     if (preview) URL.revokeObjectURL(preview);
   }, [preview]);
+
+  const pickMany = async (list: FileList | null) => {
+    const files = Array.from(list ?? []);
+    if (files.length === 0) return;
+    const [first, ...rest] = files;
+    if (!file) await pick(first);
+    else rest.unshift(first);
+    addMore(file ? files : rest);
+  };
+  const addMore = (files: File[]) => {
+    setError(null);
+    const photos = files.filter((f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name));
+    if (photos.length < files.length) setError("A post with several photos can't include a video. The video was left out.");
+    const tooBig = photos.filter((f) => f.size > MAX_PHOTO_MB * 1024 * 1024);
+    if (tooBig.length) setError(`Photos must be under ${MAX_PHOTO_MB} MB each. ${tooBig.length} photo(s) were left out.`);
+    setMore((m) =>
+      [...m, ...photos.filter((f) => f.size <= MAX_PHOTO_MB * 1024 * 1024).map((f) => ({ file: f, url: URL.createObjectURL(f) }))].slice(
+        0,
+        MAX_PHOTOS - 1,
+      ),
+    );
+  };
 
   const pick = async (f: File | undefined) => {
     setError(null);
@@ -177,7 +203,7 @@ function MediaComposer({ onClose, extras: startExtras }: { onClose: () => void; 
     setError(null);
     setProgress(0);
     try {
-      const created = await community.createMedia(file, caption.trim(), setProgress, extras);
+      const created = await community.createMedia([file, ...(isVideo ? [] : more.map((m) => m.file))], caption.trim(), setProgress, extras);
       setDone(created);
       qc.invalidateQueries({ queryKey: ["community"] });
     } catch (err) {
@@ -210,13 +236,14 @@ function MediaComposer({ onClose, extras: startExtras }: { onClose: () => void; 
     <Modal title="Upload a photo or video" onClose={progress === null ? onClose : () => undefined}>
       {!file ? (
         <label className="flex cursor-pointer flex-col items-center justify-center rounded-[16px] border-2 border-dashed border-line-strong px-6 py-12 text-center hover:border-sage">
-          <input type="file" accept="image/*,video/*" className="sr-only" onChange={(e) => pick(e.target.files?.[0])} />
+          <input type="file" accept="image/*,video/*" multiple className="sr-only" onChange={(e) => pickMany(e.target.files)} />
           <span className="grid h-14 w-14 place-items-center rounded-full bg-sage-tint/60 text-sage-deep">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
             </svg>
           </span>
-          <span className="mt-3 text-[16.5px] font-semibold text-ink">Choose a photo or video</span>
+          <span className="mt-3 text-[16.5px] font-semibold text-ink">Choose photos or a video</span>
+          <span className="mt-1 text-[14px] text-ink-soft">Up to {MAX_PHOTOS} photos in one post</span>
           <span className="mt-1 text-[14px] text-muted">
             Photos up to {MAX_PHOTO_MB} MB · videos up to {MAX_VIDEO_SECONDS} seconds and {MAX_VIDEO_MB} MB
           </span>
@@ -243,11 +270,61 @@ function MediaComposer({ onClose, extras: startExtras }: { onClose: () => void; 
                 aria-label="Caption"
                 className="min-h-0 flex-1 rounded-xl border border-line-strong bg-paper p-3 text-[15px] text-ink"
               />
-              <button type="button" disabled={progress !== null} onClick={() => setFile(null)} className="mt-2 self-start text-[14px] font-semibold text-sage-deep hover:underline">
-                Choose another file
+              <button
+                type="button"
+                disabled={progress !== null}
+                onClick={() => {
+                  setFile(null);
+                  setMore([]);
+                }}
+                className="mt-2 self-start text-[14px] font-semibold text-sage-deep hover:underline"
+              >
+                Choose other files
               </button>
             </div>
           </div>
+          {!isVideo && (
+            <div className="mt-3">
+              <p className="text-[13.5px] font-semibold text-ink">
+                {1 + more.length} of {MAX_PHOTOS} photos · people swipe through them in your post
+              </p>
+              <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                {more.map((m, i) => (
+                  <div key={m.url} className="relative h-20 w-16 shrink-0 overflow-hidden rounded-lg bg-black">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={m.url} alt="" className="h-full w-full object-cover" />
+                    <button
+                      type="button"
+                      disabled={progress !== null}
+                      onClick={() => setMore((list) => list.filter((_, j) => j !== i))}
+                      aria-label={`Remove photo ${i + 2}`}
+                      className="absolute right-0.5 top-0.5 grid h-6 w-6 place-items-center rounded-full bg-[#b4483a] text-white"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" aria-hidden="true">
+                        <path d="M6 6l12 12M18 6L6 18" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+                {more.length < MAX_PHOTOS - 1 && (
+                  <label className="grid h-20 w-16 shrink-0 cursor-pointer place-items-center rounded-lg border-2 border-dashed border-line-strong text-[12px] font-semibold text-ink-soft hover:border-sage">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="sr-only"
+                      disabled={progress !== null}
+                      onChange={(e) => {
+                        addMore(Array.from(e.target.files ?? []));
+                        e.target.value = "";
+                      }}
+                    />
+                    + Add
+                  </label>
+                )}
+              </div>
+            </div>
+          )}
           <PostOptions value={extras} onChange={setExtras} />
           <div className="mt-4 rounded-xl bg-paper-2 p-3">
             <p className="text-[13.5px] font-semibold text-ink">Community rules</p>

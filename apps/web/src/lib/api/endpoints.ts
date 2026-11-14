@@ -432,6 +432,8 @@ export type CommunityPost = {
   image_url: string | null;
   video_url?: string | null;
   poster_url?: string | null;
+  /** a post with several photos: all of them, the first included (empty for one photo) */
+  images?: string[];
   caption: string | null;
   like_count: number;
   comment_count: number;
@@ -549,10 +551,12 @@ export const community = {
   create: (input: { tryon_job_id: string; caption?: string; accept_rules: boolean; person_id?: string; ready_look?: boolean } & PostExtras) =>
     apiFetch<CommunityPost>(`${C}/posts`, { method: "POST", body: input }),
   postForJob: (jobId: string) => apiFetch<{ post_id: string | null }>(`${C}/posts/by-job/${jobId}`),
-  /** my own photo or video, with upload progress (0-100) */
-  createMedia: (file: File, caption: string, onProgress: (pct: number) => void, extras: PostExtras = {}) => {
+  /** my own photo or video (or up to 10 photos), with upload progress (0-100) */
+  createMedia: (file: File | File[], caption: string, onProgress: (pct: number) => void, extras: PostExtras = {}) => {
     const form = new FormData();
-    form.append("file", file);
+    const [first, ...more] = Array.isArray(file) ? file : [file];
+    form.append("file", first);
+    for (const f of more) form.append("more", f);
     form.append("caption", caption);
     form.append("accept_rules", "true");
     if (extras.poll) form.append("poll", "true");
@@ -606,6 +610,9 @@ export const community = {
   profile: (handle: string) => apiFetch<CommunityProfile>(`${C}/profiles/${encodeURIComponent(handle)}`),
   profilePosts: (handle: string, offset = 0) => apiFetch<CommunityFeed>(`${C}/profiles/${encodeURIComponent(handle)}/posts?offset=${offset}`),
   follow: (handle: string) => apiFetch<CommunityProfile>(`${C}/profiles/${encodeURIComponent(handle)}/follow`, { method: "POST" }),
+  /** members worth following: people who follow me first, then the most followed */
+  suggestedPeople: (limit = 12) =>
+    apiFetch<(CommunityAuthor & { followers: number; posts: number; follows_me: boolean })[]>(`${C}/people/suggested?limit=${limit}`),
   unfollow: (handle: string) => apiFetch<CommunityProfile>(`${C}/profiles/${encodeURIComponent(handle)}/follow`, { method: "DELETE" }),
   report: (input: { post_id?: string; comment_id?: string; reason: string }) =>
     apiFetch<{ detail: string }>(`${C}/reports`, { method: "POST", body: input }),

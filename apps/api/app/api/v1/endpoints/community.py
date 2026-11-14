@@ -130,6 +130,8 @@ class PostOut(BaseModel):
     image_url: str | None
     video_url: str | None = None
     poster_url: str | None = None
+    # a photo post with several photos: all of them, the first one included
+    images: list[str] = []
     caption: str | None
     like_count: int
     comment_count: int
@@ -242,6 +244,11 @@ async def _posts_out(db: DbSession, posts: list[CommunityPost], me: User) -> lis
                     image_url=storage.signed_url(p.media_key) if p.media_kind == "image" else None,
                     video_url=storage.signed_url(p.media_key) if p.media_kind == "video" else None,
                     poster_url=storage.signed_url(p.poster_key) if p.poster_key else None,
+                    images=(
+                        [storage.signed_url(p.media_key), *(storage.signed_url(m["key"]) for m in p.extra_media)]
+                        if p.media_kind == "image" and p.extra_media
+                        else []
+                    ),
                     caption=p.caption,
                     like_count=p.like_count,
                     comment_count=p.comment_count,
@@ -467,6 +474,9 @@ async def my_looks(me: CurrentUser, db: DbSession, limit: int = 30):
     return sorted(out, key=lambda x: (not x.saved, -x.created_at.timestamp()))
 
 
+MAX_EXTRA_PHOTOS = 9
+
+
 @router.post(
     "/posts/media",
     response_model=PostOut,
@@ -477,13 +487,15 @@ async def create_media_post(
     me: CurrentUser,
     db: DbSession,
     file: UploadFile = File(...),
+    more: list[UploadFile] = File(default=[]),
     caption: str | None = Form(default=None, max_length=1000),
     accept_rules: bool = Form(default=False),
     poll: bool = Form(default=False),
     challenge_id: str | None = Form(default=None),
     music_track_id: str | None = Form(default=None),
 ):
-    """A member posts their own photo or video (videos: up to 60 seconds)."""
+    """A member posts their own photo or video (videos: up to 60 seconds), or
+    up to 10 photos in one post, swiped through."""
     from app.services import community_media
 
     _can_write(me)
@@ -500,11 +512,23 @@ async def create_media_post(
     else:
         key, width, height = await community_media.save_image(me.id, raw)
         poster, kind = None, "image"
+    extra: list[dict] = []
+    if kind == "image" and more:
+        if len(more) > MAX_EXTRA_PHOTOS:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Up to {MAX_EXTRA_PHOTOS + 1} photos in one post.")
+        for f in more:
+            data = await f.read()
+            if not data:
+                continue
+            if community_media.video_kind(data) is not None:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A post with several photos can't include a video.")
+            k, w, h = await community_media.save_image(me.id, data)
+            extra.append({"key": k, "w": w, "h": h})
     await ensure_handle(db, me)
     text, removed = clean_text(caption)
     post = CommunityPost(
         user_id=me.id, media_kind=kind, media_key=key, poster_key=poster, media_width=width, media_height=height,
-        caption=text or None, links_removed=removed, poll=poll, challenge_id=entry, music_track_id=song,
+        extra_media=extra or None, caption=text or None, links_removed=removed, poll=poll, challenge_id=entry, music_track_id=song,
     )
     db.add(post)
     await db.flush()
@@ -544,7 +568,7 @@ async def delete_post(post_id: str, me: CurrentUser, db: DbSession):
     post = await db.get(CommunityPost, post_id)
     if post is None or (post.user_id != me.id and not me.is_admin):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
-    media = (post.media_key, post.poster_key)
+    media = (post.media_key, post.poster_key, *(m["key"] for m in (post.extra_media or [])))
     from app.api.v1.endpoints.ready_looks import follow_post
 
     await follow_post(db, post.tryon_job_id, post.user_id, visible=None)
@@ -1212,6 +1236,50 @@ async def follow(handle: str, me: CurrentUser, db: DbSession):
         await notify(db, user_id=user.id, kind="follow", actor_id=me.id)
         await db.commit()
     return await _profile_out(db, user, me)
+
+
+class SuggestedPersonOut(AuthorOut):
+    followers: int
+    posts: int
+    follows_me: bool
+
+
+@router.get("/people/suggested", response_model=list[SuggestedPersonOut])
+async def suggested_people(me: CurrentUser, db: DbSession, limit: int = 12):
+    """Members worth following: active posters I don't follow yet, people who
+    follow me first, then the most followed."""
+    limit = min(max(limit, 1), 24)
+    mine = select(Follow.followee_id).where(Follow.follower_id == me.id)
+    posts = (
+        select(CommunityPost.user_id, func.count().label("n"))
+        .where(CommunityPost.is_hidden.is_(False))
+        .group_by(CommunityPost.user_id)
+        .subquery()
+    )
+    followers = select(Follow.followee_id, func.count().label("n")).group_by(Follow.followee_id).subquery()
+    fans = set((await db.execute(select(Follow.follower_id).where(Follow.followee_id == me.id))).scalars())
+    rows = (
+        await db.execute(
+            select(User, posts.c.n, func.coalesce(followers.c.n, 0))
+            .join(posts, posts.c.user_id == User.id)
+            .outerjoin(followers, followers.c.followee_id == User.id)
+            .where(
+                User.id != me.id,
+                User.id.not_in(mine),
+                User.is_active.is_(True),
+                User.community_banned_at.is_(None),
+                User.handle.is_not(None),
+            )
+            .order_by(func.coalesce(followers.c.n, 0).desc(), posts.c.n.desc())
+            .limit(60)
+        )
+    ).all()
+    people = [
+        SuggestedPersonOut(**_author(u).model_dump(), followers=int(f or 0), posts=int(n or 0), follows_me=u.id in fans)
+        for u, n, f in rows
+    ]
+    people.sort(key=lambda p: (not p.follows_me, -p.followers, -p.posts))
+    return people[:limit]
 
 
 @router.delete("/profiles/{handle}/follow", response_model=ProfileOut)

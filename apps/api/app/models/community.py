@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, false, true
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, false, true
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -25,6 +25,8 @@ class CommunityPost(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     poster_key: Mapped[str | None] = mapped_column(String(512), nullable=True)  # a video's cover picture
     media_width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     media_height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # the 2nd to 10th photo of a photo post, swiped through: [{"key", "w", "h"}]
+    extra_media: Mapped[list | None] = mapped_column(JSON, nullable=True)
     caption: Mapped[str | None] = mapped_column(Text, nullable=True)
     like_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     comment_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

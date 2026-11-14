@@ -191,6 +191,8 @@ export function PostCard({
             className="mx-auto max-h-[720px] w-full object-contain"
           />
         </div>
+      ) : (p.images?.length ?? 0) > 1 ? (
+        <PhotoCarousel images={p.images!} alt={p.caption || `A post by @${p.author.handle}`} />
       ) : (
         image && (
           <Link href={`/community/post/${p.id}`} className="block bg-paper-2">
@@ -409,6 +411,67 @@ function LikersDialog({ postId, onClose }: { postId: string; onClose: () => void
             </Link>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** Several photos in one post: swipe (or tap the arrows), with a counter and dots. */
+function PhotoCarousel({ images, alt }: { images: string[]; alt: string }) {
+  const strip = useRef<HTMLDivElement>(null);
+  const [at, setAt] = useState(0);
+  const go = (i: number) => {
+    const el = strip.current;
+    if (!el) return;
+    const n = Math.max(0, Math.min(images.length - 1, i));
+    el.scrollTo({ left: n * el.clientWidth, behavior: "smooth" });
+  };
+  return (
+    <div className="relative bg-paper-2">
+      <div
+        ref={strip}
+        onScroll={(e) => setAt(Math.round(e.currentTarget.scrollLeft / Math.max(1, e.currentTarget.clientWidth)))}
+        className="flex snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {images.map((src, i) => (
+          <div key={src} className="flex w-full shrink-0 snap-center items-center justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={mediaThumb(src, 900)}
+              alt={`${alt} (photo ${i + 1} of ${images.length})`}
+              loading={i === 0 ? "eager" : "lazy"}
+              className="mx-auto max-h-[720px] w-full object-contain"
+            />
+          </div>
+        ))}
+      </div>
+      <span className="absolute right-3 top-3 rounded-full bg-black/65 px-2.5 py-1 text-[13px] font-semibold text-white">
+        {at + 1} / {images.length}
+      </span>
+      {at > 0 && (
+        <button
+          type="button"
+          onClick={() => go(at - 1)}
+          aria-label="Previous photo"
+          className="absolute left-2 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-ink shadow-md"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
+        </button>
+      )}
+      {at < images.length - 1 && (
+        <button
+          type="button"
+          onClick={() => go(at + 1)}
+          aria-label="Next photo"
+          className="absolute right-2 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-ink shadow-md"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6" /></svg>
+        </button>
+      )}
+      <div className="absolute inset-x-0 bottom-2.5 flex justify-center gap-1.5" aria-hidden="true">
+        {images.map((src, i) => (
+          <span key={src} className={`h-1.5 rounded-full transition-all ${i === at ? "w-4 bg-white" : "w-1.5 bg-white/60"}`} />
+        ))}
       </div>
     </div>
   );

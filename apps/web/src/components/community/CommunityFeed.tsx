@@ -7,6 +7,7 @@ import { CreatePost } from "@/components/community/CreatePost";
 import { ChallengeBanner, TrophyIcon, useLiveChallenge } from "@/components/community/extras";
 import { Avatar, PostCard } from "@/components/community/PostCard";
 import { COMMUNITY_RULES } from "@/components/community/PostToCommunity";
+import { PeopleToFollow } from "@/components/community/PeopleToFollow";
 import { Button } from "@/components/ui/Button";
 import { community } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
@@ -118,9 +119,22 @@ export function CommunityFeed() {
                 </div>
               </div>
             )}
-            {posts.map((p) => (
-              <PostCard key={p.id} post={p} onRemoved={() => setRemoved((r) => [...r, p.id])} />
+            {posts.map((p, i) => (
+              <div key={p.id} className="space-y-6">
+                <PostCard post={p} onRemoved={() => setRemoved((r) => [...r, p.id])} />
+                {/* after the second post on phones and tablets (the side column has it on computers) */}
+                {i === 1 && (
+                  <div className="lg:hidden">
+                    <PeopleToFollow />
+                  </div>
+                )}
+              </div>
             ))}
+            {posts.length > 0 && posts.length < 2 && (
+              <div className="lg:hidden">
+                <PeopleToFollow />
+              </div>
+            )}
             {feed.hasNextPage && (
               <button
                 type="button"
@@ -147,6 +161,7 @@ export function CommunityFeed() {
                 </span>
               </Link>
             )}
+            <PeopleToFollow variant="list" />
             <div className="rounded-[20px] border border-line bg-surface p-5">
               <p className="text-[16px] font-semibold text-ink">Share your look</p>
               <p className="mt-1 text-[14.5px] text-muted">Post a try-on look, or your own photo or video.</p>
