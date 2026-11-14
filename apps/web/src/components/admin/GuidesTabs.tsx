@@ -91,7 +91,7 @@ export function TrendsGuideTab() {
             <>Open <b>Amazon Best Sellers</b> and write down the top 10 coats, boots, sneakers and watches, for women and for men. Note the colours that repeat.</>,
             <>Check those styles and colours on <b>Google Trends</b> (United States, last 90 days). Keep the ones that are rising.</>,
             <>Look at the same styles on <b>Pinterest Trends</b> to see how people wear them together.</>,
-            <>Build those outfits in the <b>Team panel</b> from Rakuten brand stores, eBay and AliExpress, and publish them as Ready looks.</>,
+            <>Build those outfits in the <b>Team panel</b> from brand stores, eBay and AliExpress, and publish them as Ready looks.</>,
             <>Post the new looks to the community and to Instagram, TikTok, Pinterest and Facebook (see the Growth plan page).</>,
           ]}
         />
@@ -134,7 +134,7 @@ export function TrendsGuideTab() {
             [
               <A key="g" href="https://www.lyst.com/data/the-lyst-index/">The Lyst Index</A>,
               "The hottest brands and products each quarter",
-              "Shows which brands shoppers want right now; pick matching pieces from Rakuten brand stores.",
+              "Shows which brands shoppers want right now; pick matching pieces from brand stores.",
             ],
           ]}
         />
@@ -292,9 +292,9 @@ export function ProjectOverviewTab() {
         <Steps
           items={[
             <><b>Ask:</b> the shopper picks products or types a request. An AI prompt reader turns the request into items, colours, materials and who it is for.</>,
-            <><b>Find:</b> each item is searched live across the product sources (eBay Browse API, AliExpress affiliate API, Rakuten Advertising, Admitad product feeds of about 250,000 products). Strict matching keeps only the right item, colour, material and gender; anything missing is reported, never silently replaced.</>,
+            <><b>Find:</b> each item is searched live across several product sources (marketplaces and brand-store feeds, hundreds of thousands of products). Strict matching keeps only the right item, colour, material and gender; anything missing is reported, never silently replaced.</>,
             <><b>Choose:</b> the shopper sees the selected products, removes or adds pieces, or swaps one for another option. Only the selected products are used.</>,
-            <><b>Generate:</b> a background worker draws a labelled look board of the garments and sends one request to the try-on engine (FASHN), which returns the shopper wearing the whole outfit.</>,
+            <><b>Generate:</b> a background worker draws a labelled look board of the garments and sends one request to the try-on AI, which returns the shopper wearing the whole outfit.</>,
             <><b>Check:</b> an AI vision check compares the result with the products; a clearly wrong result is refunded automatically, with the reason shown.</>,
             <><b>Buy:</b> every piece has a Shop button through a tracked affiliate link to the original store, or the cart on a TryOnU store website.</>,
           ]}
@@ -309,9 +309,9 @@ export function ProjectOverviewTab() {
             ["API", "Python, FastAPI (async), SQLAlchemy, Alembic migrations, Pydantic"],
             ["Database", "PostgreSQL with pgvector (product similarity), Redis"],
             ["Background jobs", "Redis queue workers for try-ons, product feeds, emails and payment checks"],
-            ["AI", "FASHN virtual try-on; large language models for the prompt reader, stylist and result checks; image processing with Pillow"],
-            ["Products", "eBay Browse API, AliExpress affiliate API, Rakuten Advertising, Admitad feeds; Amazon Creators API prepared"],
-            ["Payments", "PayPal (live); Paddle (cards, Apple Pay, Google Pay) prepared"],
+            ["AI", "A dedicated virtual try-on model; large language models for the prompt reader, stylist and result checks; image processing"],
+            ["Products", "Marketplace and affiliate product APIs and feeds, searched live; Amazon prepared"],
+            ["Payments", "PayPal (live); card, Apple Pay and Google Pay checkout prepared"],
             ["Email", "SMTP with a sending queue, hourly and daily limits, one-click unsubscribe, lifecycle emails"],
             ["SEO and AI search", "Sitemap, structured data (JSON-LD), llms.txt for AI assistants, IndexNow, topic pages and guides"],
             ["Hosting", "Linux VPS, nginx, pm2, zero-downtime deploy script with automatic rollback, nightly backups, health alerts"],

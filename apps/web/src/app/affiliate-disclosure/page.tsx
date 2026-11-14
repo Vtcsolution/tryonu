@@ -18,7 +18,7 @@ export default function AffiliateDisclosurePage() {
           marketplace may pay TryOnU a small commission. <strong>You pay the same price</strong> whether or not you use our link.
         </p>
         <p>
-          We work with affiliate programmes of marketplaces and networks such as eBay, AliExpress, Admitad and Amazon. As an Amazon
+          We work with affiliate programmes of marketplaces and brand stores such as eBay, AliExpress and Amazon. As an Amazon
           Associate, TryOnU earns from qualifying purchases.
         </p>
 

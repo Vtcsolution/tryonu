@@ -1590,9 +1590,6 @@ function ResultStep({
               <span className="h-1.5 w-1.5 rounded-full bg-sage" /> {totalCredits} credit
               {totalCredits === 1 ? "" : "s"} used · {jobs.length > 1 ? `${jobs.length} angles` : "job"} completed
             </p>
-            <p className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-sage" /> Rendered by {job.provider}
-            </p>
           </div>
 
           <div className="mt-auto space-y-3 pt-6">
@@ -1772,9 +1769,6 @@ function OutfitResultStep({
               <span className="h-1.5 w-1.5 rounded-full bg-sage" /> {totalCredits} credit
               {totalCredits === 1 ? "" : "s"} used · {jobs.length > 1 ? `${jobs.length} angles` : "job"} completed
             </p>
-            <p className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-sage" /> Rendered by {job.provider}
-            </p>
           </div>
 
           <div className="mt-auto space-y-3 pt-6">
@@ -1862,9 +1856,6 @@ function WardrobeResultStep({
             <p className="flex items-center gap-2">
               <span className="h-1.5 w-1.5 rounded-full bg-sage" /> {totalCredits} credit
               {totalCredits === 1 ? "" : "s"} used · {jobs.length > 1 ? `${jobs.length} angles` : "job"} completed
-            </p>
-            <p className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-sage" /> Rendered by {job.provider}
             </p>
           </div>
 

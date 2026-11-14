@@ -55,7 +55,7 @@ export const GUIDES: Guide[] = [
       {
         h2: "Can I try on Amazon clothes on TryOnU?",
         paragraphs: [
-          "Not directly yet. Amazon products are not in TryOnU's search today: the connection is built and waiting for Amazon's approval, so it is coming soon. TryOnU's search shows products from eBay, AliExpress, brand stores through Rakuten and Admitad, and shops that sell on TryOnU.",
+          "Not directly yet. Amazon products are not in TryOnU's search today: the connection is built and waiting for Amazon's approval, so it is coming soon. TryOnU's search shows products from eBay, AliExpress, brand stores, and shops that sell on TryOnU.",
           "Today you can still try a product photo from any shop on yourself. In the try-on studio, press the + button and choose Upload your own item, then add a clear photo of the product on a plain background. TryOnU puts it on your photo like any other item. It is your private try-on: nothing is posted anywhere.",
         ],
       },

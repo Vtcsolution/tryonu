@@ -68,7 +68,7 @@ export default async function InvestPage() {
           columns={4}
           items={[
             { big: "Whole outfits", text: "Up to five real products on one photo, in one picture." },
-            { big: "Live products", text: "Searched live on eBay, AliExpress, Rakuten and Admitad brand stores." },
+            { big: "Live products", text: "Searched live on eBay, AliExpress and brand stores." },
             { big: "AI Stylist", text: "Understands plain words in any language and finds real products." },
             { big: "Find the look", text: "Upload a screenshot; it finds each piece in real shops." },
             { big: "Store websites", text: "Shops get their own TryOnU store with try-on, cart and WhatsApp orders." },

@@ -111,6 +111,8 @@ def create_app() -> FastAPI:
         version="0.1.0",
         docs_url="/docs" if settings.DEBUG else None,
         redoc_url="/redoc" if settings.DEBUG else None,
+        # the route map stays private outside development (it named every endpoint)
+        openapi_url="/openapi.json" if settings.DEBUG else None,
         lifespan=lifespan,
     )
 
@@ -236,7 +238,6 @@ def create_app() -> FastAPI:
             # which commit this process is running, so "is it deployed?"
             # is answerable from outside without a shell on the box
             "commit": running_commit(),
-            "tryon_provider": settings.VIRTUAL_TRYON_PROVIDER,
             "queue": queue_state(),
             "schema": await schema_status(),
         }
