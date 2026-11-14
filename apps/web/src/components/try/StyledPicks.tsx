@@ -163,7 +163,7 @@ export function StyledPicks({
           </h3>
           {summary && <p className="mt-2 max-w-3xl text-[15.5px] leading-relaxed text-ink-soft">{summary}</p>}
           {anyOptions && (
-            <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-sage-tint/60 px-3 py-1.5 text-[14.5px] text-ink">
+            <p className="mt-3 inline-block rounded-[16px] bg-sage-tint/60 px-3 py-1.5 text-[14.5px] leading-snug text-ink">
               Not happy with an item? Tap <b>Change</b> to see other options, or <b>Remove</b> it.
             </p>
           )}
