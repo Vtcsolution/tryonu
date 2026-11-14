@@ -14,8 +14,10 @@ import { lookPath } from "@/lib/lookSlug";
 
 export const CONTACT_EMAIL = "hello@tryonu.app";
 
-export function mailto(subject: string) {
-  return `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}`;
+export const PARTNERSHIP_EMAIL = "partnership@tryonu.app";
+
+export function mailto(subject: string, to: string = CONTACT_EMAIL) {
+  return `mailto:${to}?subject=${encodeURIComponent(subject)}`;
 }
 
 export function PitchHero({
@@ -145,7 +147,19 @@ export function LooksMarquee({ looks }: { looks: ReadyLook[] }) {
   );
 }
 
-export function CtaBand({ title, sub, primary, secondary }: { title: string; sub: string; primary: { label: string; href: string }; secondary?: { label: string; href: string } }) {
+export function CtaBand({
+  title,
+  sub,
+  primary,
+  secondary,
+  email = CONTACT_EMAIL,
+}: {
+  title: string;
+  sub: string;
+  primary: { label: string; href: string };
+  secondary?: { label: string; href: string };
+  email?: string;
+}) {
   return (
     <section className="mx-auto w-[min(1200px,calc(100%-32px))] pb-20">
       <Reveal variant="scale" className="relative overflow-hidden rounded-[32px] bg-sage px-7 py-14 text-center text-white md:px-14 md:py-20">
@@ -166,7 +180,7 @@ export function CtaBand({ title, sub, primary, secondary }: { title: string; sub
           )}
         </div>
         <p className="relative mt-5 text-[15px] text-white/85">
-          Or write to <b>{CONTACT_EMAIL}</b>
+          Or write to <b>{email}</b>
         </p>
       </Reveal>
     </section>

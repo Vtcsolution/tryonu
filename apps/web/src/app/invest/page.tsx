@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { SiteChrome } from "@/components/layout/SiteChrome";
-import { CtaBand, Icon, LooksMarquee, PitchHero, PitchSection, StepFlow, Tiles, mailto } from "@/components/pitch/PitchKit";
+import { CtaBand, Icon, LooksMarquee, PARTNERSHIP_EMAIL, PitchHero, PitchSection, StepFlow, Tiles, mailto } from "@/components/pitch/PitchKit";
 import { InvestCalculator } from "@/components/pitch/InvestCalculator";
 import { Reveal } from "@/components/ui/Reveal";
 import { serverFetch } from "@/lib/api/server";
@@ -41,7 +41,7 @@ export default async function InvestPage() {
     ? Math.round(planPrices[0] * 0.6 + (planPrices[1] ?? planPrices[0]) * 0.3 + (planPrices[planPrices.length - 1] ?? planPrices[0]) * 0.1)
     : 30;
   const apiPack = apiPacks.length ? mid(apiPacks).price_cents / 100 : 150;
-  const talk = mailto("Investing in TryOnU");
+  const talk = mailto("TryOnU investment and partnership plan", PARTNERSHIP_EMAIL);
   return (
     <SiteChrome>
       <PitchHero
@@ -52,9 +52,11 @@ export default async function InvestPage() {
           </>
         }
         sub="One photo. Real clothes from real stores. The shopper sees the whole outfit on themselves in about a minute, then buys it. Live today."
-        primary={{ label: "Talk to the founder", href: talk }}
+        primary={{ label: "Get the investment plan", href: talk }}
         secondary={{ label: "Try it yourself", href: "/try" }}
       />
+
+      <PlanNote />
 
       <PitchSection kicker="The problem" title="Online fashion has a returns problem." tint>
         <Tiles
@@ -129,7 +131,10 @@ export default async function InvestPage() {
         </div>
       </PitchSection>
 
-      <PitchSection kicker="Our 2027 goal" title="How the revenue adds up.">
+      <PitchSection kicker="Our 2027 goal" title="$2 million in yearly revenue by the end of 2027.">
+        <p className="-mt-4 mb-8 max-w-3xl text-[17px] leading-relaxed text-ink-soft">
+          Here is how the four streams get there. Move the sliders to see each part.
+        </p>
         <InvestCalculator shopperSpend={shopperSpend} storePlan={storePlan} apiPack={apiPack} />
       </PitchSection>
 
@@ -151,10 +156,11 @@ export default async function InvestPage() {
       </PitchSection>
 
       <CtaBand
-        title="Let's talk about TryOnU."
-        sub="A short call or a demo on your own photo. Reply to the message you got, or write to us."
-        primary={{ label: "Email the founder", href: talk }}
+        title="Want our investment or partnership plan?"
+        sub="DM me back on the message you got, or email us. You'll get the full plan and a short call with the founder."
+        primary={{ label: "Email for the plan", href: talk }}
         secondary={{ label: "Try it yourself", href: "/try" }}
+        email={PARTNERSHIP_EMAIL}
       />
     </SiteChrome>
   );
@@ -178,5 +184,27 @@ function EarnCard({ color, title, line, prices }: { color: string; title: string
         ))}
       </ul>
     </Reveal>
+  );
+}
+
+/** Right under the hero: the one thing to do next, short. */
+function PlanNote() {
+  return (
+    <div className="mx-auto w-[min(1200px,calc(100%-32px))]">
+      <Reveal className="flex flex-wrap items-center justify-between gap-4 rounded-[24px] border-2 border-sage bg-sage-tint/50 px-6 py-5">
+        <div className="min-w-0">
+          <p className="font-display text-[24px] leading-tight text-ink">Want our investment or partnership plan?</p>
+          <p className="mt-1 text-[16.5px] text-ink-soft">
+            <b>DM me back</b> on the message you got, or email <b>{PARTNERSHIP_EMAIL}</b>.
+          </p>
+        </div>
+        <a
+          href={mailto("TryOnU investment and partnership plan", PARTNERSHIP_EMAIL)}
+          className="tu-press tu-attention inline-flex min-h-[52px] shrink-0 items-center gap-2 rounded-full bg-sage px-6 text-[16.5px] font-bold text-white shadow-lift hover:bg-sage-deep"
+        >
+          Email for the plan <span aria-hidden="true">→</span>
+        </a>
+      </Reveal>
+    </div>
   );
 }
