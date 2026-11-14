@@ -31,6 +31,7 @@ import { ReadyLooksTab } from "./ReadyLooksTab";
 import { ReferralsTab } from "./ReferralsTab";
 import { CommunityTab } from "./CommunityTab";
 import { FashnCreditsTab } from "./FashnCreditsTab";
+import { GrowthPlanTab, ProjectOverviewTab, TrendsGuideTab } from "./GuidesTabs";
 import { SettingsTab } from "./SettingsTab";
 import { TryOnsTab } from "./TryOnsTab";
 import { UsersTab } from "./UsersTab";
@@ -59,7 +60,10 @@ type Tab =
   | "outfits"
   | "ready-looks"
   | "referrals"
-  | "community";
+  | "community"
+  | "guide-trends"
+  | "guide-growth"
+  | "guide-project";
 
 const NAV: readonly NavGroup<Tab>[] = [
   {
@@ -69,6 +73,14 @@ const NAV: readonly NavGroup<Tab>[] = [
       { id: "messages", label: "Messages", icon: "audit" },
       { id: "email", label: "Send email", icon: "audit" },
       { id: "analytics", label: "Visitors", icon: "analytics" },
+    ],
+  },
+  {
+    group: "Guides",
+    tabs: [
+      { id: "guide-trends", label: "Trend research", icon: "analytics" },
+      { id: "guide-growth", label: "Daily growth plan", icon: "clicks" },
+      { id: "guide-project", label: "Project overview", icon: "overview" },
     ],
   },
   {
@@ -218,6 +230,9 @@ export function AdminDashboard() {
         {tab === "ai-usage" && <AIUsageTab />}
         {tab === "audit" && <AuditLogTab />}
         {tab === "account" && <AccountSettings user={user} />}
+        {tab === "guide-trends" && <TrendsGuideTab />}
+        {tab === "guide-growth" && <GrowthPlanTab />}
+        {tab === "guide-project" && <ProjectOverviewTab />}
       </div>
     </AdminShell>
   );
