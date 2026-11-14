@@ -229,6 +229,18 @@ async def unsubscribe_email(u: str, t: str, db: DbSession):
     return HTMLResponse(_page("Done: no more daily emails", "You'll still see your notifications on TryOnU. You can turn the emails back on any time."))
 
 
+@router.post("/unsubscribe", include_in_schema=False)
+async def unsubscribe_email_one_click(u: str, t: str, db: DbSession) -> dict[str, bool]:
+    """The mail program's own "Unsubscribe" button (RFC 8058 one-click): the
+    same link, sent as a POST with no page to show."""
+    user = await db.get(User, u)
+    if user is None or not hmac.compare_digest(t, svc.unsubscribe_token(u)):
+        return {"ok": False}
+    user.notify_email = False
+    await db.commit()
+    return {"ok": True}
+
+
 def _page(title: str, text: str) -> str:
     site = str(get_settings().FRONTEND_URL).rstrip("/")
     return (

@@ -149,7 +149,7 @@ SPECS: tuple[SettingSpec, ...] = (
     SettingSpec("SMTP_USERNAME", "SMTP username", "email", "text"),
     SettingSpec("SMTP_PASSWORD", "SMTP password", "email", "secret"),
     SettingSpec("SMTP_FROM_EMAIL", "From address", "email", "text",
-                help="The address the site's emails come from, e.g. noreply@tryonu.app."),
+                help="The address the site's emails come from. Use the mailbox you sign in with (hello@tryonu.app): a noreply address lands in spam more often."),
     SettingSpec("SMTP_FROM_NAME", "From name", "email", "text", help="The name people see, e.g. TryOnU."),
     SettingSpec("SUPPORT_EMAIL", "Help email", "email", "text",
                 help="Shown on the website; replies to the site's emails and Contact messages go here."),

@@ -437,7 +437,8 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USERNAME: str | None = None
     SMTP_PASSWORD: str | None = None
-    SMTP_FROM_EMAIL: str = "noreply@tryonu.app"
+    # the signed-in mailbox itself: a "noreply" sender is a spam signal, and replies should reach a person
+    SMTP_FROM_EMAIL: str = "hello@tryonu.app"
     SMTP_FROM_NAME: str = "TryOnU"  # the name people see the email is from
     # the addresses shown on the website; replies to the site's emails go to support
     SUPPORT_EMAIL: str = "support@tryonu.app"

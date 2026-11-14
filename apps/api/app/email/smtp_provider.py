@@ -98,7 +98,11 @@ class SMTPEmailProvider(EmailProvider):
         if reply_to or self._reply_to:
             msg["Reply-To"] = reply_to or self._reply_to
         if unsubscribe_url:
-            msg["List-Unsubscribe"] = f"<{unsubscribe_url}>"
+            # Gmail and Yahoo expect both: a link, and a one-click POST to it
+            # (RFC 8058); senders without it are more likely to land in spam
+            msg["List-Unsubscribe"] = f"<{unsubscribe_url}>, <mailto:{self._reply_to or self._from_email}?subject=unsubscribe>"
+            if unsubscribe_url.startswith("https://"):
+                msg["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
         msg.attach(MIMEText(text_body, "plain", "utf-8"))
         if html_body:
             msg.attach(MIMEText(html_body, "html", "utf-8"))
