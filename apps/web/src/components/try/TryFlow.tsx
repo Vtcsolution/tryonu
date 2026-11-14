@@ -1225,8 +1225,14 @@ export function TryFlow() {
                       </>
                     ) : tryOnCost !== null ? (
                       <>
+                        {outfit && (
+                          <>
+                            <b className="text-ink">{outfit.items.length} products</b> selected
+                            <br />
+                          </>
+                        )}
                         Uses <b className="text-ink">{tryOnCost} credits</b>
-                        <br />
+                        {outfit ? " · " : <br />}
                         You have {balance}
                       </>
                     ) : (

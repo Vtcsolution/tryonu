@@ -92,18 +92,26 @@ export function ProductCard({
           </span>
         )}
         {badge && (
-          <span className="absolute right-2.5 top-2.5 rounded-full bg-sage px-2.5 py-1 text-[13px] font-semibold text-white">
+          <span
+            className={`absolute rounded-full bg-sage px-2.5 py-1 text-[13px] font-semibold text-white ${
+              onRemove ? "bottom-2.5 left-2.5" : "right-2.5 top-2.5"
+            }`}
+          >
             {badge}
           </span>
         )}
         {onRemove && (
+          // big enough to see and tap at once, on every phone
           <button
             type="button"
             onClick={onRemove}
             aria-label={`Remove ${name} from the look`}
-            className="absolute bottom-2.5 right-2.5 inline-flex min-h-[36px] items-center rounded-full border border-line-strong bg-surface px-3 text-[14px] font-semibold text-ink shadow-sm hover:border-[#c0503a] hover:text-[#a4553f]"
+            title="Remove from the look"
+            className="tu-press absolute right-2 top-2 grid h-10 w-10 place-items-center rounded-full border-2 border-white bg-[#b4483a] text-white shadow-[0_2px_8px_rgba(0,0,0,0.25)] hover:bg-[#963a2e]"
           >
-            Remove
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
           </button>
         )}
         {busy && (
@@ -126,9 +134,21 @@ export function ProductCard({
         <p className={`mt-2 font-bold text-ink ${compact ? "text-[16px]" : "text-[18px]"}`}>{formatPrice(priceCents, currency)}</p>
         {note && <p className="mt-1 text-[13px] text-muted">{note}</p>}
 
-        {(primary || secondary) && (
+        {(primary || secondary || onRemove) && (
           <div className="mt-auto grid gap-2 pt-3.5">
             {primary && <ActionButton action={primary} kind="primary" />}
+            {onRemove && (
+              <button
+                type="button"
+                onClick={onRemove}
+                className="tu-press inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-full border-2 border-[#b4483a]/70 px-4 text-[15px] font-semibold text-[#a03d30] hover:bg-[#b4483a]/[0.07]"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+                Remove from look
+              </button>
+            )}
             {secondary && <ActionButton action={secondary} kind="secondary" />}
           </div>
         )}
