@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Avatar, HangerIcon, LinkCards, PhotoIcon, ProductChips, RichText, ThumbIcon, timeAgo } from "@/components/community/parts";
+import { Avatar, HangerIcon, LinkCards, PhotoIcon, ProductChips, RichText, TeamBadge, ThumbIcon, timeAgo } from "@/components/community/parts";
 import { ApiError, mediaThumb, resolveMediaUrl } from "@/lib/api/client";
 import { community, type CommunityComment, type CommunityPost } from "@/lib/api/endpoints";
 
@@ -78,6 +78,7 @@ function CommentItem({ c, depth, ctx }: { c: CommunityComment; depth: number; ct
                 <Link href={`/u/${c.author.handle}`} className="text-[14px] font-semibold text-ink hover:underline">
                   {c.author.name || `@${c.author.handle}`}
                 </Link>
+                {c.author.team && <TeamBadge />}
                 {c.author.name && <span className="text-[12.5px] text-muted">@{c.author.handle}</span>}
               </p>
               {c.body && (

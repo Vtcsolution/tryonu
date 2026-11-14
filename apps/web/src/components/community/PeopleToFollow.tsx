@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Avatar } from "@/components/community/PostCard";
+import { Avatar, TeamBadge } from "@/components/community/parts";
 import { community } from "@/lib/api/endpoints";
 
 /** Members worth following, with a one-tap Follow: a row that scrolls
@@ -51,7 +51,10 @@ export function PeopleToFollow({ variant = "row" }: { variant?: "row" | "list" }
               <Link href={`/u/${p.handle}`} className="flex min-w-0 flex-1 items-center gap-3">
                 <Avatar name={p.name} handle={p.handle} url={p.avatar_url} size={40} />
                 <span className="min-w-0">
-                  <span className="block truncate text-[15px] font-semibold text-ink">{p.name || p.handle}</span>
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span className="truncate text-[15px] font-semibold text-ink">{p.name || p.handle}</span>
+                    {p.team && <TeamBadge />}
+                  </span>
                   <span className="block truncate text-[13px] text-muted">
                     {p.follows_me ? "Follows you" : `${p.followers} followers · ${p.posts} posts`}
                   </span>
@@ -74,6 +77,7 @@ export function PeopleToFollow({ variant = "row" }: { variant?: "row" | "list" }
             <Link href={`/u/${p.handle}`} className="flex flex-col items-center">
               <Avatar name={p.name} handle={p.handle} url={p.avatar_url} size={56} />
               <span className="mt-2 block w-full truncate text-[14.5px] font-semibold text-ink">{p.name || p.handle}</span>
+              {p.team && <TeamBadge className="mt-1" />}
               <span className="block w-full truncate text-[12.5px] text-muted">
                 {p.follows_me ? "Follows you" : `${p.followers} followers`}
               </span>

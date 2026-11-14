@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { community } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
 import { clearReturnTo, rememberReturnTo } from "@/lib/returnTo";
+import { ActingAsBar } from "@/components/community/ActingAsBar";
 
 /** /community/post/<id>: one look with its comments open. */
 export function PostDetail({ id }: { id: string }) {
@@ -38,7 +39,10 @@ export function PostDetail({ id }: { id: string }) {
         <span className="max-lg:hidden">
           <Button href="/community" size="sm" variant="outline">← Community</Button>
         </span>
-        <div className="lg:mt-4">
+        <div className="mt-3">
+          <ActingAsBar />
+        </div>
+        <div className="mt-3 lg:mt-4">
           <PostCard post={post.data} openComments onRemoved={() => router.replace("/community")} />
         </div>
       </div>

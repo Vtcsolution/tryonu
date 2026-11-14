@@ -18,6 +18,21 @@ export function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
+/** Next to the name of TryOnU's own people (staff and the team's profiles), everywhere. */
+export function TeamBadge({ className = "" }: { className?: string }) {
+  return (
+    <span
+      title="This account belongs to the TryOnU team"
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full bg-sage px-2 py-0.5 align-middle text-[11.5px] font-semibold leading-tight text-white ${className}`}
+    >
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M5 12l4 4 10-10" />
+      </svg>
+      TryOnU team
+    </span>
+  );
+}
+
 export function Avatar({
   name,
   handle,

@@ -75,10 +75,29 @@ class AuthorOut(BaseModel):
     handle: str
     name: str | None
     avatar_url: str | None
+    # TryOnU's own people (staff and the team's profiles): shown with a "TryOnU team" badge
+    team: bool = False
+
+
+def _is_team(u: User) -> bool:
+    return bool(u.team_person or u.is_team or u.is_admin)
 
 
 def _author(u: User) -> AuthorOut:
-    return AuthorOut(handle=u.handle or "member", name=u.full_name, avatar_url=u.avatar_url)
+    return AuthorOut(handle=u.handle or "member", name=u.full_name, avatar_url=u.avatar_url, team=_is_team(u))
+
+
+async def _acting(db: DbSession, me: User, person_id: str | None) -> User:
+    """Who a like or comment is from: me, or (team members only) one of the
+    team's profiles, which always carry the "TryOnU team" badge."""
+    if not person_id:
+        return me
+    if not (me.is_team or me.is_admin):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only TryOnU team members can do this")
+    person = await db.get(User, person_id)
+    if person is None or not person.team_person:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Person not found")
+    return person
 
 
 def _can_write(user: User) -> None:
@@ -584,22 +603,24 @@ async def _recount_likes(db: DbSession, post: CommunityPost) -> None:
 
 
 @router.post("/posts/{post_id}/like", dependencies=[Depends(rate_limiter("community_like", limit=400, window_seconds=3600))])
-async def like_post(post_id: str, me: CurrentUser, db: DbSession):
+async def like_post(post_id: str, me: CurrentUser, db: DbSession, as_person: str | None = None):
     _can_write(me)
     post = await _visible_post(db, post_id, me)
-    if await db.scalar(select(PostLike.id).where(PostLike.post_id == post.id, PostLike.user_id == me.id)) is None:
-        db.add(PostLike(post_id=post.id, user_id=me.id))
+    who = await _acting(db, me, as_person)
+    if await db.scalar(select(PostLike.id).where(PostLike.post_id == post.id, PostLike.user_id == who.id)) is None:
+        db.add(PostLike(post_id=post.id, user_id=who.id))
         await db.flush()
-        await notify(db, user_id=post.user_id, kind="post_like", actor_id=me.id, post_id=post.id)
+        await notify(db, user_id=post.user_id, kind="post_like", actor_id=who.id, post_id=post.id)
     await _recount_likes(db, post)
     await db.commit()
     return {"liked": True, "like_count": post.like_count}
 
 
 @router.delete("/posts/{post_id}/like")
-async def unlike_post(post_id: str, me: CurrentUser, db: DbSession):
+async def unlike_post(post_id: str, me: CurrentUser, db: DbSession, as_person: str | None = None):
     post = await _visible_post(db, post_id, me)
-    await db.execute(delete(PostLike).where(PostLike.post_id == post.id, PostLike.user_id == me.id))
+    who = await _acting(db, me, as_person)
+    await db.execute(delete(PostLike).where(PostLike.post_id == post.id, PostLike.user_id == who.id))
     await _recount_likes(db, post)
     await db.commit()
     return {"liked": False, "like_count": post.like_count}
@@ -754,6 +775,7 @@ class NewCommentIn(BaseModel):
     parent_id: str | None = None
     image_key: str | None = Field(default=None, max_length=512)  # from POST /community/comment-images
     tryon_job_id: str | None = None  # one of my own finished looks
+    person_id: str | None = None  # team members: comment as one of the team's profiles
 
 
 async def _recount_comments(db: DbSession, post: CommunityPost) -> None:
@@ -905,24 +927,25 @@ async def add_comment(post_id: str, payload: NewCommentIn, me: CurrentUser, db: 
             else "Write a comment, or add a photo or a look."
         )
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
-    await ensure_handle(db, me)
+    who = await _acting(db, me, payload.person_id)
+    await ensure_handle(db, who)
     comment = PostComment(
-        post_id=post.id, user_id=me.id, parent_id=parent.id if parent else None, body=body, image_key=image_key,
+        post_id=post.id, user_id=who.id, parent_id=parent.id if parent else None, body=body, image_key=image_key,
         tryon_job_id=job_id, links_removed=removed,
     )
     db.add(comment)
     await db.flush()
     said = snippet(body) or ("added a photo" if image_key else "added a look" if job_id else None)
     if parent is not None:
-        await notify(db, user_id=parent.user_id, kind="reply", actor_id=me.id, post_id=post.id, comment_id=comment.id, text=said)
+        await notify(db, user_id=parent.user_id, kind="reply", actor_id=who.id, post_id=post.id, comment_id=comment.id, text=said)
     if parent is None or parent.user_id != post.user_id:
-        await notify(db, user_id=post.user_id, kind="comment", actor_id=me.id, post_id=post.id, comment_id=comment.id, text=said)
+        await notify(db, user_id=post.user_id, kind="comment", actor_id=who.id, post_id=post.id, comment_id=comment.id, text=said)
     told = {post.user_id} | ({parent.user_id} if parent is not None else set())
-    await _notify_mentions(db, me, body, post_id=post.id, comment_id=comment.id, told=told)
+    await _notify_mentions(db, who, body, post_id=post.id, comment_id=comment.id, told=told)
     await _recount_comments(db, post)
     await db.commit()
     await db.refresh(comment)
-    out = (await _comments_out(db, [(comment, me)], me, post.user_id))[comment.id]
+    out = (await _comments_out(db, [(comment, who)], me, post.user_id))[comment.id]
     if parent is not None:
         parent_author = await db.get(User, parent.user_id)
         out.reply_to = parent_author.handle if parent_author else None
@@ -977,22 +1000,24 @@ async def _recount_comment_likes(db: DbSession, comment: PostComment) -> None:
 
 
 @router.post("/comments/{comment_id}/like", dependencies=[Depends(rate_limiter("community_like", limit=400, window_seconds=3600))])
-async def like_comment(comment_id: str, me: CurrentUser, db: DbSession):
+async def like_comment(comment_id: str, me: CurrentUser, db: DbSession, as_person: str | None = None):
     _can_write(me)
     comment = await _visible_comment(db, comment_id, me)
-    if await db.scalar(select(CommentLike.id).where(CommentLike.comment_id == comment.id, CommentLike.user_id == me.id)) is None:
-        db.add(CommentLike(comment_id=comment.id, user_id=me.id))
+    who = await _acting(db, me, as_person)
+    if await db.scalar(select(CommentLike.id).where(CommentLike.comment_id == comment.id, CommentLike.user_id == who.id)) is None:
+        db.add(CommentLike(comment_id=comment.id, user_id=who.id))
         await db.flush()
-        await notify(db, user_id=comment.user_id, kind="comment_like", actor_id=me.id, post_id=comment.post_id, comment_id=comment.id)
+        await notify(db, user_id=comment.user_id, kind="comment_like", actor_id=who.id, post_id=comment.post_id, comment_id=comment.id)
     await _recount_comment_likes(db, comment)
     await db.commit()
     return {"liked": True, "like_count": comment.like_count}
 
 
 @router.delete("/comments/{comment_id}/like")
-async def unlike_comment(comment_id: str, me: CurrentUser, db: DbSession):
+async def unlike_comment(comment_id: str, me: CurrentUser, db: DbSession, as_person: str | None = None):
     comment = await _visible_comment(db, comment_id, me)
-    await db.execute(delete(CommentLike).where(CommentLike.comment_id == comment.id, CommentLike.user_id == me.id))
+    who = await _acting(db, me, as_person)
+    await db.execute(delete(CommentLike).where(CommentLike.comment_id == comment.id, CommentLike.user_id == who.id))
     await _recount_comment_likes(db, comment)
     await db.commit()
     return {"liked": False, "like_count": comment.like_count}
@@ -1050,6 +1075,7 @@ class ProfileOut(BaseModel):
     followed_by_me: bool
     is_me: bool
     trophies: list["TrophyOut"] = []
+    team: bool = False
 
 
 class TrophyOut(BaseModel):
@@ -1078,6 +1104,7 @@ async def _profile_out(db: DbSession, user: User, me: User) -> ProfileOut:
         ).all()
     ]
     return ProfileOut(
+        team=_is_team(user),
         handle=user.handle or "member",
         name=user.full_name,
         avatar_url=user.avatar_url,

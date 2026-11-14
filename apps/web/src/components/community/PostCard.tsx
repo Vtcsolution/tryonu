@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Comments } from "@/components/community/CommentThread";
+import { TeamBadge } from "@/components/community/parts";
 import { ChallengeChip, PollBox } from "@/components/community/extras";
 import { SongLabel } from "@/components/community/Music";
 import { ShareSheet, postShare } from "@/components/community/ShareSheet";
@@ -24,7 +25,7 @@ import { ApiError, mediaThumb, resolveMediaUrl } from "@/lib/api/client";
 import { community, type CommunityPost } from "@/lib/api/endpoints";
 
 // kept here too, for the pages that import them from the post card
-export { Avatar, CommentIcon, HangerIcon, HeartIcon, ThumbIcon, timeAgo } from "@/components/community/parts";
+export { Avatar, CommentIcon, HangerIcon, HeartIcon, TeamBadge, ThumbIcon, timeAgo } from "@/components/community/parts";
 export { Comments } from "@/components/community/CommentThread";
 
 /** One post in the community: who posted it, the picture or video, the
@@ -119,7 +120,10 @@ export function PostCard({
         <Link href={`/u/${p.author.handle}`} className="flex min-w-0 flex-1 items-center gap-3">
           <Avatar name={p.author.name} handle={p.author.handle} url={p.author.avatar_url} />
           <span className="min-w-0">
-            <span className="block truncate text-[15.5px] font-semibold text-ink">{p.author.name || p.author.handle}</span>
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span className="truncate text-[15.5px] font-semibold text-ink">{p.author.name || p.author.handle}</span>
+              {p.author.team && <TeamBadge />}
+            </span>
             <span className="block truncate text-[13px] text-muted">
               @{p.author.handle} · {timeAgo(p.created_at)}
             </span>

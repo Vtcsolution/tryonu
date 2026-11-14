@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { ApiError, mediaThumb, resolveMediaUrl } from "@/lib/api/client";
 import { community, type CommunityProfile } from "@/lib/api/endpoints";
 import { SESSION_QUERY_KEY, useSession } from "@/lib/auth/useSession";
+import { TeamBadge } from "@/components/community/parts";
 
 /** /u/<handle>: a member's looks, followers and following, Follow / Edit profile. */
 export function ProfileView({ handle }: { handle: string }) {
@@ -58,6 +59,7 @@ export function ProfileView({ handle }: { handle: string }) {
           )}
           <div className="min-w-0 flex-1">
             <h1 className="truncate font-display text-[28px] leading-tight text-ink">{p.name || p.handle}</h1>
+            {p.team && <TeamBadge className="mt-1" />}
             <p className="text-[15px] text-muted">@{p.handle}</p>
             {p.bio && <p className="mt-2 max-w-xl whitespace-pre-wrap text-[15.5px] text-ink-soft">{p.bio}</p>}
             <div className="mt-3 flex gap-5 text-[15px] text-ink-soft">

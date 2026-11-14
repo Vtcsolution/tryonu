@@ -8,6 +8,7 @@ import { ChallengeBanner, TrophyIcon, useLiveChallenge } from "@/components/comm
 import { Avatar, PostCard } from "@/components/community/PostCard";
 import { COMMUNITY_RULES } from "@/components/community/PostToCommunity";
 import { PeopleToFollow } from "@/components/community/PeopleToFollow";
+import { ActingAsBar } from "@/components/community/ActingAsBar";
 import { Button } from "@/components/ui/Button";
 import { community } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
@@ -105,6 +106,7 @@ export function CommunityFeed() {
           </div>
 
           <div className="mt-6 space-y-6">
+            <ActingAsBar />
             {feed.isLoading &&
               Array.from({ length: 2 }).map((_, i) => <div key={i} className="h-[520px] animate-pulse rounded-[22px] bg-paper-2" />)}
             {!feed.isLoading && posts.length === 0 && (

@@ -1,3 +1,4 @@
+import { actingQuery, getActingAs } from "@/lib/actingAs";
 import { API_BASE_URL, apiFetch, uploadWithProgress } from "./client";
 import type {
   AdminAIUsage,
@@ -408,7 +409,7 @@ export const adminReferrals = {
 };
 
 /** the community (members only): posts, likes, comments, profiles, follows, reports */
-export type CommunityAuthor = { handle: string; name: string | null; avatar_url: string | null };
+export type CommunityAuthor = { handle: string; name: string | null; avatar_url: string | null; /** TryOnU's own people */ team?: boolean };
 export type CommunityProduct = {
   id: string;
   name: string;
@@ -488,6 +489,8 @@ export type CommunityComment = {
 };
 export type NewComment = { body: string; parent_id?: string; image_key?: string; tryon_job_id?: string };
 export type CommunityProfile = {
+  /** TryOnU's own people: shown with the TryOnU team badge */
+  team?: boolean;
   handle: string;
   name: string | null;
   avatar_url: string | null;
@@ -567,8 +570,9 @@ export const community = {
   myLooks: () =>
     apiFetch<{ job_id: string; image_url: string; saved: boolean; post_id: string | null; created_at: string }[]>(`${C}/my-looks`),
   remove: (id: string) => apiFetch<void>(`${C}/posts/${id}`, { method: "DELETE" }),
-  like: (id: string) => apiFetch<{ liked: boolean; like_count: number }>(`${C}/posts/${id}/like`, { method: "POST" }),
-  unlike: (id: string) => apiFetch<{ liked: boolean; like_count: number }>(`${C}/posts/${id}/like`, { method: "DELETE" }),
+  // team members can act as one of the team's profiles (lib/actingAs)
+  like: (id: string) => apiFetch<{ liked: boolean; like_count: number }>(`${C}/posts/${id}/like${actingQuery()}`, { method: "POST" }),
+  unlike: (id: string) => apiFetch<{ liked: boolean; like_count: number }>(`${C}/posts/${id}/like${actingQuery()}`, { method: "DELETE" }),
   vote: (id: string, choice: "buy" | "skip") =>
     apiFetch<{ my_vote: "buy" | "skip" | null; poll_buy: number; poll_skip: number }>(`${C}/posts/${id}/vote`, {
       method: "POST",
@@ -581,7 +585,8 @@ export const community = {
     apiFetch<{ challenge: Challenge; entries: CommunityFeed }>(`${C}/challenges/${id}?offset=${offset}`),
   tryLook: (id: string) => apiFetch<{ outfit_id: string | null; product_id: string | null }>(`${C}/posts/${id}/try`, { method: "POST" }),
   comments: (id: string) => apiFetch<CommunityComment[]>(`${C}/posts/${id}/comments`),
-  comment: (id: string, input: NewComment) => apiFetch<CommunityComment>(`${C}/posts/${id}/comments`, { method: "POST", body: input }),
+  comment: (id: string, input: NewComment) =>
+    apiFetch<CommunityComment>(`${C}/posts/${id}/comments`, { method: "POST", body: { ...input, person_id: getActingAs()?.id ?? null } }),
   removeComment: (id: string) => apiFetch<void>(`${C}/comments/${id}`, { method: "DELETE" }),
   /** a photo for a comment, uploaded before the comment is posted */
   commentImage: (file: File, onProgress: (pct: number) => void) => {
@@ -589,8 +594,9 @@ export const community = {
     form.append("file", file);
     return uploadWithProgress<{ image_key: string; image_url: string }>(`${C}/comment-images`, form, onProgress);
   },
-  likeComment: (id: string) => apiFetch<{ liked: boolean; like_count: number }>(`${C}/comments/${id}/like`, { method: "POST" }),
-  unlikeComment: (id: string) => apiFetch<{ liked: boolean; like_count: number }>(`${C}/comments/${id}/like`, { method: "DELETE" }),
+  likeComment: (id: string) => apiFetch<{ liked: boolean; like_count: number }>(`${C}/comments/${id}/like${actingQuery()}`, { method: "POST" }),
+  unlikeComment: (id: string) =>
+    apiFetch<{ liked: boolean; like_count: number }>(`${C}/comments/${id}/like${actingQuery()}`, { method: "DELETE" }),
   tryCommentLook: (id: string) =>
     apiFetch<{ outfit_id: string | null; product_id: string | null }>(`${C}/comments/${id}/try`, { method: "POST" }),
   likers: (id: string) => apiFetch<CommunityAuthor[]>(`${C}/posts/${id}/likes`),
