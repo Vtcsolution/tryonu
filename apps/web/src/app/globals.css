@@ -62,20 +62,23 @@
     --color-paper-2: #1b1b16;
     --color-surface: #201f1a;
 
-    --color-ink: #f3f1e9;
-    --color-ink-soft: #d6d2c4;
-    --color-muted: #a09b8d;
-    --color-faint: #7b7669;
+    --color-ink: #f6f4ee;
+    --color-ink-soft: #e2ded2;
+    --color-muted: #b3ae9f;
+    --color-faint: #8c8779;
 
-    --color-line: #322f28;
-    --color-line-strong: #423f36;
-    --glow-rgb: 168, 190, 158;
+    --color-line: #3a372f;
+    --color-line-strong: #4d4a40;
+    --glow-rgb: 120, 200, 125;
 
-    --color-sage: #808f7b;
-    --color-sage-deep: #97a690;
-    --color-sage-ink: #3b463c;
-    --color-sage-tint: #242c20;
-    --color-sage-tint-2: #2c3527;
+    /* a clear green on the dark ground: buttons keep white text readable
+       (4.5:1), while green words use the lighter --sage-text below */
+    --color-sage: #3d8547;
+    --color-sage-deep: #33733c;
+    --color-sage-ink: #cfe8c9;
+    --color-sage-tint: #1e3022;
+    --color-sage-tint-2: #26402c;
+    --sage-text: #8fd18c;
     --color-chart: #5fa35c;
 
     --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.3),
@@ -92,26 +95,45 @@
   --color-paper-2: #1b1b16;
   --color-surface: #201f1a;
 
-  --color-ink: #f3f1e9;
-  --color-ink-soft: #d6d2c4;
-  --color-muted: #a09b8d;
-  --color-faint: #7b7669;
+  --color-ink: #f6f4ee;
+  --color-ink-soft: #e2ded2;
+  --color-muted: #b3ae9f;
+  --color-faint: #8c8779;
 
-  --color-line: #322f28;
-  --color-line-strong: #423f36;
-  --glow-rgb: 168, 190, 158;
+  --color-line: #3a372f;
+  --color-line-strong: #4d4a40;
+  --glow-rgb: 120, 200, 125;
 
-  --color-sage: #808f7b;
-  --color-sage-deep: #97a690;
-  --color-sage-ink: #3b463c;
-  --color-sage-tint: #242c20;
-  --color-sage-tint-2: #2c3527;
+  /* a clear green on the dark ground: buttons keep white text readable
+     (4.5:1), while green words use the lighter --sage-text below */
+  --color-sage: #3d8547;
+  --color-sage-deep: #33733c;
+  --color-sage-ink: #cfe8c9;
+  --color-sage-tint: #1e3022;
+  --color-sage-tint-2: #26402c;
+  --sage-text: #8fd18c;
   --color-chart: #5fa35c;
 
   --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.3),
     0 12px 40px -12px rgba(0, 0, 0, 0.5);
   --shadow-lift: 0 2px 6px rgba(0, 0, 0, 0.35),
     0 30px 60px -20px rgba(0, 0, 0, 0.7);
+}
+
+/* dark: green words in the light green, readable on the dark ground */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .text-sage-deep,
+  :root:not([data-theme="light"]) .text-sage,
+  :root:not([data-theme="light"]) .hover\:text-sage-deep:hover,
+  :root:not([data-theme="light"]) .group:hover .group-hover\:text-sage-deep {
+    color: var(--sage-text);
+  }
+}
+:root[data-theme="dark"] .text-sage-deep,
+:root[data-theme="dark"] .text-sage,
+:root[data-theme="dark"] .hover\:text-sage-deep:hover,
+:root[data-theme="dark"] .group:hover .group-hover\:text-sage-deep {
+  color: var(--sage-text);
 }
 
 * {

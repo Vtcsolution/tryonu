@@ -11,6 +11,7 @@ import { ApiError, mediaThumb, resolveMediaUrl } from "@/lib/api/client";
 import { community, type CommunityProfile } from "@/lib/api/endpoints";
 import { SESSION_QUERY_KEY, useSession } from "@/lib/auth/useSession";
 import { TeamBadge } from "@/components/community/parts";
+import { AutoLoadMore } from "@/components/community/AutoLoadMore";
 
 /** /u/<handle>: a member's looks, followers and following, Follow / Edit profile. */
 export function ProfileView({ handle }: { handle: string }) {
@@ -145,11 +146,7 @@ export function ProfileView({ handle }: { handle: string }) {
             {p.is_me ? "You haven't posted a look yet. Make a try-on and press “Post to community”." : "No looks posted yet."}
           </p>
         )}
-        {posts.hasNextPage && (
-          <button type="button" onClick={() => posts.fetchNextPage()} className="tu-press mt-6 min-h-[46px] w-full rounded-full border border-line-strong text-[15px] font-semibold text-ink">
-            Show more
-          </button>
-        )}
+        <AutoLoadMore hasMore={!!posts.hasNextPage} loading={posts.isFetchingNextPage} onMore={() => posts.fetchNextPage()} />
       </div>
     </section>
   );

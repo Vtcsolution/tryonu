@@ -12,6 +12,7 @@ import { ActingAsBar } from "@/components/community/ActingAsBar";
 import { Button } from "@/components/ui/Button";
 import { community } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
+import { AutoLoadMore } from "@/components/community/AutoLoadMore";
 
 /** /community: looks members shared. Members only; visitors see what it is and join. */
 export function CommunityFeed() {
@@ -137,16 +138,7 @@ export function CommunityFeed() {
                 <PeopleToFollow />
               </div>
             )}
-            {feed.hasNextPage && (
-              <button
-                type="button"
-                onClick={() => feed.fetchNextPage()}
-                disabled={feed.isFetchingNextPage}
-                className="tu-press min-h-[48px] w-full rounded-full border border-line-strong text-[15px] font-semibold text-ink"
-              >
-                {feed.isFetchingNextPage ? "Loading…" : "Show more looks"}
-              </button>
-            )}
+            <AutoLoadMore hasMore={!!feed.hasNextPage} loading={feed.isFetchingNextPage} onMore={() => feed.fetchNextPage()} />
           </div>
         </div>
 

@@ -10,6 +10,7 @@ import { Avatar, PostCard } from "@/components/community/PostCard";
 import { Button } from "@/components/ui/Button";
 import { community, type Challenge } from "@/lib/api/endpoints";
 import { useSession } from "@/lib/auth/useSession";
+import { AutoLoadMore } from "@/components/community/AutoLoadMore";
 
 function useMembersOnly(next: string) {
   const router = useRouter();
@@ -168,16 +169,7 @@ export function ChallengePage({ id }: { id: string }) {
               <PostCard post={p} />
             </div>
           ))}
-          {q.hasNextPage && (
-            <button
-              type="button"
-              onClick={() => q.fetchNextPage()}
-              disabled={q.isFetchingNextPage}
-              className="tu-press min-h-[48px] w-full rounded-full border border-line-strong text-[15px] font-semibold text-ink"
-            >
-              {q.isFetchingNextPage ? "Loading…" : "Show more entries"}
-            </button>
-          )}
+          <AutoLoadMore hasMore={!!q.hasNextPage} loading={q.isFetchingNextPage} onMore={() => q.fetchNextPage()} />
         </div>
       </div>
     </section>

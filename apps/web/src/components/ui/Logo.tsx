@@ -23,8 +23,9 @@ export function Logo({
   href = "/",
   className = "",
 }: LogoProps) {
-  const markFill = tone === "light" ? "#ffffff" : "var(--color-sage-ink)";
-  const glyph = tone === "light" ? "var(--color-sage-ink)" : "#ffffff";
+  // the brand green itself, the same in light and dark mode
+  const markFill = tone === "light" ? "#ffffff" : "#3b463c";
+  const glyph = tone === "light" ? "#3b463c" : "#ffffff";
   const word = tone === "light" ? "#ffffff" : "var(--color-ink)";
 
   const mark = (
